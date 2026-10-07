@@ -161,11 +161,13 @@ async def migrate(
         counts["differs"] += report.differs
         for reason, n in report.rejected.items():
             counts["rejected"][reason] = counts["rejected"].get(reason, 0) + n
+        batches, read_count, written, skipped = counts["batches"], counts["read"], counts["written"], counts["skipped"]
+        differs_count, missing_count, undecrypted = counts["differs"], counts["missing"], counts["undecrypted"]
+        rejected_count, last_id = sum(counts["rejected"].values()), after
         logger.info(
             "migrate-observations: batch=%d read=%d written=%d skipped=%d differs=%d missing=%d rejected=%d "
             "undecrypted=%d last_id=%d",
-            counts["batches"], counts["read"], counts["written"], counts["skipped"], counts["differs"], counts["missing"],
-            sum(counts["rejected"].values()), counts["undecrypted"], after,
+            batches, read_count, written, skipped, differs_count, missing_count, rejected_count, undecrypted, last_id,
         )
     if finished:
         left = await execute_query(f"SELECT count(*) AS n FROM {RETIRED} WHERE deleted = 0", {}, log_sql=False)
@@ -173,7 +175,7 @@ async def migrate(
         if counts["left"] == 0:
             await execute_query(f"DROP TABLE {RETIRED}", {}, log_sql=False)
             counts["dropped"] = True
-            logger.info("migrate-observations: every row moved, %s dropped", RETIRED)
+            logger.info("migrate-observations: every row moved, %s dropped", RETIRED)  # phi: ok a table name constant
     return counts
 
 

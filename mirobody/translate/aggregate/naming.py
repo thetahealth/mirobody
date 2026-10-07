@@ -21,19 +21,10 @@ GROUPING_PREFIX = {
     "month": "monthly",
 }
 
-# Method name capitalization map.
-# Multi-word methods need explicit mapping; single-word methods use .capitalize().
-METHOD_NAME_MAP = {
-    'total': 'Total',
-    'sum': 'Total',
-    'time_of_max': 'TimeOfMax',
-    'time_of_min': 'TimeOfMin',
-    'hypo_event_count': 'HypoEventCount',
-    'hypo_event_times': 'HypoEventTimes',
-    'pct_below_70': 'PctBelow70',
-    'pct_above_180': 'PctAbove180',
-    'tir_70_180': 'Tir70180',
-}
+# A method's name is its CamelCase (`pct_below_70` -> `PctBelow70`), except
+# `sum`, which names the same figure as `total` (Apple's statistics upload
+# sends `sum`, the catalogue declares `total`).
+METHOD_NAME_MAP = {'sum': 'Total'}
 
 
 def _snake_to_camel(s: str) -> str:

@@ -18,6 +18,12 @@ from pathlib import Path
 from mirobody.engine.resolver import Resolution, resolve_reading
 
 
+class ExtractionError(RuntimeError):
+    """The document gave no readings. The message is a fixed sentence naming
+    the failure, never the model's output or the file's name, so a caller may
+    show it to a person."""
+
+
 @dataclass(frozen=True)
 class Reading:
     """One extracted observation from a document."""
@@ -83,8 +89,8 @@ async def parse_text(document: str, *, resolve_names: bool = True) -> list[Readi
         from mirobody.utils.config.llm import no_provider_message, resolve_route
 
         if resolve_route("text") is None:
-            raise RuntimeError(no_provider_message("text"))
-        raise RuntimeError(
+            raise ExtractionError(no_provider_message("text"))
+        raise ExtractionError(
             "extraction failed: every configured provider returned an error "
             "(the server log has the provider's message)"
         )
@@ -100,8 +106,8 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
     and only a scanned page or a photo through the vision provider: one image
     at a time, never the whole file. Then the same one extraction call as
     :func:`parse_text`. A born-digital PDF therefore needs a text model key
-    only. Raises RuntimeError with a plain message when no provider key is
-    configured or nothing readable was found.
+    only. Raises `ExtractionError` when no provider key is configured,
+    nothing readable was found, or the model's answer was not a JSON array.
     """
     await _ensure_config()
 
@@ -111,7 +117,7 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
     data = await asyncio.to_thread(Path(path).read_bytes)
     text = await documents.extract_text(os.path.basename(path), None, data, ocr=vision_ocr)
     if not text.strip():
-        raise RuntimeError(f"no readable text could be extracted from {os.path.basename(path)}")
+        raise ExtractionError("no readable text could be extracted from the file")
     return await parse_text(text, resolve_names=resolve_names)
 
 
@@ -143,9 +149,10 @@ def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:
     try:
         items = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"extraction returned non-JSON output: {text[:200]}") from exc
+        # Not quoted: the output is a model's reading of a health document.
+        raise ExtractionError("extraction returned text that is not JSON") from exc
     if not isinstance(items, list):
-        raise RuntimeError(f"extraction returned {type(items).__name__}, expected a JSON array")
+        raise ExtractionError(f"extraction returned a JSON {type(items).__name__}, expected an array")
 
     readings: list[Reading] = []
     for it in items:

@@ -4,6 +4,7 @@
     parse.py                 kind, number, comparator, unit
     local_day.py             the ONE implementation of "which day is this"
     series.py                what may be plotted on one axis
+    outcome.py               what a coding attempt produced, and why
     code.py                  name + unit + value kind -> a Coding, never a guess
     icpc3.py                 a complaint or a diagnosis in a person's words
                              -> an ICPC-3 code, on the same terms
@@ -11,10 +12,15 @@
                              the confidence and the source behind each row
     device_bundle.py         the catalogue and those crosswalks as one
                              digested file, for a client without Python
+    terminology.py           the bodies of the terminology tools
+                             (resolve_indicator, normalize_unit, convert_unit)
+    genotype.py              a raw genotype call against a versioned site
+    genotype_sites.py        the dbSNP-derived site catalogue, read from disk
+    pgx.py                   offline CPIC evidence, with its limits stated
+    cpic_extract.py          CPIC's published data -> the runtime asset
     indicators_info.py       the indicator catalogue
     canonical_units.py       a reading in the unit the catalogue declares
-                             for its indicator (NOT `mirobody.units`, the
-                             UCUM engine it borrows its arithmetic from)
+                             for its indicator, on `mirobody.units`
     value_range_validator.py what counts as a plausible value
     aggregate/               a day of points to one number, and which source
                              publishes it
@@ -43,7 +49,7 @@ either. They are not collection, which is the point: ① Collect guarantees that
 what a source said is stored cleanly and can be traced back, and computes
 nothing on top.
 
-`collect/` imports this package in 11 files, because a provider declares its
+`collect/` imports this package throughout, because a provider declares its
 metrics with `StandardIndicator`; `mirobody.collect` therefore still
 re-exports `StandardIndicator` and `UNIT_CONVERSIONS`, so a provider plugin
 keeps one import path.
@@ -108,9 +114,8 @@ _SEAM = [
 ]
 
 # name -> submodule that defines it. Every symbol another package needs is
-# here: 14 of them, measured, not guessed. A caller outside this package
-# imports `mirobody.translate`, so 1.5.0 can rewrite the modules behind these
-# names without a call-site edit anywhere else.
+# here. A caller outside this package imports `mirobody.translate`, so the
+# modules behind these names can move without a call-site edit elsewhere.
 _EXPORTS = {
     # the catalogue
     "StandardIndicator": "indicators_info",

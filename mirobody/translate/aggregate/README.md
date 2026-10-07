@@ -1,337 +1,98 @@
-# Aggregate Indicator Module
+# `translate/aggregate`: daily summaries from the device point buffer
 
-## Overview
+A device sends points (`series_data`: one row per person, indicator, source
+and instant). This package turns a day of points into that day's figures
+(`dailyAvgHeartRates`, `dailyTotalSteps`, ...), writes them as day-grained
+observations through `collect/observations.py`, and elects which source's
+figure each day publishes.
 
-Aggregate Indicator is a high-performance health data aggregation calculation module that aggregates raw time series data (`series_data`) into daily summary observations (`th_observation`, written through `collect/observations.py`).
+## Which day a point belongs to
 
-## Core Objectives
+The catalogue decides, per metric: `metrics.METRICS[name].window` is `00:00`
+for a plain calendar day and `18:00` for a night (the sleep stages,
+`napDuration`), which is dated by the evening it opened. `windows.py` turns
+that into one SQL branch per window; the branches partition the input, so a
+point is counted once. Names were once split with `LOWER(indicator) LIKE
+'%sleep%'`, which moved 58 vendor-dated `daily…Sleep…` figures a day and
+missed `napDuration`.
 
-- **Incremental Processing**: Process only new or updated data based on `update_time`
-- **High-Performance Batch Processing**: Support multi-user batch processing to optimize database query performance
-- **Rule-Driven**: Automatically generate aggregation rules based on `IndicatorInfo`
-- **Timezone-Aware**: Correctly handle data boundaries across different timezones
-- **Idempotent Operations**: Support repeated execution without side effects
+A day's bounds:
 
-## ⚠️ System Constraints
+* **begin**: computed in SQL (`windows.day_begin_expression`): the point's
+  instant read in its row's `timezone`, stepped back by the window, dated,
+  given the window's clock time and converted back to UTC;
+* **end**: the same wall clock one local day later in that zone
+  (`_local_days_later`), so a daylight-saving day is 23 or 25 hours.
 
-### Sleep Data Time Window Rules
+For Asia/Shanghai, a point at local 2025-10-30 12:00 begins a plain day at
+2025-10-30 00:00 local and a night at 2025-10-29 18:00 local.
 
-**Critical Constraint**: Sleep data uses an **18:00-18:00** time window (from 18:00 previous day to 18:00 current day), not the 00:00-24:00 window used for normal data.
-
-#### Sleep Data Identification Rules
-
-Current implementation uses keyword matching to identify sleep data:
-```sql
-LOWER(indicator) LIKE '%sleep%'
-```
-
-**Known Limitations**: The following sleep-related indicators that don't contain the 'sleep' keyword will be missed:
-1. `napDuration` - Nap duration
-2. `inBedStartTime` - Time when user went to bed
-3. `endSleepReportTimeOffset` - Sleep report end time offset
-4. `startSleepReportTimeOffset` - Sleep report start time offset
-
-**Alternative Solutions** (in priority order):
-1. **Recommended**: Use `category=Categories.SLEEP.value` for determination (requires join or pre-built mapping)
-2. Extend keywords: `LIKE '%sleep%' OR LIKE '%nap%' OR LIKE '%inbed%' OR LIKE '%awake%'`
-3. Maintain a whitelist of sleep indicators
-
-**Important**: If modifying sleep data identification logic, must update simultaneously:
-- `get_trigger_tasks` method in `mirobody/translate/aggregate/aggregators/sql_aggregator.py`
-- `_get_tasks_for_user_date_range` method in `mirobody/translate/aggregate/aggregators/sql_aggregator.py`
-- This document and `cursorrules` file
-
-#### data_begin Calculation Logic
-
-**Normal Data**:
-```sql
-DATE(time AT TIME ZONE timezone) as data_begin
--- Result: User's local date at 00:00:00
--- Query range: data_begin to data_begin+24h
-```
-
-**Sleep Data**:
-```sql
-DATE((time AT TIME ZONE timezone) - INTERVAL '18 hours') + INTERVAL '18 hours' as data_begin
--- Result: User's local date at 18:00:00
--- Query range: data_begin to data_begin+24h (i.e., 18:00 to 18:00 next day)
-```
-
-**Examples**:
-- User timezone: Asia/Shanghai (+8)
-- Data time: 2025-10-30 20:00 (local time)
-- Normal data: data_begin = 2025-10-30 00:00:00
-- Sleep data: data_begin = 2025-10-30 18:00:00
-
-- Data time: 2025-10-30 12:00 (local time)  
-- Normal data: data_begin = 2025-10-30 00:00:00
-- Sleep data: data_begin = 2025-10-29 18:00:00 (previous day!)
-
-#### Timezone Processing Principles
-
-1. **Timezone conversion at SQL layer**: Use `time AT TIME ZONE timezone` to convert UTC time to user's local time
-2. **data_begin contains complete time information**: Not just the date, but also the time point (00:00 or 18:00)
-3. **Subsequent processing fully decoupled**: Calculate time boundaries based on data_begin, no longer need timezone information
-4. **Unified query range**: Always `[data_begin, data_begin+24h)`
-
-## Architecture Design
-
-### Core Components
+## One pass
 
 ```
-AggregateIndicatorService (service.py)
-├── SQLAggregator (aggregators/sql_aggregator.py)
-│   ├── get_trigger_tasks() - Query trigger data
-│   ├── calculate_batch_aggregations() - Batch aggregation calculation
-│   └── calculate_time_range_aggregations() - Time range aggregation
-├── AggregateDatabaseService (database_service.py)
-│   └── batch_save_summary_data() - Batch save summary data
-└── RuleGenerator (rule_generator.py)
-    └── get_all_aggregation_rules() - Get aggregation rules
+series_data
+    ↓ get_trigger_tasks (updated since the cursor) / _get_tasks_for_user_date_range
+CalculationTask: (person, indicator, rule, day begin, zone)
+    ↓ calculate_batch_aggregations: per day begin, per person and zone
+summary rows: daily{Method}{Indicator}.{source}, with unit and timezone
+    ↓ AggregateDatabaseService → observations.ingest_legacy_rows
+th_observation (an equal row is skipped, a changed one amends it)
+    ↓ election.elect_range over the days written
+th_day_authority
 ```
 
-### Data Flow
+* **Incremental** (`AggregateIndicatorService.process_incremental`): every
+  person's points of the last three months whose `update_time` is after the
+  task's cursor; with no cursor, those updated in the last 24 hours. The task advances the cursor to the newest
+  `update_time` it processed.
+* **A date range** (`recalculate_date_range`): one person over any span, or
+  everyone over at most 30 days; longer spans run in 30-day chunks.
+  `ingest/services/repair_reconcile.py` uses it after a repair sweep.
 
-```
-series_data (Raw data)
-    ↓ (Incremental query)
-CalculationTask (Calculation task)
-    ↓ (Batch aggregation)
-Summary Records (Summary records)
-    ↓ (observations.ingest_legacy_rows: an equal row is skipped, a changed one amends)
-th_observation (day-grained rows) + th_day_authority (election)
-```
+## The methods
 
-## Execution Flow
+The rules come from `IndicatorInfo.aggregation_methods` of every SERIES
+indicator (`rule_generator.py`); each method becomes `daily{Method}{Indicator}`
+(`naming.build_indicator_name`, where `sum` is named `Total`, like `total`).
 
-### 1. Incremental Processing Flow (process_incremental)
+* In one GROUP BY statement per person-day: `avg`, `max`, `min`, `sum` /
+  `total`, `count`, `stddev`, `variance`, `last`, `first`, `median`, `p95`,
+  `time_of_max`, `time_of_min`, and the thresholds `pct_below_N`,
+  `pct_above_N`, `tir_L_U`.
+* With a query of their own: the hypoglycaemic events (`hypo_event_count`,
+  `hypo_event_times`, `hypo_event_details`), `gmi_14d` (fourteen local days,
+  at least 70 % sensor coverage), and `sleep_onset_latency`,
+  `morning_hr_jump`, `nighttime_resting_hr`.
 
-```mermaid
-graph TD
-    A[Get last_timestamp] --> B[Query trigger data]
-    B --> C[Generate CalculationTask]
-    C --> D[Batch aggregation calculation]
-    D --> E[Save summary data]
-    E --> F[Update timestamp]
-```
+`value` is text. Every cast goes through `_num()`, which reads a value that
+is not a number as NULL, so one stray point does not fail the statement. A
+person-day that fails anyway is logged and skipped; the rest of the pass
+goes on. Points stored under `task_id = "filtered_out_of_range"` (outside
+their plausible range, `collect/ingest/services/upload_health.py`) are never
+aggregated.
 
-### 2. Batch Processing Architecture
+An aggregator hub (`apple_health`) records one event under several
+`source_id`s, so for hub sources only one `source_id` per (person,
+indicator, source) is read; other sources use `source_id` for time-sliced
+pulls and are read whole.
 
-- **Group by date**: First group tasks by `date_key`
-- **Intelligent SQL selection**: 
-  - Task count ≤ 5000: Single SQL query for all users and indicators
-  - Task count > 5000: Group by indicator, one SQL per indicator
-- **Multi-user batch processing**: Support processing multiple users simultaneously
+## Election
 
-### 3. Time Range Processing
+`election.py` decides, once and on the write side, which observation a
+(person, series, local day) publishes: a measurer before a profile echo,
+then coverage, then measurement freshness, then the deployment's
+`th_data_source_priority`. A candidate whose duration exceeds its window
+(forty hours of sleep in one night) is rejected and the rejection is a row of
+`th_check_result`. Every reader joins `th_day_authority`; none re-decides.
 
-- **Single user processing**: `calculate_time_range_aggregations` processes only one user at a time
-- **30-day chunking**: Automatically chunks and recursively processes periods exceeding 30 days
-- **Direct aggregation**: Directly aggregates entire time range for ≤30 days
+## Running it
 
-## Performance Optimization Strategies
+| | |
+| --- | --- |
+| Schedule | every 4 minutes (`task.py`), registered by `startup.py` |
+| Cursor and lock | the shared scheduler's (`mirobody/utils/scheduler.py`) |
+| Range chunk | 30 days |
 
-### Query Optimization
-- **GROUP BY optimization**: Use `GROUP BY user_id, indicator, DATE(time), timezone` to reduce trigger records
-- **Batch user query**: Use `user_id = ANY(:user_ids)` to support multi-user queries
-- **No LIMIT constraint**: Remove query limits to ensure all data is processed
-
-### Batch Aggregation Optimization
-- **Single SQL aggregation**: Small batch tasks use single SQL to query all indicators
-- **Split by indicator aggregation**: Large batch tasks group by indicator to avoid SQL complexity
-- **Intelligent grouping**: Automatically select optimal strategy based on task count
-
-### User Count Threshold Control
-- **MAX_TASKS_PER_SQL**: 5000 tasks threshold
-- **MAX_DAYS_PER_MONTH**: 30-day chunking threshold
-- **Dynamic adjustment**: Automatically select processing strategy based on data volume
-
-## Supported Processing Scenarios
-
-### Scheduled Execution
-- **Frequency**: Executes every 4 minutes (`task.py`: `interval_minutes=4`)
-- **Incremental processing**: Only processes data after `last_timestamp`
-- **Distributed lock**: Prevents concurrent execution across multiple instances
-
-### Force Execution
-- **API trigger**: Centrally managed through scheduler, use `scheduler.trigger_task("aggregate_indicator", force=True)`
-- **Bypass lock**: Skips distributed lock check during force execution
-- **Full processing**: Processes all available data
-
-### Historical Data Recalculation
-- **Caller**: `AggregateIndicatorService.recalculate_date_range`, used by
-  `ingest/services/repair_reconcile.py` after a late-arriving backfill
-- **Time range**: Supports specifying start and end dates
-- **User filtering**: Supports specifying specific users
-- **30-day limit**: Automatically chunks processing for periods exceeding 30 days
-
-## Batch Processing Flow Details
-
-### Data Grouping Strategy
-1. **Group by date**: `date_groups[date_key] = [tasks...]`
-2. **Select strategy based on task count**:
-   - ≤ 5000: `_process_date_aggregations` (Single SQL)
-   - > 5000: `_process_date_split_aggregations` (Split by indicator)
-
-### SQL Batch Query Optimization
-```sql
--- Single SQL query example
-SELECT user_id, indicator, source,
-       ROUND(AVG(value::numeric), 2) as avg_value,
-       ROUND(MAX(value::numeric), 2) as max_value
-FROM series_data
-WHERE user_id = ANY(:user_ids)
-  AND indicator = ANY(:indicators)
-  AND time >= :day_start AND time <= :day_end
-GROUP BY user_id, indicator, source
-ORDER BY user_id, indicator, source
-```
-
-### Performance Improvement Effects
-- **Reduced query count**: From N×M queries down to 1 (N=user count, M=indicator count)
-- **Reduced database load**: Batch queries reduce connection overhead
-- **Improved processing speed**: Process more data in a single operation
-
-## Aggregation Rule System
-
-### Automatic Rule Generation
-- **Based on IndicatorInfo**: Automatically generated from `StandardIndicator` enum
-- **Naming convention**: `daily{Method}{Indicator}` (camelCase)
-- **Example**: `heartRates` + `['avg', 'max']` → `dailyAvgHeartRates`, `dailyMaxHeartRates`
-
-### Supported Aggregation Methods
-- **Basic statistics**: `avg`, `max`, `min`, `sum`, `total`, `count`
-- **Advanced statistics**: `stddev`, `variance`, `median`, `p95`
-- **Time series statistics**: `last`, `first`
-
-### Custom Rules
-```python
-# Register custom rule
-custom_rule = AggregationRule(
-    source_indicator="heartRates",
-    target_indicator="dailyRestingHeartRate",
-    aggregation_type="avg",
-    time_window="daily"
-)
-register_custom_rule(custom_rule)
-```
-
-## Data Models
-
-### CalculationTask
-```python
-@dataclass
-class CalculationTask:
-    user_id: str
-    source_indicator: str
-    target_indicator: str
-    aggregation_type: str
-    timezone: str
-    date_key: Any  # Date object or string
-    update_time: datetime
-```
-
-### ProcessingStats
-```python
-@dataclass
-class ProcessingStats:
-    executed_at: datetime
-    summaries_created: int
-    users_affected: int
-    execution_time_ms: float
-    mode: str  # normal | force | cold_start
-    errors: List[str]
-```
-
-## Technical Implementation
-
-### Dependency Injection Pattern
-- **AggregatorProtocol**: Defines aggregator interface
-- **SQLAggregator**: Default SQL implementation
-- **Extensibility**: Supports custom aggregator implementations
-
-### Error Handling
-- **Exception catching**: All critical operations have exception handling
-- **Logging**: Detailed execution logs and error information
-- **Graceful degradation**: Errors don't affect other data processing
-
-### Provider pull state
-
-`mirobody/utils/distributed_lock.py` holds each provider's execution lock on a
-Postgres advisory-lock session. The last processing timestamp and last run are
-expiring encrypted values in `th_ephemeral`; the key names are hashed before
-storage. A lost database connection releases its lock.
-
-## Execution Parameters
-
-| Parameter | Value | Description |
-|------|-----|------|
-| Execution frequency | 4 minutes | Scheduled interval (`task.py`) |
-| Task threshold | 5000 tasks | Single SQL vs split by indicator threshold |
-| Time chunking | 30 days | Historical data processing chunk size |
-| Batch size | 1000 records | Database batch save size |
-| Lock timeout | 12 minutes | Distributed lock timeout (`task.py`: `lock_duration_hours=12/60`) |
-
-## Monitoring and Debugging
-
-### Log Levels
-- **INFO**: Basic execution information
-- **DEBUG**: Detailed processing steps
-- **WARNING**: Warning messages (e.g., execution skipped)
-- **ERROR**: Error messages
-
-### Status Query
-```python
-# Get service status
-status = await service.get_status()
-# Returns: last_timestamp, last_stats, is_running
-```
-
-### Performance Monitoring
-- **Execution time**: Time statistics for each processing run
-- **Processing count**: Number of summary records and affected users
-- **Error statistics**: Error types and frequency
-
-## Tests
-
-Nothing in this module runs a self-test at startup, and there is no
-`test_aggregator_self_test.py` — an earlier version of this section documented
-both, along with a container name from a deployment that is not part of this
-project. What actually exists:
-
-| File | Runs with | Needs a database |
-| --- | --- | --- |
-| `test_date_range_query.py` | `pytest` | no |
-| `test_cgm_indicators.py` | `pytest` | one test does (`test_db_aggregation`) |
-| `test_aggregator.py` | `python3 -m mirobody.translate.aggregate.test_aggregator` | yes — it is a standalone integration script with its own `main()`, not a pytest module, so `pytest` collects nothing from it |
-
-```bash
-# unit tests
-python3 -m pytest mirobody/translate/aggregate -q
-
-# the integration script, against a running stack
-docker compose exec mirobody python3 -m mirobody.translate.aggregate.test_aggregator
-```
-
-## Summary
-
-The Aggregate Indicator module achieves high-performance batch data processing through the following features:
-
-### Core Advantages
-1. **Batch processing architecture**: Supports multi-user batch processing, significantly improving performance
-2. **Intelligent SQL optimization**: Automatically selects optimal query strategy based on data volume
-3. **Rule-driven design**: Automatically generates aggregation rules based on configuration, easy to maintain
-4. **Incremental processing mechanism**: Only processes changed data, avoiding duplicate calculations
-5. **Timezone-aware processing**: Correctly handles data boundaries across different timezones
-
-### Performance Improvements
-- **Query efficiency**: Batch queries reduce database connection overhead
-- **Processing speed**: Process more users and indicator data in a single operation
-- **Resource utilization**: Intelligent grouping reduces memory and CPU consumption
-- **Scalability**: Supports large-scale user and indicator processing
-
-### Reliability Assurance
-- **Idempotent operations**: Supports repeated execution without side effects
-- **Error handling**: Comprehensive exception handling and error recovery mechanisms
-- **Distributed lock**: Prevents concurrent execution conflicts across multiple instances
-- **Data consistency**: UPSERT operations ensure data consistency
+The tests are in the maintainers' local suite (`tests/pulse/aggregate/`,
+`tests/translate/test_quality_aggregate.py`); the live-database ones need
+`MIROBODY_TEST_PG_DSN`.

@@ -40,10 +40,13 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
+from functools import lru_cache
 
 from mirobody import units
 from mirobody.kernel import metrics, series
 from mirobody.utils import execute_query
+
+from .rule_generator import get_all_aggregation_rules
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +55,7 @@ logger = logging.getLogger(__name__)
 RANKING: tuple[str, ...] = ("source_class", "coverage", "measurement_freshness", "static_priority")
 RULE = "|".join(RANKING)
 
-#: How many (series, day) cells one pass elects over.
+#: How many (series, day) cells one page of `elect_range` reads.
 CHUNK = 5_000
 
 #: A duration may exceed its window by this much before it is rejected. Not
@@ -66,7 +69,7 @@ CHECK_RULE = "coverage-bound"
 _CELLS = """
 SELECT series_id, local_date
   FROM v_observation
- WHERE user_id = :uid AND local_date BETWEEN :start AND :end AND value_num IS NOT NULL {names}
+ WHERE user_id = :uid AND local_date BETWEEN :start AND :end AND value_num IS NOT NULL {names} {after}
  GROUP BY series_id, local_date
  ORDER BY local_date, series_id
  LIMIT :chunk
@@ -103,12 +106,16 @@ DELETE FROM th_check_result
 """
 
 
-async def elect_day(user_id: str, series_id: str, day: date) -> series.Decision | None:
-    """Elect one cell and record it. `None` when the day holds nothing."""
+async def elect_day(
+    user_id: str, series_id: str, day: date, *, priorities: list[str] | None = None
+) -> series.Decision | None:
+    """Elect one cell and record it. `None` when the day holds nothing.
+    `priorities` is `source_priorities()`, read here when not given."""
     candidates, last_row = await _candidates(user_id, series_id, day)
     if not candidates:
         return None
-    priorities = await source_priorities()
+    if priorities is None:
+        priorities = await source_priorities()
     ordered = [sk for vendor in priorities for sk in last_row if sk.endswith(f":{vendor}")]
     name = next(iter(last_row.values()))["name_text"] if last_row else ""
     decision = series.elect(
@@ -139,13 +146,21 @@ async def elect_range(user_id: str, start: date, end: date, *, series_ids: list[
     """Elect every cell of a window. Returns how many cells were decided.
 
     Idempotent: re-running over a day that has not changed re-elects the same
-    stream and the upsert changes nothing.
+    stream and the upsert changes nothing. Cells are read `CHUNK` at a time,
+    oldest first, until none are left: one page used to be all of it, and a
+    window of more than `CHUNK` cells never elected its newest days.
     """
-    cells = await _cells(user_id, start, end, series_ids)
+    priorities = await source_priorities()
     decided = 0
-    for series_id, day in cells:
-        if await elect_day(user_id, series_id, day) is not None:
-            decided += 1
+    after: tuple[date, str] | None = None
+    while True:
+        cells = await _cells(user_id, start, end, series_ids, after=after)
+        for series_id, day in cells:
+            if await elect_day(user_id, series_id, day, priorities=priorities) is not None:
+                decided += 1
+        if len(cells) < CHUNK:
+            break
+        after = (cells[-1][1], cells[-1][0])
     if decided:
         logger.info("elected %d day cells for one subject", decided)
     return decided
@@ -167,13 +182,21 @@ async def source_priorities() -> list[str]:
     return [str(r["source"]) for r in rows]
 
 
-async def _cells(user_id: str, start: date, end: date, series_ids: list[str] | None) -> list[tuple[str, date]]:
+async def _cells(
+    user_id: str, start: date, end: date, series_ids: list[str] | None, *, after: tuple[date, str] | None = None
+) -> list[tuple[str, date]]:
+    """One page of `(series_id, local_date)` cells, after the `(day, series)`
+    cell `after` in that order."""
     params: dict[str, object] = {"uid": str(user_id), "start": start, "end": end, "chunk": CHUNK}
     names = ""
     if series_ids:
         names = " AND series_id = ANY(:names)"
         params["names"] = list(series_ids)
-    rows = await execute_query(_CELLS.format(names=names), params, log_sql=False) or []
+    keyset = ""
+    if after is not None:
+        keyset = " AND (local_date, series_id) > (:after_day, :after_series)"
+        params["after_day"], params["after_series"] = after
+    rows = await execute_query(_CELLS.format(names=names, after=keyset), params, log_sql=False) or []
     return [(str(r["series_id"]), r["local_date"]) for r in rows]
 
 
@@ -206,8 +229,7 @@ def _validators_for(name: str, day: date) -> list:
     a duplicate sync reporting forty hours of sleep in a twenty-four-hour
     night is the bug this rule exists for.
     """
-    head = name.split(".", 1)[0]
-    metric = metrics.METRICS.get(head)
+    metric = _metric_for(name)
     if metric is None:
         return []
     per_unit_ms = _duration_unit_ms(metric.standard_unit or metric.unit_ucum)
@@ -215,6 +237,26 @@ def _validators_for(name: str, day: date) -> list:
         return []
     start_ms, end_ms = series.day_bounds_ms(day, "UTC", metric.window)
     return [series.coverage_bound("value", end_ms - start_ms, per_unit_ms=per_unit_ms, tolerance=COVERAGE_TOLERANCE)]
+
+
+def _metric_for(name: str) -> metrics.Metric | None:
+    """The catalogue metric a candidate's name stands for. The aggregation
+    pass names its rows `daily{Method}{Indicator}.{source}`, which the
+    catalogue does not list; a day's total of a metric is that metric, in
+    its unit, so a `total`/`sum` row is checked as its source. Read by the
+    name alone, the doubled sleep sums this bound exists for went unchecked."""
+    head = name.split(".", 1)[0]
+    metric = metrics.METRICS.get(head)
+    if metric is None and head in _summed_sources():
+        metric = metrics.METRICS.get(_summed_sources()[head])
+    return metric
+
+
+@lru_cache(maxsize=1)
+def _summed_sources() -> dict[str, str]:
+    """`daily…` target name -> source metric, for the rules that sum."""
+    return {r.target_indicator: r.source_indicator for r in get_all_aggregation_rules()
+            if r.aggregation_type in ("total", "sum")}
 
 
 def _duration_unit_ms(unit: str) -> float | None:

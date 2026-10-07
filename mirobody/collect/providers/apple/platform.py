@@ -160,10 +160,7 @@ class AppleHealthPlatform(Platform):
             last_ts = await pull_task_lock_manager.get_last_execution_timestamp(
                 "aggregate_indicator"
             )
-            result = await service.process_incremental(
-                last_timestamp=last_ts,
-                user_id=None,
-            )
+            result = await service.process_incremental(last_timestamp=last_ts)
             summary_count = result.get("summaries_created", 0)
             user_count = result.get("users_affected", 0)
             logger.info("post-ingest aggregation done: user_id=%s status=%s summary_count=%d user_count=%d "  # phi: ok status is the service's own result code

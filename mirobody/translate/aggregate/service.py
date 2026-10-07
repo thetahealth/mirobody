@@ -1,71 +1,38 @@
-"""
-Aggregate Indicator Service
-
-Pure business logic for aggregate indicator calculation.
-No longer manages locks, timestamps, or stats caching - these are handled by Task layer.
-"""
+"""One aggregation pass: find what changed in `series_data`, compute its daily
+figures, write them, and elect the days written. Locks, the cursor and the
+schedule are the task's (`task.py`); this is what one run does."""
 
 import logging
 import time
 from datetime import datetime
 from typing import Any
 
-from .aggregators import SQLAggregator, AggregatorProtocol
+from mirobody.kernel.ops import is_driver_exception
+
+from .aggregators import SQLAggregator
 from .database_service import AggregateDatabaseService
+from .election import elect_range
 
 logger = logging.getLogger(__name__)
 
 
 class AggregateIndicatorService:
-    """
-    Service for aggregate indicator calculation - Pure business logic
-    
-    Responsibilities:
-    - Aggregation calculation logic
-    - Database operations
-    
-    NOT responsible for:
-    - Locks (handled by Scheduler via distributed_lock)
-    - Timestamps (handled by Task via PullTask base class)
-    - Stats caching (handled by Task via PullTask base class)
-    """
+    """The aggregation pass over `series_data`, incremental or over a range."""
 
-    def __init__(
-            self,
-            aggregator: AggregatorProtocol | None = None,
-            db_service: AggregateDatabaseService | None = None,
-    ):
+    def __init__(self) -> None:
+        self.db_service = AggregateDatabaseService()
+        self.aggregator = SQLAggregator()
+
+    async def process_incremental(self, last_timestamp: float | None = None) -> dict[str, Any]:
         """
-        Initialize service with dependency injection
-        
-        Args:
-            aggregator: Aggregator implementation (default: SQLAggregator)
-            db_service: Database service (default: AggregateDatabaseService)
-        """
-        self.db_service = db_service or AggregateDatabaseService()
-        self.aggregator = aggregator or SQLAggregator()
-
-        logger.info(
-            f"Initialized AggregateIndicatorService with {type(self.aggregator).__name__}"
-        )
-
-    async def process_incremental(
-        self,
-        last_timestamp: float | None = None,
-        user_id: str | None = None
-    ) -> dict[str, Any]:
-        """
-        Main incremental processing function - Pure business logic
-
-        Args:
-            last_timestamp: Last processing timestamp (float, seconds with
-                sub-second precision; provided by Task layer)
-            user_id: Optional user ID filter (None = all users)
+        One pass over every person's points updated after `last_timestamp`
+        (epoch seconds, sub-second precision kept; the task's cursor). With no
+        cursor, the last 24 hours.
 
         Returns:
             Dict with processing results:
             {
-                "status": "success" | "no_data" | "error",
+                "status": "success" | "no_data" | "save_failed" | "error",
                 "mode": "normal" | "cold_start",
                 "summaries_created": int,
                 "users_affected": int,
@@ -146,8 +113,9 @@ class AggregateIndicatorService:
             }
 
         except Exception as e:
-            logger.error(f"[AggregateIndicator] Error during processing: {e}")
-            return {"status": "error", "error": str(e)}
+            logger.error("aggregation pass failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return {"status": "error", "error_type": type(e).__name__}
 
     async def recalculate_date_range(
             self,
@@ -155,19 +123,8 @@ class AggregateIndicatorService:
             end_date: datetime,
             user_id: str | None = None
     ) -> dict[str, Any]:
-        """
-        Recalculate aggregations for a specific date range
-        
-        This method handles historical data processing by delegating to the aggregator.
-        
-        Args:
-            start_date: Start date for recalculation
-            end_date: End date for recalculation
-            user_id: Optional user ID filter
-            
-        Returns:
-            Dict with processing results
-        """
+        """Recalculate every day from `start_date` to `end_date` inclusive, for
+        one person or (at most 30 days) for everyone, then write and elect."""
         # Guard against unbounded all-users backfills. 30 days is the
         # chunk size used internally by calculate_time_range_aggregations;
         # beyond this the DB load grows linearly with active user count.
@@ -225,8 +182,6 @@ class AggregateIndicatorService:
         an aggregation pass that refuses to finish because of it would be a
         worse outcome than a day that is merely not yet arbitrated.
         """
-        from .election import elect_range
-
         by_user: dict[str, list] = {}
         for row in summaries:
             # A summary row already IS a day: its start is local 00:00 of the
@@ -239,7 +194,6 @@ class AggregateIndicatorService:
             try:
                 await elect_range(user_id, min(days), max(days))
             except Exception as e:
-                logger.warning(
-                    "[AggregateIndicator] election skipped for one subject: error_type=%s", type(e).__name__
-                )
+                logger.warning("election skipped for one subject: user_id=%s error_type=%s", user_id,
+                               type(e).__name__, exc_info=not is_driver_exception(e))
 

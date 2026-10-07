@@ -7,6 +7,8 @@ Uses the base class's timestamp service for its incremental position.
 
 import logging
 
+from mirobody.kernel.ops import is_driver_exception
+
 from .service import AggregateIndicatorService
 from mirobody.utils.scheduler import PullTask, ScheduleType
 
@@ -86,5 +88,5 @@ class AggregateIndicatorTask(PullTask):
             return False
 
         except Exception as e:
-            logger.error(f"[AggregateIndicatorTask] Execution error: {e}", exc_info=True)
+            logger.error("aggregate task failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             return False

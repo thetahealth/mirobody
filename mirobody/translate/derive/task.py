@@ -1,12 +1,8 @@
-"""
-Derived Calculation Task (TH-174 W2.2)
-
-PullTask that runs DerivedAggregator on a schedule.
-Independent from AggregateIndicatorTask.
-"""
+"""The scheduled job that runs DerivedAggregator, apart from the aggregation job."""
 
 import logging
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.scheduler import PullTask, ScheduleType
 from .rules import DerivedAggregator
 
@@ -36,7 +32,7 @@ class DerivedCalculationTask(PullTask):
             return True
 
         except Exception as e:
-            logger.error(f"[DerivedCalculationTask] Execution error: {e}")
+            logger.error("derived task failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             return False
 
 

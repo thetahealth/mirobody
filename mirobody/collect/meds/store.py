@@ -16,7 +16,7 @@ Three rules the SQL here follows, all of them from `mirobody.kernel.meds`:
 
 The methods are `async` because the store is. `mirobody.kernel.meds` declares the
 ports with plain `def` so an in-memory implementation stays possible; a
-caller that may get either awaits with `query._awaited`.
+caller that may get either awaits with `agent/tools/_render.awaited`.
 """
 
 from __future__ import annotations

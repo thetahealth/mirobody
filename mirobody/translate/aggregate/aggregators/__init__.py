@@ -1,13 +1,5 @@
-"""
-Aggregators module
+"""The SQL that computes a day's figures from `series_data`."""
 
-Provides aggregation implementations using dependency injection pattern.
-"""
-
-from .base import AggregatorProtocol
 from .sql_aggregator import SQLAggregator
 
-__all__ = [
-    "AggregatorProtocol",
-    "SQLAggregator",
-]
+__all__ = ["SQLAggregator"]

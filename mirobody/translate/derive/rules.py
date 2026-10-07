@@ -1,13 +1,11 @@
-"""
-Derived Aggregator (TH-174 W2.2)
+"""Derived indicators: quantities computed from the stored daily summaries.
 
-Computes derived indicators from existing daily summaries in the observation
-model. Independent from SQLAggregator: reads v_observation, computes, writes
-back through the same writer.
-
-Data source priority:
-  1. legacy `daily_stats_*` rows (already source-resolved when written)
-  2. SQLAggregator output (daily{Method}{Indicator}.{source}, pick by source priority)
+Reads `v_observation`, computes, and writes the results back through the same
+writer as an aggregation pass (`AggregateDatabaseService`). Each input of a
+rule is the day's published value of that indicator, as every reader takes
+it: the row election chose (`th_day_authority`), or the newest row of a day
+election has not decided. A legacy `daily_stats_*` row, source-resolved when
+it was written, is taken before the newer spelling of the same day.
 """
 
 import logging
@@ -15,8 +13,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from collections.abc import Callable
 
-from mirobody.utils import execute_query
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.translate import AggregateDatabaseService
+from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
 
@@ -47,11 +46,7 @@ def _safe_divide_pct(numerator: float, denominator: float) -> float | None:
         return None
     if numerator is None or numerator < 0:
         return None
-    result = numerator / denominator * 100
-    if result > 100:
-        logger.debug(f"[DerivedAggregator] Ratio exceeded 100%: {numerator}/{denominator} = {result:.1f}%")
-        result = min(result, 100.0)
-    return round(result, 2)
+    return round(min(numerator / denominator * 100, 100.0), 2)
 
 
 def _safe_subtract(a: float, b: float) -> float | None:
@@ -223,7 +218,7 @@ DERIVED_RULES: list[DerivedRule] = [
         description="Activity ratio = exercise minutes / 1440 * 100",
     ),
 
-    # --- Metabolic (W2.6) ---
+    # --- Metabolic ---
     DerivedRule(
         name="blood_glucose_cv",
         output_indicator="derivedBloodGlucoseCV",
@@ -239,29 +234,16 @@ DERIVED_RULES: list[DerivedRule] = [
 
 
 class DerivedAggregator:
-    """
-    Computes derived indicators from the stored daily summaries.
-
-    Source priority:
-      1. legacy `daily_stats_*` rows (already source-resolved, priority=0)
-      2. SQLAggregator (daily{Method}{Indicator}.{source}, priority from th_data_source_priority)
-    Uses DISTINCT ON + priority ordering to pick the best value per user-day-indicator.
-    """
+    """Computes every rule of `DERIVED_RULES` for each person-day whose inputs
+    all have a published value, and writes the results as observations."""
 
     def __init__(self):
         self.db_service = AggregateDatabaseService()
         self.rules = DERIVED_RULES
 
     async def process(self, lookback_days: int = 7) -> dict[str, Any]:
-        """
-        Scan recent data and compute all derived indicators.
-
-        Args:
-            lookback_days: How many days back to scan for input data
-
-        Returns:
-            Dict with processing statistics
-        """
+        """Compute every rule over the last `lookback_days` of summaries.
+        Returns the counts: computed and skipped in total and per rule."""
         cutoff = datetime.now(UTC) - timedelta(days=lookback_days)
         total_computed = 0
         total_skipped = 0
@@ -273,11 +255,8 @@ class DerivedAggregator:
             total_skipped += skipped
             results_by_rule[rule.name] = computed
 
-        logger.info(
-            f"[DerivedAggregator] Done: {total_computed} derived values computed, "
-            f"{total_skipped} skipped (invalid inputs)"
-        )
-
+        computed_count, skipped_count = total_computed, total_skipped
+        logger.info("derived values computed: computed=%d skipped=%d", computed_count, skipped_count)
         return {
             "total_computed": total_computed,
             "total_skipped": total_skipped,
@@ -286,74 +265,23 @@ class DerivedAggregator:
         }
 
     async def _process_rule(self, rule: DerivedRule, cutoff: datetime) -> tuple[int, int]:
-        """
-        Process a single derived rule across all user-days.
-
-        For each input indicator, queries BOTH the legacy `daily_stats_*`
-        rows and SQLAggregator (daily{Method}*.{source}), picks best by priority.
-        """
-        n_inputs = len(rule.input_indicators)
-
-        # Build UNION ALL for each input: legacy alias (priority=0) + SQLAggregator (source priority)
+        """One rule across every person-day since `cutoff`: `(computed, skipped)`."""
         union_parts = []
-        params: dict[str, Any] = {"cutoff": cutoff, "n_inputs": n_inputs}
-
+        params: dict[str, Any] = {"cutoff": cutoff, "n_inputs": len(rule.input_indicators)}
         for i, inp in enumerate(rule.input_indicators):
+            params[f"std_{i}"] = inp
+            # The aggregator's own name, and the same name with a `.<source>` suffix.
+            union_parts.append(_CANDIDATES.format(base=f":std_{i}", legacy="false", name=f"split_part(name_text, '.', 1) = :std_{i}"))
             alias = LEGACY_DAILY_STATS_ALIASES.get(inp)
-            param_std = f"std_{i}"
-            params[param_std] = inp
-
-            # SQLAggregator: match exact or with .source suffix
-            union_parts.append(f"""
-                SELECT user_id, local_date AS day,
-                       :{param_std} AS base_indicator,
-                       value_num AS num_value,
-                       COALESCE(get_source_priority(vendor), 999) AS priority
-                FROM v_observation
-                WHERE (name_text = :{param_std} OR name_text LIKE :{param_std} || '.%')
-                  AND observed_start >= :cutoff
-                  AND value_num IS NOT NULL
-            """)
-
-            # Legacy alias: exact match, priority=0 (highest)
             if alias:
-                param_hw = f"legacy_{i}"
-                params[param_hw] = alias
-                union_parts.append(f"""
-                    SELECT user_id, local_date AS day,
-                           :{param_std} AS base_indicator,
-                           value_num AS num_value,
-                           0 AS priority
-                    FROM v_observation
-                    WHERE name_text = :{param_hw}
-                      AND observed_start >= :cutoff
-                      AND value_num IS NOT NULL
-                """)
-
-        union_sql = " UNION ALL ".join(union_parts)
-
-        query = f"""
-            WITH all_candidates AS (
-                {union_sql}
-            ),
-            resolved AS (
-                SELECT DISTINCT ON (user_id, day, base_indicator)
-                       user_id, day, base_indicator, num_value
-                FROM all_candidates
-                ORDER BY user_id, day, base_indicator, priority ASC, num_value DESC
-            )
-            SELECT user_id, day,
-                   ARRAY_AGG(base_indicator ORDER BY base_indicator) AS indicators,
-                   ARRAY_AGG(num_value::text ORDER BY base_indicator) AS values
-            FROM resolved
-            GROUP BY user_id, day
-            HAVING COUNT(DISTINCT base_indicator) = :n_inputs
-        """
+                params[f"legacy_{i}"] = alias
+                union_parts.append(_CANDIDATES.format(base=f":std_{i}", legacy="true", name=f"name_text = :legacy_{i}"))
 
         try:
-            rows = await execute_query(query, params)
+            rows = await execute_query(_RESOLVE.format(candidates=" UNION ALL ".join(union_parts)), params) or []
         except Exception as e:
-            logger.error(f"[DerivedAggregator] Query failed for {rule.name}: {e}")
+            logger.error("derived rule query failed: rule=%s error_type=%s", rule.name, type(e).__name__,  # phi: ok a DERIVED_RULES name
+                         exc_info=not is_driver_exception(e))
             return 0, 0
 
         computed = 0
@@ -361,74 +289,78 @@ class DerivedAggregator:
         records_to_save = []
 
         for row in rows:
-            user_id = row["user_id"]
-            day = row["day"]
-            indicators = row["indicators"]
-            raw_values = row["values"]
-
-            # Map input indicators to their values in the correct order
-            ind_val_map = {}
-            for ind, val in zip(indicators, raw_values, strict=False):
+            by_input: dict[str, float | None] = {}
+            for ind, val in zip(row["indicators"], row["values"], strict=True):
                 try:
-                    ind_val_map[ind] = float(val)
+                    by_input[ind] = float(val)
                 except (ValueError, TypeError):
-                    ind_val_map[ind] = None
+                    by_input[ind] = None
 
-            # Get values in rule's input order
-            ordered_values = []
-            valid = True
-            for inp in rule.input_indicators:
-                v = ind_val_map.get(inp)
-                if v is None or v < 0:
-                    valid = False
-                    break
-                ordered_values.append(v)
-
-            if not valid:
+            ordered_values = [by_input.get(inp) for inp in rule.input_indicators]
+            if any(v is None or v < 0 for v in ordered_values):
                 skipped += 1
                 continue
 
-            # Compute derived value
             try:
                 result = rule.compute(ordered_values)
-            except Exception as e:
-                logger.warning(f"[DerivedAggregator] Compute error for {rule.name}, user={user_id}, day={day}: {e}")
+            except (ArithmeticError, TypeError, ValueError):
                 skipped += 1
                 continue
-
             if result is None:
                 skipped += 1
                 continue
 
-            # Build record for UPSERT
-            start_time = datetime.combine(day, datetime.min.time())
-            end_time = start_time + timedelta(days=1)
-
+            start_time = datetime.combine(row["day"], datetime.min.time())
             records_to_save.append({
-                "user_id": user_id,
+                "user_id": row["user_id"],
                 "indicator": rule.output_indicator,
                 "value": str(round(result, 2)),
+                "unit": rule.output_unit,
+                "timezone": row["tz"],
                 "start_time": start_time,
-                "end_time": end_time,
+                "end_time": start_time + timedelta(days=1),
                 "source": "derived",
                 "task_id": "derived_aggregator",
-                "comment": f"Derived: {rule.description}, unit={rule.output_unit}",
                 "source_table": "",
                 "source_table_id": "",
-                "indicator_id": "",
-                "fhir_id": None,
             })
             computed += 1
 
-        # Batch save
+        if records_to_save and not await self.db_service.batch_save_summary_data(records_to_save):
+            logger.error("derived rule results not written: rule=%s records=%d",  # phi: ok a DERIVED_RULES name
+                         rule.name, len(records_to_save))
+            return 0, skipped
         if records_to_save:
-            try:
-                await self.db_service.batch_save_summary_data(records_to_save)
-                logger.info(
-                    f"[DerivedAggregator] Rule '{rule.name}': {computed} computed, {skipped} skipped"
-                )
-            except Exception as e:
-                logger.error(f"[DerivedAggregator] Save failed for {rule.name}: {e}")
-                return 0, skipped
-
+            computed_count = computed
+            logger.info("derived rule done: rule=%s computed=%d skipped=%d",  # phi: ok a DERIVED_RULES name
+                        rule.name, computed_count, skipped)
         return computed, skipped
+
+
+# One input's candidates: `{name}` selects the rows, `{legacy}` says whether
+# they are the older `daily_stats_*` spelling.
+_CANDIDATES = """
+    SELECT user_id, local_date AS day, {base} AS base_indicator, value_num AS num_value, tz,
+           {legacy} AS legacy, elected, observed_start, id
+      FROM v_observation
+     WHERE {name} AND observed_start >= :cutoff AND value_num IS NOT NULL
+"""
+
+# The day's published value of each input (see the module docstring), then the
+# person-days that have every input.
+_RESOLVE = """
+WITH all_candidates AS ({candidates}),
+resolved AS (
+    SELECT DISTINCT ON (user_id, day, base_indicator)
+           user_id, day, base_indicator, num_value, tz
+      FROM all_candidates
+     ORDER BY user_id, day, base_indicator, legacy DESC, elected DESC, observed_start DESC, id DESC
+)
+SELECT user_id, day,
+       ARRAY_AGG(base_indicator ORDER BY base_indicator) AS indicators,
+       ARRAY_AGG(num_value::text ORDER BY base_indicator) AS values,
+       (ARRAY_AGG(tz ORDER BY base_indicator))[1] AS tz
+  FROM resolved
+ GROUP BY user_id, day
+HAVING COUNT(*) = :n_inputs
+"""

@@ -1279,6 +1279,30 @@ def test_a_catalogue_alias_lets_the_unit_pick_the_variant():
     assert odd.coded and odd.code == "2339-0"
 
 
+def test_a_printed_unit_that_does_not_normalize_picks_no_variant():
+    """`空腹血糖 6.1 mmol/l(空腹)`: the printed unit is there but does not
+    normalize, so it cannot pick between the mass and the moles code. The
+    guard asked whether ANY unit text was printed, and the reading was coded
+    to the mass code 1558-6, beside the mg/dL readings it is not. It needs a
+    person, like a reading with no unit, and its decision is not the
+    no-unit one, or one decision row would stand for two outcomes."""
+    from mirobody import translate
+
+    def run(unit: str) -> translate.Coding:
+        parsed = translate.parse_value("6.1", unit)
+        key = translate.name_key("空腹血糖")
+        return translate.code(
+            "空腹血糖", name_key=key, local_key=f"{key}|{parsed.unit_ucum}", value_kind=parsed.value_kind,
+            value_text="6.1", unit_text=unit, unit_ucum=parsed.unit_ucum, value_num=parsed.value_num,
+        )
+
+    unrecognized, missing, molar = run("mmol/l(空腹)"), run(""), run("mmol/L")
+    assert (unrecognized.outcome, unrecognized.reason) == ("needs-input", "unit:unrecognized")
+    assert (missing.outcome, missing.reason) == ("needs-input", "unit:missing")
+    assert unrecognized.decision_id != missing.decision_id
+    assert molar.coded and molar.code != "1558-6"
+
+
 def test_evidence_reads_the_same_whichever_entry_point_produced_it():
     """`resolve()` and `resolve_reading()` answer the same term with the same
     code, so they must describe that answer the same way.

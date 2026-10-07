@@ -1,11 +1,8 @@
-"""
-Health data services package
+"""Where every platform's `StandardPulseData` is written.
 
-Pipeline: StandardPulseData → StandardHealthService.process_standard_data() → series_data table.
-All platforms (pull providers, Apple) converge here after formatting raw data into StandardPulseData.
-
-Key class:
-    StandardHealthService: validates, deduplicates, and inserts health records into the database.
+`StandardHealthService.process_standard_data()` writes a summary indicator as
+an observation (`collect/observations.py`) and a series point into
+`series_data`; a repair batch is then swept (`repair_reconcile.py`).
 """
 
 from .upload_health import StandardHealthService

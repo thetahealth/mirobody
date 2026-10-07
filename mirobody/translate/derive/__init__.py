@@ -4,13 +4,12 @@ Sleep efficiency is total sleep over time in bed. Heart-rate range is the day's
 max minus its min. Nothing wore a sensor for either: they are two stored
 numbers and an arithmetic rule.
 
-That is why this is not ② Translate. Translate answers what a value MEANS, and
-a daily total IS the same quantity on a different time axis, which is a LOINC
-axis change. A ratio of two different components is a NEW quantity, and calling
-it meaning would make `translate` the next grab-bag.
-
-It is not ① Collect either: nothing here collects. It runs on a schedule over
-what is already stored and writes its results back beside them.
+It sits in ② Translate beside `aggregate/`, and is not translation proper:
+translate answers what a value MEANS, and a daily total is the same quantity
+on a different time axis, a LOINC axis change, while a ratio of two different
+components is a NEW quantity. It is not ① Collect either: nothing here
+collects. It runs on a schedule over what is already stored and writes its
+results back beside them, through the same writer as an aggregation pass.
 
     rules.py  the rule table and the runner
     task.py   the scheduled job

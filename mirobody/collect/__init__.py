@@ -6,16 +6,17 @@ Two source shapes, one convergence point, then meaning:
                  schedule, Apple Health and CDA documents pushed
     files/       a file is a source too: lab PDFs, photos, CSV, genetic raw data
          ↓
-    ingest/      all three converge on StandardPulseData → observations.py
+    ingest/      a device's StandardPulseData → observations.py and series_data;
+                 a file's readings go to observations.py directly
          ↓
 
 What a value MEANS is ② Translate's, not this stage's: the indicator
 catalogue, units, ranges and fhir_id are `mirobody.translate`.
 
-`core/` is what those stand on, not a stage: the provider contract types, the
-scheduler, the DB base classes, the distributed lock. Sub-package sizes and
-entry points are in README.md, ordered the same way: the directory listing
-cannot show this order, since `core/` sorts before `providers/`.
+`core/` is what those stand on, not a stage: the provider contract types and
+the push from a provider to its platform. Sub-package sizes and entry points
+are in README.md, ordered the same way: the directory listing cannot show this
+order, since `core/` sorts before `providers/`.
 
 Providers are discovered by file scan, so deleting one takes it offline.
 
@@ -41,9 +42,7 @@ _EXPORTS = {
     "PlatformManager": "manager",
     "platform_manager": "manager",
     # Setup functions
-    "setup_platform_system": "setup",
     "setup_platform_system_async": "setup",
-    "get_platform_manager": "setup",
     # Concrete implementations
     "ProviderPlatform": "providers",
     "BasePullProvider": "providers",
@@ -111,7 +110,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers.apple import AppleHealthPlatform, AppleHealthProvider, CDAProvider
     from .base import LinkRequest, Platform, Provider, ProviderInfo, UserProvider
     from .manager import PlatformManager, platform_manager
-    from .setup import get_platform_manager, setup_platform_system, setup_platform_system_async
+    from .setup import setup_platform_system_async
     from .core import LinkType, ProviderStatus
     from .core.push_service import push_service
     from .ingest.models.requests import (

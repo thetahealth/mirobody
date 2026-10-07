@@ -155,6 +155,10 @@ def _to_catalogue(metric: str, value: float, unit: str) -> float | None:
     """
     raw = (unit or "").strip()
     target = metrics.METRICS[metric].standard_unit
+    if raw == "%" and target == "%":
+        # HealthKit's percent unit is a fraction: an oxygen saturation of 98%
+        # is `value="0.98" unit="%"`, in `export.xml` and from the phone alike.
+        return value * 100
     if not raw or raw == target:
         return value
     want = units.normalize_unit(target) or target

@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.translate import zone_for
 from mirobody.server.envelope import err
 from mirobody.utils.i18n import language_from_headers
 
@@ -274,11 +275,19 @@ class UserInfoUpdaterMiddleware(BaseHTTPMiddleware):
             len(request.state.timezone) > 0 and \
             len(request.state.language) > 0:
 
+            # The zone comes from the client's X-Timezone header and becomes
+            # the account's, which places every reading without one; a name
+            # no zone answers to keeps the stored zone instead.
+            try:
+                zone_for(request.state.timezone)
+                timezone = request.state.timezone
+            except ValueError:
+                timezone = None
             async with self._pg_pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
-                        "UPDATE health_app_user SET lang=%s,tz=%s,update_at=CURRENT_TIMESTAMP WHERE id=%s;",
-                        (request.state.language, request.state.timezone, request.state.user_id)
+                        "UPDATE health_app_user SET lang=%s,tz=COALESCE(%s,tz),update_at=CURRENT_TIMESTAMP WHERE id=%s;",
+                        (request.state.language, timezone, request.state.user_id)
                     )
                     await conn.commit()
     
