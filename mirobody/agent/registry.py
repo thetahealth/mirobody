@@ -45,7 +45,7 @@ class AbstractAgent:
     `**kwargs` and reads what it knows.
 
     `load_llm_clients` is optional: given the `MODELS` table it returns
-    `{provider_name: client}`; an agent that needs no model returns `{}`.
+    `{entry name: client}`; an agent that needs no model returns `{}`.
     """
 
     def __init__(self, **kwargs):
@@ -160,7 +160,7 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
         )
 
     _agent_class, _llm_clients = klass, _build_clients(klass, config or global_config())
-    logger.info("agent loaded: agent_class=%s provider_count=%d", klass.__name__, len(_llm_clients))
+    logger.info("agent loaded: agent_class=%s model_count=%d", klass.__name__, len(_llm_clients))
     return klass
 
 
@@ -187,7 +187,7 @@ def reload_llm_clients() -> int:
     if _agent_class is None:
         return 0
     _llm_clients = _build_clients(_agent_class, global_config())
-    logger.info("agent LLM clients rebuilt: provider_count=%d", len(_llm_clients))
+    logger.info("agent LLM clients rebuilt: model_count=%d", len(_llm_clients))
     return len(_llm_clients)
 
 
@@ -283,8 +283,8 @@ def model_labels(names: list[str]) -> dict[str, str]:
     run the same model, the entry's name tells them apart."""
     from mirobody.utils.config.llm import model_entries
 
-    providers = model_entries()
-    labels = {n: str((providers.get(n) or {}).get("model") or n).rsplit("/", 1)[-1] for n in names}
+    entries = model_entries()
+    labels = {n: str((entries.get(n) or {}).get("model") or n).rsplit("/", 1)[-1] for n in names}
     counts: dict[str, int] = {}
     for label in labels.values():
         counts[label] = counts.get(label, 0) + 1

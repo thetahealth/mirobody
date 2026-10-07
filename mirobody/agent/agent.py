@@ -1,9 +1,9 @@
 """The agent: one harness, on LangChain + deepagents.
 
-`MirobodyAgent.generate_response` runs a turn: the LLM client for the requested
-provider, the four record tools an external MCP client also sees, plus the
-harness's own filesystem tools, the `eval` REPL and `ask_user`), a Postgres-
-backed virtual filesystem that projects the person's uploads, library and
+`MirobodyAgent.generate_response` runs a turn: the chat model of the
+requested `MODELS` entry, the four record tools an external MCP client also
+sees (plus the harness's own filesystem tools, the `eval` REPL and
+`ask_user`), a Postgres-backed virtual filesystem that projects the person's uploads, library and
 health profile read-only, a LangGraph checkpointer that holds the conversation
 per session, and the middleware that keeps a turn bounded (model-call budget,
 tool-call cap, fault containment, retry governance). Every moving part is
@@ -99,45 +99,29 @@ class MirobodyAgent:
         self.model_call_limit = int(safe_read_cfg("MODEL_CALL_LIMIT") or 50)
         self.recursion_limit = int(safe_read_cfg("RECURSION_LIMIT") or 0) or None
 
-    async def _init_llm_client(self, provider: str | None) -> tuple[Any, str, bool, str]:
-        original_provider = provider
-        fallback_used = False
-        fallback_message = ""
-
-        if provider:
-            agent_llm_client = llm_client(provider)
-        else:
-            agent_llm_client = llm_client(self.default_model)
-
-        # Fallback to default provider if the requested one is not supported
-        if not agent_llm_client:
-            default_provider = self.default_model
-            logger.warning(f"Provider '{original_provider}' not supported, falling back to '{default_provider}'")
-            agent_llm_client = llm_client(default_provider)
-
-            if agent_llm_client:
-                fallback_used = True
-                fallback_message = f"Provider '{original_provider}' not configured. Using default '{default_provider}'.\n"
-            else:
-                available = llm_client_names()
-                available_str = ", ".join(available) if available else "None"
-                raise ConfigError(
-                    f"Provider '{original_provider or default_provider}' is not configured. "
-                    f"Available providers: {available_str}"
-                )
-
+    def _chat_model(self, requested: str | None) -> tuple[Any, str, str | None]:
+        """The client of the `MODELS` entry this turn answers with: the one
+        the request names when it is configured, else the default. Returns the
+        client, that entry's name, and the notice to show when a named entry
+        was not configured and the default answers instead."""
+        name = requested or self.default_model
+        client = llm_client(name)
+        notice = None
+        if client is None and requested:
+            logger.warning("the requested model is not configured; using the default")
+            name, client = self.default_model, llm_client(self.default_model)
+            notice = f"Model '{requested}' is not configured. Using the default, '{name}'."
+        if client is None:
+            available = ", ".join(llm_client_names()) or "none"
+            raise ConfigError(f"Model '{requested or name}' is not configured. Available models: {available}.")
         # An entry whose key or address is missing is a placeholder
         # (`build_llm_clients`); its reason names the variable to set.
-        reason = unavailable_reason(agent_llm_client)
+        reason = unavailable_reason(client)
         if reason:
             logger.error("chat model unavailable: its key or address is not set")
-            raise ConfigError(f"Provider initialization failed: {reason}")
+            raise ConfigError(f"Model '{name}' cannot be used: {reason}")
+        return client, name, notice
 
-        # Extract model name
-        model_name = getattr(agent_llm_client, "model_name", None) or getattr(agent_llm_client, "model", "Unknown")
-
-        return agent_llm_client, model_name, fallback_used, fallback_message
-    
     async def _load_tools(self, user_id: str) -> list[BaseTool]:
         """The MCP tools as LangChain tools, bound to `user_id`. A tool that
         cannot be built is logged and left out by `load_global_tools`."""
@@ -292,28 +276,6 @@ class MirobodyAgent:
             config["configurable"] = {"thread_id": session_id}
         return config
 
-    async def _prepare_context(
-        self,
-        user_id: str,
-        provider: str | None,
-        prompt_name: str,
-        question: str = "",
-    ) -> tuple["BaseChatModel", str, str | None, list[BaseTool], str]:
-        """
-        Prepare LLM client, tools, and system prompt.
-
-        Returns:
-            Tuple of (llm_client, model_name, fallback_msg, tools, system_prompt)
-        """
-        llm_client, model_name, fallback_used, fallback_msg = await self._init_llm_client(provider)
-
-        loaded_tools = await self._load_tools(user_id)
-
-        base_prompt = self._get_base_prompt(prompt_name)
-        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools, question)
-
-        return llm_client, model_name, (fallback_msg if fallback_used else None), loaded_tools, system_prompt
-
     #: Which LangChain transport package carries a non-text content block
     #: inside a ``ToolMessage``: the only shape ``read_file`` can deliver a
     #: PDF in. Keyed by module root, so it covers every client a package
@@ -387,12 +349,11 @@ class MirobodyAgent:
         logger.info(f"file-block support: pdf=False (unrecognised transport {type(llm_client).__name__})")
         return False
 
-    def _supports_image(self, client: Any, provider: str | None) -> bool:
-        """Whether this turn's model is sent an image, or its OCR text.
+    def _supports_image(self, client: Any, model: str) -> bool:
+        """Whether this turn's model, the `MODELS` entry `model` that
+        `_chat_model` picked, is sent an image, or its OCR text.
 
-        The entry that answers is the one `_init_llm_client` picked: the
-        requested provider when it has a client, else the default. A profile
-        or entry `false` is final; a local entry asks its server
+        A profile or entry `false` is final; a local entry asks its server
         (`served.sees`), because the entry names the model it was written for
         and a text-only one may be running instead (MiniCPM5-2B answered an
         image block with "image input is not supported").
@@ -402,8 +363,7 @@ class MirobodyAgent:
         from mirobody.utils.config.llm import resolve_named
         from mirobody.utils.config.served import sees
 
-        name = provider if provider and llm_client(provider) else self.default_model
-        spec = resolve_named(name) if name in chat_entries() else None
+        spec = resolve_named(model) if model in chat_entries() else None
         return sees(spec) if spec is not None else True
 
     #: Read-only tools the `eval` REPL may call as `tools.<name>`; each guards
@@ -593,7 +553,9 @@ class MirobodyAgent:
         prompt_name: str = "",
         **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
-
+        """One turn, as `wire.blocks` (`registry.AbstractAgent`). `provider` is
+        the request's field of that name: the `MODELS` entry to answer with,
+        the default when empty."""
         if not messages:
             yield {"type": ERROR, "message": "Empty message"}
             return
@@ -602,27 +564,26 @@ class MirobodyAgent:
             yield {"type": ERROR, "message": "User ID is required"}
             return
 
-        logger.info(f"agent request: session={session_id}, provider={provider}, messages={len(messages)}")
+        logger.info("agent request: session_id=%s model=%s message_count=%d", session_id, provider, len(messages))
 
         try:
+            llm_client, model, notice = self._chat_model(provider)
+            if notice:
+                # The SYSTEM speaking, not the model. On the reasoning channel
+                # it was indistinguishable from the model's own trace.
+                yield {"type": NOTICE, "message": notice}
+            model_name = getattr(llm_client, "model_name", None) or getattr(llm_client, "model", "Unknown")
+
             # Uploads reach the agent as FILES, never as message payload:
             # `_build_backend` projects them into /uploads/ by file_key
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
-            llm_client, model_name, fallback_msg, loaded_tools, system_prompt = await self._prepare_context(
-                user_id=user_id,
-                provider=provider,
-                prompt_name=prompt_name,
-                question=_latest_question(messages),
-            )
-
-            if fallback_msg:
-                # The SYSTEM speaking, not the model. On the reasoning channel
-                # it was indistinguishable from the model's own trace.
-                yield {"type": NOTICE, "message": fallback_msg}
+            loaded_tools = await self._load_tools(user_id)
+            system_prompt = await self._build_system_prompt(
+                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages))
 
             supports_file_block = self._supports_file_block(llm_client)
-            supports_image = await asyncio.to_thread(self._supports_image, llm_client, provider)
+            supports_image = await asyncio.to_thread(self._supports_image, llm_client, model)
 
             agent, backend = await self._build_agent(
                 session_id=session_id,
@@ -669,7 +630,7 @@ class MirobodyAgent:
                 yield usage
 
         except AgentError as e:
-            # An AgentError's message is ours (configuration, no provider…) and
+            # An AgentError's message is ours (configuration, no model…) and
             # safe to show; anything else is reported by type only.
             logger.error("agent error: error_type=%s", type(e).__name__)
             yield {"type": ERROR, "message": str(e)}

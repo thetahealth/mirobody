@@ -341,7 +341,7 @@ def test_a_turn_on_a_model_whose_key_is_a_literal_never_shows_it(monkeypatch):
                                 resolve=lambda name: None)
     monkeypatch.setattr(agent_module, "llm_client", clients.get)
     with pytest.raises(ConfigError) as raised:
-        asyncio.run(agent_module.MirobodyAgent(timezone="UTC")._init_llm_client("gpt"))
+        agent_module.MirobodyAgent(timezone="UTC")._chat_model("gpt")
     assert _LITERAL_KEY not in str(raised.value)
 
 

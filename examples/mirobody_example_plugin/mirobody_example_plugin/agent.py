@@ -15,7 +15,7 @@ class EchoAgent:
         pass
 
     @classmethod
-    def load_llm_clients(cls, providers: dict[str, Any]) -> dict[str, Any]:
+    def load_llm_clients(cls, models: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     async def generate_response(self, user_id: str, messages: list[dict], **kwargs):

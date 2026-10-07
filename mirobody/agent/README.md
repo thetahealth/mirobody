@@ -63,7 +63,7 @@ class MyAgent:
     def __init__(self, **kwargs): ...          # MODELS / PROMPTS / tool lists + the turn's values
 
     @classmethod
-    def load_llm_clients(cls, providers: dict) -> dict:   # optional; {name: client}
+    def load_llm_clients(cls, models: dict) -> dict:      # optional; {name: client}
         return {}
 
     async def generate_response(self, user_id: str, messages: list[dict], **kwargs):

@@ -156,10 +156,11 @@ class ChatService:
 
     @public_endpoint
     async def model_handler(self, request: Request) -> Response:
-        """Provider names whose key resolves: bare names, no `Agent/` prefix.
+        """The `MODELS` entries whose key resolves, the default first
+        (`registry.available_models`): bare names, no `Agent/` prefix.
 
         The shipped web client splits each entry on `/` into `{agent, provider}`
-        and falls back to the whole string as the provider when there is no
+        and falls back to the whole string as its `provider` when there is no
         slash, so a bare name works unchanged. `?labels=1` answers with
         `{"name", "model"}` objects instead, so a picker can show the model a
         person knows while still sending back the entry's name.
