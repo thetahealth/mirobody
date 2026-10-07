@@ -1,20 +1,15 @@
-"""
-Value Range Validator (TH-132 W1.1)
+"""The plausible range a device reading must fall in.
 
-Validates health data values against indicator-specific rules loaded from
-the `indicator_valid_rules` database table at startup.
+Rules live in the `indicator_valid_rules` table, one row per (rule set,
+indicator), each a list of expressions like ">0", "<=100" or "=10"; a value
+must satisfy all of them. `ingestion_filter` is the only rule set read: the
+seed in `schema/41_device_rules.sql` writes no other.
 
-Rules are string expressions like ">0", "<=100", ">=25", "<50", "=10".
-All rules for an indicator must be satisfied simultaneously (AND).
-
-Supports multiple rule_sets for extensibility:
-- ingestion_filter: W1.1 data ingestion validation (current)
-- healthy_range: future healthy reference ranges
-- diabetic_range: future condition-specific ranges
-
-Out-of-range values are NOT dropped, they are marked with
-task_id='filtered_out_of_range' so W3.2 statistics exclude them
-while keeping the data traceable and reversible.
+What a failed check means is the caller's. The device upload path refuses an
+out-of-range summary and keeps an out-of-range series point in `series_data`
+under `task_id = "filtered_out_of_range"`, which the aggregation skips
+(`collect/ingest/services/upload_health.py`); the observation writer refuses a
+typed reading outside the range of a catalogue metric with its code.
 """
 
 import json

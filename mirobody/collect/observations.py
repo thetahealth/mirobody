@@ -590,12 +590,13 @@ async def _write_concept(tx: db.Transaction, coding: translate.Coding) -> None:
     })
 
 
-_range_rules: Any = None
+_range_rules: translate.ValueRangeValidator | None = None
 
 
-async def _ranges() -> Any:
-    """The ingestion ranges, loaded once per process. A load that fails
-    passes every value, as it does for a device batch."""
+async def value_ranges() -> translate.ValueRangeValidator:
+    """The ingestion ranges (`indicator_valid_rules`), loaded once per
+    process and shared by every writer that checks them. A load that fails
+    passes every value."""
     global _range_rules
     if _range_rules is None:
         rules = translate.ValueRangeValidator()
@@ -718,7 +719,7 @@ async def ingest(
             report.extraction_id = int(rows[0]["id"]) if rows else None
 
         aliases = await _load_aliases(tx, str(user_id))
-        ranges = await _ranges() if any(p.source_class == series.SOURCE_MANUAL for p in sources) else None
+        ranges = await value_ranges() if any(p.source_class == series.SOURCE_MANUAL for p in sources) else None
         for ix, (draft, row_source) in enumerate(zip(drafts, sources, strict=True)):
             try:
                 row = prepare(draft, row_source, str(user_id), user_tz, now=now)
@@ -1406,4 +1407,5 @@ __all__ = [
     "retract",
     "retract_unconfirmed",
     "user_tz",
+    "value_ranges",
 ]

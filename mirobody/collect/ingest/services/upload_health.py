@@ -1,122 +1,85 @@
-"""`StandardPulseData` to rows, the one path every source finishes on.
+"""`StandardPulseData` to rows, the one path every device source finishes on.
 
-Per record: resolve the timezone, convert the value to the indicator's standard
-unit, check it against the indicator's plausible range, then hand it to
-`observations.ingest`. A value outside the range is not dropped: it is
-written with `task_id = "filtered_out_of_range"`, because a reading we refuse
-to believe is still evidence the device produced it.
+Per record: name the indicator, convert its value to the indicator's standard
+unit, and check it against the indicator's plausible range
+(`indicator_valid_rules`). Then, by the indicator's kind:
+
+- a summary indicator (a vendor's own daily figure) is written as an
+  observation (`observations.ingest_legacy`). A value outside its range is
+  not written; the records refused are counted in the log as
+  `observations.REJECT_OUT_OF_RANGE`.
+- a series indicator (one point of a stream) is upserted into `series_data`,
+  which the aggregation reads. A value outside its range is kept there under
+  `task_id = "filtered_out_of_range"`, which the aggregation skips: a point
+  we refuse to believe is still evidence the device produced it.
+
+A repair batch then sweeps what it did not re-confirm (`repair_reconcile`).
 """
 
 import logging
 import time
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import Any
-from zoneinfo import ZoneInfo
 
-from .base import BaseHealthService
 from .repair_reconcile import RepairReconciler
-from mirobody.collect.ingest.models.requests import StandardPulseData
-from mirobody.collect.ingest.repositories.health_data import HealthDataRepository
 from mirobody.collect import observations
-from mirobody.translate import is_summary_indicator, is_series_indicator, normalize_indicator_name
-from mirobody.translate import ValueRangeValidator
-from mirobody.user.platform import PlatformUserService
+from mirobody.collect.ingest.models.requests import StandardPulseData, StandardPulseRecord
+from mirobody.collect.ingest.repositories.health_data import HealthDataRepository, health_data_repository
+from mirobody.kernel.ops import is_driver_exception
+from mirobody.translate import (
+    ValueRangeValidator,
+    convert_to_standard,
+    get_indicator_by_str,
+    is_series_indicator,
+    is_summary_indicator,
+    normalize_indicator_name,
+)
 
 logger = logging.getLogger(__name__)
 
+#: The `task_id` a series point outside its plausible range is stored under.
+FILTERED_OUT_OF_RANGE = "filtered_out_of_range"
 
-class StandardHealthService(BaseHealthService):
-    """Standard health data service"""
 
-    # Vital Health type mapping
-    TYPE_MAPPING = {
-        "HEART_RATE": "heart_rate",
-        "BLOOD_PRESSURE_SYSTOLIC": "blood_pressure_systolic",
-        "BLOOD_PRESSURE_DIASTOLIC": "blood_pressure_diastolic",
-        "TEMPERATURE": "body_temperature",
-        "OXYGEN_SATURATION": "oxygen_saturation",
-        "RESPIRATORY_RATE": "respiratory_rate",
-    }
+def _to_standard_unit(indicator: str, value: float | str, unit: str) -> tuple[float | str, str]:
+    """`(value, unit)` in the indicator's standard unit; as given when the
+    value is not a number, the indicator is not in the catalogue or the unit
+    does not convert."""
+    std = get_indicator_by_str(indicator)
+    if std is None:
+        return value, unit
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return value, unit
+    return convert_to_standard(std, number, unit)
 
-    def __init__(self, repository: HealthDataRepository = None):
-        self.user_service = PlatformUserService()
-        self._value_validator = ValueRangeValidator()
-        super().__init__(repository)
 
-    async def _ensure_validator_loaded(self):
-        """Lazy-load validation rules from DB on first use."""
-        if not self._value_validator.is_loaded:
-            await self._value_validator.load()
+def _instant(ms: int) -> datetime:
+    return datetime.fromtimestamp(ms / 1000, tz=UTC)
 
-    def get_service_name(self) -> str:
-        """Get service name"""
-        return "standard_health"
 
-    async def _get_user_timezone(self, user_id: str) -> str:
-        """
-        Get user's default timezone from database
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            str: User timezone, defaults to UTC
-        """
-        try:
-            user_info = await self.user_service.get_user_by_id(user_id)
-            if user_info and user_info.get("tz"):
-                user_timezone = user_info.get("tz").strip()
-                if user_timezone:
-                    logger.info(f"Retrieved user timezone from database: user_id={user_id}, timezone={user_timezone}")
-                    return user_timezone
+class StandardHealthService:
+    """Writes a `StandardPulseData` batch: summaries as observations, series
+    points into `series_data`."""
 
-            logger.info(f"No timezone found for user {user_id}, using default UTC")
-            return "UTC"
-
-        except Exception as e:
-            logger.warning(f"Failed to get user timezone for user {user_id}: {str(e)}, using default UTC")
-            return "UTC"
+    def __init__(self, repository: HealthDataRepository | None = None):
+        self.repository = repository or health_data_repository
 
     async def process_standard_data(self, standard_data: StandardPulseData, current_user: str) -> bool:
-        """
-        Directly process health data in StandardPulseData format
-
-        Determine data storage location based on indicator type:
-        - Summary indicators: written as observations (collect/observations.py)
-        - Regular indicators: Store to series_data table
-
-        Args:
-            standard_data: Health data in StandardPulseData format
-            current_user: Authenticated current user ID
-
-        Returns:
-            bool: Whether processing succeeded
-        """
+        """Write one batch for `current_user`, the authenticated person.
+        Returns whether both writes succeeded; a refused record does not make
+        the batch fail."""
+        user_id = current_user
+        health_data = standard_data.healthData
         try:
-            await self._ensure_validator_loaded()
-
-            user_id = current_user
-            health_data = standard_data.healthData
-            logger.info(f"Starting to process data, user_id: {user_id}, count: {len(health_data)}")
-            t1 = time.time()
-
-            # Classify and preprocess data
+            started = time.monotonic()
             summary_records, series_records = await self._classify_and_prepare_records(health_data, user_id)
 
-            t2 = time.time()
-            logger.info(f"Data classification and preparation: {(t2 - t1) * 1000}ms")
-
-            # Batch process data
             summary_success, summary_count = await self._batch_save_summary_records(summary_records)
             series_success, series_count = await self._batch_save_series_records(series_records)
 
-            # Data-repair mark-and-sweep: if this is a repair batch
-            # (metaInfo.taskId = "repair-<uuid>"), remove rows the batch did NOT
-            # re-confirm WITHIN the caller-supplied [windowFrom, windowTo] (epoch ms),
-            # then re-aggregate. If the window is incomplete, the sweep is skipped (only
-            # the upsert applies). No-op for normal incremental uploads. Failures here
-            # are logged, never propagated (the upsert above already succeeded).
             meta = standard_data.metaInfo
             await RepairReconciler().reconcile(
                 user_id=user_id,
@@ -126,270 +89,119 @@ class StandardHealthService(BaseHealthService):
                 window_to_ms=getattr(meta, "windowTo", None),
             )
 
-            t3 = time.time()
-
-            # Collect statistics
-            overall_success = summary_success and series_success
-            total_processed = summary_count + series_count
-
-            logger.info(f"Batch processing completed: {total_processed}/{len(health_data)} records for user {user_id} (summary: {summary_count}, series: {series_count}), timeCost={(t3 - t2) * 1e3}ms")
-
-            return overall_success
+            logger.info(
+                "pulse batch written: user_id=%s records=%d summaries=%d series=%d elapsed_ms=%d",
+                user_id, len(health_data), summary_count, series_count, (time.monotonic() - started) * 1000,
+            )
+            return summary_success and series_success
 
         except Exception as e:
-            logger.error(f"Error processing StandardPulseData: {str(e)}", stack_info=True)
+            logger.error("pulse batch failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return False
 
-    async def _classify_and_prepare_records(self, health_data: list, user_id: str) -> tuple[
-        list[dict[str, Any]], list[dict[str, Any]]]:
-        """
-        Classify and preprocess health data records
-        
-        Args:
-            health_data: Raw health data list
-            user_id: User ID
-            
-        Returns:
-            tuple: (summary_records, series_records)
-        """
-        summary_records = []
-        series_records = []
+    async def _classify_and_prepare_records(
+        self, health_data: list[StandardPulseRecord], user_id: str
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """`(summary_records, series_records)` from the batch's records. A
+        summary value outside its range is left out of both and counted."""
+        summary_records: list[dict[str, Any]] = []
+        series_records: list[dict[str, Any]] = []
+        out_of_range = unreadable = 0
 
-        user_timezone = await self._get_user_timezone(user_id)
+        user_timezone = await observations.user_tz(user_id)
+        ranges = await observations.value_ranges()
 
         for record in health_data:
             try:
-                record_dict = record.model_dump()
-                indicator = record_dict.get("type")
-
-                processed_record = await self._prepare_common_record_data(record_dict, user_id, user_timezone)
-                if not processed_record:
-                    continue
-
-                if is_summary_indicator(indicator):
-                    summary_record = self._prepare_summary_record(processed_record)
-                    if summary_record:
-                        summary_records.append(summary_record)
-                if is_series_indicator(indicator):
-                    series_record = self._prepare_series_record(processed_record)
-                    if series_record:
-                        series_records.append(series_record)
-
-            except Exception as e:
-                logger.warning(f"Failed to process single record: {str(record.model_dump())}, error: {e}")
+                common = self._prepare_common_record_data(record, user_id, user_timezone, ranges)
+            except (OverflowError, OSError, ValueError):
+                # A timestamp no datetime can hold: that record, not the batch.
+                unreadable += 1
                 continue
+            indicator = common["indicator"]
+            if is_summary_indicator(indicator):
+                if common["task_id"] == FILTERED_OUT_OF_RANGE:
+                    out_of_range += 1
+                else:
+                    summary_records.append(self._prepare_summary_record(common))
+            if is_series_indicator(indicator):
+                series_records.append(self._prepare_series_record(common))
 
-        logger.info(f"Classified records: {len(summary_records)} summary, {len(series_records)} series")
+        logger.info("pulse records classified: user_id=%s summaries=%d series=%d unreadable=%d rejected=%d reason=%s",
+                    user_id, len(summary_records), len(series_records), unreadable, out_of_range,
+                    observations.REJECT_OUT_OF_RANGE)
         return summary_records, series_records
 
-    async def _prepare_common_record_data(self, record: dict[str, Any], user_id: str, user_timezone: str = None) -> dict[str, Any]:
-        try:
-            source = record.get("source", "UNKNOWN")
-            indicator = normalize_indicator_name(record.get("type", ""))
-            timestamp = record.get("timestamp")
-            unit = record.get("unit", "")
-            value = record.get("value", 0)
-            timezone_info = record.get("timezone", "UTC")
-            if timezone_info == "UTC":
-                timezone_info = user_timezone if user_timezone else await self._get_user_timezone(user_id)
+    def _prepare_common_record_data(
+        self, record: StandardPulseRecord, user_id: str, user_timezone: str, ranges: ValueRangeValidator
+    ) -> dict[str, Any]:
+        indicator = normalize_indicator_name(record.type)
+        source = record.source or "UNKNOWN"
+        timezone_info = record.timezone
+        if timezone_info == "UTC":
+            timezone_info = user_timezone
+        value, unit = _to_standard_unit(indicator, record.value, record.unit or "")
+        task_id = record.task_id or ""
+        if not ranges.validate(indicator, value).is_valid:
+            task_id = FILTERED_OUT_OF_RANGE
+        return {
+            "user_id": user_id,
+            "indicator": indicator,
+            "source": source.lower(),
+            "value": str(value),
+            "unit": unit,
+            "timezone": timezone_info,
+            "source_id": record.source_id or "",
+            "task_id": task_id,
+            "at": _instant(record.timestamp),
+            # A record without a span is a point: both ends are its timestamp.
+            "start": _instant(record.timestamp if record.startTime is None else record.startTime),
+            "end": _instant(record.timestamp if record.endTime is None else record.endTime),
+        }
 
-            source_id = record.get("source_id", "")
-            task_id = record.get("task_id", "")
-            custom_comment = record.get("comment", "")  # Extract custom comment from record
+    def _prepare_summary_record(self, common: dict[str, Any]) -> dict[str, Any]:
+        """The row `observations.legacy_draft` reads. The times are aware
+        instants: the writer places them in `timezone` itself, so no second
+        zone parser converts them on the way."""
+        return {
+            **common,
+            "start_time": common["start"],
+            "end_time": common["end"],
+            "source_table": "",
+            "source_table_id": common["source_id"],
+        }
 
-            start_time_ms = record.get("startTime")
-            end_time_ms = record.get("endTime")
-
-            try:
-                _v = float(value)
-                normalized_value, normalized_unit = self.normalize_health_data_unit(
-                    indicator,
-                    _v,
-                    unit,
-                    percentage_handling=True if source in ['apple_health'] else False
-                )
-            except Exception:
-                normalized_value = value
-                normalized_unit = unit
-
-            # W1.1 (TH-132): Validate value against indicator-specific rules
-            vr = self._value_validator.validate(indicator, normalized_value)
-            if not vr.is_valid:
-                task_id = "filtered_out_of_range"
-                logger.info(f"[ValidRange] {vr.reason}, source={source}")
-
-            record_time = datetime.fromtimestamp(timestamp / 1000, tz=UTC).replace(tzinfo=None)
-            return {
-                "user_id": user_id,
-                "indicator": indicator,
-                "source": source.lower(),
-                "value": str(normalized_value),
-                "timestamp": timestamp,
-                "record_time": record_time,
-                "unit": normalized_unit,
-                "timezone": timezone_info,
-                "source_id": source_id,
-                "task_id": task_id,
-                "custom_comment": custom_comment,  # Pass custom comment through
-
-                "original_start_time_ms": start_time_ms,
-                "original_end_time_ms": end_time_ms,
-            }
-
-        except Exception as e:
-            logger.error(f"Error preparing common record data: {str(e)}", stack_info=True)
-            return None
-
-    def _prepare_summary_record(self, common_data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Prepare specific fields for Summary data
-        
-        Args:
-            common_data: Common data
-            
-        Returns:
-            Dict[str, Any]: Summary record data
-        """
-        try:
-            # Calculate time range
-            start_time, end_time = self._calculate_summary_time_range_from_common(common_data)
-
-            if not start_time or not end_time:
-                return None
-
-            # Build system-generated comment
-            system_comment = f"Source: {common_data['source']}, Unit: {common_data['unit']}，timezone: {common_data['timezone']}"
-            
-            # Merge with custom comment if provided (merge mode, not overwrite)
-            custom_comment = common_data.get("custom_comment", "")
-            if custom_comment:
-                final_comment = f"{system_comment}, {custom_comment}"
-            else:
-                final_comment = system_comment
-
-            return {
-                **common_data,
-                "start_time": start_time,
-                "end_time": end_time,
-                "source_table": "",  # Source table name
-                "source_table_id": common_data.get("source_id", ""),
-                "comment": final_comment,
-                "indicator_id": "",
-            }
-
-        except Exception as e:
-            logger.error(f"Error preparing summary record: {str(e)}", stack_info=True)
-            return None
-
-    def _prepare_series_record(self, common_data: dict[str, Any]) -> dict[str, Any]:
-        """
-        Prepare specific fields for Series data
-        
-        Args:
-            common_data: Common data
-            
-        Returns:
-            Dict[str, Any]: Series record data
-        """
-        try:
-            return {
-                "user_id": common_data["user_id"],
-                "indicator": common_data["indicator"],
-                "value": common_data["value"],
-                "start_time": common_data["record_time"],  # Series uses timestamp as time point
-                "end_time": common_data["record_time"],
-                "source": common_data["source"],
-                "timezone": common_data["timezone"],
-                "record_type": "vital_health",
-                "source_id": common_data["source_id"],
-                "task_id": common_data["task_id"],
-            }
-
-        except Exception as e:
-            logger.error(f"Error preparing series record: {str(e)}", stack_info=True)
-            return None
+    def _prepare_series_record(self, common: dict[str, Any]) -> dict[str, Any]:
+        """The `series_data` row: the point's naive UTC instant."""
+        return {
+            "user_id": common["user_id"],
+            "indicator": common["indicator"],
+            "value": common["value"],
+            "start_time": common["at"].replace(tzinfo=None),
+            "source": common["source"],
+            "timezone": common["timezone"],
+            "source_id": common["source_id"],
+            "task_id": common["task_id"],
+        }
 
     async def _batch_save_summary_records(self, summary_records: list[dict[str, Any]]) -> tuple[bool, int]:
-        """
-        Batch save Summary records as observations
-        
-        Args:
-            summary_records: Summary record list
-            
-        Returns:
-            tuple: (success, processed_count)
-        """
+        """Write the summaries as observations: `(success, inserted)`."""
         if not summary_records:
             return True, 0
-
         try:
-            logger.info(f"About to save {len(summary_records)} summary records as observations")
-            for record in summary_records[:2]:  # Log first 2 records for debugging
-                # `comment` (and the value itself) are user health data: the
-                # write encrypts `comment` at rest, so logging the full record
-                # would put in plaintext exactly what the column encryption is
-                # there to protect. Log structure, not content.
-                redacted = {k: v for k, v in record.items() if k not in ("comment", "value")}
-                logger.info(f"Sample record (values redacted): {redacted}")
-
             # A device sync re-sends the truth: a changed value amends the
             # row it replaces; an equal one is skipped.
-            total_processed = await observations.ingest_legacy_rows(
-                summary_records, on_conflict=observations.ON_CONFLICT_AMEND
-            )
-            logger.info(f"Successfully batch saved {total_processed} summary observations")
-            return True, total_processed
-
+            inserted = await observations.ingest_legacy_rows(summary_records, on_conflict=observations.ON_CONFLICT_AMEND)
+            return True, inserted
         except Exception as e:
-            logger.error(f"Error batch saving summary records: {str(e)}", stack_info=True)
+            logger.error("pulse summaries not written: records=%d error_type=%s", len(summary_records),
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False, 0
 
     async def _batch_save_series_records(self, series_records: list[dict[str, Any]]) -> tuple[bool, int]:
+        """Upsert the points into `series_data`: `(success, records)`."""
         if not series_records:
             return True, 0
-
-        try:
-            success = await self.repository.save_health_records(series_records)
-            processed_count = len(series_records) if success else 0
-            return success, processed_count
-
-        except Exception as e:
-            logger.error(f"Error batch saving series records: {str(e)}", stack_info=True)
-            return False, 0
-
-    def _calculate_summary_time_range_from_common(self, common_data: dict[str, Any]) -> tuple:
-        try:
-            user_timezone = common_data["timezone"]
-            start_time_ms = common_data.get("original_start_time_ms")
-            end_time_ms = common_data.get("original_end_time_ms")
-
-            # Fallback: providers that don't carry an explicit time range are
-            # treated as point-in-time samples: use the record timestamp for
-            # both bounds. This routes every record through the timezone
-            # conversion below, so the summary record's start_time always reflects
-            # the user's local wall clock (not UTC). (TH-403)
-            if start_time_ms is None:
-                start_time_ms = common_data["timestamp"]
-            if end_time_ms is None:
-                end_time_ms = common_data["timestamp"]
-
-            start_time_utc = datetime.fromtimestamp(start_time_ms / 1000, tz=UTC)
-            end_time_utc = datetime.fromtimestamp(end_time_ms / 1000, tz=UTC)
-
-            if user_timezone == "UTC":
-                return start_time_utc.replace(tzinfo=None), end_time_utc.replace(tzinfo=None)
-
-            try:
-                user_tz = ZoneInfo(user_timezone)
-                return (start_time_utc.astimezone(user_tz).replace(tzinfo=None),
-                        end_time_utc.astimezone(user_tz).replace(tzinfo=None))
-            except Exception as e:
-                logger.warning(f"Failed to convert timezone {user_timezone}, using UTC: {str(e)}")
-                return start_time_utc.replace(tzinfo=None), end_time_utc.replace(tzinfo=None)
-
-        except Exception as e:
-            logger.error(f"Error calculating summary time range: {str(e)}", stack_info=True)
-            return None, None
-
-
-
+        success = await self.repository.save_health_records(series_records)
+        return success, len(series_records) if success else 0
