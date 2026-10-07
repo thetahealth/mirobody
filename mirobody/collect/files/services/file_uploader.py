@@ -40,7 +40,9 @@ SUPPORTED_EXTENSIONS = {
     ".heic", ".heif",
     ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx",
     ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".log", ".htm", ".html",
-    ".vcf", ".gz", ".zip",
+    # A bgzipped VCF: the Genomics page offers .vcf.bgz and .bgzf, and
+    # GeneticHandler reads them by their bytes.
+    ".vcf", ".gz", ".bgz", ".bgzf", ".zip",
 }
 
 
