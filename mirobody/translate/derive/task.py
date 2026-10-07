@@ -31,10 +31,8 @@ class DerivedCalculationTask(PullTask):
 
             result = await self.aggregator.process(lookback_days=90)
 
-            logger.info(
-                f"[DerivedCalculationTask] Done: {result.get('total_computed', 0)} computed, "
-                f"{result.get('total_skipped', 0)} skipped"
-            )
+            computed_count, skipped_count = result.get("total_computed", 0), result.get("total_skipped", 0)
+            logger.info(f"[DerivedCalculationTask] Done: {computed_count} computed, {skipped_count} skipped")
             return True
 
         except Exception as e:
