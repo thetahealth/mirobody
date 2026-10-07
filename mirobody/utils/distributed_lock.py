@@ -39,7 +39,7 @@ class PullTaskLockManager:
         del lock_duration_hours, force
         conn = None
         try:
-            conn = await global_config().get_postgresql().get_async_client(cursor_factory=None)
+            conn = await global_config().get_postgresql().get_async_client()
             await conn.set_autocommit(True)
             row = await (await conn.execute(
                 "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",
@@ -138,7 +138,7 @@ class PullTaskLockManager:
     async def get_lock_status(self, provider_slug: str) -> dict:
         conn = None
         try:
-            conn = await global_config().get_postgresql().get_async_client(cursor_factory=None)
+            conn = await global_config().get_postgresql().get_async_client()
             await conn.set_autocommit(True)
             row = await (await conn.execute(
                 "SELECT pg_try_advisory_lock(hashtextextended(%s, 0))",

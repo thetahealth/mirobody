@@ -103,7 +103,7 @@ class EphemeralStore:
         if self._pool is None or self._pool_loop is not loop:
             if self._pool is not None:
                 self._pool.abandon()
-            self._pool = _Connections(lambda: self._pg_config.get_async_client(cursor_factory=None), POOL_MAX)
+            self._pool = _Connections(lambda: self._pg_config.get_async_client(), POOL_MAX)
             self._pool_loop = loop
         return self._pool.connection()
 

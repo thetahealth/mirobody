@@ -138,7 +138,7 @@ async def create_schema(config) -> None:
     pg_config = config.get_postgresql()
 
     try:
-        conn_ctx = await pg_config.get_async_client(cursor_factory=None)
+        conn_ctx = await pg_config.get_async_client()
     except Exception as e:
         # A first run with no Postgres used to end here, in a bare
         # OperationalError printed BEFORE the config banner: the first thing a
