@@ -90,10 +90,13 @@ percentage outside 0–100, a non-finite number) run on every row inside the
 one writer, `collect/observations.py:prepare`, before it is bound; a rejected row
 is counted by reason code, on the extraction row and in the log, and not
 written. `reconcile_unit`,
-`overcount_suspect` and `is_echo` are the kernel's other gates: the first is
-what a decoder uses to land a value in the catalogue's unit, the last two are
-the aggregation pass's (`translate/aggregate/election.py` rejects an impossible
-duration candidate rather than ranking it).
+`overcount_suspect` and `is_echo` are the kernel's other gates, for a
+consumer's own decoders and aggregation; the reference application calls none
+of them. Its decoders convert with `mirobody.units`, and its aggregation pass
+applies the last two rules through `kernel/series.py`:
+`translate/aggregate/election.py` rejects a duration longer than its window
+with `series.coverage_bound` rather than ranking it, and ranks a profile echo
+below a measurer (`series.elect`).
 
 **Not implemented.** A quarantine table. A rejected row is dropped with its
 reason code in the log; nothing stores it for a person to look at. That is the
@@ -192,12 +195,14 @@ overlap.
 themselves. `series.elect` ranks the sources — measurer over profile echo, then
 coverage, then the MEASUREMENT instant (never the row's update time: an echo is
 rewritten daily and looks fresh), then the deployment's own priority list — and
-`translate/aggregate/election.py` marks the winner's rows `elected`.
+`translate/aggregate/election.py` records the winner in `th_day_authority`,
+which the read view exposes as `elected`.
 
 A candidate is **rejected** rather than ranked when its numbers are impossible:
 a total sleep time longer than the night it was measured in is arithmetic, not
-opinion. When every candidate fails, the day keeps what it published and the
-reason codes are logged.
+opinion, and an aggregation pass's own day total is checked as the metric it
+sums. When every candidate fails, the day keeps what it published and the
+reason codes are a row of `th_check_result`.
 
 *The failure this prevents:* election used to happen on the read side, in two
 places, so a chat answer and a dashboard could show a person two different
