@@ -81,9 +81,9 @@ SKIP_NOT_A_RECORD = "not_a_record"
 SKIP_NO_VALUE = "no_value"
 SKIP_NOT_IN_SENTENCE = "not_in_sentence"
 SKIP_TOO_LONG = "too_long"
-#: An assertion outside `ASSERTIONS`: whether the thing is present, absent or
-#: only wondered about is unknown, and guessing "present" would write "没发烧"
-#: as a fever.
+#: An assertion outside `ASSERTIONS`, or a subject neither self nor other:
+#: whether the thing is present, absent or only wondered about, or whose it
+#: is, is unknown, and guessing would write "没发烧" as a fever.
 SKIP_UNCLEAR = "unclear"
 
 #: Words that may negate what they stand next to. Read only when the model
@@ -345,6 +345,11 @@ def parts_from(answer: Mapping[str, Any]) -> list[Part]:
         if not said:
             said = "" if _NEGATION_CUE.search(field["quote"] or field["name"]) else ASSERT_PRESENT
         field["assertion"] = said
+        # Enum values are compared lower-cased: "Other" was read as the person
+        # themself. A missing subject is the writer, as the dataclass says; one
+        # outside the enum is refused below as unclear.
+        field["kind"] = field["kind"].lower()
+        field["subject"] = field["subject"].lower() or SUBJECT_SELF
         out.append(Part(**field))
     return out
 
@@ -438,7 +443,7 @@ def _skip_reason(part: Part, haystack: str) -> str:
         return SKIP_NOT_IN_SENTENCE
     if part.subject == SUBJECT_OTHER:
         return SKIP_SOMEONE_ELSE
-    if part.assertion not in ASSERTIONS:
+    if part.subject != SUBJECT_SELF or part.assertion not in ASSERTIONS:
         return SKIP_UNCLEAR
     if part.assertion == ASSERT_NEGATED:
         return SKIP_NEGATED
