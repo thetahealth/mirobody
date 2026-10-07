@@ -1,9 +1,8 @@
 """How a person proves who they are.
 
     jwt.py            the token this server issues and verifies
+    bearer.py         which verified tokens count as a credential, and where
     email.py          an emailed code, and the Mandrill validator behind it
-    apple.py          Sign in with Apple
-    google.py         Google identity tokens
     webauthn.py       passkeys
     oauth_service.py  the OAuth flow a third-party client runs
 
