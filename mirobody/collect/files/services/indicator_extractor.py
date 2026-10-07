@@ -271,8 +271,9 @@ class IndicatorExtractor:
         indicators = answer.get("indicators") or []
         date = (answer.get("content_info") or {}).get("date_time", "") or _latest_row_date(indicators)
         rows = IndicatorExtractor._deduplicate_indicators(_row_dates_in_a_log_only(indicators))
+        duration_ms = int((time.monotonic() - started) * 1000)
         logger.info("indicators read: row_count=%d rule_row_count=%d unread_row_count=%d duration_ms=%d",
-                    len(rows), len(rules), unread_count, int((time.monotonic() - started) * 1000))
+                    len(rows), len(rules), unread_count, duration_ms)
         return Reading(rows, answer, extractor, date)
 
     @staticmethod
@@ -336,8 +337,9 @@ class IndicatorExtractor:
                 return await IndicatorExtractor._llm_extract_one(page, language, remainder=remainder)
 
         answers = await asyncio.gather(*(read(p) for p in pages))
-        failed = sum(1 for a in answers if not isinstance(a, dict))
-        logger.info("indicator extraction read page by page: page_count=%d unanswered_count=%d", len(pages), failed)
+        unanswered_count = sum(1 for a in answers if not isinstance(a, dict))
+        logger.info("indicator extraction read page by page: page_count=%d unanswered_count=%d", len(pages),
+                    unanswered_count)
         return _merge_pages(list(answers))
 
     @staticmethod

@@ -415,7 +415,7 @@ async def pdf_text(
     texts, to_ocr, layered = await asyncio.to_thread(
         _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None,
         layer_tables=True)
-    layer_table_pages = sum(1 for t in texts if "<table>" in t)
+    layer_table_page_count = sum(1 for t in texts if "<table>" in t)
     gate = asyncio.Semaphore(max(1, concurrency))
     if layered and tables is not None:
         async def _tables(index: int, png: bytes) -> None:
@@ -451,7 +451,8 @@ async def pdf_text(
             raise failed[-1][1]
     missing = sorted(i for i, _ in failed) if ocr is not None else [i for i, _ in to_ocr]
     logger.info("pdf: page_count=%d ocr_page_count=%d missing_page_count=%d table_page_count=%d "
-                "layer_table_page_count=%d", len(texts), len(to_ocr), len(missing), len(layered), layer_table_pages)
+                "layer_table_page_count=%d", len(texts), len(to_ocr), len(missing), len(layered),
+                layer_table_page_count)
     text = "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
     return PartialText(text, tuple(i + 1 for i in missing)) if missing else text
 
@@ -475,7 +476,8 @@ def downscale_image(data: bytes, mime: str, *, max_bytes: int = MAX_OCR_IMAGE_BY
                 image = image.resize((max(1, int(image.width * scale)), max(1, int(image.height * scale))))
             out = io.BytesIO()
             image.save(out, format="JPEG", quality=85)
-        logger.info("image: downscaled for ocr: bytes_before=%d bytes_after=%d", len(data), out.tell())
+        downscaled_bytes = out.tell()
+        logger.info("image: downscaled for ocr: bytes_before=%d bytes_after=%d", len(data), downscaled_bytes)
         return out.getvalue(), "image/jpeg"
     except Exception as exc:
         logger.warning("image: downscale failed, sending the original: error_type=%s", type(exc).__name__)

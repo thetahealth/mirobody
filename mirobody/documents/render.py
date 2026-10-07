@@ -90,7 +90,7 @@ def fit_image(
             opts["progressive"] = True
         img.save(out, **opts)
         blob = out.getvalue()
-        logger.info("image: fitted: bytes_before=%d bytes_after=%d", before, len(blob))
+        logger.info("image: fitted: bytes_before=%d bytes_after=%d", len(data), len(blob))
         return blob, {
             "original_size": before,
             "optimized_size": len(blob),

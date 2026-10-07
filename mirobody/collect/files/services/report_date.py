@@ -77,7 +77,7 @@ async def set_file_report_date(owner: str, file_key: str, when: datetime | None)
         from mirobody.task import ProfileRefreshTask
         await ProfileRefreshTask.enqueue(str(owner))
     except Exception as e:
-        logger.warning("profile refresh not enqueued after a re-date: user_id=%s error_type=%s", owner,
+        logger.warning("profile refresh not enqueued after a re-date: file_key=%s error_type=%s", file_key,
                        type(e).__name__, exc_info=not is_driver_exception(e))
 
     return {"file_key": file_key, "report_date": report_date, "moved": moved, "skipped": skipped}

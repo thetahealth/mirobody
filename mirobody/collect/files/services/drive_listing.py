@@ -73,7 +73,8 @@ async def get_uploaded_files_paginated(
     await asyncio.gather(*[_regenerate_urls(f) for f in files if f.get("file_key")])
     for f in files:
         f["file_type"] = _convert_mime_to_file_type(f.get("file_type", ""), f.get("scene", ""))
-    logger.info("files listed: user_id=%s total=%s", target_user_id or uploader_user_id, result.get("total", 0))
+    total = result.get("total", 0)
+    logger.info("files listed: user_id=%s total=%s", target_user_id or uploader_user_id, total)
     return result
 
 

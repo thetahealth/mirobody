@@ -109,7 +109,8 @@ async def vision_ocr(image: bytes, mime: str, *, prompt: str = OCR_PROMPT) -> st
         try:
             parts.append(await _ocr_pass(image, mime, task, spec.alias))
         except Exception as exc:
-            logger.warning("ocr pass failed: pass=%s error_type=%s", name, type(exc).__name__)
+            logger.warning("ocr pass failed: pass=%s error_type=%s",  # phi: ok a pass config.llm.yaml names (text, tables)
+                           name, type(exc).__name__)
             failure = exc
     if failure is not None and not parts:
         raise failure
@@ -159,8 +160,10 @@ def _cut_loops(text: str) -> str:
             continue
         out.append(text[cursor:m.start()] + unit)
         cursor = m.end()
+        repeat_count = len(m.group(0)) // len(unit)
+        cut_length = len(m.group(0)) - len(unit)
         logger.warning("ocr answer looped, repeats cut: unit_chars=%d repeats=%d chars_cut=%d",
-                       len(unit), len(m.group(0)) // len(unit), len(m.group(0)) - len(unit))
+                       len(unit), repeat_count, cut_length)
     if not out:
         return text
     out.append(text[cursor:])

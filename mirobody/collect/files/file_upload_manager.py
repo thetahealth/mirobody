@@ -122,8 +122,8 @@ class WebSocketFileUploadManager:
     async def send_message(self, connection_id: str, message: dict):
         """Send message to specified connection"""
         if connection_id not in self.active_connections:
-            logger.info("upload socket gone, message not sent: connection_id=%s type=%s", connection_id,
-                        message.get("type", "unknown"))
+            logger.info("upload socket gone, message not sent: connection_id=%s type=%s",  # phi: ok a message type this module names
+                        connection_id, message.get("type", "unknown"))
             return False
 
         try:
@@ -131,8 +131,8 @@ class WebSocketFileUploadManager:
 
             # Check WebSocket connection status, only send messages when in OPEN state
             if websocket.client_state.value != 1:  # Not in OPEN state
-                logger.info("upload socket closed, message not sent: connection_id=%s type=%s", connection_id,
-                            message.get("type", "unknown"))
+                logger.info("upload socket closed, message not sent: connection_id=%s type=%s",  # phi: ok a message type this module names
+                            connection_id, message.get("type", "unknown"))
                 await self.disconnect(connection_id)
                 return False
 
@@ -340,7 +340,7 @@ class WebSocketFileUploadManager:
             filename = message_data.get("filename")
             chunk_data = message_data.get("chunk")  # base64 encoded data
             chunk_index = message_data.get("chunkIndex", 0)
-            total_chunks = message_data.get("totalChunks", 1)
+            chunk_count = message_data.get("totalChunks", 1)
 
             real_user_id = message_data.get("_real_user_id") or connection_id.split("_")[0]
             if self._session_for(message_id, real_user_id) is None:
@@ -375,8 +375,8 @@ class WebSocketFileUploadManager:
                 )
                 return False
 
-            logger.debug("upload chunk: message_id=%s chunk_index=%s total_chunks=%s", message_id, chunk_index,
-                         total_chunks)
+            logger.debug("upload chunk: message_id=%s chunk_index=%s chunk_count=%s", message_id, chunk_index,
+                         chunk_count)
             # Check if data for this file already exists
             existing_file = None
             for uploaded_file in session["uploaded_files"]:
@@ -394,7 +394,7 @@ class WebSocketFileUploadManager:
                     "content_type": content_type,
                     "size": file_size,
                     "chunks": {},
-                    "total_chunks": total_chunks,
+                    "total_chunks": chunk_count,
                     "received_chunks": 0,
                     # The file's bytes once every chunk is in, else None.
                     "content": None,

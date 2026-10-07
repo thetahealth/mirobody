@@ -405,8 +405,8 @@ class BaseFileHandler(abc.ABC):
             payload = {**event, "messageId": message_id, "sessionId": session.get("session_id", "")}
             await manager.send_message_by_message_id(message_id, payload)
         except Exception as e:
-            logger.debug("upload event not delivered: message_id=%s event=%s error_type=%s", message_id,
-                         event.get("type"), type(e).__name__)
+            logger.debug("upload event not delivered: message_id=%s event=%s error_type=%s",  # phi: ok one of the two event types above
+                         message_id, event.get("type"), type(e).__name__)
 
     async def _async_extract_indicators(
         self,
@@ -467,24 +467,25 @@ class BaseFileHandler(abc.ABC):
             logger.error("indicator extraction failed: file_key=%s error_type=%s", file_key, type(e).__name__,
                          exc_info=not is_driver_exception(e))
 
-        stored = filed.stored if filed else 0
+        stored_count = filed.stored if filed else 0
+        status = "failed" if failed_reason else "completed"
         report = filed.report if filed else None
         await FileDbService.rows_ready(message_id)
         await self._update_file_indicators(
             file_key=file_key,
             formatted_raw=formatted_raw,
-            indicators_count=stored,
+            indicators_count=stored_count,
             failed_reason=failed_reason,
             report=report,
         )
         await self._push_upload_event(message_id, {
             "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
-            "indicators_count": stored,
+            "indicators_count": stored_count,
             "failed": bool(failed_reason),
             **(report or {}),
         })
-        logger.info("indicator extraction finished: file_key=%s stored_count=%d failed=%s", file_key, stored,
-                    bool(failed_reason))
+        logger.info("indicator extraction finished: file_key=%s stored_count=%d status=%s", file_key, stored_count,
+                    status)
 
     async def _save_original_text_to_db(
         self,

@@ -450,7 +450,7 @@ async def process_genetic_file(
                         },
                     )
             except Exception as update_error:
-                logger.error("genotype failure not recorded: file_key=%s error_type=%s", file_key,
+                logger.error("genotype failure not recorded: message_id=%s error_type=%s", message_id,
                              type(update_error).__name__, exc_info=not is_driver_exception(update_error))
 
         return {

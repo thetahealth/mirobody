@@ -110,8 +110,8 @@ async def process_files_async(
                     "progress": 0,
                     "error": result.get("error") or result.get("message") or "Processing failed",
                 })
-        logger.info("attachments processed: msg_id=%s count=%d failed=%d", msg_id, len(results),
-                    sum(1 for r in results if not r.get("success")))
+        failed_count = sum(1 for r in results if not r.get("success"))
+        logger.info("attachments processed: msg_id=%s count=%d failed=%d", msg_id, len(results), failed_count)
     finally:
         FileDbService.rows_written(msg_id)
 
@@ -316,21 +316,22 @@ async def _background_cascade_delete(message_id: str, deleted: list[tuple[dict[s
     and the failure is logged as one."""
     from mirobody.collect import observations
 
-    failed = 0
+    failed_count = 0
     for file_info, owner in deleted:
         file_key = file_info["file_key"]
         try:
             if file_info.get("scene") == "genetic":
                 # `delete_genetic_data_by_source` logs its own failure.
                 if not await delete_genetic_data_by_source(owner, "th_files", file_key):
-                    failed += 1
+                    failed_count += 1
             else:
                 await observations.erase(owner, source_ref=file_source_ref(file_key))
         except Exception as e:
-            failed += 1
+            failed_count += 1
             logger.error("erasing a deleted file's data failed: file_key=%s error_type=%s", file_key,
                          type(e).__name__, exc_info=not is_driver_exception(e))
-    logger.info("cascade delete finished: message_id=%s file_count=%d failed=%d", message_id, len(deleted), failed)
+    logger.info("cascade delete finished: message_id=%s file_count=%d failed=%d", message_id, len(deleted),
+                failed_count)
 
 
 def _start_background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:

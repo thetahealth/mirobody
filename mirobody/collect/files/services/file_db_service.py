@@ -513,8 +513,9 @@ class FileDbService:
         except Exception as e:
             # A fixed sentence up: the caller may show it, and a driver's
             # message quotes the statement.
-            logger.error("listing files failed: user_id=%s error_type=%s", query_user_id or user_id,
-                         type(e).__name__, exc_info=not is_driver_exception(e))
+            owner_id = query_user_id or user_id
+            logger.error("listing files failed: user_id=%s error_type=%s", owner_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             raise RuntimeError("Failed to get uploaded files") from e
     
     @staticmethod

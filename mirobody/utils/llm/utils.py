@@ -160,11 +160,13 @@ async def async_get_structured_output(
         if cut:
             logger.warning("structured output hit max_tokens, its complete part kept: model=%s char_count=%d",
                            spec.model, len(content))
-        logger.info("structured output: model=%s duration_ms=%d", spec.model, _ms(start))
+        duration_ms = _ms(start)
+        logger.info("structured output: model=%s duration_ms=%d", spec.model, duration_ms)
         return final_result
     except Exception as e:
+        duration_ms = _ms(start)
         logger.error("structured output failed: model=%s error_type=%s duration_ms=%d", spec.model,
-                     type(e).__name__, _ms(start), exc_info=not is_driver_exception(e))
+                     type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
 
 
@@ -194,9 +196,11 @@ async def async_get_text_completion(
             messages=messages,
             **_request_kwargs(spec, kwargs),
         )
-        logger.info("text completion: model=%s duration_ms=%d", spec.model, _ms(start))
+        duration_ms = _ms(start)
+        logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
         return response.choices[0].message.content
     except Exception as e:
+        duration_ms = _ms(start)
         logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
-                     type(e).__name__, _ms(start), exc_info=not is_driver_exception(e))
+                     type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None

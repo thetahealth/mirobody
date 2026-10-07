@@ -170,11 +170,13 @@ async def structured_output(spec: RouteSpec, messages: list[dict], schema: dict 
         if cut:
             logger.warning("structured output hit max_tokens, its complete part kept: model=%s char_count=%d",
                            spec.model, len(content))
-        logger.info("structured output: model=%s duration_ms=%d", spec.model, _ms(start))
+        duration_ms = _ms(start)
+        logger.info("structured output: model=%s duration_ms=%d", spec.model, duration_ms)
         return result
     except Exception as e:
+        duration_ms = _ms(start)
         logger.error("structured output failed: model=%s error_type=%s duration_ms=%d", spec.model,
-                     type(e).__name__, _ms(start), exc_info=not is_driver_exception(e))
+                     type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
 
 
@@ -186,11 +188,13 @@ async def text_completion(spec: RouteSpec, messages: list[dict], **kwargs) -> st
         response = await _create(spec, model=spec.model, messages=converted,
                                  **({"system": system} if system else {}),
                                  **_request_params(spec, kwargs))
-        logger.info("text completion: model=%s duration_ms=%d", spec.model, _ms(start))
+        duration_ms = _ms(start)
+        logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
         return _text_of(response)
     except Exception as e:
+        duration_ms = _ms(start)
         logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
-                     type(e).__name__, _ms(start), exc_info=not is_driver_exception(e))
+                     type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
 
 
