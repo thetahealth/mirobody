@@ -18,9 +18,14 @@ from typing import Any
 
 from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date
-from mirobody.collect.files.services.table_indicators import _split_flag
+from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
 
 logger = logging.getLogger(__name__)
+
+#: The flags a reading is stored with: the report's high and low, in one
+#: spelling (`printed_flag`). Stored as printed, `↑`, `H`, `偏高` and `high`
+#: were four answers to one question.
+STORED_FLAGS = ("high", "low")
 
 
 def row_time(printed: Any, report_time: datetime) -> datetime:
@@ -37,14 +42,17 @@ def row_time(printed: Any, report_time: datetime) -> datetime:
 
 
 def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
-    """`(value, flag)` of a model-read row: a flag the report printed after the
-    number (`6.49↑`, `5.6 H`) moved out of the value, the way the table rules
-    move it (`_split_flag`, the same `L`-is-litres guard), and kept as the
-    flag; else the model's `status`. Left in, `6.49↑` was stored as a
-    narrative with no number: all 16 value errors of GLM-OCR's end-to-end run
-    on the OCR benchmark (benchmarks/local_ocr, 2026-10-06)."""
-    value, printed = _split_flag(str(indicator.get("value") or ""), str(indicator.get("reference_range") or ""))
-    return value, printed or str(indicator.get("status") or "")
+    """`(value, flag)` of a read row. A flag the report printed after the
+    number (`6.49↑`, `5.6 H`) is moved out of the value the way the table
+    rules move it (`split_flag`, the same `L`-is-litres guard); else the
+    row's `status`. Either is kept only as `high` or `low`: a `normal` is a
+    judgement against the range, not a flag the report printed. Left in,
+    `6.49↑` was stored as a narrative with no number: all 16 value errors of
+    GLM-OCR's end-to-end run on the OCR benchmark (benchmarks/local_ocr,
+    2026-10-06)."""
+    value, printed = split_flag(str(indicator.get("value") or ""), str(indicator.get("reference_range") or ""))
+    flag = printed_flag(printed or str(indicator.get("status") or ""))
+    return value, flag if flag in STORED_FLAGS else ""
 
 
 def generate_source_table_id(msg_id: str, file_key: str) -> str:

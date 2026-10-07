@@ -16,10 +16,12 @@ from collections.abc import Callable
 
 from mirobody.collect.files.services.table_indicators import (
     EXTRACTOR as TABLE_EXTRACTOR,
-    _is_unit,
-    _split_flag,
+    is_unit,
     left_for_model,
+    printed_flag,
     same_reading,
+    split_flag,
+    status_of,
     table_indicators,
     value_key,
     without_rows,
@@ -143,6 +145,20 @@ def _latest_row_date(indicators: list[dict[str, Any]]) -> str:
     return max(dated).strftime("%Y-%m-%d %H:%M:%S") if dated else ""
 
 
+def _as_printed(row: dict[str, Any]) -> dict[str, Any]:
+    """A model-read row whose `status` is kept only as a flag the report could
+    have printed: high or low, and not one the value and the range printed
+    beside it contradict. The prompt also lets the model judge a row against
+    its range: on the demo check-up MiniCPM5-2B stored the printed `L` of
+    `Resting Heart Rate 57 (60-100)` as high, and `normal` on 8 rows that
+    printed no flag. The table rules' rows carry the printed flag itself."""
+    status = printed_flag(str(row.get("status") or ""))
+    value = split_flag(str(row.get("value") or ""), str(row.get("reference_range") or ""))[0]
+    judged = status_of(value, str(row.get("reference_range") or ""))
+    keep = status in ("high", "low") and judged in ("", status)
+    return {**row, "status": status if keep else ""}
+
+
 class IndicatorExtractor:
     """Indicator extraction service class"""
 
@@ -253,6 +269,8 @@ class IndicatorExtractor:
                 logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, no model - user_id: {user_id}")
             else:
                 llm_ret = await IndicatorExtractor._llm_extract(rest, language, user_id, remainder=bool(rows))
+                if llm_ret:
+                    llm_ret = {**llm_ret, "indicators": [_as_printed(i) for i in llm_ret.get("indicators") or []]}
                 if rows:
                     extractor = f"{TABLE_EXTRACTOR}+llm:file-parser@indicators-v1"
                     llm_ret = IndicatorExtractor._merge_rule_rows(rows, table_date, llm_ret)
@@ -422,7 +440,7 @@ class IndicatorExtractor:
         for indicator in indicators:
             name = str(indicator.get("original_indicator") or "").strip()
             value = str(indicator.get("value") or "").strip()
-            if not name or not value or _is_unit(_split_flag(value, "")[0].strip()):
+            if not name or not value or is_unit(split_flag(value, "")[0].strip()):
                 continue
             key = (value_key(value), str(parse_date(str(indicator.get("date_time") or "")) or ""))
             twins = groups.setdefault(key, [])

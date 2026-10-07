@@ -457,7 +457,7 @@ def _range_cell(cell: str) -> bool:
     an expected word (`阴性`). A result, a date or a flag is not one."""
     if _RANGE_IN.search(cell):
         return not re.search(r"\d", _RANGE_IN.sub("", cell))
-    return not _printed_flag(cell) and translate.parse_value(cell, "").value_kind in ("nominal", "ordinal")
+    return not printed_flag(cell) and translate.parse_value(cell, "").value_kind in ("nominal", "ordinal")
 
 
 def _unit_cells(cells: list[str]) -> bool:
@@ -465,7 +465,7 @@ def _unit_cells(cells: list[str]) -> bool:
     a range or a result word, and most are units the engine reads. Most, not
     all: a coagulation panel's `mg/L FEU` is a unit the engine does not know,
     beside `s` and `g/L` that it does."""
-    if any(_printed_flag(c) or _NUMBER.match(c) or _RANGE_IN.search(c)
+    if any(printed_flag(c) or _NUMBER.match(c) or _RANGE_IN.search(c)
            or translate.parse_value(c, "").value_kind in _RESULT_KINDS for c in cells):
         return False
     return 2 * sum(1 for c in cells if normalize_unit(c) is not None) > len(cells)
@@ -474,7 +474,7 @@ def _unit_cells(cells: list[str]) -> bool:
 def _results(cells: list[str]) -> int:
     """How many cells read as a result: a number, an ordinal or a nominal word,
     less a trailing flag."""
-    return sum(1 for c in cells if translate.parse_value(_split_flag(c, "")[0], "").value_kind in _RESULT_KINDS
+    return sum(1 for c in cells if translate.parse_value(split_flag(c, "")[0], "").value_kind in _RESULT_KINDS
                or _value_parts(c))
 
 
@@ -531,7 +531,7 @@ def _by_cells(row: list[str], groups: list[dict[str, int]], body: list[list[str]
     return typed
 
 
-def _is_unit(cell: str) -> bool:
+def is_unit(cell: str) -> bool:
     """A unit and nothing else: not `<5.18 mmol/L` or `10.0/L`, which the unit
     engine reads past their numbers, and not `1`, which it reads as unity."""
     return (normalize_unit(cell) is not None and not _NUMBER.match(cell)
@@ -549,7 +549,9 @@ def _ref_like(ref: str) -> bool:
     return translate.parse_value(ref, "").value_kind in _RESULT_KINDS
 
 
-def _printed_flag(flag: str) -> str:
+def printed_flag(flag: str) -> str:
+    """A flag as a report prints it (`↑`, `H`, `偏高`, `high`) in one spelling:
+    high, low or normal; "" for anything else."""
     f = flag.strip().lower()
     if f in _FLAG_HIGH:
         return "high"
@@ -562,7 +564,7 @@ def status_of(value: str, ref: str, flag: str = "") -> str:
     """high / low / normal from a printed flag, else by comparing `value` with
     the range printed beside it; "" when neither says. For a READER (a file
     summary): the store keeps only the printed flag."""
-    printed = _printed_flag(flag)
+    printed = printed_flag(flag)
     if printed:
         return printed
     number = re.fullmatch(r"\s*([-+]?\d+(?:\.\d+)?)\s*", value)
@@ -580,7 +582,7 @@ def status_of(value: str, ref: str, flag: str = "") -> str:
     return ""
 
 
-def _split_flag(value: str, ref: str) -> tuple[str, str]:
+def split_flag(value: str, ref: str) -> tuple[str, str]:
     """`(value, flag)` with a flag printed after the value moved out. A bare
     `L` is a flag only when the printed range says the value is low: `1.5 L`
     of urine is litres. A bare `H` after a word is a flag only after a result
@@ -606,7 +608,7 @@ def _ref_unit(ref: str) -> tuple[str, str] | None:
     is a number, never a unit."""
     for separator in ("&", "±"):
         head, found, tail = ref.rpartition(separator)
-        if found and re.search(r"\d", head) and _is_unit(tail.strip()):
+        if found and re.search(r"\d", head) and is_unit(tail.strip()):
             return head.strip(), tail.strip()
     m = _REF_UNIT.match(ref)
     unit = m.group(2) or m.group(3) if m else None
@@ -651,14 +653,14 @@ def _kinds(cell: str) -> frozenset[str]:
     or an expected word), a "flag", a "value" (a result), or "text" (a name, a
     code, a unit the engine does not know) when it says none of these."""
     kinds = set()
-    if _printed_flag(cell):
+    if printed_flag(cell):
         kinds.add("flag")
-    if _is_unit(cell):
+    if is_unit(cell):
         kinds.add("unit")
     else:
         if _range_cell(cell) or _ref_unit(cell):
             kinds.add("ref")
-        if translate.parse_value(_split_flag(cell, "")[0], "").value_kind in _RESULT_KINDS or _value_parts(cell):
+        if translate.parse_value(split_flag(cell, "")[0], "").value_kind in _RESULT_KINDS or _value_parts(cell):
             kinds.add("value")
     if re.fullmatch(_DATE_VALUE, cell):
         kinds = {"date"}
@@ -804,7 +806,7 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> list
         # out of line with its header in a way no one layout explains.
         return None
     if not flag:
-        value, flag = _split_flag(value, ref)
+        value, flag = split_flag(value, ref)
         if not unit and re.search(r"\d\s*L{1,2}$", value):
             return None  # low, or litres: the range does not say, so a model reads it
     parsed = translate.parse_value(value, unit)
@@ -833,7 +835,7 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> list
         "unit": unit,
         "reference_range": ref,
         "detection_method": "laboratory",
-        "status": _printed_flag(flag),
+        "status": printed_flag(flag),
         "notes": "",
         "_date": _cell(row, columns, "date"),
     }
@@ -999,11 +1001,11 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
     # readings carries the printed name or the pair (`Blood Pressure |
     # 123/78`), and that row left in the text sends the document to the model.
     pressures = {(n, v) for v in names if "/" in v for n in names
-                 if (split := blood_pressure(_key(n), _split_flag(v, "")[0])) and set(split) <= pairs}
+                 if (split := blood_pressure(_key(n), split_flag(v, "")[0])) and set(split) <= pairs}
     pairs = pairs | pressures
-    results = [c for i, c in enumerate(cells) if c and i not in codes and not _is_unit(c)
+    results = [c for i, c in enumerate(cells) if c and i not in codes and not is_unit(c)
                and not (_RANGE_IN.search(c) and _range_cell(c))
-               and (translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c)
+               and (translate.parse_value(split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c)
                     or any(c == v for _, v in pressures))]
     if not results:
         # A row of word results (`Urine protein(PRO) | Negative | 阴性 | 02`) is
@@ -1012,14 +1014,14 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
         # every urinalysis and serology row of a text-layer book went to the
         # model a second time (corpus p002_2026-08-07_e04a).
         named = {name for name, value in pairs if name in names and value in cells}
-        others = {c for i, c in enumerate(cells) if c and i not in codes and not _is_unit(c) and not _range_cell(c)
-                  and not _printed_flag(c)
-                  and translate.parse_value(_split_flag(c, "")[0], "").value_kind not in _RESULT_KINDS}
+        others = {c for i, c in enumerate(cells) if c and i not in codes and not is_unit(c) and not _range_cell(c)
+                  and not printed_flag(c)
+                  and translate.parse_value(split_flag(c, "")[0], "").value_kind not in _RESULT_KINDS}
         return bool(named) and others <= named
 
     def printed(c: str) -> set[str]:
         head = re.match(r"\s*([<>≤≥]?\s*[-+]?\d+(?:\.\d+)?)", c)
-        return {c, _split_flag(c, "")[0], (_value_parts(c) or ("",))[0], head.group(1).replace(" ", "") if head else c}
+        return {c, split_flag(c, "")[0], (_value_parts(c) or ("",))[0], head.group(1).replace(" ", "") if head else c}
 
     return all(any(value in printed(c) and name in names for name, value in pairs) for c in results)
 
@@ -1243,7 +1245,7 @@ def value_key(value: str) -> tuple:
     `2.873 (0.270 - 4.200)&mIU/L`, beside the rule's `2.873`); else the text
     less its flag, case set aside (`Positive H` / `positive`)."""
     v = value.strip()
-    head = _split_flag((_value_parts(v) or (v,))[0], "")[0].strip()
+    head = split_flag((_value_parts(v) or (v,))[0], "")[0].strip()
     parsed = translate.parse_value(head, "")
     if parsed.value_kind == "quantity" and parsed.value_num is not None:
         return ("number", parsed.value_num, parsed.comparator)
