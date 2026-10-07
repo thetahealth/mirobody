@@ -41,6 +41,7 @@ from mirobody.agent.wire.blocks import (
     FINISH_STOP,
     FINISH_UNAVAILABLE,
     HEARTBEAT,
+    INTERRUPT,
     START,
     TEXT,
     answer_text,
@@ -360,8 +361,10 @@ async def _accumulate(
         # can render: it draws an empty bubble under "Answer Completed".
         # Measured 2026-09-11 across two vendors: gemini spent 2,337 of 2,539
         # output tokens on reasoning and qwen 8,943 of 9,862, both finishing
-        # `stop` with no error event and no answer.
-        if completed and not answer_text(transcript).strip():
+        # `stop` with no error event and no answer. A turn that ends on an
+        # `ask_user` question has its answer still to come, and is not empty.
+        asked = any(b.get("type") == INTERRUPT for b in transcript)
+        if completed and not asked and not answer_text(transcript).strip():
             filler = localize("empty_turn", params.language or "en", module="chat")
             merge(transcript, {"type": TEXT, "text": filler})
             await queue.put({"type": TEXT, "text": filler})
