@@ -43,15 +43,21 @@ This module provides comprehensive health data file processing capabilities, inc
 | Images | `image/*` | `ImageHandler` | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.heic`, `.heif`, `.tif`, `.tiff`; downscaled and OCR'd, then the same extraction path as PDF |
 | Genetic Data | Raw genotype export, `.txt` / `.csv` / VCF: WeGene, 23andMe, AncestryDNA, MyHeritage, FTDNA; plain, gzip, BGZF, or a ZIP holding one VCF with bounded BED/TXT sidecars | `GeneticHandler` | Recognised by its column header; uploaded rows enter `th_genotype_set` / `th_genotype` and become queryable only after atomic activation. The old `th_series_data_genetic` table is migration input only. See [genetics.md](genetics.md) |
 | Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.htm`, `.log` decoded directly, same extraction path as PDF |
-| Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget. `.xls` and `.xlsb` upload but do not parse: openpyxl reads only the zip formats, and `detect.LEGACY_OFFICE_SUFFIXES` names them so a reader is told the file could not be read rather than handed container bytes as prose |
+| Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget. `.xls` and `.xlsb` are refused at upload: openpyxl reads only the zip formats |
 | Word / PowerPoint | OOXML | `DocumentHandler` | `.docx`, `.pptx` as markdown (headings, paragraphs, tables, slides) |
 
-Two lists, and they are not the same list. `mirobody/utils/file_types.py` is
-the UPLOAD accept-list: what a user is allowed to hand the server. It carries
-`.xls` and `.xlsb`, which no parser here reads. What a file can be READ as is
+Two lists, and they are not the same list.
+`collect/files/services/file_uploader.SUPPORTED_EXTENSIONS` is the UPLOAD
+accept-list, checked by `POST /files/upload` and by the WebSocket's
+`upload_start` before a byte is taken: it also holds the genotype containers
+(`.vcf`, `.gz`, `.zip`). What a file can be READ as is
 `mirobody/documents/detect.py`: `EXTRACTABLE_SUFFIXES` (15, through a parser
 or OCR) plus `TEXT_EXTENSIONS` (8, decoded directly) is the 23 the README
-counts. When this table and that module disagree, the module is the contract.
+counts, and the handler is chosen by `detect.kind` (the name, the declared
+type and the first bytes), so a photo sent as `application/octet-stream` is
+still a photo. A file it names no kind for fails with "File type not
+supported". When this table and that module disagree, the module is the
+contract.
 
 Whatever the handler, the TEXT of a document comes from one place:
 `mirobody/documents/` (`detect.kind` by extension, content type and, when
@@ -418,13 +424,13 @@ Authorization: Bearer <token>
 
 #### 2. File Type Recognition (30-35%)
 
-The system automatically identifies file types via `FileHandlerFactory`:
+`FileHandlerFactory` picks the handler:
 
 ```python
-# Handler selection priority
-1. GeneticHandler  - Genetic data files
-2. ImageHandler    - Image files (image/*)
-3. PDFHandler      - PDF documents
+# Handler selection
+1. GeneticHandler  - a genotype export, by its content
+2. detect.kind     - pdf, image, xlsx, docx/pptx, text: by name, declared type and bytes
+3. none            - "File type not supported"
 ```
 
 #### 3. Content Processing Phase (35-90%)

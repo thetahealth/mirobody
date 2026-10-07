@@ -119,30 +119,8 @@ IMAGE_MEDIA_TYPES: dict[str, str] = {
 }
 
 
-# Extension + MIME sets for the "which extractor handles this?" question.
-# The Excel pair existed verbatim in two places: `ExcelHandler.is_excel_file`
-# (deciding which handler runs) and `FileAbstractExtractor._is_excel_file`
-# (deciding which extraction routine runs). Two copies of the routing table
-# meant a new spreadsheet type could reach a handler that then refused to
-# extract it.
-EXCEL_EXTENSIONS: set[str] = {".xlsx", ".xls", ".xlsm", ".xlsb"}
-EXCEL_MIME_TYPES: set[str] = {
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/vnd.ms-excel",
-    "application/vnd.ms-excel.sheet.macroEnabled.12",
-    "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
-}
-
-# Word and PowerPoint, modern zip formats only. python-docx and python-pptx
-# cannot read legacy binary `.doc`/`.ppt`, so those are deliberately absent,
-# they were accepted by the upload gate for a long time with no handler at all,
-# which meant the picker took the file and the upload failed at the end.
-DOCUMENT_EXTENSIONS: set[str] = {".docx", ".pptx"}
-DOCUMENT_MIME_TYPES: set[str] = {
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-}
-
+#: What `documents.detect` decodes as text without a parser, by extension and
+#: by declared type.
 TEXT_EXTENSIONS: set[str] = {".txt", ".md", ".csv", ".json", ".xml", ".html", ".htm", ".log"}
 TEXT_MIME_TYPES: set[str] = {
     "text/plain",
@@ -172,28 +150,6 @@ def with_extension(generated: str, extension: str) -> str:
     if root and (ext.lower() in MIME_BY_EXT or ext.lower() in _PLACEHOLDER_EXTS):
         stem = root.rstrip(". ")
     return f"{stem}{extension.lower()}" if stem else ""
-
-
-def _matches(filename: str, content_type: str | None, exts: set[str], mimes: set[str]) -> bool:
-    if not filename:
-        return False
-    ext = os.path.splitext(filename)[1].lower()
-    return ext in exts or (content_type in mimes if content_type else False)
-
-
-def is_excel_file(filename: str, content_type: str | None = None) -> bool:
-    """True for spreadsheet uploads (by extension or MIME type)."""
-    return _matches(filename, content_type, EXCEL_EXTENSIONS, EXCEL_MIME_TYPES)
-
-
-def is_document_file(filename: str, content_type: str | None = None) -> bool:
-    """True for Word/PowerPoint uploads we can extract text from."""
-    return _matches(filename, content_type, DOCUMENT_EXTENSIONS, DOCUMENT_MIME_TYPES)
-
-
-def is_text_file(filename: str, content_type: str | None = None) -> bool:
-    """True for plain-text-ish uploads we can decode without a parser."""
-    return _matches(filename, content_type, TEXT_EXTENSIONS, TEXT_MIME_TYPES)
 
 
 def simple_file_type(file_type: str) -> str:

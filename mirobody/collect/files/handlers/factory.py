@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-
-
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality: a bare `pip install mirobody` must import this module. Every
 # use below is an annotation, so PEP 563 (the __future__ import) keeps them as
@@ -10,14 +8,29 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
-from mirobody.utils.file_types import is_text_file
-from mirobody.collect.files.handlers.document import DocumentHandler
 from mirobody.collect.files.handlers.base import BaseFileHandler
+from mirobody.collect.files.handlers.document import DocumentHandler
+from mirobody.collect.files.handlers.excel import ExcelHandler
+from mirobody.collect.files.handlers.genetic import GeneticHandler
 from mirobody.collect.files.handlers.image import ImageHandler
 from mirobody.collect.files.handlers.pdf import PDFHandler
 from mirobody.collect.files.handlers.text import TextHandler
-from mirobody.collect.files.handlers.genetic import GeneticHandler
-from mirobody.collect.files.handlers.excel import ExcelHandler
+from mirobody.documents import detect
+
+#: The handler for each kind `detect.kind` names: the kinds `documents.extract`
+#: reads, so a file that reaches a handler is one its text can be read from.
+_HANDLERS: dict[str, type[BaseFileHandler]] = {
+    detect.KIND_PDF: PDFHandler,
+    detect.KIND_IMAGE: ImageHandler,
+    detect.KIND_XLSX: ExcelHandler,
+    detect.KIND_DOCX: DocumentHandler,
+    detect.KIND_PPTX: DocumentHandler,
+    detect.KIND_TEXT: TextHandler,
+}
+
+#: Bytes `detect.kind` reads: an Office file names its parts within them (`zip_kind`).
+_HEAD_BYTES = 64 * 1024
+
 
 class FileHandlerFactory:
     def __init__(
@@ -33,76 +46,21 @@ class FileHandlerFactory:
         self.abstract_extractor = abstract_extractor
 
     async def get_handler(self, file: UploadFile) -> BaseFileHandler | None:
-        """
-        Determine and return the appropriate handler for the file.
-        """
-        content_type = file.content_type or ""
-        filename = file.filename or ""
+        """The handler for `file`, or None when nothing here reads it.
 
-        # 1. Check for Genetic File (Async check required)
+        A genotype export first, by its content. Every other kind is
+        `detect.kind`'s, from the name, the declared type and the first bytes:
+        routing on the declared type alone refused a photo or a PDF a client
+        sent as `application/octet-stream`, and took a legacy `.xls` that no
+        parser reads, which then completed with no text and no error.
+        """
         if await GeneticHandler.is_genetic_file(file):
-            return GeneticHandler(
-                self.uploader, 
-                self.temp_manager, 
-                self.indicator_extractor,
-                self.abstract_extractor
-            )
-
-        # 2. Check for Image
-        if content_type.startswith("image/"):
-            return ImageHandler(
-                self.uploader, 
-                self.temp_manager, 
-                self.indicator_extractor,
-                self.abstract_extractor
-            )
-
-        # 3. Check for PDF
-        if content_type == "application/pdf":
-            return PDFHandler(
-                self.uploader, 
-                self.temp_manager, 
-                self.indicator_extractor,
-                self.abstract_extractor
-            )
-
-        # 4. Text, markdown included: browsers send .md as text/markdown, which
-        # used to fall through every branch and fail as "unsupported" even
-        # though TextHandler parses it identically to .txt. `text/csv` lands
-        # here too, fixing a real bug: it went to a `CSVHandler` that only
-        # delegated to a `csv_processor` nothing ever injected, so the factory
-        # returned None for every .csv while `SUPPORTED_EXTENSIONS` accepted it.
-        # A lab CSV is text: extract it, then extract indicators as usual.
-        if (content_type.startswith(("text/plain", "text/markdown"))
-                or is_text_file(filename, content_type)):
-             return TextHandler(
-                self.uploader, 
-                self.temp_manager, 
-                self.indicator_extractor,
-                self.abstract_extractor
-            )
-
-        # 5. Word / PowerPoint, before Excel because both are OOXML zips and
-        # only the extension separates them.
-        if DocumentHandler.is_document_file(filename, content_type):
-            return DocumentHandler(
-                uploader=self.uploader,
-                temp_manager=self.temp_manager,
-                indicator_extractor=self.indicator_extractor,
-                abstract_extractor=self.abstract_extractor,
-            )
-
-        # 6. Check for Excel: built-in openpyxl extraction. The
-        # `excel_processor` override parameter is gone with the same seam: it
-        # was documented as "injected from mcp_server", and no such injector
-        # exists here, so the branch was unreachable.
-        if ExcelHandler.is_excel_file(filename, content_type):
-            return ExcelHandler(
-                uploader=self.uploader,
-                temp_manager=self.temp_manager,
-                indicator_extractor=self.indicator_extractor,
-                abstract_extractor=self.abstract_extractor
-            )
-
-        return None
-
+            handler: type[BaseFileHandler] | None = GeneticHandler
+        else:
+            await file.seek(0)
+            head = await file.read(_HEAD_BYTES)
+            await file.seek(0)
+            handler = _HANDLERS.get(detect.kind(file.filename, file.content_type, bytes(head)) or "")
+        if handler is None:
+            return None
+        return handler(self.uploader, self.temp_manager, self.indicator_extractor, self.abstract_extractor)

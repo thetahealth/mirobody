@@ -28,28 +28,17 @@ from mirobody.utils.req_ctx import request_language
 logger = logging.getLogger(__name__)
 
 
-# Supported file extensions. This gate must match what the handler factory can
-# route, in BOTH directions, and it has been wrong both ways: too narrow, it
-# rejected .md that TextHandler parses; too wide, it accepted .doc/.ppt with no
-# handler at all, so the upload ran and `file_processor` then answered "file
-# not supported". Those are out until something parses them, so the refusal
-# happens at the gate with a list of what does work (docs/roadmap.md carries
-# the gap). `handlers/test_factory_routing.py` fails if this set and the
-# factory disagree.
+#: What an upload may be, checked by `POST /files/upload` and by the
+#: WebSocket's `upload_start`: files `documents.detect` names a kind for, and
+#: the containers `GeneticHandler` opens by their bytes. Accepting a file nothing
+#: then reads is the defect this set exists to prevent, so the legacy binary
+#: `.doc`/`.ppt`/`.xls` stay out: python-docx, python-pptx and openpyxl read
+#: only the zip formats.
 SUPPORTED_EXTENSIONS = {
-    # Images (ImageHandler takes any image/*; heic/heif come from iPhones)
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".svg",
     ".heic", ".heif",
-    # Documents. `.docx`/`.pptx` are back now that `handlers/document.py`
-    # parses them; legacy binary `.doc`/`.ppt`/`.xls` stay out, because
-    # python-docx, python-pptx and openpyxl read only the zip-based formats and
-    # accepting a file we then refuse is the defect this set exists to prevent.
-    # `.zip` now has a single-member genotype reader; other archives stay out.
     ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx",
-    # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here:
-    # TextHandler owns it now that the never-injected CSVHandler is gone.
     ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".log", ".htm", ".html",
-    # The genetic handler checks content and opens these by magic bytes.
     ".vcf", ".gz", ".zip",
 }
 
@@ -164,23 +153,13 @@ class FileUploader:
 
 # Utility functions for file upload operations
 
-def validate_file_extension(file: UploadFile) -> tuple[bool, str]:
-    """
-    Validate uploaded file extension
-    
-    Args:
-        file: The uploaded file
-        
-    Returns:
-        tuple[bool, str]: (is_valid, error_message)
-    """
-    # Check file extension
-    file_extension = Path(file.filename).suffix.lower()
-    if file_extension not in SUPPORTED_EXTENSIONS:
-        error_msg = f"File type {file_extension} not supported. Supported types: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
-        return False, error_msg
-    
-    return True, ""
+def validate_file_extension(filename: str | None) -> tuple[bool, str]:
+    """Whether an upload named `filename` is one `SUPPORTED_EXTENSIONS` takes:
+    `(True, "")`, or `(False, the sentence the person is told)`."""
+    extension = Path(filename or "").suffix.lower()
+    if extension in SUPPORTED_EXTENSIONS:
+        return True, ""
+    return False, f"File type {extension or '(none)'} not supported. Supported types: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
 
 
 #: A folder prefix is one or more `[A-Za-z0-9._-]` segments. Everything else (

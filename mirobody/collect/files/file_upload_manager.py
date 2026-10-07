@@ -48,6 +48,7 @@ if TYPE_CHECKING:
     from fastapi import WebSocket
 from mirobody.collect.files.file_processor import FileProcessor
 from mirobody.collect.files.services.file_db_service import SOURCE_DATA, FileDbService
+from mirobody.collect.files.services.file_uploader import validate_file_extension
 from mirobody.utils.file_types import guess_mime
 from mirobody.collect.files.handlers.genetic import GeneticHandler
 from mirobody.utils.tasks import spawn
@@ -246,6 +247,18 @@ class WebSocketFileUploadManager:
                             "messageId": message_id,
                             "message": "You do not have write access to that user's record.",
                         },
+                    )
+                    return False
+
+            # The gate `POST /files/upload` applies, before a byte is taken:
+            # this path had none, so a legacy .xls was stored, read as
+            # nothing, and reported complete with 0 readings.
+            for declared in files_info:
+                supported, reason = validate_file_extension(declared.get("filename"))
+                if not supported:
+                    await self.send_message(
+                        connection_id,
+                        {"type": "upload_error", "messageId": message_id, "status": "failed", "message": reason},
                     )
                     return False
 

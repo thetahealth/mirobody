@@ -642,7 +642,7 @@ async def upload_files_to_storage(
             # in the store. Combined with the file route's old `inline`
             # disposition that made an uploaded .html a stored-XSS payload on
             # this origin.
-            ext_ok, ext_err = validate_file_extension(file)
+            ext_ok, ext_err = validate_file_extension(file.filename)
             if not ext_ok:
                 failed_uploads.append({
                     "file_name": file.filename,

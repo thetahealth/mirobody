@@ -8,7 +8,6 @@ failing after an upload.
 """
 
 from mirobody.collect.files.handlers.base import BaseFileHandler
-from mirobody.utils.file_types import is_document_file
 
 
 class DocumentHandler(BaseFileHandler):
@@ -16,7 +15,3 @@ class DocumentHandler(BaseFileHandler):
 
     def get_type_name(self) -> str:
         return "document"
-
-    # Routing table lives in utils.file_types so the handler that accepts a
-    # document and the extractor that parses it can never disagree.
-    is_document_file = staticmethod(is_document_file)
