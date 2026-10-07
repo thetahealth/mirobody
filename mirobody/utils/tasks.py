@@ -29,6 +29,8 @@ import logging
 from typing import Any
 from collections.abc import Coroutine
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 # Strong references, per the documented pattern. Tasks remove themselves on
@@ -42,9 +44,8 @@ def _log_result(task: asyncio.Task) -> None:
         return
     exc = task.exception()
     if exc is not None:
-        logger.error(
-            "background task %r failed: %s", task.get_name(), exc, exc_info=exc,
-        )
+        logger.error("background task failed: task=%s error_type=%s",  # phi: ok a label the code chose
+                     task.get_name(), type(exc).__name__, exc_info=None if is_driver_exception(exc) else exc)
 
 
 def spawn(coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio.Task:

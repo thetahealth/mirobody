@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.tasks import spawn
 
 from .distributed_lock import pull_task_lock_manager
@@ -108,16 +109,10 @@ class PullTask:
 
         self.is_running = True
         self.last_run = datetime.now()
-        # TH-416: persist last_run so a service restart doesn't reset the
-        # execution window of long-interval tasks (renpho/whoop @ 24h, etc.)
-        try:
-            await pull_task_lock_manager.set_last_run(
-                self.provider_slug, self.last_run
-            )
-        except Exception as e:
-            logger.warning(
-                f"Failed to persist last_run for {self.provider_slug}: {e}"
-            )
+        # Persisted before the run, under the lock: a restart and every other
+        # instance read it, so a 24-hour pull (renpho, whoop) does not run
+        # again on each boot or on each instance.
+        await pull_task_lock_manager.set_last_run(self.provider_slug, self.last_run)
 
         try:
             success = await self.execute()
@@ -133,10 +128,8 @@ class PullTask:
 
         except Exception as e:
             self.last_failed = True
-            logger.error(
-                f"Task {self.provider_slug} execution error: {str(e)}",
-                exc_info=True,
-            )
+            logger.error("task failed: task=%s error_type=%s", self.provider_slug, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             self._calculate_next_run()
             return False
         finally:
@@ -191,24 +184,13 @@ class Scheduler:
         self.running = True
         logger.info("Starting scheduler...")
 
-        # TH-416: restore each task's last_run from Postgres before scheduling,
-        # so a service restart doesn't reset long-interval tasks
-        # (renpho/whoop @ 24h) to execute immediately.
+        # Each task's persisted last run, before the first check: otherwise
+        # a restart makes a 24-hour pull (renpho, whoop) due at once.
         for task in self.tasks.values():
-            try:
-                persisted = await pull_task_lock_manager.get_last_run(
-                    task.provider_slug
-                )
-                if persisted is not None:
-                    task.last_run = persisted
-                    logger.info(
-                        f"Restored last_run for {task.provider_slug}: "
-                        f"{persisted.isoformat()}"
-                    )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to restore last_run for {task.provider_slug}: {e}"
-                )
+            persisted = await pull_task_lock_manager.get_last_run(task.provider_slug)
+            if persisted is not None:
+                task.last_run = persisted
+                logger.info("last run restored: task=%s", task.provider_slug)
 
         # Start scheduler as a background task to avoid blocking startup
         self._scheduler_task = asyncio.create_task(self._run_scheduler())
@@ -220,9 +202,6 @@ class Scheduler:
 
         while self.running:
             try:
-                current_time = datetime.now()
-                logger.debug(f"Scheduler check at {current_time.isoformat()}")
-
                 # Check all tasks
                 for task in self.tasks.values():
                     if task.should_run():
@@ -237,7 +216,8 @@ class Scheduler:
                 logger.info("Scheduler loop cancelled")
                 break
             except Exception as e:
-                logger.error(f"Scheduler loop error: {str(e)}")
+                logger.error("scheduler loop failed: error_type=%s", type(e).__name__,
+                             exc_info=not is_driver_exception(e))
                 await asyncio.sleep(60)
 
 
