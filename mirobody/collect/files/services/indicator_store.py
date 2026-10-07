@@ -13,12 +13,12 @@ prints the unit twice anyway.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from mirobody.collect import observations
+from mirobody.collect.files.services.report_date import document_date
 from mirobody.collect.files.services.table_indicators import _split_flag
-from mirobody.utils.coerce import parse_date
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +30,10 @@ def row_time(printed: Any, report_time: datetime) -> datetime:
     A log of twelve morning weights used to be filed as twelve readings of one
     day, or one reading after the name-and-value dedup, because the extraction
     had one date per document. A printed row date that does not parse, or is
-    more than a day ahead of now (a misread), is not used: the document's date
-    is, as it was for every row before.
+    more than a day ahead of now (a misread), is not used (`document_date`):
+    the document's date is, as it was for every row before.
     """
-    at = parse_date(str(printed or ""))
-    if at is None or at > datetime.now() + timedelta(days=1):
-        return report_time
-    return at
+    return document_date(printed) or report_time
 
 
 def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
