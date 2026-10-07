@@ -210,8 +210,8 @@ existed on `main`.
 The conclusion that survives is the last paragraph of the old entry: the
 `Vendor` transport contract and the `BasePullProvider` pipeline contract are
 two shapes for one job. That unification is still the real work, and it starts
-from `BasePullProvider` — which has four working implementations — rather than
-from a catalogue of stubs. The research notes are one `git show` away when it is
+from `BasePullProvider` — which has three shipped implementations (Garmin,
+Oura, WHOOP) and the example plugin — rather than from a catalogue of stubs. The research notes are one `git show` away when it is
 time to implement a source.
 
 **Connected:** four tables — `health_data_epic`, `health_data_oracle`,
@@ -563,30 +563,27 @@ Confirmed by audit and reproduced where possible, but each needs a real
 PostgreSQL with data to fix *honestly* — the failure modes are all "silently
 wrong numbers", which is exactly what you cannot verify by reading:
 
-* **`sql_aggregator._process_data_begin_split_aggregations` drops derived
-  methods.** The >5000-task split path does not exclude the GMI and custom
-  W2.7 methods the way `_process_data_begin_aggregations` does, so
+* **Resolved: the split aggregation path dropped derived methods.** Past
+  5,000 tasks a `data_begin_utc` bucket took a second path that skipped
   `morning_hr_jump`, `nighttime_resting_hr`, `sleep_onset_latency` and
-  `gmi_14d` are neither computed nor logged once a `data_begin_utc` bucket
-  exceeds MAX_TASKS_PER_SQL. Only large accounts hit it, and they get quietly
-  incomplete summaries.
-* **`convert_to_standard` fails silent.** An indicator with no conversion rule
-  keeps its ORIGINAL unit and value and logs at DEBUG
-  (`ingest/services/base.py:66-78`). One row stored in kOhm among mg/dL is
-  invisible to every downstream aggregate. Fixing it means choosing between
-  raising and quarantining, which changes ingest behaviour — needs a decision
-  and a migration for whatever is already stored wrong.
+  `gmi_14d`. The split path is gone: every day takes one path (1.5.4).
+* **`convert_to_standard` fails silent.** Spelling variants now convert
+  through `mirobody.units`; a unit that does not convert is kept as given, with
+  no log line at all (`collect/ingest/services/upload_health.py:_to_standard_unit`).
+  One row stored in kOhm among mg/dL is invisible to every downstream
+  aggregate. Fixing it means choosing between raising and quarantining, which
+  changes ingest behaviour — needs a decision and a migration for whatever is
+  already stored wrong.
 * **Resolved: provider pulls fail closed when Postgres is unavailable.** The
   previous Redis client could be missing and still permit an unlocked pull.
   A session-level Postgres advisory lock now gates each pull; acquisition
   failure refuses execution, and a dropped session releases its lock.
-* **Two lookups disagree.** 9 `StandardIndicator` members share a wire-format
-  `name`, and `_INDICATOR_LOOKUP` (last wins) resolves
-  `sleepAnalysis_Asleep(Deep)` to a member with `aggregation_methods=None`
-  while `get_indicator_by_str` (first wins) resolves it to one with
-  `['total']`. `standard_unit` happens to match across every colliding group
-  today, so nothing is numerically wrong *yet*; the next collision with
-  differing units would be. At minimum, make a duplicate `name` fail at import.
+* **Resolved: two lookups disagreed.** `StandardIndicator` members share five
+  wire-format names; `_INDICATOR_LOOKUP` answered the last and
+  `get_indicator_by_str` the first. Every name helper now reads one
+  lower-cased, first-wins table, and `_INDICATOR_LOOKUP` is gone (1.5.4). A
+  duplicate `name` still loads; the next collision with differing units should
+  fail at import.
 
 Plus ~20 lower-risk items (dead methods, duplicated IN-clause binding,
 copy-pasted numeric regexes, a README describing method names that moved).
@@ -918,3 +915,52 @@ first encoded at the terminal demo's pace (0.22 s per frame), which is right for
 a typing animation and far too fast for a screenful of UI. Each localized GIF now
 holds each frame for as long as its English sibling does — 1.5 s for
 `care-circle`, 1.9 s for `upload`, 2.0 s for `ask-circle`, 1.76 s for `ask-own`.
+
+## Found by the backend quality pass (2026-10-07)
+
+Twelve reviews read the backend line by line before 1.5.4 shipped, and what they
+proved was fixed in the same release (CHANGELOG, 1.5.4). These were found too
+and left open, each for the reason given.
+
+**Vocabulary: refused rather than coded, each needing its own rule.**
+- HbA1c printed in mmol/mol (IFCC) is refused: its code, 59261-8, has its own
+  COMPONENT, so the unit cannot select it from the % code's row.
+- A prothrombin time printed as a ratio in `%` (actual/normal) is refused:
+  admitting `%` as RelTime would also admit it for INR, where it is wrong.
+- An INR printed with the unit `1` is refused.
+- `FEV1/FVC` resolves to 19925-7, the predicted ratio, not the measured one.
+
+**Records.**
+- `observations.amend` replaces a row's note with its `note` argument, which
+  defaults to "", so correcting a symptom or a lab row drops its note.
+- `StandardPulseRecord.comment` (a meal's details, for one) is never stored:
+  notes are kept only for file, API and demo rows.
+- Deleting an account soft-deletes the account row; its observations and
+  `series_data` stay.
+- `th_coding_decision.unit_ucum` is "" for a decision whose id includes the
+  printed unit, which every decision for a unit that did not normalize has.
+- The profile rewrite in `user/profile.py` is given the previous profile, the
+  drift loop `kernel.memory` is built without a parameter to prevent.
+
+**Devices.** Each needs a real vendor account to verify, which the pass had not.
+- Garmin's `activities` and `activityDetails` both decode the same activity,
+  under different summary ids, so its active calories and steps may be counted
+  twice; whether the two ids ever match is a question for real payloads.
+- WHOOP's default scope still asks for `read:profile`, which nothing reads
+  since profiles stopped being pulled. Narrowing it changes the scope sent on
+  every refresh of an existing link, untested against WHOOP.
+- A Garmin deregistration's raw row stores its (revoked) `userAccessToken`.
+- The Apple CDA reader's `vital_signs` and `lab_results` sections are stubs that
+  return nothing, and Apple's `%` statistics are passed through as given, where
+  the push path found HealthKit fractions.
+
+**Agent.** `EmptyAnswerRepairMiddleware` removes its nudge once an answer
+arrives, which edits the prefix the answer's thinking was generated on;
+`agent/middleware/model_budget.py` records that current Anthropic models refuse
+an edited prefix. Unverified: it needs an empty answer from such a model with
+thinking on, which is rare.
+
+**Uploads.** `.svg` and `.markdown` are accepted, but an SVG is never readable
+by OCR, and a Markdown file is read as text only when the client declares
+`text/markdown`. `th_files.file_content` is updated read-modify-write, so two
+writers at once can lose a key.
