@@ -108,17 +108,22 @@ def _text_read(content: str, offset: int, limit: int, created: str, modified: st
     window also goes in the fields deepagents prints above the text (`@@
     lines 101-200 of 700 | next offset 200 @@`): without them it numbers the
     window from the body it is handed, the notice counted as a document line.
-    A negative offset reads from line 1, as deepagents tells the model it did.
+    A negative offset reads from line 1, as deepagents tells the model it did,
+    and a negative limit reads to the end. An offset past the last line is
+    deepagents' own error (`slice_read_response`): read as an empty window,
+    the middleware told the model "File exists but has empty contents".
     """
     file_data = {"content": content, "encoding": "utf-8", "created_at": created, "modified_at": modified}
     if not offset and limit == _DEFAULT_READ_LIMIT:
         return ReadResult(file_data=file_data)
     lines = content.splitlines()
-    offset = max(offset, 0)
+    if not lines:
+        return ReadResult(file_data=file_data)
+    offset, limit = max(offset, 0), max(limit, 0)
+    if offset >= len(lines):
+        return ReadResult(error=f"Line offset {offset} exceeds file length ({len(lines)} lines)")
     shown = lines[offset: offset + limit] if limit else lines[offset:]
     file_data["content"] = "\n".join(shown)
-    if not shown:
-        return ReadResult(file_data=file_data)
     first, last, total = offset + 1, offset + len(shown), len(lines)
     if last < total:
         # After a blank line, past the window's last line: where deepagents
@@ -509,7 +514,10 @@ class PgFilesystemBackend(BackendProtocol):
         *,
         max_count: int | None = None,
     ) -> GrepResult:
-        """Search inlined utf-8 ``content`` under ``path``.
+        """Search inlined utf-8 ``content`` under ``path`` for ``pattern`` as
+        LITERAL text, ignoring case: deepagents' grep tool tells the model the
+        pattern is matched verbatim, and as a regex "LDL-C (mg/dL)" matched
+        nothing while "a|b" matched every line holding either letter.
 
         ``max_count`` (deepagents 0.7) is a TOTAL cap on returned matches, not a
         per-file one. Honouring it matters more here than on a single-mount
@@ -529,10 +537,7 @@ class PgFilesystemBackend(BackendProtocol):
         needle = str(pattern or "")
         if not needle:
             return GrepResult(matches=[])
-        try:
-            regex = re.compile(needle, re.IGNORECASE)
-        except re.error:
-            regex = None  # fall back to substring search
+        literal = re.compile(re.escape(needle), re.IGNORECASE)
 
         compiled_glob = _compile_glob(glob, base=base) if glob else None
         # A cap of 0 asks for nothing; anything negative is meaningless. Treat
@@ -558,8 +563,7 @@ class PgFilesystemBackend(BackendProtocol):
             if not content:
                 continue
             for line_no, line in enumerate(content.splitlines(), start=1):
-                hit = regex.search(line) if regex is not None else (needle in line)
-                if not hit:
+                if not literal.search(line):
                     continue
                 if capped and len(matches) >= max_count:
                     # Stop at the cap and say so: there was at least one more

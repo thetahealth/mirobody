@@ -96,12 +96,8 @@ class DocumentBackend(BackendProtocol):
         if not doc:
             return ReadResult(error=f"No {self.filename} has been written for this user yet.")
         data = create_file_data(doc)
-        n_lines = len(doc.splitlines())
-        if offset and offset >= n_lines:
-            return ReadResult(file_data=FileData(
-                content=f"(end of {self.filename} — {n_lines} line(s) total.)",
-                encoding=data.get("encoding", "utf-8"),
-            ))
+        # An offset past the end is `slice_read_response`'s own error, the
+        # one every other mount answers with.
         sliced = slice_read_response(data, offset, limit)
         if isinstance(sliced, ReadResult):
             return sliced
@@ -114,15 +110,23 @@ class DocumentBackend(BackendProtocol):
         hit = fnmatch.fnmatch(self.filename, (pattern or "").lstrip("/")) or fnmatch.fnmatch(self._path(), pattern or "")
         return GlobResult(matches=[self._info(len(doc))] if hit else [])
 
-    async def agrep(self, pattern: str, path: str | None = None, glob: str | None = None) -> GrepResult:
+    async def agrep(self, pattern: str, path: str | None = None, glob: str | None = None, *,
+                    max_count: int | None = None) -> GrepResult:
+        """Literal lines of the document holding `pattern`, as deepagents'
+        `GrepMatch` (`path`, `line`, `text`): the keys it used to carry
+        (`line_number`, `line`) made `format_grep_matches` raise KeyError.
+        `max_count` caps the matches, as every backend's does."""
         doc = await self.document()
-        if not doc:
+        if not doc or not pattern:
             return GrepResult(matches=[])
-        return GrepResult(matches=[
-            GrepMatch(path=self._path(), line_number=i, line=line[:500])
-            for i, line in enumerate(doc.splitlines(), start=1)
-            if pattern in line
-        ])
+        matches: list[GrepMatch] = []
+        for number, line in enumerate(doc.splitlines(), start=1):
+            if pattern not in line:
+                continue
+            if max_count is not None and len(matches) >= max_count:
+                return GrepResult(matches=matches, truncated=True)
+            matches.append({"path": self._path(), "line": number, "text": line[:500]})
+        return GrepResult(matches=matches)
 
     async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
         doc = await self.document()
