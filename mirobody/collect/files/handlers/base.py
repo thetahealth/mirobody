@@ -124,37 +124,29 @@ class BaseFileHandler(abc.ABC):
         return f"web_uploads/{str(uuid.uuid4())}.{extension}"
 
     async def _handle_upload(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> str:
-        if ctx.progress_callback:
-            await ctx.progress_callback(35, localize("uploading_file", language, "file_processor"))
+        """The stored file's URL: uploaded here, or signed afresh when the
+        caller stored the file already (`skip_upload_oss`). A failed upload
+        raises: answered with "", the upload reported success over a file that
+        was never stored."""
+        await self._progress(ctx, 35, "uploading_file", language)
+        if not ctx.skip_upload_oss:
+            full_url = await self.uploader.upload_file_and_get_url(ctx.file, unique_filename, ctx.content_type)
+            logger.info("upload stored: file_key=%s", unique_filename)
+            return full_url
 
-        if ctx.skip_upload_oss:
-            # File already uploaded, generate signed URL
-            from mirobody.utils.config.storage import get_storage_client
-            try:
-                storage = get_storage_client()
-                full_url, err = await storage.generate_signed_url(unique_filename, content_type=ctx.content_type)
-                if err:
-                    logger.warning(err)
+        from mirobody.utils.config.storage import get_storage_client
 
-                full_url = full_url or ""
-                logger.info(f"Skipping OSS upload, using existing file: {unique_filename}")
-                return full_url
-            except Exception as url_error:
-                logger.warning(f"Failed to get URL for existing file: {url_error}")
-                return ""
-        else:
-            # Upload
-            try:
-                full_url = await self.uploader.upload_file_and_get_url(
-                    ctx.file, unique_filename, ctx.content_type
-                )
-                logger.info(f"File upload completed: {unique_filename}, URL: {full_url}")
-                return full_url
-            except Exception as e:
-                # Some handlers might want to proceed even if upload fails (like text), 
-                # others might fail. For now, log and return empty string.
-                logger.warning(f"File upload failed: {e}")
-                return ""
+        # The file is stored; a URL that cannot be signed now is signed again
+        # when the file list is read (`drive_listing.regenerate_file_url`).
+        try:
+            full_url, err = await get_storage_client().generate_signed_url(unique_filename, content_type=ctx.content_type)
+        except Exception as e:
+            logger.warning("signing a stored file's url failed: file_key=%s error_type=%s", unique_filename,
+                           type(e).__name__, exc_info=not is_driver_exception(e))
+            return ""
+        if err:
+            logger.warning("signing a stored file's url failed: file_key=%s", unique_filename)
+        return full_url or ""
 
     async def _extract_original_text(self, ctx: FileProcessingContext) -> tuple[str | None, str | None]:
         """
