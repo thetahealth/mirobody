@@ -22,6 +22,7 @@ from mirobody.collect.ingest import FormatDataInput, StandardPulseData, Standard
 from mirobody.collect.providers._platform.base import BasePullProvider
 from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.kernel import decoders
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg, global_config
 from mirobody.utils.tasks import spawn
@@ -49,6 +50,11 @@ PULL_PATHS: dict[str, str] = {
     "activities": "/activities",
     "activityDetails": "/activityDetails",
 }
+
+
+def _text(value: Any) -> str:
+    """Temporary state as text: the store may hand back bytes."""
+    return value.decode("utf-8") if isinstance(value, bytes) else str(value or "")
 
 
 class GarminProvider(BasePullProvider):
@@ -268,136 +274,63 @@ class GarminProvider(BasePullProvider):
             raise
 
     async def callback(self, oauth_token: str, oauth_verifier: str) -> dict[str, Any]:
-        """
-        Handle OAuth callback - Stage 2: Exchange tokens and complete authentication
+        """OAuth 1.0a stage 2: trade the verified request token for an access token.
 
-        This method processes the OAuth callback from Garmin, exchanges the temporary
-        tokens for permanent access tokens, and saves the credentials to the database.
-        The user_id is retrieved from Postgres temporary state cache using the oauth_token as the key.
-
-        Args:
-            oauth_token: OAuth token received from Garmin callback
-            oauth_verifier: OAuth verifier received from Garmin callback
-
-        Returns:
-            Dict containing provider_slug and stage
-
-        Raises:
-            RuntimeError: If token exchange fails or credentials cannot be saved
+        The account the link belongs to, and the request token's secret, come
+        from the temporary state stage 1 wrote under `oauth_token`, never from
+        the query string, which the browser controls.
         """
         try:
-            logger.info("Processing OAuth callback")
-            credentials = {
-                "oauth_token": oauth_token,
-                "oauth_verifier": oauth_verifier
-            }
-            return await self._handle_oauth_callback(None, credentials)
+            ephemeral = global_config().get_ephemeral()
+            token_secret = _text(await ephemeral.take(f"oauth:secret:{oauth_token}"))
+            user_id = _text(await ephemeral.take(f"oauth:user:{oauth_token}"))
         except Exception as e:
-            logger.error(f"Error in OAuth callback: {str(e)}")
-            raise RuntimeError(str(e))
+            logger.warning("Garmin OAuth state read failed: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
+            token_secret = user_id = ""
+        if not token_secret or not user_id:
+            raise ValueError("Garmin OAuth state expired or unknown")
 
-    async def _handle_oauth_callback(self, user_id: str | None, credentials: dict[str, Any]) -> dict[str, Any]:
-        """
-        Internal method to handle OAuth callback and exchange tokens
+        request_session = OAuth1Session(
+            client_key=self.client_id,
+            client_secret=self.client_secret,
+            resource_owner_key=oauth_token,
+            resource_owner_secret=token_secret,
+            verifier=oauth_verifier,
+        )
+        # OAuth1Session is synchronous `requests`: a thread keeps it off the loop.
+        resp = await asyncio.to_thread(request_session.post, self.access_token_url)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Garmin access-token exchange failed: status={resp.status_code}")
+        params = parse_qs(resp.text)
+        access_token = params["oauth_token"][0]
+        access_token_secret = params["oauth_token_secret"][0]
 
-        This method retrieves the user_id and oauth_token_secret from Postgres temporary state cache,
-        exchanges the temporary tokens for permanent access tokens with Garmin,
-        and saves the credentials to the database.
+        # Asked with the request token, as this used to be, /user/id answers
+        # nothing: the link was stored without Garmin's user id, and every push
+        # for the person was then dropped as belonging to nobody.
+        garmin_user_id = await asyncio.to_thread(
+            self._get_user_id, self._oauth_session(access_token, access_token_secret))
+        await self.db_service.save_oauth1_credentials(
+            user_id, self.info.slug, access_token, access_token_secret, user_name=garmin_user_id
+        )
+        logger.info("Garmin linked: user_id=%s", user_id)
 
-        Args:
-            user_id: User ID (ignored, will be retrieved from Postgres temporary state)
-            credentials: Dict containing oauth_token and oauth_verifier
+        spawn(self._pull_and_push_for_user({
+            "user_id": user_id,
+            "access_token": access_token,
+            "access_token_secret": access_token_secret,
+        }))
+        return {"provider_slug": self.info.slug, "stage": "completed"}
 
-        Returns:
-            Dict with provider_slug and stage
-
-        Raises:
-            ValueError: If required tokens are missing
-            RuntimeError: If token exchange or credential saving fails
-        """
-        try:
-            oauth_token = credentials.get("oauth_token")
-            oauth_verifier = credentials.get("oauth_verifier")
-
-            # Read oauth_token_secret and user_id from Postgres temporary state by oauth_token (single source of truth)
-            try:
-                cfg = global_config()
-                ephemeral = cfg.get_ephemeral()
-                oauth_token_secret = await ephemeral.take(f"oauth:secret:{oauth_token}")
-                cached_user_id = await ephemeral.take(f"oauth:user:{oauth_token}")
-                if isinstance(oauth_token_secret, bytes):
-                    oauth_token_secret = oauth_token_secret.decode("utf-8")
-                if isinstance(cached_user_id, bytes):
-                    cached_user_id = cached_user_id.decode("utf-8")
-            except Exception as e:
-                logger.warning("Garmin OAuth state read failed: error_type=%s",
-                               type(e).__name__)
-                oauth_token_secret = None
-                cached_user_id = None
-
-            # Always rely on Postgres temporary state-stored user_id to avoid spoofed params
-            user_id = cached_user_id
-            if user_id:
-                logger.info(f"Using user_id from Postgres temporary state: {user_id}")
-
-            if not oauth_token or not oauth_verifier:
-                raise ValueError("Missing oauth_token or oauth_verifier in callback")
-
-            if not oauth_token_secret:
-                raise ValueError("Missing oauth_token_secret from stage 1")
-
-            if not user_id:
-                raise ValueError("Missing user_id for OAuth callback")
-
-            # Create OAuth1Session for access token
-            oauth = OAuth1Session(
-                client_key=self.client_id,
-                client_secret=self.client_secret,
-                resource_owner_key=oauth_token,
-                resource_owner_secret=oauth_token_secret,
-                verifier=oauth_verifier
-            )
-            garmin_user_id = await asyncio.to_thread(self._get_user_id, oauth)
-
-            # Get access token (sync requests: run in a thread, see above)
-            resp = await asyncio.to_thread(oauth.post, self.access_token_url)
-
-            if resp.status_code != 200:
-                raise RuntimeError(f"Failed to get access token: {resp.status_code} - {resp.text}")
-
-            # Parse access token response
-            params = parse_qs(resp.text)
-            access_token = params['oauth_token'][0]
-            access_token_secret = params['oauth_token_secret'][0]
-
-            # Save credentials to database using new OAuth1 method with user_name
-            # Use Garmin user id retrieved via _get_user_id(oauth)
-            success = await self.db_service.save_oauth1_credentials(
-                user_id, self.info.slug, access_token, access_token_secret, user_name=garmin_user_id
-            )
-
-            if not success:
-                raise RuntimeError("Failed to save OAuth credentials")
-
-            # Postgres temporary state keys already deleted above; no in-memory cleanup required
-
-            logger.info(f"Successfully linked Garmin provider for user {user_id}")
-
-            # Build credentials payload directly from freshly obtained tokens
-            creds_payload: dict[str, Any] = {
-                "access_token": access_token,
-                "access_token_secret": access_token_secret,
-                "user_id": user_id,
-            }
-
-            # Start an async task to pull data after successful link
-            spawn(self._pull_and_push_for_user(creds_payload))
-
-            return {"provider_slug": self.info.slug, "stage": "completed"}
-
-        except Exception as e:
-            logger.error(f"Error handling OAuth callback: {str(e)}")
-            raise
+    def _oauth_session(self, access_token: str, token_secret: str) -> OAuth1Session:
+        """A session signing as one linked account."""
+        return OAuth1Session(
+            client_key=self.client_id,
+            client_secret=self.client_secret,
+            resource_owner_key=access_token,
+            resource_owner_secret=token_secret,
+        )
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
         """
@@ -430,13 +363,7 @@ class GarminProvider(BasePullProvider):
                 logger.warning(f"Invalid stored credentials for user {user_id}")
                 # Will be removed from database in finally block
             else:
-                # Create OAuth1Session for API calls
-                oauth = OAuth1Session(
-                    client_key=self.client_id,
-                    client_secret=self.client_secret,
-                    resource_owner_key=access_token,
-                    resource_owner_secret=token_secret
-                )
+                oauth = self._oauth_session(access_token, token_secret)
 
                 # Call DELETE API to unlink user (sync requests: thread)
                 unlink_url = f"{self.api_base_url}/user/registration"
@@ -538,13 +465,7 @@ class GarminProvider(BasePullProvider):
             if not access_token or not token_secret:
                 raise ValueError("Access token and token secret are required")
 
-            # Create OAuth session
-            oauth = OAuth1Session(
-                client_key=self.client_id,
-                client_secret=self.client_secret,
-                resource_owner_key=access_token,
-                resource_owner_secret=token_secret
-            )
+            oauth = self._oauth_session(access_token, token_secret)
 
             # Get user ID first. Everything below is synchronous `requests`
             # via OAuth1Session; each unit runs in a worker thread so a
@@ -644,330 +565,111 @@ class GarminProvider(BasePullProvider):
             logger.error(f"Error getting user ID: {str(e)}")
             return ""
 
-    def _detect_data_format(self, raw_data: dict[str, Any]) -> str:
-        is_active_pull_format = (
-                "data" in raw_data and
-                "theta_user_id" in raw_data and
-                "data_type" in raw_data and
-                isinstance(raw_data.get("data"), list)
-        )
-
-        return "active_pull" if is_active_pull_format else "webhook"
-
-    def _split_webhook_data_by_user_id(self, raw_data: dict[str, Any]) -> tuple[dict[str, dict[str, list[dict]]], set[str]]:
-        """
-
-        Args:
-            raw_data: {data_type: [items...]}
-
-        Returns:
-            Tuple of:
-            - user_data_map: {external_user_id: {data_type: [items...]}}
-            - external_user_ids: Set of external user IDs
-        """
-        user_data_map = {}  # {external_user_id: {data_type: [items...]}}
-        external_user_ids = set()
-
-        logger.info("Processing existing webhook format")
-
-        for data_type, data_list in raw_data.items():
-            if not isinstance(data_list, list):
-                continue
-
-            for item in data_list:
-                if not isinstance(item, dict):
-                    continue
-
-                external_user_id = item.get("userId")
-                if not external_user_id:
-                    continue
-
-                external_user_id = str(external_user_id)
-                external_user_ids.add(external_user_id)
-
-                if external_user_id not in user_data_map:
-                    user_data_map[external_user_id] = {}
-
-                if data_type not in user_data_map[external_user_id]:
-                    user_data_map[external_user_id][data_type] = []
-
-                user_data_map[external_user_id][data_type].append(item)
-
-        return user_data_map, external_user_ids
-
-    async def _handle_deregistration(self, raw_data: dict[str, Any]) -> None:
-        """
-        handle Garmin deregistration webhook
-
-        Args:
-            raw_data: Deregistration，including theta_user_id
-        """
-        deregistrations = raw_data.get("deregistrations", [])
-        if not isinstance(deregistrations, list):
-            logger.warning("Invalid deregistrations format")
-            return
-
-        # Try to get theta_user_id from raw_data (mapped by webhook upper layer)
-        theta_user_id = raw_data.get("theta_user_id")
-
-        for dereg in deregistrations:
-            if not isinstance(dereg, dict):
-                continue
-
-            external_user_id = dereg.get("userId")
-            if not external_user_id:
-                continue
-
-            try:
-                logger.info(f"Processing deregistration for external user: {external_user_id}")
-
-                if not theta_user_id:
-                    user_mapping = await self._batch_map_external_to_theta_user_ids([str(external_user_id)])
-                    theta_user_id = user_mapping.get(str(external_user_id))
-
-                if not theta_user_id:
-                    logger.warning(f"No theta_user_id found for external user: {external_user_id}")
-                    continue
-
-                await self.db_service.delete_user_theta_provider(theta_user_id, self.info.slug)
-                logger.info(f"Successfully deregistered user {theta_user_id} (external: {external_user_id})")
-
-            except Exception as e:
-                logger.error(f"Error processing deregistration for {external_user_id}: {str(e)}")
-
-    def _split_active_pull_data_by_user_id(self, raw_data: dict[str, Any]) -> tuple[dict[str, dict[str, list[dict]]], set[str]]:
-        """Split active-pull format data by user.
-
-        In active-pull format, theta_user_id is pre-injected by
-        _pull_and_push_for_user and used directly as the grouping key
-        (identity mapping in save_raw_data_to_db).
-
-        Args:
-            raw_data: {
-                "data": [...],
-                "theta_user_id": "system_user_1",
-                "data_type": "sleeps",
-                "api_url": "...",
-                "timestamp": 1757738143556
-            }
-
-        Returns:
-            Tuple of:
-            - user_data_map: {theta_user_id: {data_type: [items...]}}
-            - user_ids: Set of theta user IDs
-        """
-        user_data_map = {}
-        external_user_ids = set()
-
-        external_user_id = str(raw_data["theta_user_id"])
-        data_type = raw_data["data_type"]
-        data_list = raw_data["data"]
-
-        logger.info(f"Processing active pull format for user {external_user_id}, data_type {data_type}")
-
-        external_user_ids.add(external_user_id)
-
-        if external_user_id not in user_data_map:
-            user_data_map[external_user_id] = {}
-
-        if data_type not in user_data_map[external_user_id]:
-            user_data_map[external_user_id][data_type] = []
-
-        if isinstance(data_list, list):
-            for item in data_list:
-                if isinstance(item, dict):
-                    if "userId" not in item:
-                        item["userId"] = external_user_id
-                    user_data_map[external_user_id][data_type].append(item)
-        else:
-            logger.warning(f"Data field is not a list for user {external_user_id}, data_type {data_type}")
-
-        return user_data_map, external_user_ids
-
-    def _split_data_by_user_id(self, raw_data: dict[str, Any]) -> tuple[dict[str, dict[str, list[dict]]], set[str], str]:
-        """
-
-        Args:
-            raw_data: ：
-            1. Webhook: {data_type: [items...]}
-            2. pull data: {
-                "data": [...],
-                "user_id": "1",
-                "data_type": "sleeps",
-                "api_url": "...",
-                "timestamp": 1757738143556
-            }
-
-        Returns:
-            Tuple of:
-            - user_data_map: {user_id: {data_type: [items...]}}
-            - user_ids: Set of user IDs
-            - data_format: ("active_pull" or "webhook")
-        """
-        data_format = self._detect_data_format(raw_data)
-
-        if data_format == "active_pull":
-            user_data_map, user_ids = self._split_active_pull_data_by_user_id(raw_data)
-            return user_data_map, user_ids, data_format
-        user_data_map, user_ids = self._split_webhook_data_by_user_id(raw_data)
-        return user_data_map, user_ids, data_format
-
     async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
+        """Store a Garmin payload per person; return what `format_data` reads.
+
+        Three shapes arrive. A pull: one `data_type` and its `data` list, with
+        the account's `theta_user_id`, which only the pull loop sets (the
+        webhook route strips it from a push) and Garmin's own id in `user_id`.
+        A push: `{summary_type: [summary, ...]}` across many people, each
+        summary naming its person by Garmin's `userId`. A deregistration push,
+        which is a push whose type is `deregistrations`.
+
+        Returns one `{summary_type: [...], "theta_user_id", "msg_id"}` per
+        person saved.
         """
-        Args:
-            raw_data: ：
-            1. Webhook: {
-                'dailies': [{userId: 'a', summaryId: 'xxx', ...}, {userId: 'b', summaryId: 'yyy', ...}],
-                'sleeps': [{userId: 'a', summaryId: 'zzz', ...}, {userId: 'b', summaryId: 'www', ...}]
-            }
-            2. pull : {
-                "data": [...],
-                "user_id": "theta_xxx",
-                "data_type": "sleeps",
-                "api_url": "...",
-                "timestamp": 1757738143556
-            }
-            3. Deregistration: {
-                "deregistrations": [
-                    {"userId": "external_user_id", "userAccessToken": "token"}
-                ]
-            }
+        if not isinstance(raw_data, dict):
+            return []
+        if raw_data.get("theta_user_id") and isinstance(raw_data.get("data"), list):
+            batches = [(
+                str(raw_data["theta_user_id"]),
+                str(raw_data.get("user_id") or ""),
+                {str(raw_data.get("data_type") or ""): raw_data["data"]},
+            )]
+        else:
+            batches = await self._push_batches(raw_data)
 
-        Returns:
-            raw_data_by_id:
-        """
-        try:
-            if not isinstance(raw_data, dict):
-                return []
-
-            user_data_map, user_ids, data_format = self._split_data_by_user_id(raw_data)
-
-            if not user_data_map:
-                logger.warning("No valid data found")
-                return []
-
-            if data_format == "active_pull":
-                user_id_to_theta_mapping = {user_id: user_id for user_id in user_ids}
-                logger.info(f"Using direct mapping for active pull format: {len(user_ids)} users")
-            else:
-                user_id_to_theta_mapping = await self._batch_map_external_to_theta_user_ids(
-                    list(user_ids)
-                )
-                logger.info(f"Mapped {len(user_id_to_theta_mapping)}/{len(user_ids)} external user IDs")
-
-            final_result_list = []
-
-            for user_id, user_data in user_data_map.items():
-                theta_user_id = user_id_to_theta_mapping.get(user_id)
-
-                if not theta_user_id:
-                    logger.warning(f"Failed to map user ID {user_id} to theta user ID")
-                    continue
-
-                if not isinstance(user_data, dict):
-                    logger.error(f"Invalid user_data type for user {user_id}: {type(user_data)}, expected dict")
-                    continue
-
-                user_result = user_data.copy()
-                user_result["theta_user_id"] = theta_user_id
-
-                data_key = next(
-                    (item.get("summaryId") for data_list in user_result.values()
-                     if isinstance(data_list, list)
-                     for item in data_list
-                     if isinstance(item, dict) and item.get("summaryId")),
-                    None
-                )
-                if not data_key:
-                    data_key = f"{user_id}_{int(time.time())}"
-                user_result["msg_id"] = data_key
-
-                try:
-                    insert_sql = (
+        saved: list[dict[str, Any]] = []
+        for theta_user_id, external_user_id, by_type in batches:
+            row: dict[str, Any] = {**by_type, "theta_user_id": theta_user_id}
+            row["msg_id"] = next(
+                (str(item["summaryId"]) for items in by_type.values() for item in items
+                 if isinstance(item, dict) and item.get("summaryId")),
+                f"{external_user_id or theta_user_id}_{int(time.time())}",
+            )
+            try:
+                await execute_query(
+                    query=(
                         "INSERT INTO health_data_garmin "
                         "(create_at, update_at, is_del, msg_id, raw_data, theta_user_id, external_user_id) "
-                        "VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :is_del, :msg_id, :raw_data, :theta_user_id, :external_user_id) "
-                        "ON CONFLICT (msg_id) DO NOTHING"
-                    )
-
-                    external_user_id = user_id
-
-                    insert_params = {
-                        "is_del": False,
-                        "msg_id": data_key,
-                        "raw_data": json.dumps(user_result, ensure_ascii=False),
+                        "VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE, :msg_id, :raw_data, "
+                        ":theta_user_id, :external_user_id) ON CONFLICT (msg_id) DO NOTHING"
+                    ),
+                    params={
+                        "msg_id": row["msg_id"],
+                        "raw_data": json.dumps(row, ensure_ascii=False),
                         "theta_user_id": theta_user_id,
                         "external_user_id": external_user_id,
-                    }
-                    await execute_query(query=insert_sql, params=insert_params)
-                    logger.debug(f"Saved user data with msg_id: {data_key} for user: {theta_user_id}")
+                    },
+                )
+            except Exception as e:
+                logger.error("Garmin raw save failed: user_id=%s error_type=%s", theta_user_id,
+                             type(e).__name__, exc_info=not is_driver_exception(e))
+                continue
+            if "deregistrations" in by_type:
+                # The person removed Mirobody in Garmin Connect: the link goes.
+                await self.db_service.delete_user_theta_provider(theta_user_id, self.info.slug)
+                logger.info("Garmin deregistration: user_id=%s", theta_user_id)
+                continue
+            saved.append(row)
+        return saved
 
-                    if "deregistrations" in user_result and isinstance(user_result.get("deregistrations"), list):
-                        logger.info("Executing deregistration actions after saving")
-                        await self._handle_deregistration(user_result)
-                        continue
+    async def _push_batches(self, raw_data: dict[str, Any]) -> list[tuple[str, str, dict[str, list[dict]]]]:
+        """A push split per person: `(theta_user_id, garmin_user_id, {type: items})`.
 
-                except Exception as e:
-                    logger.error(f"Error saving user data for {user_id}: {str(e)}")
-                    continue
-
-                final_result_list.append(user_result)
-
-            logger.info(f"Successfully processed {len(final_result_list)} users with format: {data_format}")
-            return final_result_list
-
-        except Exception as e:
-            logger.error(f"Error saving Garmin raw data: {str(e)}")
-            return []
+        A summary whose Garmin `userId` matches no linked account is dropped:
+        nothing in a push says whose account it is except that id.
+        """
+        by_person: dict[str, dict[str, list[dict]]] = {}
+        for data_type, items in raw_data.items():
+            if not isinstance(items, list):
+                continue
+            for item in items:
+                if isinstance(item, dict) and item.get("userId"):
+                    by_person.setdefault(str(item["userId"]), {}).setdefault(data_type, []).append(item)
+        accounts = await self._batch_map_external_to_theta_user_ids(list(by_person))
+        if len(accounts) < len(by_person):
+            logger.warning("Garmin push for unlinked accounts: unmatched_count=%d", len(by_person) - len(accounts))
+        return [(accounts[garmin_id], garmin_id, by_type)
+                for garmin_id, by_type in by_person.items() if garmin_id in accounts]
 
     async def _batch_map_external_to_theta_user_ids(self, external_user_ids: list[str]) -> dict[str, str]:
-        """
-        Args:
-            external_user_ids: external user ID
+        """Garmin user id -> account id, through the links' stored Garmin id.
 
-        Returns:
-            mapping: external_user_id -> theta_user_id
+        The newest live link wins when one Garmin account was linked twice.
         """
         if not external_user_ids:
             return {}
-
+        placeholders = ", ".join(f":username_{i}" for i in range(len(external_user_ids)))
+        params: dict[str, Any] = {"provider": self.info.slug}
+        params.update({f"username_{i}": external_id for i, external_id in enumerate(external_user_ids)})
         try:
-            placeholders = ", ".join([f":username_{i}" for i in range(len(external_user_ids))])
-            sql = (
-                f"SELECT username, user_id FROM health_user_provider "
-                f"WHERE username IN ({placeholders}) AND provider = :provider AND is_del = FALSE "
-                f"ORDER BY username, update_at DESC"
+            rows = await execute_query(
+                query=(
+                    f"SELECT username, user_id FROM health_user_provider "
+                    f"WHERE username IN ({placeholders}) AND provider = :provider AND is_del = FALSE "
+                    f"ORDER BY username, update_at DESC"
+                ),
+                params=params,
             )
-
-            params = {
-                "provider": self.info.slug
-            }
-            for i, external_id in enumerate(external_user_ids):
-                params[f"username_{i}"] = external_id
-
-            result = await execute_query(query=sql, params=params)
-
-            mapping = {}
-            seen_usernames = set()
-
-            if result:
-                for row in result:
-                    username = row["username"]
-                    if username not in seen_usernames:
-                        mapping[username] = row["user_id"]
-                        seen_usernames.add(username)
-
-            logger.info(f"Mapped {len(mapping)} out of {len(external_user_ids)} external user IDs to theta user IDs")
-
-            unmapped = set(external_user_ids) - set(mapping.keys())
-            if unmapped:
-                logger.warning(f"Failed to map external user IDs: {unmapped}")
-
-            return mapping
-
         except Exception as e:
-            logger.error(f"Error in batch mapping external to theta user IDs: {str(e)}")
+            logger.error("Garmin account lookup failed: id_count=%d error_type=%s", len(external_user_ids),
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return {}
+        mapping: dict[str, str] = {}
+        for row in rows or []:
+            mapping.setdefault(row["username"], row["user_id"])
+        return mapping
 
     async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
         return False
@@ -1008,7 +710,10 @@ class GarminProvider(BasePullProvider):
 
             for raw_data in raw_data_list:
                 try:
-                    raw_data["user_id"] = user_id
+                    # The account's id goes under its own key: `user_id` is
+                    # Garmin's, and overwriting it made the batch look like a
+                    # push, which filed every summary under "data".
+                    raw_data["theta_user_id"] = user_id
 
                     # Optional: allow provider-level dedup gates
                     if await self.is_data_already_processed(raw_data):
