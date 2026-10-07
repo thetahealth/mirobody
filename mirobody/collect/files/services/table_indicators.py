@@ -790,7 +790,10 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
         return "admin"
     if re.fullmatch(r"(?i)rs\d+|i\d{4,}", name):
         return "admin"  # a genotype call: the genomics upload reads those
-    if not name or not value or _NUMBER.match(name) or _header(row):
+    if not name or not value or _NUMBER.match(name) or _header(row) or re.search(_DATE_VALUE, value):
+        # A date is never a result: a running footer laid under a table's
+        # columns (`Page 2 of 11 | Printed 2026-02-14 11:37:08`) was read as a
+        # value of 2026 (corpus p004_2026-02-14_e10a, text-layer tables).
         return None
     if _key(name) in _LABELS or _column(value):
         return None
@@ -983,7 +986,16 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
                and not (_RANGE_IN.search(c) and _range_cell(c))
                and (translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c))]
     if not results:
-        return False
+        # A row of word results (`Urine protein(PRO) | Negative | 阴性 | 02`) is
+        # read when a read reading names it with that word and no other name
+        # in it went unread (the other half of a side-by-side panel). Left in,
+        # every urinalysis and serology row of a text-layer book went to the
+        # model a second time (corpus p002_2026-08-07_e04a).
+        named = {name for name, value in pairs if name in names and value in cells}
+        others = {c for i, c in enumerate(cells) if c and i not in codes and not _is_unit(c) and not _range_cell(c)
+                  and not _printed_flag(c)
+                  and translate.parse_value(_split_flag(c, "")[0], "").value_kind not in _RESULT_KINDS}
+        return bool(named) and others <= named
 
     def printed(c: str) -> set[str]:
         head = re.match(r"\s*([<>≤≥]?\s*[-+]?\d+(?:\.\d+)?)", c)
@@ -996,6 +1008,9 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
 #: this one's: what it holds was read from that report, on that report's day.
 _PREVIOUS = {"上次结果", "前次结果", "上次", "前次", "历史结果", "previous", "previousresult", "lastresult",
              "priorresult", "prior"}
+#: Header words of a column of row numbers (`# | Tests | Measured`): with one
+#: or two rows under the header, the numbers alone do not show it is one.
+_ROW_NUMBERS = {"#", "序号", "no", "编号"}
 
 
 def _code_columns(rows: list[list[str]]) -> frozenset[int]:
@@ -1008,10 +1023,16 @@ def _code_columns(rows: list[list[str]]) -> frozenset[int]:
     out = set()
     for i in range(max((len(r) for r in rows), default=0)):
         cells = [r[i].strip() for r in rows if i < len(r) and r[i].strip()]
-        if any(_key(c) in _PREVIOUS for c in cells):
+        if any(_key(c) in _PREVIOUS or _key(c) in _ROW_NUMBERS for c in cells):
             out.add(i)
             continue
         numbers = [c for c in cells if c.isdigit()]
+        if numbers and all(len(c) > 1 and c.startswith("0") for c in numbers):
+            # Zero-padded (`02`): a code, never a count, however few rows
+            # print it; a book's two-row glucose table kept its `Lab | 02`
+            # as an unread result, and both rows went to the model again.
+            out.add(i)
+            continue
         if len(numbers) < 3 or any(_column(c) in ("value", "out", "either") for c in cells):
             continue
         counts = [int(c) for c in numbers]
@@ -1073,7 +1094,10 @@ def without_rows(text: str, readings: list[dict[str, str]]) -> str:
         def tr(m: re.Match) -> str:
             cells = cells_of(m.group(0))
             if _header(cells):
+                # Each header word, and the whole header as a text layer
+                # prints it on one line (`Test Item Measured … Lab`).
                 headings.update(_fold(c) for c in cells if c)
+                headings.add(_fold("".join(cells)))
             if _row_read(cells, pairs, codes) or _admin(next((c for c in cells if c), "")):
                 # A patient-details row holds nothing for a model either, and
                 # neither does the text pass's copy of it (`68岁`).

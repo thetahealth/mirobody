@@ -146,6 +146,28 @@ decisions.
 
 ### Changed
 
+- **A born-digital PDF's tables are read off its text layer, without a
+  model.** The table rules read only HTML tables, and a text layer writes a
+  row as one line of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so a
+  downloaded report (the commonest kind) reached them only through an OCR
+  model's tables pass over the rendered page, and without one the extraction
+  model read all of it. When the tables are asked for (a document-OCR model
+  is routed), a text page now also carries the tables its characters' positions
+  lay out (`documents/extract.py`, `_layer_tables`): cells split at wide gaps,
+  a cell wrapped onto a second line joined, columns by where cells overlap, a
+  table going on at the top of the next page under the same columns, a title
+  line over a table and a running footer left out. Only a text page with no
+  such table is rendered for the OCR pass. On the seed-7 corpus's 16
+  text-layer PDFs (979 printed rows, benchmarks/local_ocr's checks) the rules
+  read 0 rows before and 920 now, 919 with the printed unit and 918 with the
+  printed range, and no row that is not printed; on the six such pages the
+  OCR benchmark ran GLM-OCR on, as many as its tables pass or more (34 against
+  7 on one). What the rules read also leaves the model's text more often:
+  a row of word results (`Negative`), a zero-padded lab code (`02`), a `#`
+  column and the layer's one-line copy of a header no longer keep a read row
+  in it; text handed to the model for those 16 documents went from 76,072 to
+  45,739 characters. To tell: the log line `pdf: … layer_table_page_count=N`.
+
 - **The cloud models are the ones vendors ship now.** `config.llm.yaml` still
   named September's: Claude Sonnet 5 and GPT-5.6 Terra. `claude-sonnet`
   (OpenRouter) now runs `anthropic/claude-sonnet-5.5` and `claude` (Anthropic)

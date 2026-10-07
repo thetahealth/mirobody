@@ -23,10 +23,14 @@ this kind" returns ``""``.
 from __future__ import annotations
 
 import asyncio
+import ctypes
 import hashlib
+import html
 import io
 import logging
+import re
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from typing import Protocol
 
 from . import detect
@@ -81,13 +85,233 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+# --- a text layer's tables ----------------------------------------------------------
+#
+# A text layer keeps every character exactly but writes a table row as one line
+# of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so the table rules
+# (`collect/files/services/table_indicators`) cannot tell its columns apart and
+# a born-digital report went whole to the extraction model. The characters'
+# positions still say where each cell is: a run of characters is a cell, a
+# wide gap starts the next one, lines are laid in columns by where their cells
+# overlap, and the result is the HTML table the rules already read from an OCR
+# model's tables pass, the text itself the layer's own.
+
+#: Two runs of one line further apart than this many font sizes are two cells.
+#: A word space is about a third of the font size; the closest columns in the
+#: corpus's check-up books are 0.9 of it apart (`Status` | `Unit`, 8.5 pt at 9.5 pt).
+_CELL_GAP = 0.6
+#: A line whose baseline is closer than this many font sizes below a table
+#: line, with fewer cells, each under one of that line's, is a cell wrapped
+#: onto a second line (`10^12/` over `L`, `Normal` over `Range`): 1.15 to 1.4
+#: font sizes in the corpus's books, where the next row is 1.6 below.
+_WRAP_PITCH = 1.5
+#: Characters on one line: baselines this close, in font sizes (a superscript
+#: is raised about a third of one).
+_SAME_LINE = 0.45
+
+
+#: A page's running footer or header, never a table row: `Page 2 of 11 |
+#: Printed 2026-02-14 11:37:08` went on under the table above it as a row, and
+#: the print time was read as a value of 2026 (corpus p004_2026-02-14_e10a).
+_PAGE_MARK = re.compile(r"(?i)^(?:page\s*\d+(?:\s*(?:of|/)\s*\d+)?|第\s*\d+\s*页.*)$")
+
+
+@dataclass
+class _Run:
+    """Characters of one line with no wide gap between them: a cell, or part of one."""
+
+    text: str
+    left: float
+    right: float
+    y: float  # the baseline
+    size: float
+
+
+def _runs(textpage) -> list[_Run]:
+    """The page's characters as runs, in the text layer's own order and with
+    its own spaces (printed or inferred by pdfium), so a cell reads exactly as
+    the layer does (`参考值(范围)`, not `参考值 ( 范围 )`)."""
+    import pypdfium2.raw as raw
+
+    left, right, bottom, top = (ctypes.c_double() for _ in range(4))
+    x, y = ctypes.c_double(), ctypes.c_double()
+    runs: list[_Run] = []
+    current: _Run | None = None
+    for i in range(raw.FPDFText_CountChars(textpage)):
+        code = raw.FPDFText_GetUnicode(textpage, i)
+        ch = chr(code) if 0 < code < 0x110000 else ""
+        if not ch or ch in "\r\n":
+            current = None
+            continue
+        if ch.isspace():
+            if current is not None and not current.text.endswith(" "):
+                current.text += " "
+            continue
+        raw.FPDFText_GetCharBox(textpage, i, left, right, bottom, top)
+        raw.FPDFText_GetCharOrigin(textpage, i, x, y)
+        size = raw.FPDFText_GetFontSize(textpage, i)
+        if size < 2:  # a size set in the text matrix, not the font: the glyph is the measure
+            size = max(top.value - bottom.value, 1.0) * 1.4
+        if (current is None or abs(y.value - current.y) > _SAME_LINE * size
+                or left.value < current.right - 0.5 * size
+                or left.value - current.right > _CELL_GAP * size):
+            current = _Run(ch, left.value, right.value, y.value, size)
+            runs.append(current)
+        else:
+            current.text += ch
+            current.right = max(current.right, right.value)
+    for run in runs:
+        run.text = run.text.strip()
+    return runs
+
+
+def _lines(runs: list[_Run]) -> list[list[_Run]]:
+    """Runs grouped by baseline, top of the page first, each line left to
+    right with the runs closer than a cell gap joined (a font change inside a
+    cell, `平均红细胞血红蛋白量（` then `MCH`, is two runs)."""
+    lines: list[list[_Run]] = []
+    for run in sorted(runs, key=lambda r: (-r.y, r.left)):
+        if lines and abs(lines[-1][0].y - run.y) <= _SAME_LINE * run.size:
+            lines[-1].append(run)
+        else:
+            lines.append([run])
+    out = []
+    for line in lines:
+        cells: list[_Run] = []
+        for run in sorted(line, key=lambda r: r.left):
+            last = cells[-1] if cells else None
+            if last is not None and run.left - last.right <= _CELL_GAP * max(last.size, run.size):
+                last.text += (" " if run.left - last.right > 0.25 * run.size else "") + run.text
+                last.right = max(last.right, run.right)
+            else:
+                cells.append(_Run(run.text, run.left, run.right, run.y, run.size))
+        out.append(cells)
+    return out
+
+
+def _wrapped_onto(upper: str, lower: str) -> str:
+    """A cell's two lines as one: a word wraps at a space, a unit or a CJK
+    name at no space (`10^12/` + `L`)."""
+    tight = upper[-1:] in "/^-(（" or lower[:1] in ")）" or (upper[-1:] >= "⺀" and lower[:1] >= "⺀")
+    return upper + ("" if tight else " ") + lower
+
+
+def _unwrapped(lines: list[list[_Run]]) -> list[list[_Run]]:
+    """`lines` with every wrapped cell's second line joined to the cell above it."""
+    out: list[list[_Run]] = []
+    last_y: list[float] = []
+    for line in lines:
+        above = out[-1] if out else None
+        if above is not None and len(above) >= 2 and len(line) < len(above) \
+                and last_y[-1] - line[0].y < _WRAP_PITCH * line[0].size:
+            slack = 0.5 * line[0].size
+            targets = [next((a for a in above if abs(a.left - r.left) <= slack
+                             or (a.left <= r.left and r.right <= a.right + slack)), None) for r in line]
+            if all(t is not None for t in targets) and len({id(t) for t in targets}) == len(targets):
+                for a, r in zip(targets, line, strict=True):
+                    a.text = _wrapped_onto(a.text, r.text)
+                    a.right = max(a.right, r.right)
+                last_y[-1] = line[0].y
+                continue
+        out.append(line)
+        last_y.append(line[0].y)
+    return out
+
+
+def _overlaps(a: _Run, b: _Run) -> bool:
+    return a.left < b.right and b.left < a.right
+
+
+def _gridded(block: list[list[_Run]]) -> list[list[_Run]]:
+    """`block` less the lines whose cells lie across two cells of other lines:
+    a title or a date line over the table, not a row of it. The line across
+    the most is dropped first, so a long name under a date line's two cells
+    stays (the date line goes, and nothing is across anything). Kept, the
+    date line over a slip's header (`报告日期：… | 报告审核时间：…`) joined
+    the row-number and name columns under it into one, and none of its rows
+    was read (corpus p005_2024-11-25_e02a)."""
+    lines = list(block)
+    while lines:
+        across = [sum(1 for c in line for other in lines
+                      if other is not line and sum(_overlaps(c, d) for d in other) >= 2) for line in lines]
+        if max(across) == 0:
+            break
+        lines.pop(across.index(max(across)))
+    return lines
+
+
+def _columns(block: list[list[_Run]]) -> list[tuple[float, float]]:
+    """The columns of consecutive table lines: the spans their cells overlap on."""
+    spans = sorted((r.left, r.right) for line in block for r in line)
+    cols: list[list[float]] = []
+    for left, right in spans:
+        if cols and left < cols[-1][1]:
+            cols[-1][1] = max(cols[-1][1], right)
+        else:
+            cols.append([left, right])
+    return [(a, b) for a, b in cols]
+
+
+def _fits(block: list[list[_Run]], cols: list[tuple[float, float]]) -> bool:
+    """Whether every cell of `block` sits under exactly one of `cols`, no two
+    cells of a line under the same one: a table going on under the columns of
+    one before it (a page that opens mid-panel, its header on the page before)."""
+    for line in block:
+        taken: set[int] = set()
+        for r in line:
+            hit = [k for k, (a, b) in enumerate(cols) if r.left < b and r.right > a]
+            if len(hit) != 1 or hit[0] in taken:
+                return False
+            taken.add(hit[0])
+    return True
+
+
+def _table_html(block: list[list[_Run]], cols: list[tuple[float, float]]) -> str:
+    rows = []
+    for line in block:
+        cells = [""] * len(cols)
+        for r in line:
+            k = max(range(len(cols)), key=lambda k: min(r.right, cols[k][1]) - max(r.left, cols[k][0]))
+            cells[k] = f"{cells[k]} {r.text}".strip()
+        rows.append("<tr>" + "".join(f"<td>{html.escape(c)}</td>" for c in cells) + "</tr>")
+    return "<table>" + "".join(rows) + "</table>"
+
+
+def _layer_tables(textpage, carried: list[tuple[float, float]] | None
+                  ) -> tuple[str, list[tuple[float, float]] | None]:
+    """(the page's tables as HTML, or "", the columns the next page may go on
+    under). A table is two or more consecutive lines of two or more cells; one
+    such line alone is a table only when it goes on under `carried`."""
+    lines = _unwrapped(_lines(_runs(textpage)))
+    blocks: list[list[list[_Run]]] = [[]]
+    for line in lines:
+        if len(line) >= 2 and not any(_PAGE_MARK.match(r.text) for r in line):
+            blocks[-1].append(line)
+        elif blocks[-1]:
+            blocks.append([])
+    tables = []
+    for block in (g for b in blocks if (g := _gridded(b))):
+        if carried is not None and _fits(block, carried):
+            cols = carried
+        elif len(block) >= 2:
+            cols = _columns(block)
+        else:
+            continue
+        tables.append(_table_html(block, cols))
+        carried = cols
+    return "\n".join(tables), carried
+
+
 # --- PDF ---------------------------------------------------------------------------
 
-def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = False
+def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = False, layer_tables: bool = False
                ) -> tuple[list[str], list[tuple[int, bytes]], list[tuple[int, bytes]]]:
     """Sync, CPU-bound: each page's text layer, the pages too thin to trust
     rendered to PNG for OCR, and (`render_all`) the others rendered too, for a
-    tables pass. Run through `asyncio.to_thread`."""
+    tables pass. With `layer_tables`, a text page whose layer lays out a
+    table gets that table appended as HTML (`_layer_tables`) and is not
+    rendered: its tables are read off the layer, exactly. Run through
+    `asyncio.to_thread`."""
     import pypdfium2 as pdfium
 
     def png(page) -> bytes:
@@ -101,15 +325,21 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
         texts: list[str] = [""] * n
         to_ocr: list[tuple[int, bytes]] = []
         layered: list[tuple[int, bytes]] = []
+        carried = None
         for i in range(n):
             page = doc[i]
             try:
-                text = (page.get_textpage().get_text_range() or "").strip()
+                textpage = page.get_textpage()
+                text = (textpage.get_text_range() or "").strip()
                 if len(text) >= min_page_text:
-                    texts[i] = text
-                    if render_all:
+                    found = ""
+                    if layer_tables:
+                        found, carried = _layer_tables(textpage, carried)
+                    texts[i] = f"{text}\n\n{found}" if found else text
+                    if render_all and not found:
                         layered.append((i, png(page)))
                 else:
+                    carried = None
                     to_ocr.append((i, png(page)))
             finally:
                 page.close()
@@ -136,11 +366,23 @@ async def pdf_text(
 ) -> str:
     """A PDF's full text: each page's text layer, or (for a page whose layer is
     empty or too thin (a scan)) the OCR of the rendered page, concurrently.
-    Without an ``ocr`` the scanned pages are left out. With ``tables``, a page
-    that has a text layer also gets that pass appended: the layer is exact but
-    has lost its columns, which a table reader returns."""
+    Without an ``ocr`` the scanned pages are left out. With ``tables`` (the
+    caller reads tables by their columns), a page that has a text layer also
+    gets its tables as HTML: the layer's own (`_layer_tables`) where its
+    characters lie in columns, else that pass's reading of the rendered page.
+
+    Measured on the 16 text-layer PDFs of the seed-7 corpus (979 printed rows,
+    scored with benchmarks/local_ocr's own checks): the table rules read none
+    of them off the layer alone and 920 off its tables, 919 with the printed
+    unit and 918 with the printed range, and no row the documents do not
+    print; what they leave is blood-pressure pairs and `label: value` prose.
+    On the six such pages the OCR benchmark ran GLM-OCR's tables pass on, the
+    layer's tables gave the rules as many rows or more (34 against 7 on one)
+    with no model call."""
     texts, to_ocr, layered = await asyncio.to_thread(
-        _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None)
+        _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None,
+        layer_tables=tables is not None)
+    layer_table_pages = sum(1 for t in texts if "<table>" in t)
     gate = asyncio.Semaphore(max(1, concurrency))
     if layered and tables is not None:
         async def _tables(index: int, png: bytes) -> None:
@@ -174,7 +416,8 @@ async def pdf_text(
         # case is the OCR's error, raised.
         if len(failures) == len(to_ocr) and not any(texts):
             raise failures[-1]
-    logger.info("pdf: page_count=%d ocr_page_count=%d table_page_count=%d", len(texts), len(to_ocr), len(layered))
+    logger.info("pdf: page_count=%d ocr_page_count=%d table_page_count=%d layer_table_page_count=%d",
+                len(texts), len(to_ocr), len(layered), layer_table_pages)
     return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
 
 

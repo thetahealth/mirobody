@@ -59,7 +59,12 @@ those lie, the bytes; `extract.extract_text` by kind). A PDF gives up its
 embedded text layer page by page and only the pages that have none — scans —
 are rendered and handed to the vision model, one image at a time; a photo is
 downscaled and OCR'd; a spreadsheet or Word file never reaches a model at
-all. The result is cached by content hash through `th_files`, so the same
+all. When a document-OCR model is routed (its tables are read by their
+columns), a text-layer page also carries its tables as HTML, laid out from
+where the layer's characters sit (`extract._layer_tables`), so the table
+rules read a born-digital report without a model; only a text page whose
+layer lays out no table is rendered for the OCR model's tables pass. The
+result is cached by content hash through `th_files`, so the same
 bytes are never OCR'd twice, and the file summary is generated from that text
 rather than from the file.
 
