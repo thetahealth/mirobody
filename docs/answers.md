@@ -165,13 +165,30 @@ case would weigh days by sampling frequency; over the newest reading of each
 day, the second would drop the morning.
 
 `limit` went for the same reason: a budget, not a question. Raw rows are cut
-at `query.ROW_CAP` and say so, and what a cut means is a narrower window or
-`view=stats`. The browser's reading list is a separate budget
-(`collect.REST_ROW_MAX`).
+at `query.ROW_CAP` per indicator and say so, and what a cut means is a
+narrower window or `view=stats`. The browser's reading list is a separate
+budget (`collect.REST_ROW_MAX`).
 
 Bucket views have one too, `query.BUCKET_CAP`: the newest 92 points per
-indicator, cut in SQL, with `truncated` set and a note naming the span that
-came back and the coarser view that covers more. Uncapped, MiniCPM5-2B asked
+indicator, cut in SQL, with `truncated` set.
+
+A cut answer says so first. `meta.cut` holds the notice in plain words, and
+`render_compact` puts it before the table: the span shown, that the earlier
+data exists and is not missing, and the calls that show it (the coarser
+view, `view=stats` for raw rows, or `end=` the day before the first one
+shown):
+
+```
+Only part of the data is shown: the latest 92 day points per indicator, 2026-06-01 to 2026-08-31.
+Earlier data exists and is not shown here; it is not missing. For it, call again with view=week or with end=2026-05-31.
+```
+
+It used to be a note after the table, and was missed: MiniCPM5-2B, asked
+for monthly resting heart rate from March to August and handed the newest
+92 days (June to August) with the cut among the notes, answered that March
+and April had no data (benchmarks/local_models small-v2, 2026-10-07). An MCP
+client reads the same rendering; `render_rest` carries `cut` beside
+`truncated`. Uncapped, MiniCPM5-2B asked
 for `view="day"` with no dates and got the whole record, 13,930 and 33,657
 characters; the second was evicted to a file it paged until the context
 overflowed. 92 is the longest three calendar months, so the three-month daily
@@ -216,7 +233,7 @@ Envelope(
     status="ok" | "partial" | "error",
     data=[...],                    # the rows
     meta=Meta(window, tz, window_semantics, view, row_count, truncated,
-              catalog_total),
+              cut, catalog_total),
     error_class="recoverable" | "unrecoverable" | None,
     error_kind=...,                # one of a closed set
     provenance={indicator: "measured" | "computed" | "elected:<rule>"},

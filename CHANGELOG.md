@@ -341,6 +341,16 @@ decisions.
   and tried to open it. The model now gives the name only, and the upload's
   own extension is put on it (`utils/file_types.with_extension`), on both
   naming paths. To tell: an uploaded PDF's generated name ends in `.pdf`.
+- **A cut readings answer says so before its rows.** The cut was one note
+  among several after the table, and MiniCPM5-2B, handed the newest 92 days
+  of a March-to-August window, answered that March and April had no data;
+  a raw answer cut at 50 rows per indicator said nothing but `truncated`. Both
+  now open with one plain sentence (`meta.cut`): the span shown, that earlier
+  data exists and is not missing, and the calls that show it (a coarser view,
+  `view=stats`, or `end=` the day before). Chat and MCP read the same
+  rendering; the REST envelope carries `cut`. To tell: a year of daily steps
+  asked by day starts "Only part of the data is shown".
+
 - **`view=stats` names a reading's own day.** Its `first_date` and
   `last_date` were the UTC date of the instant, so a report filed at local
   midnight in Asia/Shanghai (UTC+8) showed the day before: a ferritin of
