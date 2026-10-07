@@ -191,16 +191,12 @@ class AliyunStorage(AbstractStorage):
 
             object_key = self._build_object_key(key)
 
-            loop = asyncio.get_running_loop()
+            def fetch() -> bytes:
+                # `get_object` returns a stream: `read()` is the download, and
+                # it blocks, so it runs in the executor too, not on the loop.
+                return self._bucket.get_object(object_key).read()
 
-            # Get file content
-            result = await loop.run_in_executor(
-                None,
-                partial(self._bucket.get_object, object_key)
-            )
-
-            content = result.read()
-
+            content = await asyncio.get_running_loop().run_in_executor(None, fetch)
             return content, None
 
         except Exception as e:
