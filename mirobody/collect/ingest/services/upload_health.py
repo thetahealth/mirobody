@@ -124,7 +124,6 @@ class StandardHealthService(BaseHealthService):
                 series_records=series_records,
                 window_from_ms=getattr(meta, "windowFrom", None),
                 window_to_ms=getattr(meta, "windowTo", None),
-                user_timezone=getattr(meta, "timezone", "UTC"),
             )
 
             t3 = time.time()

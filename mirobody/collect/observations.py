@@ -762,23 +762,57 @@ async def retract(user_id: str, observation_ids: list[int], *, note: str = "") -
     A row already amended or retracted is left alone."""
     if not observation_ids:
         return 0
-    count = 0
     async with db.transaction() as tx:
-        for oid in observation_ids:
-            rows = await tx.execute(_SELECT_ROW, {"id": int(oid), "user_id": str(user_id)})
-            if not rows:
-                continue
-            old = dict(rows[0])
-            new = {c: old.get(c) for c in _OBSERVATION_COLUMNS}
-            new.update({"status": "entered-in-error", "amends": int(oid), "note_text": note})
-            inserted = await tx.execute(_INSERT_OBSERVATION, new)
-            if not inserted:
-                continue
-            new_id = _inserted_id(inserted[0], new)
-            await tx.execute(_COPY_CURRENT, {"new_id": new_id, "old_id": int(oid)})
-            await tx.execute(_COPY_HISTORY, {"new_id": new_id, "old_id": int(oid), "cause": CAUSE_AMEND})
-            count += 1
+        return await _retract(tx, str(user_id), observation_ids, note)
+
+
+async def _retract(tx: db.Transaction, user_id: str, observation_ids: list[int], note: str) -> int:
+    count = 0
+    for oid in observation_ids:
+        rows = await tx.execute(_SELECT_ROW, {"id": int(oid), "user_id": user_id})
+        if not rows:
+            continue
+        old = dict(rows[0])
+        new = {c: old.get(c) for c in _OBSERVATION_COLUMNS}
+        new.update({"status": "entered-in-error", "amends": int(oid), "note_text": note})
+        inserted = await tx.execute(_INSERT_OBSERVATION, new)
+        if not inserted:
+            continue
+        new_id = _inserted_id(inserted[0], new)
+        await tx.execute(_COPY_CURRENT, {"new_id": new_id, "old_id": int(oid)})
+        await tx.execute(_COPY_HISTORY, {"new_id": new_id, "old_id": int(oid), "cause": CAUSE_AMEND})
+        count += 1
     return count
+
+
+# What a device repair batch did not re-confirm: the visible readings of its
+# vendors and names observed inside its window, under any batch but its own.
+# `legacy_provenance` files a repair batch under `device:<vendor>:<task id>`.
+_SELECT_UNCONFIRMED = """
+SELECT id FROM v_observation
+ WHERE user_id = :user_id AND source_kind = 'device'
+   AND vendor = ANY(:vendors) AND name_text = ANY(:names)
+   AND observed_start >= :start AND observed_start <= :end
+   AND source_ref <> 'device:' || vendor || ':' || :task_id
+"""
+
+
+async def retract_unconfirmed(
+    user_id: str, *, vendors: list[str], names: list[str], start: datetime, end: datetime, task_id: str
+) -> int:
+    """The sweep of a device repair batch (`task_id`, `repair-<uuid>`): retract
+    every visible reading of `vendors` and `names` observed in `[start, end]`
+    that another batch wrote. `start` and `end` are aware instants, compared
+    with `observed_start` as such. Retracted, never deleted: each retraction
+    is a row that says why (`repair:<task id>`). Returns how many."""
+    if not vendors or not names:
+        return 0
+    async with db.transaction() as tx:
+        rows = await tx.execute(_SELECT_UNCONFIRMED, {
+            "user_id": str(user_id), "vendors": list(vendors), "names": list(names),
+            "start": start, "end": end, "task_id": task_id,
+        })
+        return await _retract(tx, str(user_id), [int(r["id"]) for r in rows or []], f"repair:{task_id}")
 
 
 async def amend(
@@ -1355,5 +1389,6 @@ __all__ = [
     "recode",
     "redate",
     "retract",
+    "retract_unconfirmed",
     "user_tz",
 ]

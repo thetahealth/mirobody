@@ -1,37 +1,37 @@
-"""
-Data-repair mark-and-sweep reconcile.
+"""The sweep of a data-repair batch.
 
-Backend slice of the OpenSpec change `user-data-repair` (capability
-`apple-health-repair-reconcile`). When iOS uploads a repair batch
-(`metaInfo.taskId = "repair-<uuid>"`), the existing upsert/save stamps that taskId on
-every re-confirmed row (the "mark"). This module performs the "sweep": after the save,
-it removes rows the repair batch did NOT re-confirm WITHIN a caller-supplied window, so
-a re-sync of a date range fixes structural corruption (e.g. TH-449 sleep-stage
-duplication), not just overwrites values.
+When a phone re-sends a window it has corrected, its batch carries
+`metaInfo.taskId = "repair-<uuid>"`, and the upload stamps that id on every
+row it writes (the "mark"). This module is the "sweep": after the save, it
+removes what the batch did NOT re-confirm inside the window the caller names,
+so a re-sync fixes rows that should not exist (a night of sleep stages stored
+twice) instead of only overwriting values.
 
-Window contract (epoch ms, from metaInfo): the sweep deletes ONLY within
-[windowFrom, windowTo]. If either bound is missing/invalid, the sweep is SKIPPED: the
-batch is still upserted, but nothing is deleted (keep the original, safe behavior).
+The window is `[windowFrom, windowTo]` in epoch ms, from metaInfo. If either
+bound is missing, or they are out of order, nothing is swept: the batch is
+still written, and nothing is deleted.
 
-Sweep targets:
-  - series_data (SERIES/MIX, raw sleep stages): PHYSICAL delete, then re-aggregate so
-    the derived daily observations refresh. series_data.time is naive UTC.
-  - summary observations (directly-written SUMMARY/MIX): RETRACTED, never deleted
-    (a retraction row points at each one; the read view hides it). The window is
-    converted to the user's local time, which is what the rows were placed in.
+What is swept:
+  - `series_data`, the device point buffer (sleep stages among it): deleted,
+    then the window is re-aggregated so the daily observations follow.
+    `series_data.time` is naive UTC.
+  - observations the batch wrote directly (summary indicators): retracted,
+    never deleted (`observations.retract_unconfirmed`); the read view hides a
+    retracted row and the retraction says which repair made it.
 
-Safety rails: only for a non-empty repair batch; window must be complete; Apple sources
-only (apple.cda excluded); a retraction is reversible + audited; rows of the
-CURRENT repair task_id are never touched (multi-batch safe).
+Only Apple Health sources are swept (`apple.cda` is a document, not a stream),
+and never a row of the repair's own task id, so a repair that arrives in
+several batches does not sweep its own earlier batches.
 """
 
 import logging
 
-from datetime import datetime, timedelta, UTC
+from datetime import UTC, datetime, timedelta
 from typing import Any
-from zoneinfo import ZoneInfo
 
+from mirobody.collect import observations
 from mirobody.collect.ingest.repositories.health_data import HealthDataRepository
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.translate import AggregateIndicatorService
 from mirobody.translate import HealthDataType, get_indicators_in_same_categories
 
@@ -50,11 +50,8 @@ _AGGREGATE_WINDOW_PAD = timedelta(days=1)
 
 
 def detect_repair_task_id(records: list[dict[str, Any]]) -> str | None:
-    """Return the `repair-<uuid>` taskId if this batch is a repair batch, else None.
-
-    All rows in a repair batch share the metaInfo taskId, except value-filtered rows
-    (`filtered_out_of_range`). We pick the first row whose task_id has the repair prefix.
-    """
+    """The batch's `repair-<uuid>` task id, or None when it is not a repair:
+    the first row whose task id carries the prefix."""
     for record in records:
         task_id = record.get("task_id")
         if task_id and task_id.startswith(REPAIR_TASK_ID_PREFIX):
@@ -68,19 +65,8 @@ def _apple_sources(records: list[dict[str, Any]]) -> list[str]:
     return sorted(present & APPLE_REPAIR_SOURCES)
 
 
-def _ms_to_naive_utc(ms: int) -> datetime:
-    """epoch ms -> naive UTC datetime (matches series_data.time storage)."""
-    return datetime.fromtimestamp(ms / 1000, tz=UTC).replace(tzinfo=None)
-
-
-def _ms_to_naive_local(ms: int, tz_name: str) -> datetime:
-    """epoch ms -> naive local datetime (matches th_series_data.start_time storage)."""
-    dt = datetime.fromtimestamp(ms / 1000, tz=UTC)
-    try:
-        return dt.astimezone(ZoneInfo(tz_name)).replace(tzinfo=None)
-    except Exception:
-        logger.warning(f"[RepairReconcile] bad timezone {tz_name!r}, using UTC for window")
-        return dt.replace(tzinfo=None)
+def _instant(ms: int) -> datetime:
+    return datetime.fromtimestamp(ms / 1000, tz=UTC)
 
 
 class RepairReconciler:
@@ -96,20 +82,12 @@ class RepairReconciler:
         series_records: list[dict[str, Any]],
         window_from_ms: int | None = None,
         window_to_ms: int | None = None,
-        user_timezone: str = "UTC",
     ) -> dict[str, Any]:
-        """Run the reconcile if this is a non-empty repair batch with a complete window.
+        """Run the sweep if this is a repair batch with a complete window.
 
-        Args:
-            user_id: the uploading user.
-            summary_records: prepared th_series_data rows (SUMMARY/MIX).
-            series_records: prepared series_data rows (SERIES/MIX).
-            window_from_ms / window_to_ms: repair window bounds (epoch ms) from metaInfo.
-                BOTH are required; if either is missing/invalid the sweep is skipped.
-            user_timezone: user's tz, used to convert the window for th_series_data.
-
-        Returns:
-            Dict summarizing what was done. Never raises into the upload path.
+        `summary_records` were written as observations, `series_records` to
+        `series_data`; both are the upload's prepared rows. Returns what was
+        done, for the log. Never raises into the upload path.
         """
         all_records = (summary_records or []) + (series_records or [])
 
@@ -117,22 +95,8 @@ class RepairReconciler:
         if not repair_task_id:
             return {"status": "not_repair"}
 
-        # Safety rail: never sweep on an empty re-upload (would wipe good data).
-        if not all_records:
-            logger.info(f"[RepairReconcile] empty repair batch, skip sweep: user={user_id}")
-            return {"status": "empty_batch", "repair_task_id": repair_task_id}
-
-        # Window completeness guard: BOTH bounds required and ordered. If incomplete,
-        # keep the original behavior (upsert only, NO delete): explicit per requirement.
-        if (
-            window_from_ms is None
-            or window_to_ms is None
-            or window_from_ms > window_to_ms
-        ):
-            logger.info(
-                f"[RepairReconcile] repair batch {repair_task_id} has incomplete window "
-                f"(from={window_from_ms}, to={window_to_ms}); skip sweep (upsert only)."
-            )
+        if window_from_ms is None or window_to_ms is None or window_from_ms > window_to_ms:
+            logger.info("repair sweep skipped, incomplete window: user_id=%s task_id=%s", user_id, repair_task_id)
             return {"status": "repair_no_window", "repair_task_id": repair_task_id}
 
         result: dict[str, Any] = {
@@ -141,15 +105,12 @@ class RepairReconciler:
             "window_from_ms": window_from_ms,
             "window_to_ms": window_to_ms,
             "series_deleted": 0,
-            "th_series_soft_deleted": 0,
+            "observations_retracted": 0,
             "reaggregated": False,
         }
+        start, end = _instant(window_from_ms), _instant(window_to_ms)
 
         try:
-            # --- 1. series_data physical sweep (raw layer, incl. sleep stages) ---
-            # series_data.time is naive UTC -> convert the window to naive UTC.
-            series_from = _ms_to_naive_utc(window_from_ms)
-            series_to = _ms_to_naive_utc(window_to_ms)
             if series_records:
                 sources = _apple_sources(series_records)
                 present = {r.get("indicator") for r in series_records if r.get("indicator")}
@@ -158,21 +119,18 @@ class RepairReconciler:
                     data_types={HealthDataType.SERIES, HealthDataType.MIX},
                 )
                 if sources and family:
+                    # `series_data.time` is naive UTC.
+                    naive_start, naive_end = start.replace(tzinfo=None), end.replace(tzinfo=None)
                     result["series_deleted"] = await self.repository.sweep_series_data_repair(
                         user_id=user_id,
                         sources=sources,
                         indicators=family,
-                        window_from=series_from,
-                        window_to=series_to,
+                        window_from=naive_start,
+                        window_to=naive_end,
                         repair_task_id=repair_task_id,
                     )
-                    # --- 2. re-aggregate the window so th_series_data refreshes ---
-                    result["reaggregated"] = await self._reaggregate(
-                        user_id, series_from, series_to
-                    )
+                    result["reaggregated"] = await self._reaggregate(user_id, naive_start, naive_end)
 
-            # --- 3. th_series_data soft sweep (directly-upserted SUMMARY/MIX) ---
-            # th_series_data.start_time is naive LOCAL -> convert window to user tz.
             if summary_records:
                 sources = _apple_sources(summary_records)
                 present = {r.get("indicator") for r in summary_records if r.get("indicator")}
@@ -181,32 +139,34 @@ class RepairReconciler:
                     data_types={HealthDataType.SUMMARY, HealthDataType.MIX},
                 )
                 if sources and family:
-                    th_from = _ms_to_naive_local(window_from_ms, user_timezone)
-                    th_to = _ms_to_naive_local(window_to_ms, user_timezone)
-                    result["th_series_soft_deleted"] = await self.repository.sweep_th_series_data_repair(
-                        user_id=user_id,
-                        sources=sources,
-                        indicators=family,
-                        window_from=th_from,
-                        window_to=th_to,
-                        repair_task_id=repair_task_id,
+                    result["observations_retracted"] = await observations.retract_unconfirmed(
+                        str(user_id),
+                        vendors=sources,
+                        names=sorted(family),
+                        start=start,
+                        end=end,
+                        task_id=repair_task_id,
                     )
 
-            logger.info(f"[RepairReconcile] done: user={user_id}, {result}")
+            logger.info(
+                "repair sweep done: user_id=%s task_id=%s series_deleted=%d observations_retracted=%d reaggregated=%s",
+                user_id, repair_task_id, result["series_deleted"], result["observations_retracted"],
+                result["reaggregated"],
+            )
             return result
 
         except Exception as e:
-            logger.error(f"[RepairReconcile] failed: user={user_id}, error={e}", stack_info=True)
-            return {"status": "error", "repair_task_id": repair_task_id, "error": str(e)}
+            logger.error("repair sweep failed: user_id=%s task_id=%s error_type=%s", user_id, repair_task_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            return {"status": "error", "repair_task_id": repair_task_id, "error_type": type(e).__name__}
 
     async def _reaggregate(self, user_id: str, window_from: datetime, window_to: datetime) -> bool:
-        """Recalculate aggregations for the repaired window so derived th_series_data
-        values (e.g. dailyTotalSleepAnalysis*) reflect the cleaned series_data.
+        """Recalculate the repaired window so the daily observations derived
+        from `series_data` (sleep totals among them) reflect the sweep.
 
-        window_from/window_to are naive UTC (series_data.time basis). They are padded by
-        one day on each side and floored/ceiled to whole days so the sleep 18:00-18:00
-        boundary is fully covered.
-        """
+        `window_from`/`window_to` are naive UTC, padded by a day on each side
+        and widened to whole days so the sleep window (18:00 to 18:00) is
+        covered."""
         start = (window_from - _AGGREGATE_WINDOW_PAD).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
@@ -218,22 +178,10 @@ class RepairReconciler:
         )
         status = agg_result.get("status")
         created = agg_result.get("summaries_created", 0)
-        # Honest reporting: recalculate_date_range can swallow an internal aggregator
-        # error and still return status=success with 0 summaries (e.g. the TH-424
-        # AmbiguousParameter bug in _get_tasks_for_user_date_range). Treat "success but
-        # nothing produced" as a re-aggregation that did NOT actually refresh derived
-        # values, and surface it loudly so the repair isn't reported as fully done.
-        ok = status == "success" and created > 0
+        # A recalculation that fails inside the aggregator can still report
+        # status=success with nothing written; zero summaries is not a refresh.
         if status == "success" and created == 0:
-            logger.warning(
-                f"[RepairReconcile] re-aggregate produced 0 summaries for user={user_id} "
-                f"[{start}, {end}] — derived th_series_data NOT refreshed. The series_data "
-                f"sweep still applied; aggregates will refresh on the next successful "
-                f"aggregation. NOTE: depends on TH-424 (recalculate-range AmbiguousParameter)."
-            )
+            logger.warning("repair re-aggregation wrote no summaries: user_id=%s", user_id)
         else:
-            logger.info(
-                f"[RepairReconcile] re-aggregate user={user_id} [{start}, {end}]: "
-                f"status={status}, summaries_created={created}"
-            )
-        return ok
+            logger.info("repair re-aggregation: user_id=%s status=%s summaries_created=%s", user_id, status, created)
+        return status == "success" and created > 0
