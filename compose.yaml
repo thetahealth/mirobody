@@ -48,7 +48,11 @@ services:
     env_file:
       - ${MIROBODY_ENV_FILE:-./docker/empty-environment}
     ports:
-      - "${MIROBODY_HOST_PORT:-18060}:18060"
+      # This machine only, like Postgres. On every interface, anyone on the
+      # network signed in with the demo accounts' public code (111111).
+      # MIROBODY_BIND=0.0.0.0 in .env offers the app to other machines; read
+      # SECURITY.md first.
+      - "${MIROBODY_BIND:-127.0.0.1}:${MIROBODY_HOST_PORT:-18060}:18060"
     environment: &mirobody_env
       ENV: ${ENV:-localdb}
       PYTHONUNBUFFERED: "1"
@@ -60,10 +64,15 @@ services:
       PG_USER: holistic_user
       PG_DBNAME: ${PG_DBNAME:-holistic_db}
       PG_PASSWORD: ${PG_PASSWORD:-REPLACE_THIS_VALUE_IN_PRODUCTION}
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      # Only when set, like HF_ENDPOINT below. An empty value routes nothing,
+      # but it made a container look proxied when it was not.
+      HTTP_PROXY:
+      HTTPS_PROXY:
       # host.docker.internal is a model server on this machine (LOCAL_BASE_URL):
-      # through the proxy, every request to it would leave the machine.
+      # through the proxy, every request to it would leave the machine. Set
+      # with no proxy too, because .env can name one as ALL_PROXY or http_proxy.
+      # langchain-openai then logs "detected system proxy configuration" and
+      # keeps httpx's own transport, which still connects directly.
       NO_PROXY: ${NO_PROXY:-pg,llama,localhost,127.0.0.1,host.docker.internal}
     extra_hosts:
       # Docker Desktop resolves this name itself; Docker Engine on Linux needs the line.
@@ -103,7 +112,11 @@ services:
   # host (docs/local-models.md). The first-run page finds either one.
   llama: &llama
     profiles: [local]
-    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    # llama.cpp b11429, the build benchmarks/local_models measured with this
+    # preset (results/run.json); a floating tag would change the server under
+    # it. LLAMA_IMAGE (and LLAMA_CPU_IMAGE below) in .env name another build,
+    # or the same one on a registry that mirrors ghcr.io.
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda-b11429}
     restart: unless-stopped
     command: ["--models-preset", "/presets/local-models.ini", "--models-max", "2", "--host", "0.0.0.0", "--port", "8080"]
     environment:
@@ -128,14 +141,15 @@ services:
 
   # The same models with no GPU (`--profile local-cpu`), under the same name,
   # so the app reaches it at http://llama:8080/v1 as well. Slower: on 4 vCPUs
-  # (colima, 2026-10-07) a first answer took 2-3 minutes. Both models loaded
-  # held about 6.0 GiB in the container, so Docker needs at least 8 GB of
-  # memory: Docker Desktop gives its VM half the computer's by default, and
-  # colima 2 GB unless started with `--memory 8`.
+  # (2026-10-07) a first answer took 2-3 minutes on an Apple M1 Pro (colima)
+  # and up to about 15 on an Intel Xeon Gold 5220R, download included. Both
+  # models loaded held about 6.0 GiB in the container, so Docker needs at
+  # least 8 GB of memory: Docker Desktop gives its VM half the computer's by
+  # default, and colima 2 GB unless started with `--memory 8`.
   llama_cpu:
     <<: *llama
     profiles: [local-cpu]
-    image: ${LLAMA_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    image: ${LLAMA_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-b11429}
     deploy: {}
     networks:
       default:

@@ -74,6 +74,35 @@ while IFS= read -r other; do
 done < <(docker ps -a --filter "label=com.docker.compose.project=${project_name}" \
     --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
 
+# A port another program holds ended the run in Docker's own words, naming
+# neither the variable to change nor the file it goes in, after the images had
+# downloaded, and a second taken port only on the next run. Both are checked
+# here, before anything is pulled, and only when this stack is not already up:
+# a re-run's own containers hold these ports.
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+host_port() { local value="${!1:-$(setting "$1")}"; printf '%s' "${value:-$2}"; }
+if [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=${project_name}" --filter status=running)" ]]; then
+    claimed=" $(host_port MIROBODY_HOST_PORT 18060) $(host_port PG_HOST_PORT 18062) "
+    advice=""
+    for pair in "MIROBODY_HOST_PORT:18060" "PG_HOST_PORT:18062"; do
+        var="${pair%%:*}"
+        wanted="$(host_port "$var" "${pair#*:}")"
+        port_in_use "$wanted" || continue
+        # In steps of ten, as the second-checkout advice above (18070, 18072).
+        free=$((wanted + 10))
+        while port_in_use "$free" || [[ "$claimed" == *" $free "* ]]; do
+            free=$((free + 10))
+        done
+        claimed+="$free "
+        printf 'Port %s, for %s, is already in use on this machine.\n' "$wanted" "$var" >&2
+        advice+="    ${var}=${free}"$'\n'
+    done
+    if [[ -n "$advice" ]]; then
+        printf 'Set a free one in .env, then run ./deploy.sh again:\n%s' "$advice" >&2
+        exit 1
+    fi
+fi
+
 data_dir="${MIROBODY_DATA:-$(setting MIROBODY_DATA)}"
 data_dir="${data_dir:-../mirobody-data}"
 existing_database=false
@@ -149,18 +178,56 @@ ensure_secret JWT_KEY
 # What the first-run page asks for before it changes where health data goes.
 ensure_secret SETUP_TOKEN
 
+# The `local` (NVIDIA GPU) and `local-cpu` profiles serve every model from a
+# llama.cpp container beside the stack. Compose reads this shell's
+# COMPOSE_PROFILES before the one in .env, and so does this.
+profiles="${COMPOSE_PROFILES:-$(setting COMPOSE_PROFILES)}"
+local_models=false
+case ",${profiles// /}," in
+    *,local,* | *,local-cpu,*) local_models=true ;;
+esac
+
 # A model key, a local model server or a model name given on the command line
 # (`OPENROUTER_API_KEY=... ./deploy.sh`, `LOCAL_BASE_URL=... LOCAL_MODEL=...
 # ./deploy.sh`) goes into .env, the one file the containers read, so a first
 # run needs no second step. The names are the ones config.llm.yaml reads
 # (`api_key`, `base_url`, `model_env`), and a value already in .env is left as
-# it is.
-while IFS= read -r name; do
-    [[ -z "$name" ]] && continue
-    if [[ -n "${!name:-}" ]] && ! has_setting "$name"; then
-        add_setting "$name" "${!name}"
+# it is. A key exported in a shell profile is adopted too, which is why each
+# adoption says where data goes and the local profiles adopt no key: one from
+# ~/.bashrc sent every question to its vendor after local had been chosen.
+while read -r kind name; do
+    if has_setting "$name"; then
+        if [[ "$kind" == api_key && "$local_models" == true && -n "$(setting "$name")" ]]; then
+            printf '%s in .env sends questions and documents to its vendor ahead of the local models. Delete that line to keep every model on this machine.\n' "$name"
+        fi
+        continue
     fi
-done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
+    [[ -z "${!name:-}" ]] && continue
+    case "$kind" in
+        api_key)
+            if [[ "$local_models" == true ]]; then
+                printf 'Not using %s from your shell: with COMPOSE_PROFILES=%s every model runs on this machine.\n' "$name" "$profiles"
+                continue
+            fi
+            printf 'Using %s from your shell: questions and documents go to that vendor. Unset it to keep every model on this machine.\n' "$name"
+            ;;
+        base_url)
+            printf 'Using %s from your shell: questions and documents go to the server it names.\n' "$name"
+            ;;
+        model_env)
+            printf 'Using %s from your shell: it picks a model, not where data goes.\n' "$name"
+            ;;
+    esac
+    add_setting "$name" "${!name}"
+done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\1 \2/p' config.llm.yaml | sort -u)
+
+# The app reaches either llama.cpp service as compose's `llama`, so the local
+# models need no choice on the setup page.
+if [[ "$local_models" == true ]]; then
+    for name in LOCAL_BASE_URL LOCAL_OCR_BASE_URL; do
+        has_setting "$name" || add_setting "$name" http://llama:8080/v1
+    done
+fi
 
 # The model service started with the stack (`COMPOSE_PROFILES=local-cpu
 # ./deploy.sh` with no GPU, `local` on an NVIDIA GPU) stays on for every later
@@ -206,23 +273,6 @@ if ! docker image inspect "$app_image" >/dev/null 2>&1 && ! docker compose pull 
         ${PIP_INDEX_URL:+--build-arg "PIP_INDEX_URL=${PIP_INDEX_URL}"} .
 fi
 
-# A port another program holds ended the run in Docker's own words, naming
-# neither the variable to change nor the file it goes in. Asked only when this
-# stack is not already up: a re-run's own containers hold these ports.
-if [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=${project_name}" --filter status=running)" ]]; then
-    for pair in "MIROBODY_HOST_PORT:18060" "PG_HOST_PORT:18062"; do
-        var="${pair%%:*}"
-        wanted="${!var:-$(setting "$var")}"
-        wanted="${wanted:-${pair#*:}}"
-        if (exec 3<>"/dev/tcp/127.0.0.1/${wanted}") 2>/dev/null; then
-            printf 'Port %s is already in use on this machine.\n' "$wanted" >&2
-            printf 'Pick a free one for %s in .env, e.g.  %s=%s  and run ./deploy.sh again.\n' \
-                "$var" "$var" "$((wanted + 200))" >&2
-            exit 1
-        fi
-    done
-fi
-
 printf 'Starting Mirobody with %s\n' "$app_image"
 # --remove-orphans: a 1.5.2 stack's redis container is not part of 1.5.3.
 docker compose up -d --wait --wait-timeout 600 --remove-orphans
@@ -233,8 +283,15 @@ for old in "${project_name}_mirobody_redis" "${project_name}_mirobody_site_packa
     fi
 done
 
-port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
-url="http://localhost:${port:-18060}"
+# compose.yaml publishes the app on MIROBODY_BIND, 127.0.0.1 unless .env names
+# another address. A wildcard answers here as localhost too; one address only
+# as itself.
+bind="${MIROBODY_BIND:-$(setting MIROBODY_BIND)}"
+case "${bind:-127.0.0.1}" in
+    127.0.0.1 | 0.0.0.0 | '[::]' | localhost) host=localhost ;;
+    *) host="$bind" ;;
+esac
+url="http://${host}:$(host_port MIROBODY_HOST_PORT 18060)"
 # A key or server in .env, or a choice saved from the setup page earlier: only
 # the app knows which, so it is asked rather than .env counted.
 model_setup="$(curl -fsS "${url}/mirobody.json" 2>/dev/null \
@@ -245,14 +302,33 @@ case "$model_setup" in
         ;;
     needed)
         printf '\nChoose a model: open %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
-        printf 'and paste one API key, or run every model on this machine with llama.cpp.\n'
-        printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+        if [[ "$local_models" != true ]]; then
+            printf 'and paste one API key, or run every model on this machine with llama.cpp.\n'
+            printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+        fi
         ;;
     *)
         printf '\nOpen %s\n' "$url"
         printf 'The app did not say whether it has a model yet; docker compose logs mirobody says why.\n' >&2
         ;;
 esac
+if [[ "$local_models" == true ]]; then
+    case ",${profiles// /}," in
+        *,local-cpu,*) llama_service=llama_cpu ;;
+        *) llama_service=llama ;;
+    esac
+    printf 'The models run on this machine, in llama.cpp; the first question waits for their download (docker compose logs -f %s).\n' "$llama_service"
+fi
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
 fi
+# An address other than loopback offers the app to every machine that reaches
+# this one, where config.yaml's EMAIL_PREDEFINE_CODES lets anyone sign in with
+# the public demo code, whether or not the demo data was seeded.
+case "${bind:-127.0.0.1}" in
+    127.* | '[::1]' | localhost) ;;
+    *)
+        printf 'MIROBODY_BIND=%s offers this app to other machines, where the public code 111111 signs anyone in as you@mirobody.ai or mom@mirobody.ai.\n' "$bind" >&2
+        printf 'SECURITY.md says what to change first; PRODUCTION: true refuses to start while those codes remain.\n' >&2
+        ;;
+esac
