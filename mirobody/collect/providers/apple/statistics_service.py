@@ -1,5 +1,5 @@
 """
-Apple Health Statistics Service (TH-154)
+Apple Health Statistics Service
 
 Converts client-submitted pre-aggregated statistics into summary records
 and writes them as day-grained observations via AggregateDatabaseService.
