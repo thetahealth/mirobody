@@ -522,7 +522,7 @@ class WebSocketFileUploadManager:
         query: str,
         query_user_id: str,
         has_genetic_files: bool = False,
-        real_user_id: str = None,
+        real_user_id: str | None = None,
     ):
         """Process files asynchronously using unified FileProcessor
         

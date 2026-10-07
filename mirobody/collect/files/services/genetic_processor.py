@@ -45,14 +45,14 @@ class GeneticDataLoader:
 
     def __init__(
         self,
-        message_id=None,
-        language="en",
-        user_id=None,
-        display_filename: str = None,
-        display_file_size: int = None,
-        file_key: str = None,  # New: file_key for th_files updates
+        message_id: str | None = None,
+        language: str = "en",
+        user_id: str | None = None,
+        display_filename: str | None = None,
+        display_file_size: int | None = None,
+        file_key: str | None = None,
         store: GenotypeStore | None = None,
-    ):
+    ) -> None:
         self.message_id = message_id
         self.language = language
         self.user_id = user_id

@@ -19,8 +19,8 @@ class ContentFormatter:
     def format_parsed_content(
         file_results: list[dict[str, Any]],
         file_names: list[str],
-        llm_responses: list[Any] = None,
-        indicators_list: list[list[dict]] = None,
+        llm_responses: list[Any] | None = None,
+        indicators_list: list[list[dict]] | None = None,
     ) -> str:
         """
         Format parsed content into a structured display format for the file
