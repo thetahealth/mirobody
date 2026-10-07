@@ -950,6 +950,20 @@ class DoseEvent:
             object.__setattr__(self, "slot_key", (self.slot_key[0], self.slot_key[1], normalize_slot(self.slot_key[2])))
 
 
+def _answers(events: Iterable[DoseEvent]) -> dict[tuple[str, date, str], DoseEvent]:
+    """The event that answers each slot: the latest by ``taken_at_ms``,
+    whatever order the store returns (the reference store's is newest first,
+    and the plan view used to keep the last one it saw, the oldest)."""
+    answered: dict[tuple[str, date, str], DoseEvent] = {}
+    for e in events:
+        if e.slot_key is None:
+            continue
+        prev = answered.get(e.slot_key)
+        if prev is None or e.taken_at_ms > prev.taken_at_ms:
+            answered[e.slot_key] = e
+    return answered
+
+
 def _deadline_ms(slot: DoseSlot, due_ms: int, grace: str | int) -> int:
     if grace == GRACE_END_OF_LOCAL_DAY:
         return day_bounds_ms(slot.local_date, slot.tz)[1] - 1
@@ -1016,15 +1030,11 @@ def adherence(
     zone = _zone(tz)
     slots = [d for d in scheduled if d.plan_id == plan.plan_id and lo <= d.local_date <= hi]
     by_key = {d.key: d for d in slots}
-    answered: dict[tuple[str, date, str], DoseEvent] = {}
+    mine = [e for e in events if e.plan_id == plan.plan_id]
+    answered = _answers(e for e in mine if e.slot_key in by_key)
     extra = extra_skipped = 0
-    for e in events:
-        if e.plan_id != plan.plan_id:
-            continue
+    for e in mine:
         if e.slot_key is not None and e.slot_key in by_key:
-            prev = answered.get(e.slot_key)
-            if prev is None or e.taken_at_ms > prev.taken_at_ms:
-                answered[e.slot_key] = e
             continue
         if lo <= datetime.fromtimestamp(e.taken_at_ms / MS, zone).date() <= hi:
             if e.status == EVENT_TAKEN:
@@ -1626,10 +1636,7 @@ def plan_rows(
     an active plan, every slot of ``today`` and its derived state. Pure:
     ``today``/``now_ms`` are the caller's clock in the subject's zone."""
     out: list[dict] = []
-    by_plan: dict[str, dict[tuple, DoseEvent]] = {}
-    for e in todays_events:
-        if e.slot_key:
-            by_plan.setdefault(e.plan_id, {})[e.slot_key] = e
+    answered = _answers(todays_events)
     for plan in plans:
         if plan.status == PLAN_ENTERED_IN_ERROR or not matches(plan.concept, keywords):
             continue
@@ -1637,7 +1644,6 @@ def plan_rows(
             continue
         status = effective_status(plan, today)
         slots = project_schedule(plan, start=today, end=today, tz=tz) if status == EFFECTIVE_ACTIVE else ()
-        answered = by_plan.get(plan.plan_id, {})
         out.append(
             {
                 "medication": plan.concept.text,
