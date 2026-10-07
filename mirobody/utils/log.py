@@ -134,6 +134,7 @@ class JsonFormatter(logging.Formatter):
             "processName",
             "process",
             "taskName",
+            "_phi_seen",  # PHIFilter's mark that it has run on this record
             # Additional field.
             "sql",
             "encrypted_info",
@@ -291,6 +292,23 @@ def _silence_verbose_loggers(app_level: int):
             logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
+def _install_root(handlers: list[logging.Handler], level: int, extra: dict) -> None:
+    """Make `handlers` the root logger's, each behind the PHI filter.
+
+    `Config.init` installs twice (console, then the configured file), and the
+    filter used to reach the first set of handlers only: the second install
+    found it on the root logger and stopped. A record from a module logger
+    passes the root's handlers, never the root logger's own filters, so the
+    server and the worker logged unfiltered."""
+    formatter = JsonFormatter(extra)
+    for handler in handlers:
+        handler.setFormatter(formatter)
+    logging.root.handlers = handlers
+    logging.root.setLevel(level)
+    PHIPolicy().install(logging.root)
+    _silence_verbose_loggers(level)
+
+
 def init_log_console(level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
     if extra is None:
         extra = {}
@@ -298,17 +316,7 @@ def init_log_console(level: int = logging.INFO, extra: dict | None = None, secre
         global _fernet_encryptor
         _fernet_encryptor = FernetEncrypter(secret_key)
 
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(JsonFormatter(extra))
-
-    # logging.basicConfig(level=level, handlers=[stream_handler])
-
-    logging.root.handlers = [stream_handler]
-    logging.root.setLevel(level=level)
-    PHIPolicy().install(logging.root)
-
-    # Silence verbose third-party library logs (especially in DEBUG mode)
-    _silence_verbose_loggers(level)
+    _install_root([logging.StreamHandler()], level, extra)
 
 #-----------------------------------------------------------------------------
 
@@ -322,26 +330,12 @@ def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | 
     if dir:
         os.makedirs(dir, exist_ok=True)
 
-    formatter = JsonFormatter(extra)
-
     now = datetime.datetime.now()
     file_handler = logging.FileHandler(
         os.path.join(dir, f"{now.strftime('%Y-%m-%d')}_{name}_{now.strftime('%H%M%S_%f')}.log"),
         mode="w+"
     )
-    file_handler.setFormatter(formatter)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
-
-    # logging.basicConfig(level=level, handlers=[file_handler, stream_handler])
-
-    logging.root.handlers = [file_handler, stream_handler]
-    logging.root.setLevel(level=level)
-    PHIPolicy().install(logging.root)
-
-    # Silence verbose third-party library logs (especially in DEBUG mode)
-    _silence_verbose_loggers(level)
+    _install_root([file_handler, logging.StreamHandler()], level, extra)
 
 #-----------------------------------------------------------------------------
 

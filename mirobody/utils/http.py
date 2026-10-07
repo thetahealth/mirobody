@@ -123,39 +123,22 @@ def loggable_path(path: str) -> str:
     )
 
 
-def _fill_extra_log(request: Request = None, extra: dict[str, any] = None):
-    if not request:
-        return
-
-    if not isinstance(extra, dict):
-        return
-
-    if request.url and request.url.path:
-        extra["url"] = loggable_path(request.url.path)
-
-    platform = request.headers.get("X-Platform")
-    if platform:
-        extra["platform"] = platform
-
-    version = request.headers.get("X-Ver")
-    if version:
-        extra["version"] = version
-
-    ip = get_client_ip(request)
-    if ip:
-        extra["ip"] = ip
-
-    if hasattr(request.state, "start_time"):
-        extra["time_cost"] = round((time.time()-request.state.start_time)*1e3, 2)
+def _log_extra(request: Request | None, **fields: object) -> dict[str, object]:
+    """`fields` and how long the request has run: ids, counts and status codes,
+    the keys `PHIFilter` keeps. The path, the client's address and its
+    `X-Platform`/`X-Ver` headers are not among them; the filter would delete
+    them from every line."""
+    extra = dict(fields)
+    start = getattr(request.state, "start_time", None) if request is not None else None
+    if start is not None:
+        extra["duration_ms"] = round((time.time() - start) * 1e3, 2)
+    return extra
 
 #-----------------------------------------------------------------------------
 
 def json_response(content: any, status_code: int = 200, request: Request = None, disable_log: bool = False) -> Response:
     if not disable_log:
-        extra = {
-            "status": status_code
-        }
-        _fill_extra_log(request=request, extra=extra)
+        extra = _log_extra(request, status=status_code)
 
         message = ""
         if content and isinstance(content, dict):
@@ -197,13 +180,9 @@ def json_response_with_code(code: int = 0, msg: str = "ok", data: any = None, re
     release, not a bug fix. (2026-09-14 regression report, F-7)
     """
     if not disable_log:
-        extra = {
-            "status": status,
-            "code"  : code
-        }
-        _fill_extra_log(request=request, extra=extra)
-
+        extra = _log_extra(request, status=status)
         if code != 0:
+            extra["error_code"] = code
             logger.warning(msg, stacklevel=2, extra=extra)
         else:
             logger.info(msg, stacklevel=2, extra=extra)
@@ -228,13 +207,7 @@ def json_response_with_code(code: int = 0, msg: str = "ok", data: any = None, re
 
 def redirect(url: str, status_code: int = 302, request: Request = None, disable_log: bool = False) -> Response:
     if not disable_log:
-        extra = {
-            "status"    : status_code,
-            "location"  : url
-        }
-        _fill_extra_log(request=request, extra=extra)
-
-        logger.info("", stacklevel=2, extra=extra)
+        logger.info("", stacklevel=2, extra=_log_extra(request, status=status_code))
 
     return Response(
         content     = "",
@@ -250,7 +223,7 @@ def _result_shape(result: any) -> dict:
     """What a JSON-RPC result LOOKS like: sizes, kinds and counts.
 
     Everything here is a number or a type name, which is the whole of what a
-    log line may carry about a payload. `result_bytes` answers "did it come
+    log line may carry about a payload. `size_bytes` answers "did it come
     back empty"; `content_types` answers "was it text or a resource"; neither
     answers "what did it say", and that is deliberate.
     """
@@ -258,17 +231,17 @@ def _result_shape(result: any) -> dict:
         size = len(json.dumps(result, ensure_ascii=False, separators=(',', ':'), default=str))
     except (TypeError, ValueError):
         size = -1
-    shape: dict = {"result_bytes": size, "result_type": type(result).__name__}
+    shape: dict = {"size_bytes": size, "result_type": type(result).__name__}
     if isinstance(result, dict):
         content = result.get("content")
         if isinstance(content, list):
-            shape["content_count"] = len(content)
+            shape["count"] = len(content)
             shape["content_types"] = ",".join(
                 sorted({str(c.get("type")) for c in content if isinstance(c, dict)})
             )
         for key in ("tools", "resources", "prompts", "resourceTemplates"):
             if isinstance(result.get(key), list):
-                shape[f"{key}_count"] = len(result[key])
+                shape["count"] = len(result[key])
     return shape
 
 
@@ -313,11 +286,7 @@ def jsonrpc_result(
     carry them, so a caller can always override.
     """
     if not disable_log:
-        extra = {
-            "mcp_method": method,
-            "mcp_id"    : id
-        }
-        _fill_extra_log(request=request, extra=extra)
+        extra = _log_extra(request, mcp_method=method, request_id=id)
 
         # The SHAPE of the result, never the result. This used to log its first
         # hundred serialised characters, and for `tools/call` those are the
@@ -372,13 +341,7 @@ def jsonrpc_result(
 
 def jsonrpc_error(id: any, code: int, msg: str = "", data: any = None, method: str = "", request: Request = None, disable_log: bool = False) -> Response:
     if not disable_log:
-        extra = {
-            "mcp_method": method,
-            "mcp_id"    : id,
-            "mcp_code"  : code
-        }
-        _fill_extra_log(request=request, extra=extra)
-
+        extra = _log_extra(request, mcp_method=method, request_id=id, error_code=code)
         logger.warning(msg, stacklevel=2, extra=extra)
 
     content = {

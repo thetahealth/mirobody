@@ -45,10 +45,14 @@ LOG_FIELDS: frozenset[str] = frozenset(
         "record_count",
         "user_count",
         "skipped_invalid_count",
+        "param_count",
         "size_bytes",
         "body_bytes",
         "error_type",
         "error_kind",
+        "error_code",
+        "result_type",
+        "content_types",
         "status",
         "status_code",
         "duration_ms",
@@ -121,16 +125,18 @@ class PHIPolicy:
     driver_prefixes: tuple[str, ...] = DRIVER_EXCEPTION_PREFIXES
 
     def install(self, logger: logging.Logger | None = None) -> PHIFilter:
-        """Attach the filter to ``logger`` (the root by default): once; a
-        second install returns the existing filter."""
+        """Attach the filter to ``logger`` (the root by default) and to every
+        handler it has now. A record from a child logger passes only the
+        handlers' filters, never the root logger's, so the handlers are what
+        enforce this. Repeatable: the logger's existing filter, and its
+        policy, are kept and attached to handlers installed since."""
         target = logger or logging.getLogger()
-        for f in target.filters:
-            if isinstance(f, PHIFilter):
-                return f
-        flt = PHIFilter(self)
-        target.addFilter(flt)
-        for h in target.handlers:  # handlers filter independently of the logger
-            h.addFilter(flt)
+        flt = next((f for f in target.filters if isinstance(f, PHIFilter)), None)
+        if flt is None:
+            flt = PHIFilter(self)
+            target.addFilter(flt)
+        for h in target.handlers:
+            h.addFilter(flt)  # a no-op for a handler that already has it
         return flt
 
 

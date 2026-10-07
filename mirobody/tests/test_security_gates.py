@@ -348,3 +348,42 @@ def test_the_filter_scrubs_a_wrapped_driver_errors_traceback():
     PHIFilter(PHIPolicy()).filter(record)
     assert record.exc_info is None
     assert record.getMessage() == "pull failed [RuntimeError]"
+
+
+def test_every_handler_config_init_installs_drops_a_value_bearing_extra(monkeypatch, tmp_path):
+    """`Config.init` installs the console handler, then the configured file
+    and console pair; the second install found the filter on the root logger
+    and left the new handlers without it, and a module logger's record passes
+    the root's handlers, never the root logger's filters."""
+    import io
+    import logging
+
+    import mirobody.utils.config.config as cfg_mod
+    from mirobody.kernel.ops import PHIFilter
+    from mirobody.utils.config import Config
+
+    root = logging.getLogger()
+    saved = root.handlers[:], root.filters[:], root.level
+    handlers: list[logging.Handler] = []
+    monkeypatch.setattr(cfg_mod, "_global_config", cfg_mod._global_config)
+    monkeypatch.chdir(tmp_path)
+    overlay = io.StringIO(f"LOG_NAME: gate\nLOG_DIR: {tmp_path}\nLOG_LEVEL: INFO\n")
+    try:
+        asyncio.run(Config.init(yaml_filenames=[overlay], dotenv_filenames=[]))
+        handlers = root.handlers[:]
+        logging.getLogger("mirobody.collect.example").info(
+            "reading stored", extra={"value": "HbA1c 9.1", "row_count": 1})
+        for handler in handlers:
+            handler.flush()
+    finally:
+        root.handlers[:], root.filters[:] = saved[0], saved[1]
+        root.setLevel(saved[2])
+        for handler in handlers:
+            handler.close()
+
+    assert len(handlers) == 2
+    assert all(any(isinstance(f, PHIFilter) for f in h.filters) for h in handlers)
+    (log_file,) = tmp_path.glob("*_gate_*.log")
+    line = log_file.read_text(encoding="utf-8")
+    assert "reading stored" in line and '"row_count":1' in line
+    assert "HbA1c" not in line and "_phi_seen" not in line
