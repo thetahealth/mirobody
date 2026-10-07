@@ -74,6 +74,35 @@ while IFS= read -r other; do
 done < <(docker ps -a --filter "label=com.docker.compose.project=${project_name}" \
     --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)
 
+# A port another program holds ended the run in Docker's own words, naming
+# neither the variable to change nor the file it goes in, after the images had
+# downloaded, and a second taken port only on the next run. Both are checked
+# here, before anything is pulled, and only when this stack is not already up:
+# a re-run's own containers hold these ports.
+port_in_use() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
+host_port() { local value="${!1:-$(setting "$1")}"; printf '%s' "${value:-$2}"; }
+if [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=${project_name}" --filter status=running)" ]]; then
+    claimed=" $(host_port MIROBODY_HOST_PORT 18060) $(host_port PG_HOST_PORT 18062) "
+    advice=""
+    for pair in "MIROBODY_HOST_PORT:18060" "PG_HOST_PORT:18062"; do
+        var="${pair%%:*}"
+        wanted="$(host_port "$var" "${pair#*:}")"
+        port_in_use "$wanted" || continue
+        # In steps of ten, as the second-checkout advice above (18070, 18072).
+        free=$((wanted + 10))
+        while port_in_use "$free" || [[ "$claimed" == *" $free "* ]]; do
+            free=$((free + 10))
+        done
+        claimed+="$free "
+        printf 'Port %s, for %s, is already in use on this machine.\n' "$wanted" "$var" >&2
+        advice+="    ${var}=${free}"$'\n'
+    done
+    if [[ -n "$advice" ]]; then
+        printf 'Set a free one in .env, then run ./deploy.sh again:\n%s' "$advice" >&2
+        exit 1
+    fi
+fi
+
 data_dir="${MIROBODY_DATA:-$(setting MIROBODY_DATA)}"
 data_dir="${data_dir:-../mirobody-data}"
 existing_database=false
@@ -244,23 +273,6 @@ if ! docker image inspect "$app_image" >/dev/null 2>&1 && ! docker compose pull 
         ${PIP_INDEX_URL:+--build-arg "PIP_INDEX_URL=${PIP_INDEX_URL}"} .
 fi
 
-# A port another program holds ended the run in Docker's own words, naming
-# neither the variable to change nor the file it goes in. Asked only when this
-# stack is not already up: a re-run's own containers hold these ports.
-if [[ -z "$(docker ps -q --filter "label=com.docker.compose.project=${project_name}" --filter status=running)" ]]; then
-    for pair in "MIROBODY_HOST_PORT:18060" "PG_HOST_PORT:18062"; do
-        var="${pair%%:*}"
-        wanted="${!var:-$(setting "$var")}"
-        wanted="${wanted:-${pair#*:}}"
-        if (exec 3<>"/dev/tcp/127.0.0.1/${wanted}") 2>/dev/null; then
-            printf 'Port %s is already in use on this machine.\n' "$wanted" >&2
-            printf 'Pick a free one for %s in .env, e.g.  %s=%s  and run ./deploy.sh again.\n' \
-                "$var" "$var" "$((wanted + 200))" >&2
-            exit 1
-        fi
-    done
-fi
-
 printf 'Starting Mirobody with %s\n' "$app_image"
 # --remove-orphans: a 1.5.2 stack's redis container is not part of 1.5.3.
 docker compose up -d --wait --wait-timeout 600 --remove-orphans
@@ -271,7 +283,6 @@ for old in "${project_name}_mirobody_redis" "${project_name}_mirobody_site_packa
     fi
 done
 
-port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
 # compose.yaml publishes the app on MIROBODY_BIND, 127.0.0.1 unless .env names
 # another address. A wildcard answers here as localhost too; one address only
 # as itself.
@@ -280,7 +291,7 @@ case "${bind:-127.0.0.1}" in
     127.0.0.1 | 0.0.0.0 | '[::]' | localhost) host=localhost ;;
     *) host="$bind" ;;
 esac
-url="http://${host}:${port:-18060}"
+url="http://${host}:$(host_port MIROBODY_HOST_PORT 18060)"
 # A key or server in .env, or a choice saved from the setup page earlier: only
 # the app knows which, so it is asked rather than .env counted.
 model_setup="$(curl -fsS "${url}/mirobody.json" 2>/dev/null \
