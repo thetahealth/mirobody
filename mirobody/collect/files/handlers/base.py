@@ -6,6 +6,7 @@ import abc
 import asyncio
 import hashlib
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -19,6 +20,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.utils.file_types import with_extension
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 
@@ -272,7 +274,7 @@ class BaseFileHandler(abc.ABC):
             # French, for the same English document. Two runs, two wrong
             # languages, so it was not one bad sample.
             prompt = f"""Based on the document content below, generate:
-1. file_name: A descriptive filename in format: Date_Content_Description.extension
+1. file_name: A descriptive filename in format: Date_Content_Description, with no extension
    - Include date if found (YYYY-MM-DD format)
    - Keep it concise (15-40 chars excluding extension)
    - LANGUAGE: write it in the language the DOCUMENT ITSELF uses. An English
@@ -302,7 +304,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             
             if result and isinstance(result, dict):
                 file_abstract = result.get("file_abstract", "")[:200]
-                file_name = result.get("file_name", "") or filename
+                file_name = with_extension(str(result.get("file_name") or ""), os.path.splitext(filename or "")[1]) or filename
                 logger.info(f"Abstract from text, abstract_len={len(file_abstract)}")
                 return file_abstract, file_name
             

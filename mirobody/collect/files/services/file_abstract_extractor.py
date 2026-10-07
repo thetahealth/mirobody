@@ -10,6 +10,7 @@ import tempfile
 import logging
 import json
 
+from mirobody.utils.file_types import with_extension
 from mirobody.utils.llm import unified_file_extract
 from mirobody.collect.files.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
 from mirobody.documents import detect, extract as documents, render
@@ -394,7 +395,7 @@ Please return strictly in JSON format, do not include any markdown code block ma
                 # Try to parse as JSON
                 try:
                     result = json.loads(cleaned_response)
-                    file_name = result.get("file_name", "") if generate_filename else ""
+                    file_name = with_extension(str(result.get("file_name") or ""), file_extension) if generate_filename else ""
                     file_abstract = result.get("file_abstract", "")
                     
                     # Validate and clean up

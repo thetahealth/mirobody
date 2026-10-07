@@ -334,6 +334,13 @@ decisions.
   the rows print at least two different ones (a log, a table by day);
   otherwise every row takes the document's. To tell: that book's readings
   all sit on 2026-08-07, and a weight log keeps one day per row.
+- **A file named by the model keeps the upload's extension.** The model was
+  asked for `Date_Content_Description.extension` and wrote what it liked:
+  MiniCPM5-2B named a re-read PDF `2026-08-28_体检报告_摘要.ext` and another
+  `…_摘要.txt`, and GPT-6 Luna and GPT-6.1 Sol took the name for a second file
+  and tried to open it. The model now gives the name only, and the upload's
+  own extension is put on it (`utils/file_types.with_extension`), on both
+  naming paths. To tell: an uploaded PDF's generated name ends in `.pdf`.
 - **`view=stats` names a reading's own day.** Its `first_date` and
   `last_date` were the UTC date of the instant, so a report filed at local
   midnight in Asia/Shanghai (UTC+8) showed the day before: a ferritin of
