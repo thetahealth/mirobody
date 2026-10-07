@@ -11,9 +11,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from mirobody.agent.tools.genetic_service import GeneticService
-from mirobody.server.auth import verify_token
+from mirobody.server.auth import subject_for, verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -33,16 +32,6 @@ _FHIR_ZYGOSITY = {"heterozygous": ("LA6706-1", "Heterozygous"),
 def _vcf_meta(value: object) -> str:
     """Keep uploaded provenance from creating another VCF header line."""
     return re.sub(r"[^A-Za-z0-9._-]", "_", str(value or "unknown"))[:80]
-
-
-async def _owner(caller: str, target_user_id: str | None) -> str | None:
-    if not target_user_id or target_user_id == caller:
-        return caller
-    try:
-        subject = await resolve_subject(caller, target_user_id)
-    except CareCircleDenied:
-        return None
-    return str(subject.subject_id)
 
 
 def _loinc(code: str) -> dict[str, Any]:
@@ -115,7 +104,7 @@ async def export_fhir_variants(
     """Export a bounded FHIR Variant bundle inside the normal API envelope."""
     if not 1 <= len(rsids) <= 50 or any(not re.fullmatch(r"rs[0-9]+", rsid) for rsid in rsids):
         return ErrorResponse(code=400, msg="Give one to fifty dbSNP rsIDs.")
-    owner = await _owner(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
     result = await GeneticService().envelope({"user_id": owner}, rsids=rsids, limit=50)
@@ -138,7 +127,7 @@ async def active_set(
     user_id: str = Depends(verify_token),
 ):
     """Expose counts and provenance; no genotype rows enter the browser page."""
-    owner = await _owner(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
 
@@ -179,7 +168,7 @@ async def export_vcf(
     user_id: str = Depends(verify_token),
 ):
     """Stream mapped, defensible calls from the active set in VCF 4.2 form."""
-    owner = await _owner(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
     try:

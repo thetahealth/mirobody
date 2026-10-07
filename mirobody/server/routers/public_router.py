@@ -38,7 +38,7 @@ from mirobody.collect import ProviderStatus
 from mirobody.user.platform import get_platform_user_service
 # Import platform manager
 from mirobody.collect import platform_manager
-from mirobody.server.auth import verify_token, verify_token_optional
+from mirobody.server.auth import subject_for, verify_token, verify_token_optional
 from mirobody.utils.config import global_config
 from mirobody.utils.http import request_origin, safe_return_url
 
@@ -115,7 +115,6 @@ class ProviderTokenRequest(BaseModel):
 from mirobody.server.envelope import ErrorResponse, StandardResponse
 
 # Import ConnectInfoField for type hints
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.collect import ConnectInfoField as CoreConnectInfoField
 
 
@@ -243,21 +242,16 @@ async def get_providers(
         owner_user_id: If provided, returns the providers of this shared user (requires authorization)
     """
     try:
-        # Determine which user's providers to query
+        # Anonymous callers list the catalogue only; `owner_user_id` names a
+        # member's record, which takes a signed-in caller with a grant.
         query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if owner_user_id and current_user and owner_user_id != current_user:
-            try:
-                await resolve_subject(current_user, owner_user_id)
-            except CareCircleDenied:
+        if current_user:
+            query_user_id = await subject_for(current_user, owner_user_id)
+            if query_user_id is None:
                 return ErrorResponse(
                     code=-1,
                     msg=f"No permission to query providers for user {owner_user_id}"
                 )
-
-            query_user_id = owner_user_id
-            logger.info(f"User {current_user} querying providers for shared user {owner_user_id}")
 
         platform_filter = platform  # Rename to avoid variable shadowing
         all_providers = []
@@ -369,21 +363,12 @@ async def get_user_providers(
         owner_user_id: If provided, returns the providers of this shared user (requires authorization)
     """
     try:
-        # Determine which user's providers to query
-        query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if owner_user_id and owner_user_id != current_user:
-            try:
-                await resolve_subject(current_user, owner_user_id)
-            except CareCircleDenied:
-                return ErrorResponse(
-                    code=-1,
-                    msg=f"No permission to query providers for user {owner_user_id}"
-                )
-
-            query_user_id = owner_user_id
-            logger.info(f"User {current_user} querying user providers for shared user {owner_user_id}")
+        query_user_id = await subject_for(current_user, owner_user_id)
+        if query_user_id is None:
+            return ErrorResponse(
+                code=-1,
+                msg=f"No permission to query providers for user {owner_user_id}"
+            )
 
         # Get user connections across all Platforms through PlatformManager
         provider_list = await platform_manager.get_user_providers(query_user_id)
@@ -408,25 +393,14 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         current_user: User ID obtained from token
     """
     try:
-        query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if request.owner_user_id and request.owner_user_id != current_user:
-            # Linking a device writes to someone's record, so the request asks
-            # for write and gets it only from a read-write grant. Two checks
-            # collapsed into one: the old code fetched the level and then
-            # compared it to 2 itself, which is the comparison every caller had
-            # to remember to write.
-            try:
-                await resolve_subject(current_user, request.owner_user_id, require_write=True)
-            except CareCircleDenied as denied:
-                return ErrorResponse(
-                    code=-1,
-                    msg=f"No permission to link provider for user {request.owner_user_id}: {denied}"
-                )
-
-            query_user_id = request.owner_user_id
-            logger.info(f"User {current_user} linking provider for shared user {request.owner_user_id}")
+        # Linking a device writes to someone's record, so the request asks for
+        # write and gets it only from a read-write grant.
+        query_user_id = await subject_for(current_user, request.owner_user_id, write=True)
+        if query_user_id is None:
+            return ErrorResponse(
+                code=-1,
+                msg=f"No permission to link provider for user {request.owner_user_id}"
+            )
 
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
@@ -611,21 +585,13 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
         current_user: User ID obtained from token
     """
     try:
-        query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if request.owner_user_id and request.owner_user_id != current_user:
-            # Unlinking writes, so the request asks for write.
-            try:
-                await resolve_subject(current_user, request.owner_user_id, require_write=True)
-            except CareCircleDenied as denied:
-                return ErrorResponse(
-                    code=-1,
-                    msg=f"No permission to unlink provider for user {request.owner_user_id}: {denied}"
-                )
-
-            query_user_id = request.owner_user_id
-            logger.info(f"User {current_user} unlinking provider for shared user {request.owner_user_id}")
+        # Unlinking writes, so the request asks for write.
+        query_user_id = await subject_for(current_user, request.owner_user_id, write=True)
+        if query_user_id is None:
+            return ErrorResponse(
+                code=-1,
+                msg=f"No permission to unlink provider for user {request.owner_user_id}"
+            )
 
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform

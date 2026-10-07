@@ -35,9 +35,9 @@ from mirobody import translate
 from mirobody.collect import PostgresMedicationStore, apply_medication_mentions, observations, sentence
 from mirobody.kernel import meds, series
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.server.auth import verify_token
+from mirobody.server.auth import subject_for, verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
+from mirobody.user.care_circle import shared_with_me
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -169,18 +169,6 @@ async def _label(caller: str, owner: str) -> str:
     return ""
 
 
-async def _subject(caller: str, target: str | None, *, write: bool) -> str | None:
-    """Whose record this call touches, or `None` when the grant is missing."""
-    owner = str(target or caller)
-    if owner == str(caller):
-        return owner
-    try:
-        await resolve_subject(caller, owner, require_write=write)
-    except CareCircleDenied:
-        return None
-    return owner
-
-
 @router.post("/journal")
 async def log_entry(
     entry: JournalEntry,
@@ -195,7 +183,7 @@ async def log_entry(
         return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(sorted(KINDS))}.")
     if _bad_zone(entry.tz):
         return ErrorResponse(code=400, msg=_BAD_ZONE)
-    owner = await _subject(user_id, entry.target_user_id, write=True)
+    owner = await subject_for(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
 
@@ -277,7 +265,7 @@ async def log_sentence(
     sentence became rather than trusting it."""
     if _bad_zone(entry.tz):
         return ErrorResponse(code=400, msg=_BAD_ZONE)
-    owner = await _subject(user_id, entry.target_user_id, write=True)
+    owner = await subject_for(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
     if not sentence.available():
@@ -360,7 +348,7 @@ async def list_entries(
     could not place keeps its words and reports why, because dropping it from
     the list would hide the half of the log that most needs a person's eye.
     """
-    owner = await _subject(user_id, target_user_id, write=False)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot read that record.")
 
@@ -483,7 +471,7 @@ async def retract_medication(
     under: a caregiver who logged "Dad started X" can take it back. It is
     marked entered-in-error, as any removed plan is; a plan the person made
     elsewhere is not the journal's to remove."""
-    owner = await _subject(user_id, target_user_id, write=True)
+    owner = await subject_for(user_id, target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
     store = PostgresMedicationStore()
@@ -509,7 +497,7 @@ async def retract_entry(
     """Mark one entry entered in error. The row stays: `th_observation` is
     append-only and the view hides it, so a log that was corrected still says
     so to anyone auditing it."""
-    owner = await _subject(user_id, target_user_id, write=True)
+    owner = await subject_for(user_id, target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
     try:

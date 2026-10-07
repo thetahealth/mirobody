@@ -307,3 +307,52 @@ def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
     assert seen["model"] == "vendor/model-b"
     assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
     assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400
+
+
+# ============================================================================
+# Server and user routes (quality pass, 2026-10): whose record a request
+# reads, who may export it, and what every answer carries.
+# ============================================================================
+
+
+def _grants(monkeypatch, granted: dict[tuple[int, int], int]):
+    """The care circle as a table of `(operator, subject) -> health_access`,
+    so the real `resolve_subject` runs without a database."""
+    from mirobody.user import care_circle as cc
+
+    async def accepted_membership(operator_id, subject_id):
+        access = granted.get((int(operator_id), int(subject_id)))
+        return None if access is None else cc.Membership(health_access=access)
+
+    monkeypatch.setattr(cc, "accepted_membership", accepted_membership)
+
+
+@pytest.mark.parametrize("target", [None, "", "7", "07", " 7 "])
+def test_a_request_for_your_own_record_needs_no_grant(monkeypatch, target):
+    from mirobody.server.auth import subject_for
+
+    _grants(monkeypatch, {})
+    assert asyncio.run(subject_for("7", target)) == "7"
+    assert asyncio.run(subject_for("7", target, write=True)) == "7"
+
+
+def test_a_member_is_named_by_the_id_the_check_decided_on(monkeypatch):
+    """`07` passed the check for member 7 and the write was filed under `07`,
+    a record nobody reads."""
+    from mirobody.server.auth import subject_for
+    from mirobody.user.care_circle import ACCESS_EDIT, ACCESS_VIEW
+
+    _grants(monkeypatch, {(7, 8): ACCESS_VIEW, (7, 9): ACCESS_EDIT})
+    assert asyncio.run(subject_for("7", "08")) == "8"
+    assert asyncio.run(subject_for("7", "009", write=True)) == "9"
+
+
+def test_a_grant_is_trimmed_to_what_was_asked(monkeypatch):
+    from mirobody.server.auth import subject_for
+    from mirobody.user.care_circle import ACCESS_NONE, ACCESS_VIEW
+
+    _grants(monkeypatch, {(7, 8): ACCESS_VIEW, (7, 10): ACCESS_NONE})
+    assert asyncio.run(subject_for("7", "8", write=True)) is None
+    assert asyncio.run(subject_for("7", "10")) is None
+    assert asyncio.run(subject_for("7", "11")) is None
+    assert asyncio.run(subject_for("7", "not-an-id")) is None

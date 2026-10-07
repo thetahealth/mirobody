@@ -20,9 +20,8 @@ from pydantic import BaseModel, Field, model_validator
 from mirobody.collect import PostgresMedicationStore
 from mirobody.kernel import meds, series
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.server.auth import verify_token
+from mirobody.server.auth import subject_for, verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.user.user import get_user
 
 logger = logging.getLogger(__name__)
@@ -169,15 +168,12 @@ def _plan_input(body: MedicationInput, subject_id: str, plan_id: str | None = No
 
 
 async def _subject(caller: str, target: str | None, *, write: bool = False) -> tuple[str, ErrorResponse | None]:
-    if not target or str(target) == str(caller):
-        return str(caller), None
-    try:
-        await resolve_subject(str(caller), str(target), require_write=write)
-    except CareCircleDenied:
-        if write:
-            return "", ErrorResponse(code=403, msg="This member has not shared write access to their medications.")
-        return "", ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
-    return str(target), None
+    subject = await subject_for(caller, target, write=write)
+    if subject is not None:
+        return subject, None
+    if write:
+        return "", ErrorResponse(code=403, msg="This member has not shared write access to their medications.")
+    return "", ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
 
 
 async def _owner_or_404(caller: str, plan_id: str) -> tuple[str | None, ErrorResponse | None]:

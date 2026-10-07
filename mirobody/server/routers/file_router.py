@@ -17,9 +17,8 @@ from pydantic import BaseModel, field_validator
 from mirobody.utils import execute_query
 from mirobody.utils.i18n import language_from_headers
 from mirobody.utils.req_ctx import set_req_ctx
-from mirobody.server.auth import verify_token, verify_token_claims
+from mirobody.server.auth import subject_for, verify_token, verify_token_claims
 from mirobody.server.middlewares import aal2_required_response, lacks_second_factor
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 
 from mirobody.collect import get_websocket_file_upload_manager
 from mirobody.collect import get_user_data_distribution
@@ -112,14 +111,7 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     owner = str(rows[0].get("owner") or "")
     if not owner:
         return False
-    if owner == caller:
-        return True
-
-    try:
-        await resolve_subject(caller, owner)
-    except CareCircleDenied:
-        return False
-    return True
+    return await subject_for(caller, owner) is not None
 
 
 @router.get("/files/{file_path:path}", tags=["files"])
@@ -444,27 +436,17 @@ async def get_data_distribution(
         User data distribution info
     """
     try:
-        # If user_id not provided, use current logged-in user's ID
-        target_user_id = user_id or current_user
-
-        if not target_user_id:
-            return JSONResponse(
-                content={"code": -1, "msg": "Empty user ID"},
-            )
-
         # `?user_id=` was honoured with no authorization check at all, so any
-        # authenticated caller could read any user's data-category distribution
-        #, which categories of health data they hold and how much. The route
+        # authenticated caller could read any user's data-category distribution:
+        # which categories of health data they hold and how much. The route
         # directly below this one (`/api/v1/data/uploaded-files`) already did
         # this correctly; the two were written apart and only one got the
         # check.
-        if str(target_user_id) != str(current_user):
-            try:
-                await resolve_subject(current_user, target_user_id)
-            except CareCircleDenied:
-                return JSONResponse(
-                    content={"code": -2, "msg": "No permission to query this user's data"},
-                )
+        target_user_id = await subject_for(current_user, user_id)
+        if target_user_id is None:
+            return JSONResponse(
+                content={"code": -2, "msg": "No permission to query this user's data"},
+            )
 
         logger.info(f"Get data distribution: user_id={target_user_id}")
 
@@ -512,19 +494,15 @@ async def get_uploaded_files(
     try:
         logger.info(f"Query uploaded files: current_user={current_user}, target_user_id={target_user_id}")
 
-        if target_user_id and target_user_id != str(current_user):
-            try:
-                await resolve_subject(current_user, target_user_id)
-            except CareCircleDenied:
-                return JSONResponse(
-                    content={"code": -2, "msg": "No permission to query this file"}
-                )
+        owner = await subject_for(current_user, target_user_id)
+        if owner is None:
+            return JSONResponse(
+                content={"code": -2, "msg": "No permission to query this file"}
+            )
 
-        # Use database service to get uploaded files
-        # Pass current_user for permission checking and target_user_id to determine which user's files to query
         result = await get_uploaded_files_paginated(
-            uploader_user_id=str(current_user),  # For permission checking
-            target_user_id=target_user_id,       # Determines which user's files to query
+            uploader_user_id=str(current_user),
+            target_user_id=owner,
             limit=limit,
             offset=offset,
         )
@@ -573,12 +551,9 @@ async def upload_files(
         - msg: Response message
         - data: List of upload results, each containing file URL, file key, size, type, and timestamp
     """
-    owner = str(target_user_id or user_id)
-    if owner != str(user_id):
-        try:
-            await resolve_subject(user_id, owner, require_write=True)
-        except CareCircleDenied:
-            return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
+    owner = await subject_for(user_id, target_user_id, write=True)
+    if owner is None:
+        return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
 
     result = await upload_files_to_storage(files=files, user_id=owner, folder_prefix=folder)
     stored = result.get("data") or []

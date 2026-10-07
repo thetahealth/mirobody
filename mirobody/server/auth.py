@@ -1,8 +1,9 @@
-"""Bearer-token verification for HTTP requests.
+"""Bearer-token verification for HTTP requests, and whose record a request reads.
 
 The FastAPI-facing half of authentication: pull the token off the request,
 verify it, and turn it into a user id, or raise 401. Token *issuance* and
 claim shape live in `mirobody/user/jwt.py`; this module only consumes them.
+`subject_for` is the routers' one way from a `target_user_id` to a record.
 
 Was `utils_auth.py`, then `mirobody/utils/auth.py`. It is FastAPI all the way
 down (`Header` defaults, `HTTPException`) and FastAPI ships in the
@@ -24,6 +25,7 @@ from fastapi import Header, HTTPException
 
 from mirobody.user.auth.bearer import bearer_subject
 from mirobody.user.auth.jwt import JwtTokenValidator
+from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.utils.config import global_config
 from mirobody.utils.log import secret_fingerprint
 from mirobody.utils.req_ctx import get_req_ctx, update_req_ctx
@@ -120,3 +122,22 @@ async def verify_token(authorization: str = Header(...)) -> str:
 
     user_id = await verify_token_string(authorization)
     return str(user_id)
+
+#-----------------------------------------------------------------------------
+
+async def subject_for(caller: str, target: str | None, *, write: bool = False) -> str | None:
+    """Whose record a request from `caller` runs against, or None when the
+    care circle does not grant it.
+
+    `target` is the member id a client sent (`target_user_id`,
+    `owner_user_id`): empty means the caller's own record, and anyone else's
+    takes an accepted membership that grants read, or write with `write`. The
+    answer is the id `resolve_subject` decided on, never the parameter as
+    sent: twelve hand-written copies returned the raw value, so "07" passed
+    the check for member 7 and the write was filed under "07".
+    """
+    try:
+        subject = await resolve_subject(caller, target, require_write=write)
+    except CareCircleDenied:
+        return None
+    return str(subject.subject_id)
