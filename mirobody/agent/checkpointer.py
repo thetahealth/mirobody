@@ -55,10 +55,11 @@ def _build_pool() -> AsyncConnectionPool:
     """A dedicated pool for the checkpoint tables.
 
     It mirrors ``PostgreSQLConfig.get_async_pool`` (same conninfo shape, same
-    ``search_path``) but is built here rather than reused, for two reasons:
+    ``search_path``) but is built here rather than reused, for three reasons:
     ``autocommit=True`` (``AsyncPostgresSaver.setup()`` runs DDL and the shared
-    pool does not enable it) and no ``app.encryption_key`` option, which the
-    checkpoint tables never need. ``PostgreSQLConfig.schema`` already has
+    pool does not enable it), no ``app.encryption_key`` option, which the
+    checkpoint tables never need, and its own short connect timeout in place
+    of ``PG_TIMEOUT`` (see below). ``PostgreSQLConfig.schema`` already has
     ``public`` appended, and libpq's ``options`` is whitespace-delimited so the
     comma-joined value must stay space-free.
     """
