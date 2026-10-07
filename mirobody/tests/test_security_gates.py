@@ -307,3 +307,44 @@ def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
     assert seen["model"] == "vendor/model-b"
     assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
     assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400
+
+
+# -- log lines: a database driver's text never reaches them ---------------------
+
+
+def _driver_error() -> Exception:
+    """An exception the way psycopg raises one: its message quotes the statement
+    and the bound parameters."""
+    error = type("UniqueViolation", (Exception,), {"__module__": "psycopg.errors"})
+    return error("duplicate key: INSERT INTO th_observation VALUES ('Jane Doe', 'HbA1c 9.1')")
+
+
+def _wrapped(driver: Exception) -> RuntimeError:
+    """The provider base class's shape: `raise RuntimeError(str(e)) from e`."""
+    try:
+        try:
+            raise driver
+        except Exception as e:
+            raise RuntimeError(str(e)) from e
+    except RuntimeError as wrapper:
+        return wrapper
+
+
+def test_a_wrapped_driver_error_is_still_a_driver_error():
+    from mirobody.kernel.ops import is_driver_exception
+
+    assert is_driver_exception(_driver_error())
+    assert is_driver_exception(_wrapped(_driver_error()))
+    assert not is_driver_exception(RuntimeError("no driver below"))
+
+
+def test_the_filter_scrubs_a_wrapped_driver_errors_traceback():
+    import logging
+
+    from mirobody.kernel.ops import PHIFilter, PHIPolicy
+
+    wrapper = _wrapped(_driver_error())
+    record = logging.LogRecord("t", logging.ERROR, __file__, 1, "pull failed", (), (RuntimeError, wrapper, None))
+    PHIFilter(PHIPolicy()).filter(record)
+    assert record.exc_info is None
+    assert record.getMessage() == "pull failed [RuntimeError]"

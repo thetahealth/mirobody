@@ -69,8 +69,25 @@ def safe_error_text(exc: BaseException) -> str:
 
 
 def is_driver_exception(exc: BaseException) -> bool:
-    mod = type(exc).__module__ or ""
-    return mod.split(".")[0] in DRIVER_EXCEPTION_PREFIXES
+    """Whether ``exc``, or an exception it was raised from or while handling,
+    comes from a database driver. Wrapping is common (the provider base class
+    re-raises a failed link as ``RuntimeError(str(e)) from e``), and the
+    traceback prints the driver's message, with its statement and bound
+    parameters, as the cause."""
+    return _raised_by(exc, DRIVER_EXCEPTION_PREFIXES)
+
+
+def _raised_by(exc: BaseException, prefixes: tuple[str, ...]) -> bool:
+    """Whether a module named in ``prefixes`` raised ``exc`` or anything in its
+    ``__cause__``/``__context__`` chain, the chain a traceback prints."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if (type(current).__module__ or "").split(".")[0] in prefixes:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 def redact(record: Mapping[str, object], allowed: Iterable[str] = LOG_FIELDS) -> dict[str, object]:
@@ -127,7 +144,7 @@ class PHIFilter(logging.Filter):
                 self.dropped_fields += 1
         if record.exc_info and record.exc_info[1] is not None:
             exc = record.exc_info[1]
-            if (type(exc).__module__ or "").split(".")[0] in self.policy.driver_prefixes:
+            if _raised_by(exc, self.policy.driver_prefixes):
                 record.exc_info = None
                 record.exc_text = None
                 record.msg = f"{record.getMessage()} [{safe_error_text(exc)}]"
