@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.req_ctx import request_timezone
 
@@ -510,8 +511,11 @@ class FileDbService:
             }
             
         except Exception as e:
-            logger.error(f"Failed to get files paginated: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to get uploaded files: {str(e)}")
+            # A fixed sentence up: the caller may show it, and a driver's
+            # message quotes the statement.
+            logger.error("listing files failed: user_id=%s error_type=%s", query_user_id or user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            raise RuntimeError("Failed to get uploaded files") from e
     
     @staticmethod
     async def get_files_by_source(user_id: str, created_source_id: str) -> list[dict[str, Any]]:
