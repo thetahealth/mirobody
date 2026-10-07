@@ -381,8 +381,12 @@ class Config:
         if s is not None:
             return s
 
-        # Then check the configuration variables.
-        s = self._raw.get(upper_key, default)
+        # Then check the configuration variables. A key written with no value
+        # (`LOG_NAME:`) loads as None, which became the string "None": a log
+        # file by that name, `None/files/...` links, a `None/1.5.3` banner.
+        s = self._raw.get(upper_key)
+        if s is None:
+            return default
         return s if isinstance(s, str) else str(s)
 
 
