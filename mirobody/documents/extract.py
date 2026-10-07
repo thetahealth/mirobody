@@ -126,6 +126,13 @@ _WRAP_PITCH = 1.5
 _SAME_LINE = 0.45
 
 
+#: A line that opens with a label and its colon (`Exam: | annual physical
+#: (clinic)`) names a field of the report, never a row of its table. Kept
+#: over a check-up's header, every row's long name lay across its two cells,
+#: and `_gridded` dropped the nine rows instead of the label
+#: (demo/upload/you_annual_checkup_2026-05.pdf).
+_LABEL = re.compile(r"[:：]$")
+
 #: A page's running footer or header, never a table row: `Page 2 of 11 |
 #: Printed 2026-02-14 11:37:08` went on under the table above it as a row, and
 #: the print time was read as a value of 2026 (corpus p004_2026-02-14_e10a).
@@ -293,25 +300,40 @@ def _table_html(block: list[list[_Run]], cols: list[tuple[float, float]]) -> str
     return "<table>" + "".join(rows) + "</table>"
 
 
+def _heads(line: list[_Run], block: list[list[_Run]]) -> bool:
+    """Whether a line of its own, a gap above `block`, is that block's header:
+    one cell over each of its columns. A section title or a blank line
+    between a header and its rows (`Test Item | Result | Unit` / `Liver
+    function` / the rows) used to leave the header a line alone, not a table."""
+    cols = _columns(block)
+    return len(line) == len(cols) and _fits([line], cols)
+
+
 def _layer_tables(textpage, carried: list[tuple[float, float]] | None
                   ) -> tuple[str, list[tuple[float, float]] | None]:
     """(the page's tables as HTML, or "", the columns the next page may go on
     under). A table is two or more consecutive lines of two or more cells; one
-    such line alone is a table only when it goes on under `carried`."""
+    such line alone is a table only when it goes on under `carried`, or heads
+    the lines below a gap (`_heads`)."""
     lines = _unwrapped(_lines(_runs(textpage)))
     blocks: list[list[list[_Run]]] = [[]]
     for line in lines:
-        if len(line) >= 2 and not any(_PAGE_MARK.match(r.text) for r in line):
+        if len(line) >= 2 and not _LABEL.search(line[0].text) and not any(_PAGE_MARK.match(r.text) for r in line):
             blocks[-1].append(line)
         elif blocks[-1]:
             blocks.append([])
     tables = []
+    lone: list[_Run] | None = None
     for block in (g for b in blocks if (g := _gridded(b))):
+        if lone is not None and _heads(lone, block):
+            block = [lone, *block]
+        lone = None
         if carried is not None and _fits(block, carried):
             cols = carried
         elif len(block) >= 2:
             cols = _columns(block)
         else:
+            lone = block[0]
             continue
         tables.append(_table_html(block, cols))
         carried = cols
