@@ -677,12 +677,10 @@ type = "forbidden"
 allow_indirect_imports = true
 # `standardize/` moved out of `collect/` in 1.4.4 and became this package, so
 # "collect only collects" is something the tree shows rather than a sentence in
-# a document. The contents are 1.5.0's to rewrite: LOINC coding, the
-# comparability key, one standardized table. Naming the 14 crossing symbols in
-# `translate/__init__` means that rewrite moves modules without touching a
-# caller.
+# a document. Naming the crossing symbols in `translate/__init__` means a
+# module behind them can move without touching a caller.
 #
-# `collect` is a source here on purpose. It imports this package 25 times (a
+# `collect` is a source here on purpose. It imports this package throughout (a
 # provider declares metrics with `StandardIndicator`, `ingest` converts units
 # before writing) and those are legitimate; reaching past the package to
 # whichever module holds the symbol today is not.
@@ -695,7 +693,7 @@ forbidden_modules = [
     "mirobody.translate.aggregate",
     "mirobody.translate.derive",
     "mirobody.translate.indicators_info",
-    "mirobody.translate.units",
+    "mirobody.translate.canonical_units",
     "mirobody.translate.value_range_validator",
 ]
 ignore_imports = []
