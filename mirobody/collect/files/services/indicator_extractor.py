@@ -25,7 +25,6 @@ from mirobody.collect.files.services.table_indicators import (
     without_rows,
 )
 from mirobody.utils.coerce import parse_date
-from mirobody.utils.config.llm import resolve_route
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 from mirobody.collect.files.services.prompts.file_indicator_extract import (
@@ -238,12 +237,18 @@ class IndicatorExtractor:
 
             logger.info(f"[IndicatorExtractor] Extracting indicators from text - user_id: {user_id}, text_length: {len(original_text)}")
 
-            # With a document-OCR model routed, its tables are read by their
-            # columns. The model reads what the rules left (a row they could
-            # not read, text outside any table), and a rule's row outranks the
-            # model's for the same printed row: it is the value as printed.
+            # Tables are read by their columns first, whatever model reads the
+            # rest: a born-digital PDF's from its text layer, a scan's from the
+            # OCR tables pass, a CSV's and a sheet's as they are. The model
+            # reads what the rules left (a row they could not read, text
+            # outside any table), and a rule's row outranks the model's for the
+            # same printed row: it is the value as printed. This ran only with
+            # a local OCR route; on a vendor key the whole text went to the
+            # vendor's model, table rows included (owner's call, 1.5.4: the
+            # rules store no row a document does not print, and what they read
+            # does not leave the machine).
             extractor = ""
-            rows, table_date, unread_count = table_indicators(original_text) if resolve_route("ocr") else ([], "", 0)
+            rows, table_date, unread_count = table_indicators(original_text)
             rest = without_rows(original_text, rows) if rows else original_text
             if rows and not unread_count and not left_for_model(rest):
                 extractor = TABLE_EXTRACTOR

@@ -96,8 +96,11 @@
   default and marks which of its harness steps 1.5.4 took. To tell: the
   README's "Which model" line links the guide, and `docs/README.md` and
   `benchmarks/README.md` list all three.
-- **A table is read by its header, without a model**, when a document-OCR
-  model is routed (the local setup). Rows under a header the rules know
+- **A table is read by its header, without a model**, in every setup: a
+  born-digital PDF's tables off its text layer, a scan's from the local OCR
+  model's tables pass, a CSV's and a sheet's as they are. With a vendor key
+  the vendor's model now reads only what the rules left, so a lab report's
+  table rows do not leave the machine. Rows under a header the rules know
   (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first
   line), including two panels side by side, are stored as printed and
   labelled `rules:table@v1`, with only the flag the report printed. A row is

@@ -366,10 +366,10 @@ async def pdf_text(
 ) -> str:
     """A PDF's full text: each page's text layer, or (for a page whose layer is
     empty or too thin (a scan)) the OCR of the rendered page, concurrently.
-    Without an ``ocr`` the scanned pages are left out. With ``tables`` (the
-    caller reads tables by their columns), a page that has a text layer also
-    gets its tables as HTML: the layer's own (`_layer_tables`) where its
-    characters lie in columns, else that pass's reading of the rendered page.
+    Without an ``ocr`` the scanned pages are left out. A page that has a text
+    layer also gets its tables as HTML: the layer's own (`_layer_tables`)
+    where its characters lie in columns, else, with ``tables`` (an OCR model's
+    tables pass), that pass's reading of the rendered page.
 
     Measured on the 16 text-layer PDFs of the seed-7 corpus (979 printed rows,
     scored with benchmarks/local_ocr's own checks): the table rules read none
@@ -381,7 +381,7 @@ async def pdf_text(
     with no model call."""
     texts, to_ocr, layered = await asyncio.to_thread(
         _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None,
-        layer_tables=tables is not None)
+        layer_tables=True)
     layer_table_pages = sum(1 for t in texts if "<table>" in t)
     gate = asyncio.Semaphore(max(1, concurrency))
     if layered and tables is not None:
