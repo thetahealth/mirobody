@@ -6,6 +6,7 @@ Provides core functions for user creation, authentication, and linking
 
 import hashlib
 import logging
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.user import UserService as BaseUserService
 from mirobody.user.auth.jwt import JwtTokenValidator
 from mirobody.utils.config import global_config
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 class PlatformUserService:
 
-    def __init__(self, jwt_secret_key: str = None, token_expires_in: int = 60 * 60 * 24 * 30):
+    def __init__(self, jwt_secret_key: str | None = None, token_expires_in: int = 60 * 60 * 24 * 30):
         """
         Initialize platform user service
         
@@ -58,7 +59,7 @@ class PlatformUserService:
         self._ensure_initialized()
         return self._base_user_service
 
-    async def generate_token(self, user_id: str, additional_claims: dict[str, Any] = None) -> str:
+    async def generate_token(self, user_id: str, additional_claims: dict[str, Any] | None = None) -> str:
 
         try:
             if additional_claims is None:
@@ -77,8 +78,9 @@ class PlatformUserService:
             return token
 
         except Exception as e:
-            logger.error(f"Failed to generate token for user {user_id}: {str(e)}")
-            raise Exception(f"Token generation failed: {str(e)}")
+            logger.error("platform token generation failed: user_id=%s error_type=%s", user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            raise RuntimeError("Token generation failed.") from e
 
     async def create_user(self, email: str, name: str = "", tz: str = "") -> str:
 
@@ -109,12 +111,12 @@ class PlatformUserService:
             params={"email": email}
         )
 
-        if existing_user and len(existing_user) > 0:
+        if existing_user:
             user = existing_user[0]
             if not user["is_del"]:
-                # User exists and not deleted
-                logger.info(f"User already exists: {email}, user_id: {user['id']}")
-                return str(user["id"])
+                user_id = str(user["id"])
+                logger.info("platform user already exists: user_id=%s", user_id)
+                return user_id
 
         # Create new user
         create_query = """
@@ -139,16 +141,11 @@ class PlatformUserService:
             params=create_params,
         )
 
-        if result:
-            row = result[0]
-            if "id" in row:
-                user_id = str(row["id"])
-                logger.info(f"Successfully created user: {email}, user_id: {user_id}")
-
-                return user_id
-            logger.error(f"Cannot find 'id' in result: {result}")
-            raise Exception("Cannot find user ID in database result")
-        raise Exception("Failed to create user - no result returned")
+        if result and "id" in result[0]:
+            user_id = str(result[0]["id"])
+            logger.info("platform user created: user_id=%s", user_id)
+            return user_id
+        raise RuntimeError("Creating the user returned no id.")
 
     async def link_user_provider(self, user_id: str, provider_slug: str, provider_user_id: str = "") -> bool:
         try:
@@ -169,12 +166,11 @@ class PlatformUserService:
                 params={"user_id": user_id, "provider": provider_slug}
             )
 
-            if existing_link and len(existing_link) > 0:
+            if existing_link:
                 link = existing_link[0]
-                active = not link["is_del"]
                 reconnect_status = link.get("reconnect", 0)
-                
-                if active:
+
+                if not link["is_del"]:
                     if reconnect_status == 0:
                         # Link is active and normal, keep it
                         logger.info(f"Existing valid link for user {user_id}, provider {provider_slug}")
@@ -193,7 +189,7 @@ class PlatformUserService:
                     logger.info(f"Soft deleted old link for user {user_id}, provider {provider_slug}")
                 else:
                     # Link is inactive (deleted), recreate it
-                    logger.info(f"Recreating link for user {user_id}, provider {provider_slug} (inactive, active={active})")
+                    logger.info(f"Recreating link for user {user_id}, provider {provider_slug} (inactive)")
 
             create_query = """
                 INSERT INTO health_user_provider 
@@ -218,9 +214,9 @@ class PlatformUserService:
             return True
 
         except Exception as e:
-            error_msg = f"Failed to link user {user_id} to provider {provider_slug}: {str(e)}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
+            logger.error("platform provider link failed: user_id=%s provider_slug=%s error_type=%s", user_id,
+                         provider_slug, type(e).__name__, exc_info=not is_driver_exception(e))
+            raise RuntimeError("Linking the provider failed.") from e
 
     async def find_or_create_user_by_provider_id(self, provider_slug: str, provider_user_id: str, tz: str) -> str:
         if not provider_slug or not provider_user_id:
@@ -240,18 +236,17 @@ class PlatformUserService:
             params={"provider": provider_slug, "provider_user_id": provider_user_id}
         )
 
-        if existing_link and len(existing_link) > 0:
+        if existing_link:
             link = existing_link[0]
-            active = not link["is_del"]
-            
-            if active:
+            user_id = str(link["user_id"])
+
+            if not link["is_del"]:
                 # Found valid association, directly return user ID (regardless of reconnect status)
                 # reconnect only affects Pull task, does not affect webhook data reception
                 logger.info(
-                    f"Found existing user for provider {provider_slug}, provider_user_id {provider_user_id}: {link['user_id']}")
-                return str(link["user_id"])
+                    f"Found existing user for provider {provider_slug}, provider_user_id {provider_user_id}: {user_id}")
+                return user_id
             # Association deleted, restore and reset reconnect=0
-            user_id = str(link["user_id"])
             restore_query = """
                     UPDATE health_user_provider
                     SET is_del = FALSE, reconnect = 0, update_at = CURRENT_TIMESTAMP
@@ -264,20 +259,10 @@ class PlatformUserService:
             logger.info(f"Restored deleted link for provider {provider_slug}, provider_user_id {provider_user_id}: {user_id}")
             return user_id
 
-        user_info = {}
-        # Generate default email (if not provided)
-        email = user_info.get("email")
-        if not email:
-            # Use provider_slug and provider_user_id to generate unique email
-            email_hash = hashlib.md5(f"{provider_slug}_{provider_user_id}".encode()).hexdigest()[:8]
-            email = f"{provider_slug}_{email_hash}@theta.local"
-
-        name = user_info.get("name", f"{provider_slug}_user_{provider_user_id}")
-
-        # Create new user
+        # A vendor's user has no address of its own: one is derived from the link.
         user_id = await self.create_user(
-            email=email,
-            name=name,
+            email=self._generate_unique_email(provider_slug, provider_user_id),
+            name=f"{provider_slug}_user_{provider_user_id}",
             tz=tz,
         )
 
@@ -308,10 +293,11 @@ class PlatformUserService:
             return await get_user(user_id=user_id)
 
         except Exception as e:
-            logger.error(f"Failed to get user {user_id}: {str(e)}")
+            logger.error("platform user lookup failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return None
 
-    async def get_user_providers(self, user_id: str, provider_prefix: str = None) -> list[dict[str, Any]]:
+    async def get_user_providers(self, user_id: str, provider_prefix: str | None = None) -> list[dict[str, Any]]:
         """
         Get user's Provider association list
         
@@ -342,7 +328,8 @@ class PlatformUserService:
             return [dict(row) for row in result] if result else []
 
         except Exception as e:
-            logger.error(f"Failed to get user providers for {user_id}: {str(e)}")
+            logger.error("platform provider list failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return []
 
     def _generate_unique_email(self, provider_slug: str, provider_user_id: str) -> str:
@@ -354,7 +341,8 @@ class PlatformUserService:
 _theta_user_service = None
 
 
-def get_platform_user_service(jwt_secret_key: str = None, token_expires_in: int = None) -> PlatformUserService:
+def get_platform_user_service(jwt_secret_key: str | None = None,
+                              token_expires_in: int | None = None) -> PlatformUserService:
     """
     Get platform user service instance (Singleton pattern)
     
