@@ -126,35 +126,15 @@ def _tasks_from_rows(rows: list[dict[str, Any]]) -> list[CalculationTask]:
 
 
 class SQLAggregator:
-    """
-    SQL-based aggregator (default implementation)
-    
-    Handles all aggregation logic including:
-    1. Trigger data querying and task generation
-    2. Batch processing with intelligent grouping
-    3. Time range processing with month splitting
-    
-    Uses PostgreSQL native aggregation functions for maximum performance.
-    """
+    """Computes daily figures from `series_data` with Postgres's own aggregates:
+    finds the person-days that changed (or a date range), then aggregates each
+    one in a single statement, with a query of its own for the methods that
+    cannot be a GROUP BY (CGM events, GMI, the custom heart-rate and sleep
+    methods)."""
 
     def __init__(self):
-        """
-        Initialize SQL aggregator
-        """
-        self.MAX_TASKS_PER_SQL = 5000
         self.MAX_DAYS_PER_MONTH = 30
 
-        self._supported_methods = {
-            'avg', 'max', 'min', 'sum', 'total', 'count',
-            'stddev', 'variance', 'last', 'first', 'median', 'p95',
-            'time_of_max', 'time_of_min',
-            'pct_below_70', 'pct_above_180', 'tir_70_180',
-            'pct_above_140', 'tir_70_140',
-            'hypo_event_count', 'hypo_event_times', 'hypo_event_details',
-            'gmi_14d',
-            # W2.7: complex derived methods
-            'sleep_onset_latency', 'morning_hr_jump', 'nighttime_resting_hr',
-        }
         # Regex patterns for parameterized threshold methods
         self._threshold_patterns = {
             'pct_below': re.compile(r'^pct_below_(\d+(?:\.\d+)?)$'),
@@ -165,7 +145,7 @@ class SQLAggregator:
         self._cgm_event_methods = {'hypo_event_count', 'hypo_event_times', 'hypo_event_details'}
         # Methods that require 14-day rolling window on raw series_data
         self._cgm_gmi_methods = {'gmi_14d'}
-        # W2.7: methods that require custom time-series queries on series_data
+        # Methods that require custom time-series queries on series_data
         self._custom_derived_methods = {
             'sleep_onset_latency', 'morning_hr_jump', 'nighttime_resting_hr',
         }
@@ -245,43 +225,17 @@ class SQLAggregator:
             return []
 
     async def calculate_batch_aggregations(self, tasks: list[CalculationTask]) -> list[dict[str, Any]]:
-        """
-        Calculate aggregations for a batch of tasks
-        
-        This method handles all the complex grouping logic:
-        1. Group tasks by data_begin
-        2. For each data_begin, decide whether to use single SQL or split by indicator
-        3. Execute aggregation and return summary records
-        
-        Args:
-            tasks: List of CalculationTask objects
-            
-        Returns:
-            List of summary record dicts ready for database insertion
-        """
+        """The summary rows of `tasks`, ready for the writer: grouped by the
+        day they begin, then by person and zone (`_process_data_begin_aggregations`)."""
         if not tasks:
             return []
 
         all_summaries = []
-
-        # Step 1: Group tasks by data_begin_utc first
         data_begin_groups = defaultdict(list)
         for task in tasks:
             data_begin_groups[task.data_begin_utc].append(task)
-
-        # Step 2: Process each data_begin_utc group
-        for data_begin_utc, data_begin_tasks in data_begin_groups.items():
-            logger.info(f"Processing {len(data_begin_tasks)} tasks for data_begin_utc {data_begin_utc}")
-            
-            # Decide whether to use single SQL or split by indicator
-            if len(data_begin_tasks) <= self.MAX_TASKS_PER_SQL:
-                # Single SQL query for all users and indicators on this data_begin
-                summaries = await self._process_data_begin_aggregations(data_begin_tasks)
-                all_summaries.extend(summaries)
-            else:
-                # Split by indicator to avoid SQL complexity
-                summaries = await self._process_data_begin_split_aggregations(data_begin_tasks)
-                all_summaries.extend(summaries)
+        for data_begin_tasks in data_begin_groups.values():
+            all_summaries.extend(await self._process_data_begin_aggregations(data_begin_tasks))
 
         logger.info(f"Generated {len(all_summaries)} summary records from {len(tasks)} tasks")
         return all_summaries
@@ -509,66 +463,6 @@ class SQLAggregator:
             all_summaries.extend(derived_summaries)
         return all_summaries
 
-    async def _process_data_begin_split_aggregations(
-            self,
-            data_begin_tasks: list[CalculationTask]
-    ) -> list[dict[str, Any]]:
-        """
-        Process all tasks for a specific data_begin by splitting into indicator groups
-        
-        Args:
-            data_begin_tasks: List of CalculationTask objects for a specific data_begin
-            
-        Returns:
-            List of summary record dicts
-        """
-        if not data_begin_tasks:
-            return []
-
-        all_summaries = []
-
-        # Get data_begin_utc from first task (all tasks have the same data_begin_utc)
-        data_begin_utc = data_begin_tasks[0].data_begin_utc
-
-        # Group by indicator first, then by user
-        indicator_groups = defaultdict(list)
-        for task in data_begin_tasks:
-            indicator_groups[task.source_indicator].append(task)
-
-        # Process each indicator group
-        for indicator, indicator_tasks in indicator_groups.items():
-            # Group tasks by user for this indicator
-            user_groups = defaultdict(list)
-            for task in indicator_tasks:
-                user_groups[task.user_id].append(task)
-
-            # Process each user separately for this indicator
-            for user_id, user_tasks in user_groups.items():
-                # Split into standard and event tasks
-                standard_tasks = [t for t in user_tasks if t.aggregation_type not in self._cgm_event_methods]
-                event_tasks = [t for t in user_tasks if t.aggregation_type in self._cgm_event_methods]
-
-                if standard_tasks:
-                    aggregation_methods = {task.aggregation_type for task in standard_tasks}
-                    logger.debug(
-                        f"Split SQL processing: user {user_id}, indicator: {indicator}, "
-                        f"data_begin_utc: {data_begin_utc}"
-                    )
-                    results = await self._execute_single_sql_aggregation(
-                        [user_id], [indicator], data_begin_utc, user_tasks[0].timezone, aggregation_methods
-                    )
-                    if results:
-                        summaries = self._convert_to_summary_records(results, standard_tasks, data_begin_utc)
-                        all_summaries.extend(summaries)
-
-                if event_tasks:
-                    event_summaries = await self._process_cgm_event_tasks(
-                        user_id, event_tasks, data_begin_utc
-                    )
-                    all_summaries.extend(event_summaries)
-
-        return all_summaries
-
     def _get_aggregation_unit(self, source_indicator: str, aggregation_type: str) -> str:
         """
         Determine the output unit for an aggregation result.
@@ -709,7 +603,7 @@ class SQLAggregator:
             agg_clauses.append(clause)
 
         # Direct UTC comparison against the UTC `time` column keeps the index
-        # usable. TH-422: a hub source (apple_health) records one event under
+        # usable. A hub source (apple_health) records one event under
         # several source_ids, so chosen_source_id picks one per (user,
         # indicator, source); other sources use source_id for time-sliced
         # pulls where filtering loses data, hence the UNION ALL non-hub branch.
@@ -1122,7 +1016,7 @@ class SQLAggregator:
         return gmi
 
     # ------------------------------------------------------------------
-    # W2.7: Custom derived methods (TH-177)
+    # Custom derived methods: a query of their own on series_data
     # ------------------------------------------------------------------
 
     async def _process_custom_derived_tasks(
@@ -1132,7 +1026,7 @@ class SQLAggregator:
             data_begin_utc: datetime,
     ) -> list[dict[str, Any]]:
         """
-        Process W2.7 custom derived tasks that need raw series_data queries.
+        Process the custom derived tasks, which need raw series_data queries.
 
         Each method gets its own handler function, similar to CGM event detection.
         """

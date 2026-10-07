@@ -41,11 +41,6 @@ def windowed_names() -> dict[str, tuple[str, ...]]:
     return {w: tuple(sorted(names)) for w, names in sorted(out.items())}
 
 
-def all_windowed_names() -> tuple[str, ...]:
-    """Every name that is NOT on a plain calendar day, in one sorted tuple."""
-    return tuple(sorted({n for names in windowed_names().values() for n in names}))
-
-
 def day_begin_expression(window: str, time_column: str = "time", tz_column: str = "timezone") -> str:
     """SQL for "the UTC instant this reading's local day began".
 
@@ -102,7 +97,6 @@ def branch_params() -> dict[str, object]:
 __all__ = [
     "MAX_WINDOWS",
     "MIDNIGHT",
-    "all_windowed_names",
     "branch_params",
     "branches",
     "day_begin_expression",
