@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.collect.files.errors import UploadError
 from mirobody.utils.config.storage import get_storage_client
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
@@ -28,34 +29,23 @@ from mirobody.utils.req_ctx import request_language
 logger = logging.getLogger(__name__)
 
 
-# Supported file extensions. This gate must match what the handler factory can
-# route, in BOTH directions, and it has been wrong both ways: too narrow, it
-# rejected .md that TextHandler parses; too wide, it accepted .doc/.ppt with no
-# handler at all, so the upload ran and `file_processor` then answered "file
-# not supported". Those are out until something parses them, so the refusal
-# happens at the gate with a list of what does work (docs/roadmap.md carries
-# the gap). `handlers/test_factory_routing.py` fails if this set and the
-# factory disagree.
+#: What an upload may be, checked by `POST /files/upload` and by the
+#: WebSocket's `upload_start`: files `documents.detect` names a kind for, and
+#: the containers `GeneticHandler` opens by their bytes. Accepting a file nothing
+#: then reads is the defect this set exists to prevent, so the legacy binary
+#: `.doc`/`.ppt`/`.xls` stay out: python-docx, python-pptx and openpyxl read
+#: only the zip formats.
 SUPPORTED_EXTENSIONS = {
-    # Images (ImageHandler takes any image/*; heic/heif come from iPhones)
     ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".svg",
     ".heic", ".heif",
-    # Documents. `.docx`/`.pptx` are back now that `handlers/document.py`
-    # parses them; legacy binary `.doc`/`.ppt`/`.xls` stay out, because
-    # python-docx, python-pptx and openpyxl read only the zip-based formats and
-    # accepting a file we then refuse is the defect this set exists to prevent.
-    # `.zip` now has a single-member genotype reader; other archives stay out.
     ".pdf", ".xlsx", ".xlsm", ".docx", ".pptx",
-    # Plain text: lab exports, genetic raw data, notes. `.csv` belongs here:
-    # TextHandler owns it now that the never-injected CSVHandler is gone.
     ".txt", ".md", ".markdown", ".csv", ".json", ".xml", ".log", ".htm", ".html",
-    # The genetic handler checks content and opens these by magic bytes.
     ".vcf", ".gz", ".zip",
 }
 
 
 class FileUploader:
-    """File upload service class"""
+    """Puts an upload in object storage."""
 
     @classmethod
     async def upload_file_and_get_url(
@@ -65,24 +55,11 @@ class FileUploader:
         content_type: str,
         expires: int = 7200 * 15,
     ) -> str:
-        """
-        Asynchronously upload file and get URL using unified storage client
-
-        Args:
-            file: Upload file object
-            filename: Target filename
-            content_type: Content type
-            expires: Expiration time (seconds)
-
-        Returns:
-            str: File URL
-        """
+        """`upload_content_and_get_url` for an upload's whole content, its
+        position put back at the start for whoever reads it next."""
         try:
-            # Reset file pointer and read content
             await file.seek(0)
             content = await file.read()
-
-            # Delegate to upload_content_and_get_url
             return await cls.upload_content_and_get_url(
                 file_content=content,
                 filename=filename,
@@ -90,7 +67,6 @@ class FileUploader:
                 expires=expires,
             )
         finally:
-            # Reset file pointer for subsequent processing
             await file.seek(0)
 
     @classmethod
@@ -101,86 +77,41 @@ class FileUploader:
         content_type: str,
         expires: int = 7200 * 15,
     ) -> str:
-        """
-        Directly upload file content and get URL using unified storage client
-
-        Args:
-            file_content: File content
-            filename: Target filename
-            content_type: Content type
-            expires: Expiration time (seconds)
-
-        Returns:
-            str: File URL
-        """
+        """Store `file_content` under the key `filename` and return its URL,
+        good for `expires` seconds. Raises `UploadError` with a sentence for
+        the person who uploaded the file when it was not stored."""
+        language = request_language()
+        if not file_content:
+            raise UploadError(localize("file_empty", language, "file_uploader"))
+        storage = get_storage_client()
+        # 30 s up to 10 MB, 60 s above.
+        upload_timeout = 30 if len(file_content) <= 10 * 1024 * 1024 else 60
         try:
-            language = request_language()
-
-            # Check if content is empty
-            if not file_content or len(file_content) == 0:
-                logger.error(f"File content is empty: {filename}")
-                raise ValueError(localize("file_empty", language, "file_uploader"))
-
-            file_size = len(file_content)
-            
-            # Get storage client at runtime (lazy initialization)
-            storage = get_storage_client()
-            
-            logger.info(f"Starting to upload file content using {storage.get_storage_type()} storage: {filename}, size: {file_size} bytes")
-
-            # Set upload timeout based on file size
-            upload_timeout = 30 if file_size <= 10 * 1024 * 1024 else 60  # 30s for <=10MB, 60s for >10MB
-
-            # Use unified storage client with timeout control
-            try:
-                upload_task = asyncio.create_task(
-                    storage.put(
-                        key=filename,
-                        content=file_content,
-                        content_type=content_type,
-                        expires=expires
-                    )
-                )
-                full_url, error = await asyncio.wait_for(upload_task, timeout=upload_timeout)
-                
-                if error:
-                    raise ValueError(f"Upload failed: {error}")
-                    
-            except TimeoutError:
-                logger.error(f"File upload timeout: {filename}, size: {file_size} bytes")
-                raise ValueError(localize("file_upload_timeout", language, "file_uploader"))
-
-            if not full_url:
-                raise ValueError(localize("file_upload_failed", language, "file_uploader"))
-
-            logger.info(f"File uploaded successfully to {storage.get_storage_type()} storage: {full_url}")
-
-            return full_url
-
-        except Exception as e:
-            logger.error(f"File content upload failed: {str(e)}", stack_info=True)
-            raise
+            full_url, error = await asyncio.wait_for(
+                storage.put(key=filename, content=file_content, content_type=content_type, expires=expires),
+                timeout=upload_timeout,
+            )
+        except TimeoutError:
+            logger.error("upload timed out: file_key=%s size_bytes=%d", filename, len(file_content))
+            raise UploadError(localize("file_upload_timeout", language, "file_uploader")) from None
+        if error or not full_url:
+            logger.error("upload not stored: file_key=%s", filename)
+            raise UploadError(localize("file_upload_failed", language, "file_uploader"))
+        # The key, never the URL: it is a presigned link, good for 30 hours.
+        logger.info("upload stored: storage=%s file_key=%s size_bytes=%d", storage.get_storage_type(), filename,
+                    len(file_content))
+        return full_url
 
 
 # Utility functions for file upload operations
 
-def validate_file_extension(file: UploadFile) -> tuple[bool, str]:
-    """
-    Validate uploaded file extension
-    
-    Args:
-        file: The uploaded file
-        
-    Returns:
-        tuple[bool, str]: (is_valid, error_message)
-    """
-    # Check file extension
-    file_extension = Path(file.filename).suffix.lower()
-    if file_extension not in SUPPORTED_EXTENSIONS:
-        error_msg = f"File type {file_extension} not supported. Supported types: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
-        return False, error_msg
-    
-    return True, ""
+def validate_file_extension(filename: str | None) -> tuple[bool, str]:
+    """Whether an upload named `filename` is one `SUPPORTED_EXTENSIONS` takes:
+    `(True, "")`, or `(False, the sentence the person is told)`."""
+    extension = Path(filename or "").suffix.lower()
+    if extension in SUPPORTED_EXTENSIONS:
+        return True, ""
+    return False, f"File type {extension or '(none)'} not supported. Supported types: {', '.join(sorted(SUPPORTED_EXTENSIONS))}"
 
 
 #: A folder prefix is one or more `[A-Za-z0-9._-]` segments. Everything else (

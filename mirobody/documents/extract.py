@@ -12,17 +12,20 @@ Two things are the caller's:
   page or a photo, with the caller's prompt and its own "no text" convention
   (return ``""``). Only the pages the text layer cannot read reach it.
 * ``cache``: content-addressed (SHA-256 of the bytes) so the same file is
-  never OCR'd twice. `MemoryTextCache` is the default; a deployment that
-  already stores extracted text keys it by hash and passes its own.
+  never OCR'd twice. Without one nothing is cached; `MemoryTextCache` is a
+  bounded in-process one, and a deployment that already stores extracted text
+  keys it by hash and passes its own.
 
 Extractor errors PROPAGATE. Whether a failed extraction is "no text, carry on"
 or a 422 is the caller's policy, not this module's; only "nothing here reads
-this kind" returns ``""``.
+this kind" returns ``""``. A PDF some of whose pages failed comes back as a
+`PartialText`, which is never cached, so the next upload of it reads them again.
 """
 
 from __future__ import annotations
 
 import asyncio
+import codecs
 import ctypes
 import hashlib
 import html
@@ -33,7 +36,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from . import detect
+from . import detect, render
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +57,23 @@ MAX_OCR_IMAGE_EDGE_PX = 2200
 XLSX_ROW_BUDGET = 5000
 #: Characters of a text file kept.
 TEXT_CHAR_CAP = 100_000
-#: Encodings a health document is actually saved in, in the order to try.
-TEXT_ENCODINGS = ("utf-8-sig", "gbk", "gb2312", "latin-1")  # utf-8-sig reads plain UTF-8 too, and drops a BOM
+#: Encodings a health document is actually saved in, in the order to try:
+#: utf-8-sig reads plain UTF-8 too and drops a BOM; GBK holds every GB2312 file.
+TEXT_ENCODINGS = ("utf-8-sig", "gbk")
+
+
+class PartialText(str):
+    """The text of a document some of whose pages could not be read, as a
+    `str` every caller reads as before. `extract_text` never caches one, and a
+    caller that stores text by content hash must not either: cached, the pages
+    that failed were never read again for the same bytes."""
+
+    missing_pages: tuple[int, ...]
+
+    def __new__(cls, text: str, missing_pages: tuple[int, ...]) -> PartialText:
+        partial = super().__new__(cls, text)
+        partial.missing_pages = missing_pages
+        return partial
 
 
 class TextCache(Protocol):
@@ -107,6 +125,13 @@ _WRAP_PITCH = 1.5
 #: is raised about a third of one).
 _SAME_LINE = 0.45
 
+
+#: A line that opens with a label and its colon (`Exam: | annual physical
+#: (clinic)`) names a field of the report, never a row of its table. Kept
+#: over a check-up's header, every row's long name lay across its two cells,
+#: and `_gridded` dropped the nine rows instead of the label
+#: (demo/upload/you_annual_checkup_2026-05.pdf).
+_LABEL = re.compile(r"[:：]$")
 
 #: A page's running footer or header, never a table row: `Page 2 of 11 |
 #: Printed 2026-02-14 11:37:08` went on under the table above it as a row, and
@@ -275,25 +300,40 @@ def _table_html(block: list[list[_Run]], cols: list[tuple[float, float]]) -> str
     return "<table>" + "".join(rows) + "</table>"
 
 
+def _heads(line: list[_Run], block: list[list[_Run]]) -> bool:
+    """Whether a line of its own, a gap above `block`, is that block's header:
+    one cell over each of its columns. A section title or a blank line
+    between a header and its rows (`Test Item | Result | Unit` / `Liver
+    function` / the rows) used to leave the header a line alone, not a table."""
+    cols = _columns(block)
+    return len(line) == len(cols) and _fits([line], cols)
+
+
 def _layer_tables(textpage, carried: list[tuple[float, float]] | None
                   ) -> tuple[str, list[tuple[float, float]] | None]:
     """(the page's tables as HTML, or "", the columns the next page may go on
     under). A table is two or more consecutive lines of two or more cells; one
-    such line alone is a table only when it goes on under `carried`."""
+    such line alone is a table only when it goes on under `carried`, or heads
+    the lines below a gap (`_heads`)."""
     lines = _unwrapped(_lines(_runs(textpage)))
     blocks: list[list[list[_Run]]] = [[]]
     for line in lines:
-        if len(line) >= 2 and not any(_PAGE_MARK.match(r.text) for r in line):
+        if len(line) >= 2 and not _LABEL.search(line[0].text) and not any(_PAGE_MARK.match(r.text) for r in line):
             blocks[-1].append(line)
         elif blocks[-1]:
             blocks.append([])
     tables = []
+    lone: list[_Run] | None = None
     for block in (g for b in blocks if (g := _gridded(b))):
+        if lone is not None and _heads(lone, block):
+            block = [lone, *block]
+        lone = None
         if carried is not None and _fits(block, carried):
             cols = carried
         elif len(block) >= 2:
             cols = _columns(block)
         else:
+            lone = block[0]
             continue
         tables.append(_table_html(block, cols))
         carried = cols
@@ -346,13 +386,6 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
         doc.close()
 
 
-def pdf_text_layer(data: bytes) -> str:
-    """Sync: the embedded text layer only, every page, ``--- page N ---`` joined.
-    Free and instant for born-digital PDFs; ``""`` for a scan."""
-    texts, _, _ = _pdf_pages(data, min_page_text=1, dpi=RENDER_DPI)
-    return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
-
-
 async def pdf_text(
     data: bytes,
     *,
@@ -364,10 +397,12 @@ async def pdf_text(
 ) -> str:
     """A PDF's full text: each page's text layer, or (for a page whose layer is
     empty or too thin (a scan)) the OCR of the rendered page, concurrently.
-    Without an ``ocr`` the scanned pages are left out. A page that has a text
-    layer also gets its tables as HTML: the layer's own (`_layer_tables`)
-    where its characters lie in columns, else, with ``tables`` (an OCR model's
-    tables pass), that pass's reading of the rendered page.
+    Without an ``ocr`` the scanned pages are left out, and a page whose OCR
+    failed is too: the text is then a `PartialText` naming them. A page that
+    has a text layer also gets its tables as HTML: the layer's own
+    (`_layer_tables`) where its characters lie in columns, else, with
+    ``tables`` (an OCR model's tables pass), that pass's reading of the
+    rendered page.
 
     Measured on the 16 text-layer PDFs of the seed-7 corpus (979 printed rows,
     scored with benchmarks/local_ocr's own checks): the table rules read none
@@ -380,7 +415,7 @@ async def pdf_text(
     texts, to_ocr, layered = await asyncio.to_thread(
         _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None,
         layer_tables=True)
-    layer_table_pages = sum(1 for t in texts if "<table>" in t)
+    layer_table_page_count = sum(1 for t in texts if "<table>" in t)
     gate = asyncio.Semaphore(max(1, concurrency))
     if layered and tables is not None:
         async def _tables(index: int, png: bytes) -> None:
@@ -394,15 +429,15 @@ async def pdf_text(
                     texts[index] = f"{texts[index]}\n\n{found}"
 
         await asyncio.gather(*(_tables(i, png) for i, png in layered))
+    failed: list[tuple[int, Exception]] = []
     if to_ocr and ocr is not None:
-        failures: list[Exception] = []
 
         async def _one(index: int, png: bytes) -> None:
             async with gate:
                 try:
                     texts[index] = (await ocr(png, "image/png")).strip()
                 except Exception as exc:
-                    failures.append(exc)
+                    failed.append((index, exc))
                     logger.warning("pdf ocr: page failed: page_index=%d error_type=%s", index, type(exc).__name__)
 
         await asyncio.gather(*(_one(i, png) for i, png in to_ocr))
@@ -412,11 +447,14 @@ async def pdf_text(
         # document, and the cause (no vision provider, a model that cannot
         # read images) would be visible only in this log line (#68). That
         # case is the OCR's error, raised.
-        if len(failures) == len(to_ocr) and not any(texts):
-            raise failures[-1]
-    logger.info("pdf: page_count=%d ocr_page_count=%d table_page_count=%d layer_table_page_count=%d",
-                len(texts), len(to_ocr), len(layered), layer_table_pages)
-    return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
+        if len(failed) == len(to_ocr) and not any(texts):
+            raise failed[-1][1]
+    missing = sorted(i for i, _ in failed) if ocr is not None else [i for i, _ in to_ocr]
+    logger.info("pdf: page_count=%d ocr_page_count=%d missing_page_count=%d table_page_count=%d "
+                "layer_table_page_count=%d", len(texts), len(to_ocr), len(missing), len(layered),
+                layer_table_page_count)
+    text = "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
+    return PartialText(text, tuple(i + 1 for i in missing)) if missing else text
 
 
 # --- images ------------------------------------------------------------------------
@@ -431,14 +469,15 @@ def downscale_image(data: bytes, mime: str, *, max_bytes: int = MAX_OCR_IMAGE_BY
         from PIL import Image
 
         with Image.open(io.BytesIO(data)) as image:
-            image = image.convert("RGB")
+            image = render.flatten(image)
             edge = max(image.size)
             if edge > max_edge:
                 scale = max_edge / edge
                 image = image.resize((max(1, int(image.width * scale)), max(1, int(image.height * scale))))
             out = io.BytesIO()
             image.save(out, format="JPEG", quality=85)
-        logger.info("image: downscaled for ocr: bytes_before=%d bytes_after=%d", len(data), out.tell())
+        downscaled_bytes = out.tell()
+        logger.info("image: downscaled for ocr: bytes_before=%d bytes_after=%d", len(data), downscaled_bytes)
         return out.getvalue(), "image/jpeg"
     except Exception as exc:
         logger.warning("image: downscale failed, sending the original: error_type=%s", type(exc).__name__)
@@ -469,20 +508,24 @@ def xlsx_sheets(data: bytes) -> list[tuple[str, list[list[str]]]]:
         workbook.close()
 
 
+def _md_row(cells: list[str]) -> str:
+    """One markdown table row. A cell's line breaks become spaces and its `|`
+    a `/`: kept, a header cell written `Reference\\nrange` split the row over two
+    lines and a `115|150` cell added a column, and the table rules then read
+    every cell after it under the wrong header."""
+    return "| " + " | ".join(" ".join(c.split()).replace("|", "/") for c in cells) + " |"
+
+
 def _markdown_table(header: list[str], body: list[list[str]]) -> list[str]:
-    lines = [f"| {' | '.join(header)} |", "|" + "|".join(["---"] * len(header)) + "|"]
-    lines.extend(f"| {' | '.join(row)} |" for row in body)
-    return lines
+    return [_md_row(header), "|" + "---|" * len(header), *(_md_row(row) for row in body)]
 
 
 def xlsx_text_sync(data: bytes, *, row_budget: int = XLSX_ROW_BUDGET) -> str:
     """Sync: every non-empty sheet as a markdown table (first row = header),
     under one shared row budget so a huge workbook cannot blow up the text."""
     sheets = [(name, rows) for name, rows in xlsx_sheets(data) if rows]
-    if not sheets:
-        return ""
     parts: list[str] = []
-    for name, rows in sheets:
+    for k, (name, rows) in enumerate(sheets):
         header, body = rows[0], rows[1:]
         take = min(len(body), max(row_budget, 0))
         parts.append(f"--- sheet: {name} ---")
@@ -491,7 +534,7 @@ def xlsx_text_sync(data: bytes, *, row_budget: int = XLSX_ROW_BUDGET) -> str:
         if len(body) > take:
             parts.append(f"... and {len(body) - take} more rows")
         parts.append("")
-        if row_budget <= 0:
+        if row_budget <= 0 and k + 1 < len(sheets):
             parts.append("... (remaining sheets truncated)")
             break
     return "\n".join(parts).strip()
@@ -504,36 +547,36 @@ async def xlsx_text(data: bytes, *, row_budget: int = XLSX_ROW_BUDGET) -> str:
 # --- Word / PowerPoint --------------------------------------------------------------
 
 def _table_lines(rows) -> list[str]:
-    lines: list[str] = []
-    for r, row in enumerate(rows):
-        cells = [(c.text or "").strip().replace("|", "/") for c in row.cells]
-        lines.append("| " + " | ".join(cells) + " |")
-        if r == 0:
-            lines.append("|" + "---|" * len(cells))
-    return lines
+    cells = [[c.text or "" for c in row.cells] for row in rows]
+    return _markdown_table(cells[0], cells[1:]) if cells else []
 
 
 def docx_text_sync(data: bytes) -> str:
     """Sync: paragraphs (headings as markdown headings) and tables, in order of
     appearance. A lab report saved as .docx is text and a table, not a layout
-    problem."""
+    problem. Read all paragraphs first and all tables after, every panel's
+    table landed under the document's last heading, away from the one naming it."""
     import docx
+    from docx.table import Table
 
     document = docx.Document(io.BytesIO(data))
     parts: list[str] = []
-    for para in document.paragraphs:
-        text = (para.text or "").strip()
+    tables = 0
+    for block in document.iter_inner_content():
+        if isinstance(block, Table):
+            tables += 1
+            parts.append(f"## Table {tables}")
+            parts.extend(_table_lines(block.rows))
+            continue
+        text = (block.text or "").strip()
         if not text:
             continue
-        style = (para.style.name or "") if para.style else ""
+        style = (block.style.name or "") if block.style else ""
         if style.startswith("Heading"):
             level = style.removeprefix("Heading ").strip()
             parts.append("#" * (int(level) + 1 if level.isdigit() else 2) + f" {text}")
         else:
             parts.append(text)
-    for i, table in enumerate(document.tables, 1):
-        parts.append(f"## Table {i}")
-        parts.extend(_table_lines(table.rows))
     return "\n".join(parts).strip()
 
 
@@ -563,19 +606,26 @@ async def office_text(data: bytes, which: str) -> str:
 
 # --- text ----------------------------------------------------------------------------
 
-def decode_text(data: bytes, *, cap: int = TEXT_CHAR_CAP) -> str:
-    """Text through the encodings a report is actually saved in; a stubborn
-    file is decoded with replacement rather than refused; long files are cut
-    with a note saying so."""
-    text = None
+def _decoded(data: bytes) -> str:
+    """`data` as text: UTF-16 when its byte-order mark says so (Excel's
+    "Unicode text" export), else the first of `TEXT_ENCODINGS` that reads
+    it, else latin-1, which reads any bytes. latin-1 used to be tried before
+    the mark was looked at, so a UTF-16 export came back as `ÿþH\\x00e\\x00`."""
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16", errors="replace")
     for encoding in TEXT_ENCODINGS:
         try:
-            text = data.decode(encoding)
-            break
+            return data.decode(encoding)
         except UnicodeDecodeError:
             continue
-    if text is None:
-        text = data.decode("utf-8", errors="replace")
+    return data.decode("latin-1")
+
+
+def decode_text(data: bytes, *, cap: int = TEXT_CHAR_CAP) -> str:
+    """Text through the encodings a report is actually saved in; a stubborn
+    file is decoded rather than refused; long files are cut with a note
+    saying so."""
+    text = _decoded(data)
     if len(text) > cap:
         text = text[:cap] + f"\n\n... (truncated, total {len(data)} bytes)"
     return text.strip()
@@ -598,8 +648,9 @@ async def extract_text(
 ) -> str:
     """The text of one document, by `detect.kind`; ``""`` when nothing here reads
     that kind (or ``kinds`` excludes it). Cached by content digest for the kinds
-    that cost a parser or a model call, never for plain text. The PDF knobs
-    (scan threshold, render DPI, OCR concurrency) pass through to `pdf_text`.
+    that cost a parser or a model call, never for plain text and never when
+    pages are missing (`PartialText`). The PDF knobs (scan threshold, render
+    DPI, OCR concurrency) pass through to `pdf_text`.
     """
     # The WebSocket upload (the only path the web client uses) accumulates
     # chunks into a `bytearray` (`file_upload_manager`), and pypdfium2 answers
@@ -632,6 +683,6 @@ async def extract_text(
         text = await xlsx_text(data)
     else:
         text = await office_text(data, which)
-    if key is not None and text:
+    if key is not None and text and not isinstance(text, PartialText):
         await cache.put(key, text)
     return text

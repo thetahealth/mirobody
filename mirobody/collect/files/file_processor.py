@@ -6,10 +6,12 @@ Integrates various atomic services to provide complete file processing functiona
 
 from __future__ import annotations
 
+from mirobody.collect.files.errors import failure_reason
 from mirobody.collect.files.services.conversation_summary import update_message_content
+from mirobody.kernel.ops import is_driver_exception
 import logging
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality: a bare `pip install mirobody` must import this module. Every
@@ -22,7 +24,6 @@ if TYPE_CHECKING:
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 
-from mirobody.collect.files.services.content_extractor import ContentExtractor
 from mirobody.collect.files.services.file_uploader import FileUploader
 from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
 from mirobody.collect.files.services.temp_file_manager import TempFileManager
@@ -37,20 +38,11 @@ logger = logging.getLogger(__name__)
 class FileProcessor:
     """Main file processor service class"""
 
-    def __init__(self):
-        """Wire the extraction services and the handler factory.
-
-        The two optional parameters that stood here (`excel_processor` and
-        `csv_processor`) plus the `files/config.py` module that stored
-        them globally, were an injection seam with no injector: both callers
-        construct `FileProcessor()` with no arguments and nothing ever called
-        the setters, so both attributes were always None. For Excel that made a
-        branch unreachable; for CSV it made the format unsupported.
-        """
+    def __init__(self) -> None:
+        """Wire the extraction services and the handler factory."""
         # Initialize services
         self.uploader = FileUploader()
         self.temp_manager = TempFileManager()
-        self.content_extractor = ContentExtractor()
         self.indicator_extractor = IndicatorExtractor()
         self.abstract_extractor = FileAbstractExtractor()
 
@@ -58,7 +50,6 @@ class FileProcessor:
         self.factory = FileHandlerFactory(
             uploader=self.uploader,
             temp_manager=self.temp_manager,
-            content_extractor=self.content_extractor,
             indicator_extractor=self.indicator_extractor,
             abstract_extractor=self.abstract_extractor,
         )
@@ -70,7 +61,7 @@ class FileProcessor:
         user_id: str,
         message_id: str | None = None,
         query_user_id: str = "",
-        progress_callback: Callable[[int, str], None] | None = None,
+        progress_callback: Callable[[int, str], Awaitable[None]] | None = None,
         file_key: str | None = None,  # S3 key if already uploaded
         skip_upload_oss: bool = False,  # Skip upload to OSS if already uploaded
     ) -> dict[str, Any]:
@@ -97,7 +88,8 @@ class FileProcessor:
 
             # The message id identifies the upload; the file name identifies the
             # PATIENT, because that is how a check-up report is named.
-            logger.info(f"Starting file processing: message_id: {message_id}, operator_user_id: {user_id}, target_user_id: {target_user_id}")
+            logger.info("file processing started: message_id=%s user_id=%s target_user_id=%s", message_id, user_id,
+                        target_user_id)
 
             # Initial progress: file upload completed
             if progress_callback:
@@ -130,22 +122,27 @@ class FileProcessor:
 
         except Exception as e:
             language = request_language()
-            logger.error(f"File processing failed: {file.filename}, error: {e}", exc_info=True)
+            reason = failure_reason(e)
+            logger.error("file processing failed: message_id=%s error_type=%s", message_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
             # If there's a message ID, update message status to failed
             if message_id:
                 try:
                     await update_message_content(
                         message_id=message_id,
-                        content=f"❌ {localize('file_upload_failed', language, 'file_processor')}\n\n{localize('error', language, 'file_processor')}: {str(e)}",
-                        reasoning=f"Error occurred during file processing: {str(e)}",
+                        content=f"{localize('file_upload_failed', language, 'file_processor')}\n\n"
+                                f"{localize('error', language, 'file_processor')}: {reason}",
+                        reasoning=f"Error occurred during file processing: {reason}",
                     )
                 except Exception as update_error:
-                    logger.error(f"Failed to update message status: {str(update_error)}", exc_info=True)
+                    logger.error("recording a failed upload on its message failed: message_id=%s error_type=%s",
+                                 message_id, type(update_error).__name__,
+                                 exc_info=not is_driver_exception(update_error))
 
             return {
                 "success": False,
-                "message": f"{localize('file_upload_failed', language, 'file_processor')}: {str(e)}",
+                "message": f"{localize('file_upload_failed', language, 'file_processor')}: {reason}",
                 "status": "error",
                 "message_id": message_id,
             }

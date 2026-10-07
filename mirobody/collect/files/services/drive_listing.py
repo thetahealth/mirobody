@@ -10,66 +10,37 @@ import asyncio
 import logging
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 
-async def regenerate_file_url(file_key: str, original_filename: str = "", content_type: str = "application/octet-stream") -> str:
-    """
-    Regenerate file URL using unified storage client
-
-    Args:
-        file_key: The file key/path
-        original_filename: Original filename (unused, kept for backward compatibility)
-        content_type: MIME type of the file
-
-    Returns:
-        str: Regenerated signed URL, or empty string if regeneration fails
-    """
+async def regenerate_file_url(file_key: str, content_type: str = "application/octet-stream") -> str:
+    """A signed URL for `file_key`, good for 24 hours, served as
+    `content_type`; "" when none can be made."""
     if not file_key:
         return ""
+    from mirobody.utils.config.storage import get_storage_client
 
     try:
-        from mirobody.utils.config.storage import get_storage_client
-
-        storage = get_storage_client()
-        storage_type = storage.get_storage_type()
-
-        logger.debug(f"Using {storage_type} storage for URL regeneration, key: {file_key}")
-
-        # Generate signed URL with 24 hours expiration
-        url, err = await storage.generate_signed_url(
-            key=file_key,
-            expires=24 * 3600,
-            content_type=content_type
-        )
-        if err:
-            logger.warning(f"URL generation returned empty for key '{file_key}': {err}")
-            return ""
-
-        if url:
-            return url
-        logger.warning(f"URL generation returned empty for key: {file_key}")
-        return ""
-
+        url, err = await get_storage_client().generate_signed_url(
+            key=file_key, expires=24 * 3600, content_type=content_type)
     except Exception as e:
-        logger.error(f"URL regeneration failed for key {file_key}: {str(e)}", stack_info=True)
+        logger.warning("signing a file url failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                       exc_info=not is_driver_exception(e))
         return ""
+    if err or not url:
+        logger.warning("signing a file url failed: file_key=%s", file_key)
+        return ""
+    return url
+
 
 async def _regenerate_urls(file_info: dict) -> None:
-    """Regenerate URLs for file_info in place"""
-    file_key = file_info.get("file_key", "")
+    """Sign `file_info`'s URL afresh, in place: the stored one has expired."""
+    new_url = await regenerate_file_url(file_info["file_key"], file_info.get("contentType", "application/octet-stream"))
+    if new_url:
+        file_info["url_full"] = new_url
 
-    if not file_key:
-        return
-
-    try:
-        new_url = await regenerate_file_url(
-            file_key, "", file_info.get("contentType", "application/octet-stream")
-        )
-        if new_url:
-            file_info["url_full"] = new_url
-    except Exception as e:
-        logger.warning(f"Failed to regenerate URL for {file_key}: {str(e)}", "_regenerate_urls")
 
 async def get_uploaded_files_paginated(
     uploader_user_id: str,
@@ -77,57 +48,35 @@ async def get_uploaded_files_paginated(
     limit: int = 100,
     offset: int = 0,
 ) -> dict[str, Any]:
-    """
-    Get user's uploaded file history with pagination.
-
-    Now reads from th_files table instead of th_messages.
+    """One page of the files attached to a person's record (`th_files`),
+    with fresh URLs and the word the frontend picks an icon from.
 
     Args:
-        uploader_user_id: Current user ID (for permission checking)
-        target_user_id: Target user ID to query files (None = query uploader_user_id)
+        uploader_user_id: The caller (authorization is the router's)
+        target_user_id: Whose record to list (None = the caller's own)
         limit: Maximum number of files to return
         offset: Pagination offset
 
     Returns:
-        Dict containing files list, total count, and total size
+        Dict containing the files list and the total count
     """
     from .file_db_service import SOURCE_ASK, SOURCE_DATA, FileDbService
 
-    try:
-        # Use FileDbService to query from th_files table
-        # Include both report and genetic scenes
-        result = await FileDbService.get_files_paginated(
-            user_id=uploader_user_id,
-            query_user_id=target_user_id,
-            # scene=["report", "genetic", "excel", "csv"],  # Both report and genetic files
-            created_source=[SOURCE_DATA, SOURCE_ASK],
-            limit=limit,
-            offset=offset,
-        )
+    result = await FileDbService.get_files_paginated(
+        user_id=uploader_user_id,
+        query_user_id=target_user_id,
+        created_source=[SOURCE_DATA, SOURCE_ASK],
+        limit=limit,
+        offset=offset,
+    )
+    files = result.get("files", [])
+    await asyncio.gather(*[_regenerate_urls(f) for f in files if f.get("file_key")])
+    for f in files:
+        f["file_type"] = _convert_mime_to_file_type(f.get("file_type", ""), f.get("scene", ""))
+    total = result.get("total", 0)
+    logger.info("files listed: user_id=%s total=%s", target_user_id or uploader_user_id, total)
+    return result
 
-        # Regenerate URLs for files with valid file_key
-        files = result.get("files", [])
-        files_with_keys = [f for f in files if f.get("file_key")]
-        if files_with_keys:
-            await asyncio.gather(
-                *[_regenerate_urls(f) for f in files_with_keys],
-                return_exceptions=True
-            )
-
-        # Convert MIME type to friendly file type
-        for f in files:
-            f["file_type"] = _convert_mime_to_file_type(
-                f.get("file_type", ""),
-                f.get("scene", "")
-            )
-
-        logger.info(f"Success: query_user_id={target_user_id or uploader_user_id}, total={result.get('total', 0)}")
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Get uploaded files failed: {str(e)}", stack_info=True)
-        raise Exception(f"Failed to get uploaded files: {str(e)}")
 
 def _convert_mime_to_file_type(mime_type: str, scene: str = "") -> str:
     """

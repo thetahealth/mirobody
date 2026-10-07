@@ -8,6 +8,7 @@ carrying per-bucket rows nobody reads.
 import logging
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,6 @@ async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
     """
     try:
         user_id = str(user_id)
-
-        logger.info(f"Getting user data distribution: user_id={user_id}")
 
         # `v_observation` hides amended and retracted rows, so a count off it
         # is what the Indicators tab shows. The old query read th_series_data
@@ -71,9 +70,8 @@ async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
             total_records = 0
             total_categories = 0
 
-        logger.info(
-            f"Query completed: user={user_id}, total_categories={total_categories}, total_records={total_records}"
-        )
+        logger.info("data distribution: user_id=%s total_categories=%s total_records=%s", user_id,
+                    total_categories, total_records)
 
         return {
             "user_id": user_id,
@@ -83,5 +81,8 @@ async def get_user_data_distribution(user_id: str) -> dict[str, Any]:
         }
 
     except Exception as e:
-        logger.error(f"Failed to query data distribution: {str(e)}", stack_info=True)
-        raise Exception(f"Failed to query data distribution: {str(e)}")
+        # A fixed sentence up: the caller shows it, and a driver's message
+        # quotes the statement.
+        logger.error("data distribution query failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        raise RuntimeError("Failed to query data distribution") from e

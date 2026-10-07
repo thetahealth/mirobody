@@ -1,11 +1,10 @@
-"""Pixels: the only place that opens an image library or a PDF renderer.
+"""Pixels: an image as a vision model is handed it.
 
-`extract` turns a file into text; this turns it into pictures, for the two
-callers that need them. A scanned page has to be rasterised before OCR can see
-it, and a vision model is handed JPEGs rather than a PDF. Both were doing it
-themselves, with their own thresholds and their own idea of what to do with an
-alpha channel, so the same page came out at two resolutions depending on which
-path reached it.
+`extract` turns a file into text, rendering a scanned page to PNG on the way;
+this fits that page, or a photo, to the size and format a vision model reads
+(`fit_image`), with one rule for transparency (`flatten`) shared with the
+downscale `extract` applies first. Two paths with their own thresholds and
+their own idea of an alpha channel sent the same page at two resolutions.
 
 Nothing here knows what a health document is.
 """
@@ -15,7 +14,10 @@ from __future__ import annotations
 import io
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +25,6 @@ logger = logging.getLogger(__name__)
 #: and buy no accuracy; below it small print in a scanned lab report is lost.
 MAX_VISION_EDGE_PX = 1536
 JPEG_QUALITY = 85
-#: Rendering scale for a PDF page, as a multiple of its 72 dpi natural size.
-PDF_RENDER_SCALE = 1.5
 
 
 def image_info(data: bytes) -> tuple[int, int, str]:
@@ -39,6 +39,23 @@ def image_info(data: bytes) -> tuple[int, int, str]:
         return 0, 0, ""
 
 
+def flatten(img: Image.Image) -> Image.Image:
+    """`img` as RGB, or L when it is grey, with any transparency composited
+    onto white. Dropped instead, a transparent pixel keeps the colour stored
+    under it, black in a PNG exported from a report viewer, and the black text
+    on it is gone: `convert("RGB")` did that to RGBA, and pasting without a
+    mask did it to LA."""
+    from PIL import Image
+
+    if img.mode in ("P", "PA") or (img.mode in ("L", "RGB") and "transparency" in img.info):
+        img = img.convert("RGBA")
+    if img.mode in ("RGBA", "LA"):
+        flat = Image.new("RGB", img.size, (255, 255, 255))
+        flat.paste(img.convert("RGBA"), mask=img.getchannel("A"))
+        return flat
+    return img if img.mode in ("RGB", "L") else img.convert("RGB")
+
+
 def fit_image(
     data: bytes,
     *,
@@ -48,10 +65,10 @@ def fit_image(
 ) -> tuple[bytes, dict[str, Any]]:
     """Re-encode an image to fit `max_edge`, returning the bytes and what it cost.
 
-    Transparency is flattened onto white rather than dropped: a PNG lab report
-    saved with an alpha channel came through as black-on-black otherwise.
-    Returns the input unchanged if it cannot be decoded, so a caller that
-    cannot use it hears that from the endpoint rather than from a traceback.
+    Transparency is flattened onto white (`flatten`). Returns the input
+    unchanged, with an `error` in what it cost, if it cannot be decoded, so a
+    caller that cannot use it hears that from the endpoint rather than from a
+    traceback.
     """
     started = time.time()
     before = len(data)
@@ -60,14 +77,7 @@ def fit_image(
 
         img = Image.open(io.BytesIO(data))
         origin = img.size
-        if img.mode in ("RGBA", "LA", "P"):
-            flat = Image.new("RGB", img.size, (255, 255, 255))
-            if img.mode == "P":
-                img = img.convert("RGBA")
-            flat.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
-            img = flat
-        elif img.mode not in ("RGB", "L"):
-            img = img.convert("RGB")
+        img = flatten(img)
 
         width, height = img.size
         if width > max_edge or height > max_edge:
@@ -80,7 +90,7 @@ def fit_image(
             opts["progressive"] = True
         img.save(out, **opts)
         blob = out.getvalue()
-        logger.info("image: fitted: bytes_before=%d bytes_after=%d", before, len(blob))
+        logger.info("image: fitted: bytes_before=%d bytes_after=%d", len(data), len(blob))
         return blob, {
             "original_size": before,
             "optimized_size": len(blob),
@@ -92,28 +102,6 @@ def fit_image(
     except Exception as exc:
         logger.warning("image: fit failed, sending the original: error_type=%s", type(exc).__name__)
         return data, {"error": type(exc).__name__, "original_size": before}
-
-
-def pdf_pages_as_images(
-    data: bytes, *, scale: float = PDF_RENDER_SCALE, max_edge: int = MAX_VISION_EDGE_PX
-) -> list[tuple[bytes, dict[str, Any]]]:
-    """Every page of a PDF as a JPEG, one entry per page in order."""
-    import pypdfium2 as pdfium
-
-    doc = pdfium.PdfDocument(data)
-    try:
-        out: list[tuple[bytes, dict[str, Any]]] = []
-        for i in range(len(doc)):
-            page = doc[i]
-            try:
-                buf = io.BytesIO()
-                page.render(scale=scale).to_pil().save(buf, format="JPEG", quality=90)
-            finally:
-                page.close()
-            out.append(fit_image(buf.getvalue(), max_edge=max_edge))
-        return out
-    finally:
-        doc.close()
 
 
 def text_image(text: str, *, size: int = 48) -> bytes:

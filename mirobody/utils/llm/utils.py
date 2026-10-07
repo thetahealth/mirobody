@@ -6,22 +6,16 @@ and return `None` when no model answered, never trying another entry (see
 `config.llm`: two reports of one person must not be read by two models).
 """
 
-import json
+from __future__ import annotations
+
 import logging
+import time
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.config.llm import RouteSpec, no_provider_message, resolve_named, resolve_route
 
 logger = logging.getLogger(__name__)
-
-# `PROJECT_DIR`, `os` and `uuid` used to be here to give `async_get_openai_tts`
-# somewhere to write its .mp3: the only thing in this module that ever touched
-# the filesystem, and a function no caller ever invoked. All four went together.
-# `get_openai_chat` (a hardcoded `["gpt-4o", "gpt-4.1"]` allowlist, zero
-# callers) and `async_get_doubao_structured_output` (a vendor SDK declared and
-# never installed) went the same way. The Gemini SDK branch went last: Google's
-# OpenAI-compatible endpoint serves the same models, and one request shape is
-# one place for a bug to be.
 
 
 def _max_tokens_param(spec: RouteSpec) -> str:
@@ -35,17 +29,16 @@ def _route(provider: str | None, model_name: str | None, surface: str) -> RouteS
     if provider:
         spec = resolve_named(provider, model=model_name)
         if spec is None:
-            logger.error(f"Unknown provider: {provider} (not a MODELS entry or provider/model)")
+            logger.error("named provider is not a MODELS entry or provider/model")
             return None
         if not spec.routable:
-            key_id = spec.api_key_env
-            logger.error(f"Provider {provider}: {key_id} is not set")
+            logger.error("named provider has no key: model=%s key_name=%s",  # phi: ok configuration names
+                         spec.model, spec.api_key_env)
             return None
         return spec
     spec = resolve_route(surface)
     if spec is None:
-        reason = no_provider_message(surface)
-        logger.error(reason)  # phi: ok a configuration sentence naming keys, never their values
+        logger.error(no_provider_message(surface))  # phi: ok a configuration sentence naming keys, never values
     return spec
 
 
@@ -62,10 +55,10 @@ def _for_endpoint(spec: RouteSpec, messages: list[dict], response_format: dict) 
     if spec.response_format == "json_schema":
         return messages, response_format
 
-    from .file_processors.results import _build_prompt_with_schema
+    from .file_processors.results import json_prompt
 
     schema = (response_format.get("json_schema") or {}).get("schema")
-    instruction = _build_prompt_with_schema("", schema).strip()
+    instruction = json_prompt("", schema).strip()
     out = [dict(m) for m in messages]
     if out and out[0].get("role") == "system":
         out[0]["content"] = f"{out[0].get('content', '')}\n\n{instruction}"
@@ -96,12 +89,16 @@ def _request_kwargs(spec: RouteSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _ms(start: float) -> int:
+    return int((time.monotonic() - start) * 1000)
+
+
 async def async_get_structured_output(
     messages: list[dict],
     response_format: dict,
     model_name: str | None = None,
     provider: str | None = None,
-    **kwargs
+    **kwargs: Any,
 ) -> dict | None:
     """One JSON answer from the `UTILS_TEXT_MODEL` route (or the named
     `provider`, an entry name or `provider/model`, with `model_name`
@@ -112,11 +109,10 @@ async def async_get_structured_output(
     refusal. Callers that must tell "no route" from "the call failed" ask
     `resolve_route("text")` first.
     """
-    import time
     from .clients import client_manager
-    from .file_processors.results import clean_json_response, salvage_truncated_json
+    from .file_processors.results import parse_json_answer
 
-    start_time = time.time()
+    start = time.monotonic()
     spec = _route(provider, model_name, "text")
     if spec is None:
         return None
@@ -131,8 +127,7 @@ async def async_get_structured_output(
     if (response_format or {}).get("type") == "json_schema":
         messages, response_format = _for_endpoint(spec, messages, response_format)
 
-    provider_name, model_name = spec.alias, spec.model
-    logger.info(f"async_get_structured_output: {provider_name}, model: {model_name}")
+    logger.info("structured output: model=%s", spec.model)
     try:
         client = client_manager.for_spec(spec)
         params = _request_kwargs(spec, kwargs)
@@ -147,38 +142,29 @@ async def async_get_structured_output(
         )
         result = response.choices[0].message.to_dict()
         if result.get("refusal") is not None:
-            logger.warning(f"structured output refused by {provider_name}")
+            logger.warning("structured output refused: model=%s", spec.model)
             return None
         content = result.get("content") or ""
         if not content.strip():
             # DeepSeek's JSON mode documents "empty content with some
             # probability"; an empty answer is a failed call, not an empty
             # document.
-            logger.error(f"structured output from {provider_name} ({model_name}) was empty")
+            logger.error("structured output was empty: model=%s", spec.model)
             return None
-        # A model told to answer in JSON by the PROMPT (every entry below
-        # `response_format: json_schema`) wraps it in a ```json fence: measured
-        # on Anthropic's compatibility endpoint, 2026-09-10. The vision path has
-        # always stripped it; this one used to hand the fence to `json.loads`.
-        # A no-op on a real json_schema answer, which never starts with a fence.
-        try:
-            final_result = json.loads(clean_json_response(content))
-        except json.JSONDecodeError:
-            # Cut off at max_tokens: keep the part that closed. Any other
-            # malformed answer is still a failed call.
-            if response.choices[0].finish_reason != "length":
-                raise
-            final_result = salvage_truncated_json(clean_json_response(content))
-            if final_result is None:
-                raise
-            logger.warning(f"structured output from {provider_name} hit max_tokens; kept its complete part "
-                           f"({len(content)} chars returned)")
-        duration = time.time() - start_time
-        logger.info(f"{provider_name} structured output completed, duration: {duration:.3f}s")
+        # Cut off at max_tokens, the part that closed is kept; any other
+        # malformed answer is still a failed call.
+        cut = response.choices[0].finish_reason == "length"
+        final_result = parse_json_answer(content, cut=cut)
+        if cut:
+            logger.warning("structured output hit max_tokens, its complete part kept: model=%s char_count=%d",
+                           spec.model, len(content))
+        duration_ms = _ms(start)
+        logger.info("structured output: model=%s duration_ms=%d", spec.model, duration_ms)
         return final_result
     except Exception as e:
-        duration = time.time() - start_time
-        logger.error(f"Structured output API error ({provider_name}, {model_name}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s")
+        duration_ms = _ms(start)
+        logger.error("structured output failed: model=%s error_type=%s duration_ms=%d", spec.model,
+                     type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
 
 
@@ -186,14 +172,13 @@ async def async_get_text_completion(
     messages: list[dict],
     model_name: str | None = None,
     provider: str | None = None,
-    **kwargs
+    **kwargs: Any,
 ) -> str | None:
     """Plain text (titles, summaries, profile prose) from the `UTILS_TEXT_MODEL`
     route, or the named `provider`. None when no model answered."""
-    import time
     from .clients import client_manager
 
-    start_time = time.time()
+    start = time.monotonic()
     spec = _route(provider, model_name, "text")
     if spec is None:
         return None
@@ -201,8 +186,7 @@ async def async_get_text_completion(
         from . import backends_anthropic
 
         return await backends_anthropic.text_completion(spec, messages, **kwargs)
-    provider_name, model_name = spec.alias, spec.model
-    logger.info(f"async_get_text_completion: {provider_name}, model: {model_name}")
+    logger.info("text completion: model=%s", spec.model)
     try:
         client = client_manager.for_spec(spec)
         response = await client.chat.completions.create(
@@ -210,11 +194,11 @@ async def async_get_text_completion(
             messages=messages,
             **_request_kwargs(spec, kwargs),
         )
-        content = response.choices[0].message.content
-        duration = time.time() - start_time
-        logger.info(f"{provider_name} text generation completed, duration: {duration:.3f}s")
-        return content
+        duration_ms = _ms(start)
+        logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
+        return response.choices[0].message.content
     except Exception as e:
-        duration = time.time() - start_time
-        logger.error(f"Text generation API error ({provider_name}, {model_name}): {type(e).__name__}: {str(e)}, duration: {duration:.3f}s", stack_info=True)
+        duration_ms = _ms(start)
+        logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
+                     type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None

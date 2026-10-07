@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import os
 
-from mirobody.utils.file_types import TEXT_EXTENSIONS, TEXT_MIME_TYPES
+from mirobody.utils.file_types import TEXT_EXTENSIONS, TEXT_MIME_TYPES, guess_mime
 
 KIND_PDF = "pdf"
 KIND_IMAGE = "image"
@@ -101,13 +101,19 @@ def looks_pdf(data: bytes) -> bool:
     return data[:5] == b"%PDF-"
 
 
+#: The sizes a BMP's DIB header can have (core, info, V2 to V5, OS/2 2.x). Two
+#: letters alone are not a bitmap: `BMI,Weight,Date` and `BMD L1-L4` open text
+#: files, and the bytes outrank the name, so a weight log went to the vision model.
+_BMP_HEADER_SIZES = frozenset({12, 40, 52, 56, 64, 108, 124})
+
+
 def looks_image(data: bytes) -> bool:
     return (
         data[:3] == b"\xff\xd8\xff"  # JPEG
         or data[:4] == b"\x89PNG"
         or data[:4] == b"GIF8"
         or (data[:4] == b"RIFF" and data[8:12] == b"WEBP")
-        or data[:2] == b"BM"
+        or (data[:2] == b"BM" and int.from_bytes(data[14:18], "little") in _BMP_HEADER_SIZES)
     )
 
 
@@ -127,9 +133,17 @@ def zip_kind(data: bytes) -> str | None:
     return None
 
 
+#: The brands of an `ftyp` box that make the file a HEIF image: an iPhone photo
+#: declares `heic`, a generic HEIF file `mif1` or `msf1`. Pillow cannot decode
+#: either without a plugin this project does not install, so such a photo
+#: reaches the vision model as it was uploaded and must say what it is.
+_HEIC_BRANDS = frozenset({b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis"})
+_HEIF_BRANDS = frozenset({b"mif1", b"msf1"})
+
+
 def image_mime(filename: str | None, content_type: str | None, data: bytes) -> str:
     """The image's MIME type, from its bytes when they say, else the declared
-    type, else PNG."""
+    type, else the name's, else PNG."""
     if data[:4] == b"\x89PNG":
         return "image/png"
     if data[:3] == b"\xff\xd8\xff":
@@ -138,8 +152,15 @@ def image_mime(filename: str | None, content_type: str | None, data: bytes) -> s
         return "image/gif"
     if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         return "image/webp"
+    if data[4:8] == b"ftyp" and data[8:12] in _HEIC_BRANDS:
+        return "image/heic"
+    if data[4:8] == b"ftyp" and data[8:12] in _HEIF_BRANDS:
+        return "image/heif"
     declared = _ct(content_type)
-    return declared if declared.startswith("image/") else "image/png"
+    if declared.startswith("image/"):
+        return declared
+    named = guess_mime(_ext(filename)) if _ext(filename) else ""
+    return named if named.startswith("image/") else "image/png"
 
 
 def kind(filename: str | None, content_type: str | None = None, data: bytes | None = None) -> str | None:
@@ -169,11 +190,6 @@ def kind(filename: str | None, content_type: str | None = None, data: bytes | No
     if is_text(filename, content_type):
         return KIND_TEXT
     return None
-
-
-def is_document(filename: str | None, content_type: str | None = None) -> bool:
-    """Whether this is a document, readable or not. See `DOCUMENT_SUFFIXES`."""
-    return _ext(filename) in DOCUMENT_SUFFIXES
 
 
 def is_extractable(filename: str | None, content_type: str | None = None) -> bool:

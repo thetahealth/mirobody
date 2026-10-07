@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS th_extraction (
     payload       jsonb,                         -- the ObservationDraft, verbatim; NULL when failed
     digest        text NOT NULL,                 -- sha256(source_ref, extractor, payload)
     report_date   date,
-    date_source   text NOT NULL DEFAULT '',      -- extracted | upload-time | manual
+    date_source   text NOT NULL DEFAULT '',      -- extracted | upload_time | manual
     created_at    timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT th_extraction_ref_digest UNIQUE (source_ref, digest),
     CONSTRAINT th_extraction_reason CHECK (status = 'ok' OR reason <> '')

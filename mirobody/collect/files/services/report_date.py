@@ -26,20 +26,36 @@ methods away from the rule they have to agree with.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from mirobody.collect import observations
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.coerce import get_utc_now, parse_date
 
 from .file_db_service import FileDbService
 
 logger = logging.getLogger(__name__)
 
+#: How far past now a date a document prints may lie and still be its date:
+#: a day covers every time zone. Further is a misread (2062 for 2026), and a
+#: report filed there had every one of its rows rejected by the time gate.
+_AHEAD = timedelta(days=1)
+
 
 def file_source_ref(file_key: str) -> str:
     """The `source_ref` every observation extracted from one file carries."""
     return f"th_files:{file_key}"
+
+
+def document_date(printed: Any) -> datetime | None:
+    """A date a document prints, parsed; None when it does not parse or lies
+    more than a day past now."""
+    at = parse_date(str(printed or ""))
+    if at is None or at > datetime.now() + _AHEAD:
+        return None
+    return at
 
 
 async def set_file_report_date(owner: str, file_key: str, when: datetime | None) -> dict:
@@ -61,7 +77,8 @@ async def set_file_report_date(owner: str, file_key: str, when: datetime | None)
         from mirobody.task import ProfileRefreshTask
         await ProfileRefreshTask.enqueue(str(owner))
     except Exception as e:
-        logger.warning(f"[set_file_report_date] profile refresh not enqueued: {e}")
+        logger.warning("profile refresh not enqueued after a re-date: file_key=%s error_type=%s", file_key,
+                       type(e).__name__, exc_info=not is_driver_exception(e))
 
     return {"file_key": file_key, "report_date": report_date, "moved": moved, "skipped": skipped}
 
@@ -92,23 +109,24 @@ async def resolve_report_date(user_id: str, exam_date: str) -> tuple[datetime, s
 
     Returns `(start_time, date_source)`; `date_source` is "extracted" when
     the document carried a usable date and "upload_time" when the user's
-    current time stood in for it. The label is written on every reading
-    (comment JSON) and on the file row (th_files.file_content), because
-    without it a guessed date is indistinguishable from a real one: a
+    current time stood in for it. The label is written on the extraction
+    (`th_extraction.date_source`) and on the file row (th_files.file_content),
+    because without it a guessed date is indistinguishable from a real one: a
     report photographed as several screenshots shows its date on the first
     page only, so pages 2..n were filed under "today" and nothing recorded
     that "today" was a fallback (issue #53). The Data page asks about
     "upload_time" files, and `POST /health-indicators/file-date` answers.
 
-    A date the model wrote in a shape `parse_date` does not know counts as
-    no date. It used to raise, and the raise threw away every reading on
-    the file: an unknown date is a reason to ask, not to drop the data.
+    A date that does not parse, or lies more than a day ahead (a misread
+    year), counts as no date (`document_date`): an unknown date is a reason
+    to ask, not to drop the readings.
     """
+    start_time = document_date(exam_date)
+    if start_time is not None:
+        return start_time, "extracted"
     if exam_date and exam_date.strip():
-        start_time = parse_date(exam_date)
-        if start_time is not None:
-            return start_time, "extracted"
-        logger.warning(f"Unparseable report date ({len(exam_date)} chars) for user_id {user_id}; filing under the upload time")
+        logger.warning("report date not usable, filed under the upload time: user_id=%s char_count=%d",
+                       user_id, len(exam_date))
     return await get_user_current_time_with_timezone(user_id), "upload_time"
 
 async def manual_report_date(file_key: str) -> datetime | None:
@@ -125,5 +143,6 @@ async def manual_report_date(file_key: str) -> datetime | None:
             return None
         return parse_date(str(content.get("report_date") or ""))
     except Exception as e:
-        logger.warning(f"manual_report_date lookup failed for {file_key}: {e}")
+        logger.warning("manual report date lookup failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                       exc_info=not is_driver_exception(e))
         return None

@@ -161,9 +161,7 @@ async def _refresh_file_urls_in_content(content_json_obj: Any) -> None:
         if not file_key:
             return ""
         content_type = guess_mime(file_name) if file_name else "application/octet-stream"
-        return await regenerate_file_url(
-            file_key, file_name, content_type
-        )
+        return await regenerate_file_url(file_key, content_type)
 
     if isinstance(content_json_obj, dict) and content_json_obj.get("files"):
         files = content_json_obj.get("files") or []
