@@ -642,6 +642,16 @@ class MedicationPlan:
         if not self.schedule:
             raise ValueError("a plan needs at least one instruction (an empty DoseInstruction() is fine)")
 
+    @property
+    def last_day(self) -> date | None:
+        """The last day the plan was in effect: the earlier of its end and the
+        day it was stopped; ``None`` while it is open-ended. A plan can be
+        stopped after its end date (the stored status stays ``active`` past
+        it), and five call sites read ``stopped_on or end``, the later one."""
+        if self.stopped_on is None or self.end is None:
+            return self.stopped_on or self.end
+        return min(self.stopped_on, self.end)
+
 
 def effective_status(plan: MedicationPlan, today: date) -> str:
     if plan.status == PLAN_ENTERED_IN_ERROR:
@@ -701,7 +711,7 @@ def plan_status_transition(
     if event == "resume":
         if plan.status != PLAN_STOPPED:
             raise ValueError(f"cannot resume a plan that is {plan.status}")
-        closed = Course(plan.plan_id, plan.order_id, plan.start, plan.stopped_on or plan.end, "stopped")
+        closed = Course(plan.plan_id, plan.order_id, plan.start, plan.last_day, "stopped")
         return replace(plan, status=PLAN_ACTIVE, stopped_on=None, start=today, end=None), closed
     raise ValueError(f"unknown plan event {event!r}")
 
@@ -763,7 +773,7 @@ def courses(plan: MedicationPlan, *, today: date) -> tuple[Course, ...]:
     if eff in (EFFECTIVE_ENTERED_IN_ERROR, EFFECTIVE_INTENDED):
         return ()
     if eff == EFFECTIVE_STOPPED:
-        return (Course(plan.plan_id, plan.order_id, plan.start, plan.stopped_on or plan.end, "stopped"),)
+        return (Course(plan.plan_id, plan.order_id, plan.start, plan.last_day, "stopped"),)
     if eff == EFFECTIVE_COMPLETED:
         return (Course(plan.plan_id, plan.order_id, plan.start, plan.end, "completed"),)
     return (Course(plan.plan_id, plan.order_id, plan.start, None, None),)
@@ -878,9 +888,7 @@ def project_schedule(
     if plan.status == PLAN_ENTERED_IN_ERROR:
         return ()
     first = max(start, plan.start)
-    last = end if plan.end is None else min(end, plan.end)
-    if plan.stopped_on is not None:
-        last = min(last, plan.stopped_on)
+    last = end if plan.last_day is None else min(end, plan.last_day)
     names = _slot_names(plan.schedule)
     out: list[DoseSlot] = []
     d = first
@@ -1640,7 +1648,7 @@ def plan_rows(
     for plan in plans:
         if plan.status == PLAN_ENTERED_IN_ERROR or not matches(plan.concept, keywords):
             continue
-        if not _overlaps(plan.start, plan.stopped_on or plan.end, window):
+        if not _overlaps(plan.start, plan.last_day, window):
             continue
         status = effective_status(plan, today)
         slots = project_schedule(plan, start=today, end=today, tz=tz) if status == EFFECTIVE_ACTIVE else ()
@@ -1651,7 +1659,7 @@ def plan_rows(
                 "schedule": schedule_text(plan.schedule),
                 "today": ", ".join(f"{s.slot}={slot_state(s, answered.get(s.key), now_ms=now_ms)}" for s in slots),
                 "since": plan.start.isoformat(),
-                "until": (plan.stopped_on or plan.end).isoformat() if (plan.stopped_on or plan.end) else "",
+                "until": plan.last_day.isoformat() if plan.last_day else "",
                 "source": plan.source,
                 "plan_id": plan.plan_id,
                 "provenance": "measured" if plan.confirmed else "computed",
