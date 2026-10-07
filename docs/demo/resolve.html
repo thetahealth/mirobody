@@ -3,8 +3,9 @@
 <title>mirobody resolve</title>
 <!--
   One frame of the README's terminal demo. `?step=N` decides how much of the
-  session is drawn, so scripts/make_demo_gifs.py can screenshot N frames with
-  headless Chrome and hand them to ffmpeg.
+  session is drawn, so a script can screenshot N frames with headless Chrome
+  and hand them to ffmpeg. That generator left the repository in f05af74
+  (`git show f05af74^:scripts/make_demo_gifs.py`).
 
   Columns are a CSS grid rather than monospace padding on purpose: the CJK
   fallback font's advance is not exactly twice Menlo's, so a padded string that
@@ -13,7 +14,8 @@
 
   Every code and canonical name below is the real output of
       mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン "空腹血糖(GLU)" 血脂
-  captured 2026-09-28 (1.5.2). Regenerate rather than edit by hand.
+  re-run 2026-10-08; the 血脂 line keeps the first clause of its reason.
+  Regenerate rather than edit by hand.
 -->
 <style>
   :root {
@@ -83,7 +85,7 @@ const ROWS = [
   ["血红蛋白",         "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[65 candidates]"],
   ["ヘモグロビン",     "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[65 candidates]"],
   ["空腹血糖(GLU)",    "LOINC 1558-6",  "Fasting glucose [Mass/volume] in Serum or Plasma", ""],
-  ["血脂",             null,            "unresolved — not in the lexical index", ""],
+  ["血脂",             null,            "unresolved — a category or several tests in one name", ""],
 ];
 // Frame budget: type the command in chunks, then one row per frame, then hold.
 const TYPE_FRAMES = 7;
