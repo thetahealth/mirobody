@@ -1,7 +1,9 @@
 """Jinja for prompts: one environment, strict.
 
 Every prompt a model sees is a ``.jinja`` template: reviewed, diffed and tuned
-without touching Python, and rendered through `environment()`.
+without touching Python. This repository renders through `environment()`; a
+library consumer's ``prompts/`` package of templates exposes
+``render = make_renderer(__file__)``.
 
 Rendering is strict (``StrictUndefined``): a misspelled or missing variable
 raises at render time instead of silently printing an empty string into the
@@ -11,7 +13,11 @@ model then hides for you.
 
 from __future__ import annotations
 
-from jinja2 import Environment, StrictUndefined
+from collections.abc import Callable
+from functools import cache
+from pathlib import Path
+
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 
 def environment(**overrides) -> Environment:
@@ -26,3 +32,22 @@ def environment(**overrides) -> Environment:
     }
     options.update(overrides)
     return Environment(**options)
+
+
+@cache
+def _env(prompt_dir: str) -> Environment:
+    return environment(loader=FileSystemLoader(prompt_dir))
+
+
+def make_renderer(package_file: str) -> Callable[..., str]:
+    """``render(name, **context)`` bound to the ``.jinja`` files beside
+    ``package_file`` (pass ``__file__`` from a ``prompts/`` package)."""
+    prompt_dir = str(Path(package_file).resolve().parent)
+
+    def render(template: str, /, **context) -> str:
+        """Render ``<template>.jinja`` from this directory, outer whitespace
+        stripped. The template name is positional-only so a template may
+        have a variable called ``name`` (or ``template``)."""
+        return _env(prompt_dir).get_template(f"{template}.jinja").render(**context).strip()
+
+    return render

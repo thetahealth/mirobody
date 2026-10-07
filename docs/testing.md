@@ -13,7 +13,7 @@ long-lived venv:
 | install | packages | tests |
 | --- | --- | --- |
 | `'.[test]'` | 20 | 238 passed, 13 xfailed (`test_security_gates.py` skips) |
-| `'.[test,parse]'` | 69 | 238 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,parse]'` | 77 | 238 passed, 13 xfailed (`test_security_gates.py` skips) |
 | `'.[test,app]'` | 148 | 319 passed, 13 xfailed |
 
 The extras barely change what a clone can run, and that is not a mistake in

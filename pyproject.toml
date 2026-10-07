@@ -155,6 +155,9 @@ parse = [
     # the real config.yaml verified on 0.19, so no upper cap.
     "ruamel.yaml>=0.17",
     "cryptography",
+    # `utils/net.fetch_bounded`, the bounded downloader a library consumer
+    # fetches caller-supplied URLs with.
+    "aiohttp",
     # `utils/http.py` is built on Starlette's Request/Response and
     # `utils/__init__` re-exports them, so importing anything under utils needs
     # it. (FastAPI is a web *framework* and stays in [app].)
@@ -187,6 +190,8 @@ agent = [
     "ruamel.yaml",
     "python-dotenv",
     "cryptography",
+    # `utils/net.fetch_bounded` (see [parse]).
+    "aiohttp",
     # Model clients: the two families the shipped config.yaml uses. Every other
     # family is one `pip install` away and NOT declared here: `init_chat_model`
     # imports a provider package lazily and names it in the error when it is
@@ -278,9 +283,6 @@ app = [
     "mandrill",
     # OAuth1 — among the shipped providers, only Garmin still speaks it.
     "requests-oauthlib",
-    # The device providers' HTTP client (`collect/providers`), their only
-    # importer since `utils.net` went.
-    "aiohttp",
 ]
 
 # The suite a clone runs. CI's first job is `pip install -e '.[test]'` followed
@@ -461,7 +463,7 @@ name = "the library layer stands alone (the numpy-only rule)"
 # These modules are everything a default `pip install mirobody` is for, and
 # every import they add is a package somebody who only wanted `unit_family` has
 # to download. They may import each other and nothing else in this package —
-# `mirobody.utils` alone would put starlette, ruamel and cryptography
+# `mirobody.utils` alone would put starlette, ruamel, aiohttp and cryptography
 # back in base.
 #
 # `mirobody.engine` is deliberately NOT in this list: `parse_file` reaches into

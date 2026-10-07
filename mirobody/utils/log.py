@@ -1,8 +1,11 @@
 import datetime
 import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
+from collections.abc import Callable
 
 from mirobody.kernel.ops import PHIPolicy
 from .req_ctx import get_req_ctx
@@ -26,6 +29,49 @@ def secret_fingerprint(secret: str | None) -> str:
     if not secret or not isinstance(secret, str):
         return "<none>"
     return "sha256:" + hashlib.sha256(secret.encode("utf-8")).hexdigest()[:12]
+
+#-----------------------------------------------------------------------------
+
+#: How the pseudonym salt is found. A user id is a small integer, and any
+#: UNKEYED hash of it is reversed by enumerating 1..1e7 in milliseconds, so the
+#: salt must be a real secret: `LOG_PSEUDONYM_SALT` from the environment, or a
+#: reader a library consumer installs with `use_pseudonym_salt`.
+_pseudonym_salt_reader: Callable[[], str | None] | None = None
+_pseudonym_fallback = secrets.token_hex(16)
+_pseudonym_warned = False
+
+
+def use_pseudonym_salt(reader: Callable[[], str | None] | None) -> None:
+    """Install how `user_tag` finds its salt (``None`` restores the default)."""
+    global _pseudonym_salt_reader
+    _pseudonym_salt_reader = reader
+
+
+def _pseudonym_salt() -> str:
+    global _pseudonym_warned
+    value = (_pseudonym_salt_reader() if _pseudonym_salt_reader else None) or os.environ.get("LOG_PSEUDONYM_SALT") or ""
+    if value:
+        return value
+    if not _pseudonym_warned:
+        _pseudonym_warned = True
+        logging.getLogger(__name__).warning("pseudonym: no salt configured; using a per-process one")
+    # Still aligns within one process (enough for one investigation) and dies with
+    # it, never the fixed-salt kind that is enumerable.
+    return _pseudonym_fallback
+
+
+def user_tag(user_id: int | str | None) -> str:
+    """``45`` → ``u#3f2a9c14``: a keyed pseudonym for LOG LINES only.
+
+    It aligns the same person across lines while a reader of the logs cannot
+    recover who. One-way by design: never use it to query or authorise:
+    operators look someone up by computing the tag from a known id and grepping,
+    not by decrypting. Empty input → ``u#-``; never raises.
+    """
+    if user_id is None or user_id == "":
+        return "u#-"
+    digest = hmac.new(_pseudonym_salt().encode(), str(user_id).encode(), hashlib.sha256).hexdigest()
+    return f"u#{digest[:8]}"
 
 #-----------------------------------------------------------------------------
 

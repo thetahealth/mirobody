@@ -2,7 +2,8 @@
 
 This package is consumed by two very different installs: the ``[app]`` server,
 which uses everything here, and the ``[agent]`` library extra, or a consumer
-that wants only ``utils.sse`` / ``utils.llm_output`` / ``utils.prompts``. A package ``__init__`` that eagerly imported the config
+that wants only ``utils.sse`` / ``utils.net`` / ``utils.llm_output`` /
+``utils.prompts``. A package ``__init__`` that eagerly imported the config
 loader, the HTTP helpers and the database module would make ``import
 mirobody.utils.sse`` require ``ruamel.yaml``, ``starlette`` and a database
 driver. So the names this package re-exports are resolved lazily (PEP 562):
