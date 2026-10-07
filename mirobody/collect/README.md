@@ -247,7 +247,7 @@ from mirobody.collect.ingest.models.requests import (
     StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord,
 )
 from mirobody.collect.providers._platform.base import BasePullProvider
-from mirobody.collect.providers._platform.normalize import DataFormatter, TimeUtils
+from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.utils.config import safe_read_cfg, global_config
 ```
 

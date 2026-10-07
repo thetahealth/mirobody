@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from mirobody.collect.core import LinkType
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.log import secret_fingerprint
 from mirobody.utils.crypto import decrypt_string_aes_gcm, encrypt_string_aes_gcm
@@ -319,7 +320,7 @@ class ProviderDatabaseService:
 
         Returns:
             Dict mapping provider_slug to {"llm_access": int, "reconnect": int}
-            Example: {"theta_renpho": {"llm_access": 1, "reconnect": 0}, "theta_libre": {"llm_access": 1, "reconnect": 1}}
+            Example: {"theta_oura": {"llm_access": 1, "reconnect": 0}, "theta_whoop": {"llm_access": 1, "reconnect": 1}}
         """
         try:
             query = """
@@ -333,26 +334,14 @@ class ProviderDatabaseService:
                 params={"user_id": user_id},
             )
 
-            # Create mapping of provider to llm_access and reconnect
-            provider_info_map = {}
-            if result:
-                for row in result:
-                    provider_slug = row["provider"]
-                    llm_access = row["llm_access"]
-                    reconnect = row["reconnect"]
-
-                    # Skip vital providers (they have vital_ prefix)
-                    if not provider_slug.startswith("vital_"):
-                        provider_info_map[provider_slug] = {
-                            "llm_access": llm_access,
-                            "reconnect": reconnect
-                        }
-
-            logger.info(f"Retrieved LLM access and reconnect status for {len(provider_info_map)} theta providers for user {user_id}")
-            return provider_info_map
+            return {
+                row["provider"]: {"llm_access": row["llm_access"], "reconnect": row["reconnect"]}
+                for row in result or []
+            }
 
         except Exception as e:
-            logger.error(f"Error getting theta providers info for user {user_id}: {str(e)}")
+            logger.error("provider links lookup failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return {}
 
     async def get_user_credentials(self, user_id: str, provider_slug: str, link_type: LinkType) -> dict[str, Any] | None:
@@ -378,10 +367,8 @@ class ProviderDatabaseService:
                 }
 
             if link_type == LinkType.PASSWORD:
-                # Query password fields AND token fields (access_token, refresh_token, expires_at)
-                # Some PASSWORD providers (like FrontierX) also store OAuth2-style tokens
                 query = """
-                SELECT username, password, access_token, refresh_token, expires_at
+                SELECT username, password
                 FROM health_user_provider
                 WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
                 ORDER BY create_at DESC LIMIT 1
@@ -389,35 +376,10 @@ class ProviderDatabaseService:
                 result = await execute_query(query, {"user_id": user_id, "provider": provider_slug})
                 if not result:
                     return None
-                row = result[0]
-                if not row.get('password'):
+                password = self._decrypt(result[0].get("password") or "", user_id)
+                if password is None:
                     return None
-                decrypted_password = self._decrypt(row['password'], user_id)
-                if decrypted_password is None:
-                    return None
-
-                # Build response with password and optional token fields
-                response = {
-                    "username": row.get("username"),
-                    "password": decrypted_password,
-                    "link_type": "password"
-                }
-
-                # If token fields exist, decrypt and include them
-                if row.get('access_token'):
-                    decrypted_access_token = self._decrypt(row['access_token'], user_id)
-                    if decrypted_access_token:
-                        response["access_token"] = decrypted_access_token
-
-                if row.get('refresh_token'):
-                    decrypted_refresh_token = self._decrypt(row['refresh_token'], user_id)
-                    if decrypted_refresh_token:
-                        response["refresh_token"] = decrypted_refresh_token
-
-                if row.get('expires_at'):
-                    response["expires_at"] = row.get('expires_at')
-
-                return response
+                return {"username": result[0].get("username"), "password": password, "link_type": "password"}
 
             if link_type == LinkType.OAUTH1:
                 query = """
