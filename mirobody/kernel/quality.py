@@ -84,9 +84,9 @@ def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> Re
     Convertible units are converted and flagged ``unit_converted``; two units
     the engine knows in *different* families are an
     ``ERR_UNIT_DIMENSION_CONFLICT`` (a temperature filed under a mass). A
-    unit the engine does not know, or cannot convert within the metric's own
-    family (°F against Cel, an offset scale), is admitted as-is with
-    ``unverified_unit``: a correct unit must not lock real data in quarantine.
+    unit the engine does not know, or one of the metric's own family with no
+    factor to it yet, is admitted as-is with ``unverified_unit``: a correct
+    unit must not lock real data in quarantine.
     """
     incoming = units.normalize_unit(raw_unit) or raw_unit
     if not expected_ucum or not incoming or incoming == expected_ucum:
