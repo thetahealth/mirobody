@@ -97,16 +97,17 @@ def is_lfs_pointer(path: str) -> bool:
         return False
 
 
-#: Logged in place of the bundle path: a clone made without git-lfs is the
-#: common cause, and the fix is the same wherever the clone is.
-_LFS_STUB = "the LOINC data bundle is a Git LFS pointer stub, not the data: run `git lfs pull`"
+def _log_lfs_stub() -> None:
+    # No path in the line: a clone made without git-lfs is the cause, and the
+    # fix is the same wherever the clone is.
+    logger.error("the LOINC data bundle is a Git LFS pointer stub, not the data: run `git lfs pull`")
 
 
 def read_member_from(name: str, path: str) -> bytes | None:
     if not os.path.isfile(path):
         return None
     if is_lfs_pointer(path):
-        logger.error(_LFS_STUB)
+        _log_lfs_stub()
         return None
     try:
         with tarfile.open(path, "r:gz") as tf:
@@ -140,7 +141,7 @@ def read_members(names: Iterable[str], *, bundle_path: str | None = None) -> dic
     if not os.path.isfile(path):
         return out
     if is_lfs_pointer(path):
-        logger.error(_LFS_STUB)
+        _log_lfs_stub()
         return out
     try:
         with tarfile.open(path, "r:gz") as tf:

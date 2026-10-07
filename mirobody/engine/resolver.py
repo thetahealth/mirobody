@@ -217,10 +217,10 @@ class OfflineResolver:
         self._system_values: set[str] | None = None
         self._src = load_alias_sources(fold=index_fold)
 
+        version = bundle_version() or "unversioned"
         logger.info(
             "OfflineResolver ready: %d aliases, %d corpus names, %d LOINC axis rows (corpus %s)",
-            len(self._alias), len(self._names), len(self._axis),
-            bundle_version() or "unversioned",
+            len(self._alias), len(self._names), len(self._axis), version,
         )
 
     @staticmethod
