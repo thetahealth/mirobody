@@ -203,9 +203,11 @@ class UserService:
 
     @staticmethod
     def _read_credentials(data: dict) -> tuple[str, str]:
-        """`email` or `username`: both name the same column; whichever arrived."""
-        email = (data.get("email") or data.get("username") or "").strip().lower()
-        return email, data.get("password") or ""
+        """`email` or `username`: both name the same column; whichever arrived.
+        Read as text: a number there was an AttributeError, which the handlers'
+        broad except used to turn into a reply."""
+        email = str(data.get("email") or data.get("username") or "").strip().lower()
+        return email, str(data.get("password") or "")
 
     async def password_register_handler(self, request: Request) -> Response:
         """Create a NEW account with a password. An existing email is refused.
