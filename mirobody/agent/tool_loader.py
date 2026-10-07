@@ -1,10 +1,5 @@
-"""
-MCP tools → LangChain tools for the agent
-
-Handles loading and configuration of tools from multiple sources:
-- Global tools (from mirobody.mcp.tool)
-- User-specific MCP tools
-"""
+"""The MCP tools (`mirobody.mcp.tool`'s registry) as LangChain tools for the
+agent, each bound to the record the turn reads."""
 
 import asyncio
 import functools

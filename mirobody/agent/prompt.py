@@ -206,9 +206,10 @@ async def attachment_reminder(backend: Any,
     so what lands mid-turn is an UPDATE (the rename), and anything the snapshot
     somehow missed is still reachable with `ls`.
 
-    Injected as a transient message (NOT the system prompt, that is cached and
-    must stay stable across turns). Ephemeral: persistence saves the user
-    question + assistant reply separately, not this note.
+    Sent as a message of this turn, NOT in the system prompt, which is cached
+    and must stay stable across turns. The checkpointer keeps it in the
+    thread with the question it came with; `th_messages` stores only the
+    question and the answer.
     """
     attached = [f for f in (file_list or []) if isinstance(f, dict) and f.get("file_key")]
     if not attached:

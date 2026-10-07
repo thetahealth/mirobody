@@ -11,10 +11,9 @@ out of the graph and takes the whole turn with it:
 
 This middleware turns any such fault into an ordinary error ``ToolMessage``: the
 model sees "that tool failed", can apologise or try another route, and the
-conversation survives. It wraps EVERY tool the agent has (global MCP tools, the
-user's own MCP tools, and deepagents' native filesystem tools) including ones
-added later, which is why it lives here rather than as a decorator on individual
-tools.
+conversation survives. It wraps EVERY tool the agent has (the MCP tools and
+deepagents' native filesystem tools) including ones added later, which is why
+it lives here rather than as a decorator on individual tools.
 
 NOT caught, deliberately:
 

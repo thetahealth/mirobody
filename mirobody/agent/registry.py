@@ -253,10 +253,10 @@ def available_models() -> list[str]:
 
     Unfiltered, this listed every configured entry (five models on a zero-key
     deployment) so the picker offered choices that could only fail at chat
-    time. An entry appears only when its client was loaded at startup AND it
-    is ready (recomputed per call: removing a key hides its model on the next
-    request; adding one still needs a restart, because the client itself is
-    built at boot).
+    time. An entry appears only when its client was loaded AND it is ready
+    (recomputed per call: removing a key hides its model on the next request;
+    a key added on the setup page rebuilds the clients, `reload_llm_clients`,
+    and one added to `.env` takes a restart).
     """
     if not _llm_clients:
         return []

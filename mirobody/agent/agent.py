@@ -452,12 +452,14 @@ class MirobodyAgent:
             )
 
             # The stack itself (fault containment → retry governance → invalid-call
-            # repair → model-call budget → per-tool caps → interpreter) is
-            # `harness.standard_middleware`.
+            # repair → empty-answer repair → model-call budget → per-tool caps →
+            # interpreter) is `harness.standard_middleware`.
             from langchain_quickjs import CodeInterpreterMiddleware
 
-            # What this agent adds at the tail: cross-provider prompt caching,
-            # last so its decision wins.
+            # What this agent adds at the tail: the genotype guard and, last so
+            # its decision wins, cross-provider prompt caching. The genotype-safe
+            # summarisation takes the place of deepagents' own, which runs
+            # before the stack (a middleware of the same name replaces it).
             genotype_guard = GenotypeRowGuardMiddleware()
             tail: list[Any] = [
                 GenotypeSafeSummarizationMiddleware(llm_client, backend, genotype_guard),
@@ -652,9 +654,9 @@ class MirobodyAgent:
             if resume is None:
                 # Name this turn's attachments and where to read them, so the
                 # model never needs an `ls /uploads/` round trip and never
-                # silently misses one. Transient: appended to the run's messages,
-                # not to the cached system prompt. Matches the list's element
-                # type (BaseMessage vs dict) rather than mixing forms.
+                # silently misses one. A message of this turn, not part of the
+                # cached system prompt (`attachment_reminder`). Matches the list's
+                # element type (BaseMessage vs dict) rather than mixing forms.
                 reminder = await attachment_reminder(backend, file_list)
                 if reminder:
                     if final_messages and isinstance(final_messages[-1], BaseMessage):

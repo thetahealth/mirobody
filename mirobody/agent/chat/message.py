@@ -48,31 +48,22 @@ def parse_stored_content(raw: Any) -> Any:
 
 #-----------------------------------------------------------------------------
 
-
-#-----------------------------------------------------------------------------
-
 async def save_message(
     user_id: str,
     query_user_id: str,
     content: Any,
     role: str,
-    session_id: str,  # For WS: trace_id, For HTTP: real session_id
-    scene: str,       # 'app' for WS, 'web'/'h5' for HTTP
+    session_id: str,
+    scene: str,
     agent: str = "default",
     msg_id: str | None = None,
     question_id: str | None = None,
     message_type: str = "text",
     provider: str | None = None,
 ) -> str:
-    """
-    Unified message saving function for all protocols
-    
-    The key differences between protocols are:
-    - session_id: WS uses trace_id, HTTP uses real session_id
-    - scene: WS uses 'app', HTTP uses 'web' or other values
-    
-    Everything else should be the same.
-    """
+    """One row of `th_messages`, encrypted at rest; returns its id. `scene` is
+    the surface the turn came from (`ChatStreamRequest.scene`). A repeated id
+    is a no-op, not a second row."""
     if msg_id is None or msg_id == "":
         msg_id = f"app_{uuid.uuid4()}"
     
