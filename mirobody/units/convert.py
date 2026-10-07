@@ -107,6 +107,10 @@ _BASE: dict[str, tuple[str, float]] = {
     "[oz_av]": ("M", 28.349523125),
     "[in_i]": ("L", 0.0254),
     "[ft_i]": ("L", 0.3048),
+    # The US survey foot, exactly 1200/3937 m, is what `ft` and `in`
+    # normalize to; it is 2 ppm longer than the international foot.
+    "[ft_us]": ("L", 1200 / 3937),
+    "[in_us]": ("L", 100 / 3937),
     "1": ("1", 1.0),
 }
 

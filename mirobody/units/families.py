@@ -405,9 +405,8 @@ UCUM_FAMILY: dict[str, str] = {
     "km":       "Len",
     "[in_us]":  "Len",      # inch (US survey: what the aliases resolve to)
     "[ft_us]":  "Len",      # foot (US survey)
-    "[in_i]":   "Len",      # inch (international, exactly 0.0254 m): the
-    "[ft_i]":   "Len",      # spelling convert._BASE can actually convert;
-                            # [in_us]/[ft_us] have no _BASE atom and stay atomic
+    "[in_i]":   "Len",      # inch (international, exactly 0.0254 m)
+    "[ft_i]":   "Len",
     "[mi_us]":  "Len",      # mile
     "[yd_us]":  "Len",      # yard
 

@@ -914,6 +914,19 @@ def test_a_milliequivalent_excretion_is_not_a_concentration():
     assert resolve_reading("sodium", "140", "mEq/L").loinc == "2951-2"
 
 
+def test_a_chinese_length_word_is_no_metric_or_imperial_unit():
+    """`寸` (cun, a thirtieth of a metre) normalized to `cm` and `尺` (chi, a
+    third of a metre) to the foot, so a length printed in either was off by
+    a factor of three or more. The US survey foot and inch, which `ft` and
+    `in` normalize to, had no factor at all and converted to nothing."""
+    from mirobody.units import convert_value, normalize_unit
+
+    assert normalize_unit("寸") is None and normalize_unit("尺") is None
+    assert normalize_unit("英寸") == "[in_us]" and normalize_unit("英尺") == "[ft_us]"
+    assert convert_value(1, "[ft_us]", "m") == 1200 / 3937
+    assert abs(convert_value(12, "[in_us]", "[ft_us]") - 1) < 1e-12
+
+
 def test_free_prose_in_the_value_column_constrains_nothing():
     """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
     is the ABSENCE of a measurement rather than a claim about scale. Treating it
