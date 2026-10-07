@@ -151,12 +151,10 @@ async def create_schema(config) -> None:
     try:
         conn_ctx = await pg_config.get_async_client(cursor_factory=None)
     except Exception as e:
-        # A first run with no Postgres used to end here, in a bare
-        # OperationalError printed BEFORE the config banner: the first thing a
-        # new reader saw was a database traceback. Outside production the
-        # server runs fine without the replay, so it says so and continues.
-        # Production still fails loudly: a real outage must not become a quiet
-        # half-written schema.
+        # `ensure_postgres_reachable` has just reached Postgres, so this is an
+        # outage in the moments since. Outside production the boot goes on
+        # without the replay and says so; production fails loudly: a real
+        # outage must not become a quiet half-written schema.
         if is_production(config):
             raise
         logger.warning(  # phi: ok a host and a port from config
