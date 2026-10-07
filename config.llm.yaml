@@ -156,10 +156,12 @@ MODELS:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
     base_url: https://openrouter.ai/api/v1
-    model: openai/gpt-6.1-sol     # OpenRouter carries its tool calls, which OpenAI's own Chat
-                                  # Completions does not (see `openai`): a tool call and a second
-                                  # round passed, 2026-10-06. No temperature: GPT-6.1 Sol always
-                                  # reasons, and OpenAI's guide says to remove it then.
+    model: openai/gpt-6-luna      # 237/248 on the evaluation's 24 questions, the cheapest model
+                                  # measured ($0.0009 an answer), never rate-limited
+                                  # (benchmarks/local_models, 2026-10-07). GPT-6.1 Sol was dropped:
+                                  # rate-limited upstream on OpenRouter even pinned to Azure, 9 of 24
+                                  # questions and 50 of 140 document rows unanswered, at 20 times
+                                  # the price. No temperature: OpenAI's GPT-6 guide says to remove it.
     supports_image: true
   local:
     # The local agent: MiniCPM5-2B, the `minicpm5-2b` section of
@@ -177,6 +179,10 @@ MODELS:
     supports_image: true          # the server says whether the model sees (/props)
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
                                   # 80 s for the first 8k tokens on an M4 Pro
+    max_tokens: 6144              # a reply (reasoning included) that runs on is cut here, not at the
+                                  # context: MiniCPM5-2B generated with no end on two of the
+                                  # evaluation's questions and they hit the 600 s timeout
+                                  # (benchmarks/local_models, small-v2). A chart answer needs ~2k.
 
   # Utility entries (chat: false) — the models behind file parsing, indicator
   # extraction, titles and summaries. MULTIMODAL, one per key, thinking off:
