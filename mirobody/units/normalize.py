@@ -151,8 +151,8 @@ def _alias_table() -> dict[str, str]:
 
 
 @lru_cache(maxsize=1)
-def _morpheme_table() -> tuple[dict[str, str], tuple[str, ...]]:
-    """Return (token_map, sorted_keys_desc_by_len) for tokenize-compose.
+def _morpheme_table() -> tuple[dict[str, str], int]:
+    """Return (token_map, length of the longest token) for tokenize-compose.
 
     Auto-injects atomic UCUM canonicals (no ``/`` or ``.``) so the
     scanner recognizes ``mg`` / ``mmol`` / ``L`` inside longer inputs
@@ -160,9 +160,6 @@ def _morpheme_table() -> tuple[dict[str, str], tuple[str, ...]]:
     of the morpheme layer: registering ``/L`` here would let the
     greedy scanner gobble it across a numerator/denominator boundary
     (``Millimol/Liter`` → ``Millimol`` + ``/L`` + leftover ``iter``).
-
-    The sorted-keys tuple is precomputed so :func:`_tokenize_compose`
-    doesn't re-sort on every call.
     """
     morpheme = _invert_to_token_map(MORPHEMES)
     # Atomic UCUM auto-inject.
@@ -172,8 +169,7 @@ def _morpheme_table() -> tuple[dict[str, str], tuple[str, ...]]:
         morpheme.setdefault(_clean(canon), canon)
     # Universal separator: every language uses ``/`` for "per".
     morpheme.setdefault("/", "/")
-    keys = tuple(sorted(morpheme, key=len, reverse=True))
-    return morpheme, keys
+    return morpheme, max(map(len, morpheme))
 
 
 def _tokenize_compose(text: str) -> str | None:
@@ -182,16 +178,22 @@ def _tokenize_compose(text: str) -> str | None:
     Returns the composed UCUM string if it lands in :data:`UCUM_FAMILY`,
     else ``None``. Unmatched characters break the parse: anything left
     over means we don't fully recognize the input.
+
+    Each position probes the table with its longest slice first, one dict
+    lookup per length. Testing every morpheme with ``startswith`` instead
+    cost a pass over the whole table per position, and a value whose unit
+    does not parse pays for every position it tries.
     """
-    table, keys = _morpheme_table()
+    table, longest = _morpheme_table()
     out: list[str] = []
     pos = 0
     n = len(text)
     while pos < n:
-        for tok in keys:
-            if text.startswith(tok, pos):
-                out.append(table[tok])
-                pos += len(tok)
+        for end in range(min(n, pos + longest), pos, -1):
+            canon = table.get(text[pos:end])
+            if canon is not None:
+                out.append(canon)
+                pos = end
                 break
         else:
             # unmatched char: refuse the parse rather than emit garbage
