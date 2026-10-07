@@ -31,6 +31,25 @@ logger = logging.getLogger(__name__)
 
 SECONDS_TO_MILLISECONDS = 1000
 
+#: The Health API's REST path for each summary type, keyed by the name a push
+#: gives the same type: a pulled batch is filed under that name, so it reaches
+#: the decoder row a pushed one does (`/respiration` answers what a push calls
+#: `allDayRespiration`, `/pulseOx` what it calls `pulseox`).
+PULL_PATHS: dict[str, str] = {
+    "sleeps": "/sleeps",
+    "dailies": "/dailies",
+    "bodyComps": "/bodyComps",
+    "userMetrics": "/userMetrics",
+    "hrv": "/hrv",
+    "stressDetails": "/stressDetails",
+    "pulseox": "/pulseOx",
+    "allDayRespiration": "/respiration",
+    "bloodPressures": "/bloodPressures",
+    "skinTemp": "/skinTemp",
+    "activities": "/activities",
+    "activityDetails": "/activityDetails",
+}
+
 
 class GarminProvider(BasePullProvider):
     """Garmin Provider - Garmin OAuth Data Integration"""
@@ -498,98 +517,6 @@ class GarminProvider(BasePullProvider):
             processingInfo={"provider": "theta_garmin", "data_types": types, "msg_id": msg_id, "user_timezone": tz},
         )
 
-    def _get_api_endpoints_config(self, start_timestamp: int, end_timestamp: int) -> dict[str, str]:
-        """
-        Get API endpoints with correct parameter names for each endpoint.
-
-        Different Garmin API endpoints require different parameter names:
-        - Most endpoints use: uploadStartTimeInSeconds/uploadEndTimeInSeconds
-        - activityDetails uses: summaryStartTimeInSeconds/summaryEndTimeInSeconds
-        - Other endpoints may have different requirements
-
-        Args:
-            start_timestamp: Start timestamp in seconds
-            end_timestamp: End timestamp in seconds
-
-        Returns:
-            Dict mapping data type to complete API URL
-        """
-        endpoints_config = {
-            # Standard endpoints using uploadStartTimeInSeconds/uploadEndTimeInSeconds
-            "sleeps": {
-                "path": "/sleeps",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "dailies": {
-                "path": "/dailies",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "bodyComps": {
-                "path": "/bodyComps",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "userMetrics": {
-                "path": "/userMetrics",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "hrv": {
-                "path": "/hrv",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "stress": {
-                "path": "/stressDetails",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "pulseOx": {
-                "path": "/pulseOx",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "respiration": {
-                "path": "/respiration",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "bloodPressures": {
-                "path": "/bloodPressures",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "skinTemp": {
-                "path": "/skinTemp",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "activities": {
-                "path": "/activities",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-            "activityDetails": {
-                "path": "/activityDetails",
-                "start_param": "uploadStartTimeInSeconds",
-                "end_param": "uploadEndTimeInSeconds"
-            },
-        }
-
-        # Build complete URLs
-        data_types = {}
-        for data_type, config in endpoints_config.items():
-            path = config["path"]
-            start_param = config["start_param"]
-            end_param = config["end_param"]
-
-            url = f"{self.api_base_url}{path}?{start_param}={start_timestamp}&{end_param}={end_timestamp}"
-            data_types[data_type] = url
-
-        return data_types
-
     async def pull_from_vendor_api(self, access_token: str, token_secret: str, days: int | None = 1) -> list[dict[str, Any]]:
         """
         Pull data from Garmin API using OAuth credentials
@@ -668,21 +595,16 @@ class GarminProvider(BasePullProvider):
             List of raw data for this batch
         """
         batch_data = []
-        
-        # Get API endpoints with correct parameter names for each endpoint
-        data_types = self._get_api_endpoints_config(start_timestamp, end_timestamp)
 
-        for data_type, url in data_types.items():
+        for data_type, path in PULL_PATHS.items():
+            url = (f"{self.api_base_url}{path}?uploadStartTimeInSeconds={start_timestamp}"
+                   f"&uploadEndTimeInSeconds={end_timestamp}")
             try:
                 logger.info(f"Pulling {data_type} data from Garmin API")
                 resp = oauth.get(url)
 
                 if resp.status_code == 200:
                     data = resp.json()
-                    # Normalize response for certain endpoints that wrap list in a key
-                    if data_type == "epochs" and isinstance(data, dict) and "epochs" in data:
-                        data = data.get("epochs")
-
                     raw_data = {
                         "user_id": user_id,
                         "data_type": data_type,
