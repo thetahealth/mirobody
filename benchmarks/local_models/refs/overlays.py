@@ -16,8 +16,9 @@ every host that does not offer it, DeepSeek's own among them (2026-10-06:
 the app sends a temperature with every utility call and OpenRouter lists none
 for GPT-6 Luna or 6.1 Sol, so it answers 404; each pinned host was checked to
 return schema-valid JSON under a strict json_schema with that temperature
-present. run.py mounts a file in place of `/app/config.llm.yaml` with
-`compose.ref.yaml`; the product's file is not edited.
+present. The stack runs one with `compose.ref.yaml` (README, "A cloud
+reference"), mounted in place of `/app/config.llm.yaml`; the product's file
+is not edited.
 """
 
 from __future__ import annotations
