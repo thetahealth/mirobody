@@ -1,309 +1,43 @@
-mirobody/agent/agent.py	interpolation	attr_error
-mirobody/agent/agent.py	interpolation	default_provider
-mirobody/agent/agent.py	interpolation	e
-mirobody/agent/agent.py	interpolation	original_provider
-mirobody/agent/agent.py	interpolation	str(e)
-mirobody/agent/chat/message.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
 mirobody/agent/chat/message.py	interpolation	role
 mirobody/agent/chat/message.py	interpolation	scene
-mirobody/agent/chat/message.py	interpolation	str(e)
-mirobody/agent/chat/service.py	extra_key	user
-mirobody/agent/chat/service.py	interpolation	err
-mirobody/agent/chat/session.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/chat/session.py	interpolation	str(e)
-mirobody/agent/checkpointer.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/filesystem/backend.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/filesystem/backend.py	interpolation	_e
-mirobody/agent/filesystem/backend.py	interpolation	e
-mirobody/agent/filesystem/backend.py	interpolation	err
-mirobody/agent/filesystem/backend.py	interpolation	file_key
-mirobody/agent/filesystem/backend.py	interpolation	file_path
 mirobody/agent/filesystem/files_backend.py	interpolation	self._scope
-mirobody/agent/filesystem/parser.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/filesystem/parser.py	interpolation	e
-mirobody/agent/filesystem/parser.py	interpolation	file_key[:16]
-mirobody/agent/filesystem/parser.py	interpolation	filename
-mirobody/agent/filesystem/profile_backend.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/filesystem/profile_backend.py	interpolation	e
-mirobody/agent/hitl.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/hitl.py	interpolation	e
 mirobody/agent/middleware/prompt_caching.py	interpolation	msg
-mirobody/agent/middleware/tool_faults.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/middleware/tool_faults.py	interpolation	[c.get("name") for c in invalid]
-mirobody/agent/middleware/tool_faults.py	interpolation	[c["name"] for c in salvaged]
-mirobody/agent/middleware/tool_faults.py	interpolation	[{"name": c.get("name"), "error": c.get("error")} for c in invalid]
-mirobody/agent/middleware/tool_faults.py	interpolation	name
 mirobody/agent/middleware/tool_faults.py	interpolation	repairs
-mirobody/agent/models/clients.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/tools/terminology_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/agent/tools/terminology_service.py	interpolation	e
-mirobody/collect/core/push_service.py	interpolation	str(e)
-mirobody/collect/files/file_processor.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/collect/files/file_processor.py	interpolation	e
-mirobody/collect/files/file_processor.py	interpolation	file.filename
-mirobody/collect/files/file_processor.py	interpolation	str(update_error)
-mirobody/collect/files/file_upload_manager.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/collect/files/file_upload_manager.py	interpolation	base_progress
-mirobody/collect/files/file_upload_manager.py	interpolation	e
-mirobody/collect/files/file_upload_manager.py	interpolation	error_message
-mirobody/collect/files/file_upload_manager.py	interpolation	f' for {filename}' if filename else ''
-mirobody/collect/files/file_upload_manager.py	interpolation	file_data['filename']
-mirobody/collect/files/file_upload_manager.py	interpolation	file_end_progress
-mirobody/collect/files/file_upload_manager.py	interpolation	file_entry.get('filename', 'unknown')
-mirobody/collect/files/file_upload_manager.py	interpolation	file_start_progress
-mirobody/collect/files/file_upload_manager.py	interpolation	has_genetic_files
-mirobody/collect/files/file_upload_manager.py	interpolation	list(self.active_connections.keys())
 mirobody/collect/files/file_upload_manager.py	interpolation	mapped_progress
-mirobody/collect/files/file_upload_manager.py	interpolation	max_progress
-mirobody/collect/files/file_upload_manager.py	interpolation	message.get('message', '')
-mirobody/collect/files/file_upload_manager.py	interpolation	message.get('type', 'unknown')
 mirobody/collect/files/file_upload_manager.py	interpolation	progress
-mirobody/collect/files/file_upload_manager.py	interpolation	progress_per_file
-mirobody/collect/files/file_upload_manager.py	interpolation	session['status']
-mirobody/collect/files/file_upload_manager.py	interpolation	str(abstract_error)
-mirobody/collect/files/file_upload_manager.py	interpolation	str(e)
 mirobody/collect/files/file_upload_manager.py	interpolation	successful_files
 mirobody/collect/files/file_upload_manager.py	interpolation	total_files
-mirobody/collect/files/handlers/base.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/collect/files/handlers/base.py	interpolation	ctx.filename
-mirobody/collect/files/handlers/base.py	interpolation	e
-mirobody/collect/files/handlers/base.py	interpolation	err
-mirobody/collect/files/handlers/base.py	interpolation	error_msg
-mirobody/collect/files/handlers/base.py	interpolation	event.get('type')
 mirobody/collect/files/handlers/base.py	interpolation	file_key
-mirobody/collect/files/handlers/base.py	interpolation	full_url
-mirobody/collect/files/handlers/base.py	interpolation	self.get_type_name()
-mirobody/collect/files/handlers/base.py	interpolation	str(update_error)
 mirobody/collect/files/handlers/base.py	interpolation	unique_filename
-mirobody/collect/files/handlers/base.py	interpolation	url_error
-mirobody/collect/files/handlers/document.py	interpolation	e
-mirobody/collect/files/handlers/document.py	interpolation	unique_filename
-mirobody/collect/files/handlers/excel.py	interpolation	e
-mirobody/collect/files/handlers/excel.py	interpolation	unique_filename
-mirobody/collect/files/handlers/image.py	interpolation	e
-mirobody/collect/files/handlers/image.py	interpolation	unique_filename
-mirobody/collect/files/handlers/pdf.py	interpolation	e
-mirobody/collect/files/handlers/pdf.py	interpolation	unique_filename
-mirobody/collect/files/services/content_extractor.py	interpolation	str(e)
-mirobody/collect/files/services/content_formatter.py	interpolation	str(e)
-mirobody/collect/files/services/conversation_summary.py	interpolation	', '.join(update_fields)
-mirobody/collect/files/services/conversation_summary.py	interpolation	e
-mirobody/collect/files/services/conversation_summary.py	interpolation	str(e)
-mirobody/collect/files/services/conversation_summary.py	interpolation	summary
-mirobody/collect/files/services/conversation_summary.py	interpolation	update_result
-mirobody/collect/files/services/drive_listing.py	interpolation	err
 mirobody/collect/files/services/drive_listing.py	interpolation	file_key
-mirobody/collect/files/services/drive_listing.py	interpolation	result.get('total', 0)
-mirobody/collect/files/services/drive_listing.py	interpolation	str(e)
 mirobody/collect/files/services/drive_listing.py	interpolation	target_user_id or uploader_user_id
-mirobody/collect/files/services/file_abstract_extractor.py	interpolation	content_hash[:16]
-mirobody/collect/files/services/file_abstract_extractor.py	interpolation	e
-mirobody/collect/files/services/file_abstract_extractor.py	interpolation	file_name
-mirobody/collect/files/services/file_abstract_extractor.py	interpolation	filename
-mirobody/collect/files/services/file_abstract_extractor.py	interpolation	json_error
-mirobody/collect/files/services/file_db_service.py	interpolation	e
-mirobody/collect/files/services/file_db_service.py	interpolation	file_info
 mirobody/collect/files/services/file_db_service.py	interpolation	file_key
-mirobody/collect/files/services/file_db_service.py	interpolation	list(updates.keys())
-mirobody/collect/files/services/file_db_service.py	interpolation	str(e)
-mirobody/collect/files/services/file_processing_service.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/collect/files/services/file_processing_service.py	interpolation	e
-mirobody/collect/files/services/file_processing_service.py	interpolation	err
 mirobody/collect/files/services/file_processing_service.py	interpolation	file_key
-mirobody/collect/files/services/file_processing_service.py	interpolation	file_keys
 mirobody/collect/files/services/file_processing_service.py	interpolation	storage.get_storage_type()
-mirobody/collect/files/services/file_processing_service.py	interpolation	str(e)
 mirobody/collect/files/services/file_processing_service.py	interpolation	total_files
 mirobody/collect/files/services/file_uploader.py	interpolation	filename
-mirobody/collect/files/services/file_uploader.py	interpolation	full_url
 mirobody/collect/files/services/file_uploader.py	interpolation	storage.get_storage_type()
-mirobody/collect/files/services/file_uploader.py	interpolation	str(e)
-mirobody/collect/files/services/genetic_processor.py	interpolation	e
 mirobody/collect/files/services/genetic_processor.py	interpolation	loaded_records
-mirobody/collect/files/services/genetic_processor.py	interpolation	str(ex)
-mirobody/collect/files/services/genetic_processor.py	interpolation	temp_file_path
 mirobody/collect/files/services/genetic_processor.py	interpolation	valid_records
-mirobody/collect/files/services/indicator_extractor.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/collect/files/services/indicator_extractor.py	interpolation	e
-mirobody/collect/files/services/indicator_extractor.py	interpolation	file_name
-mirobody/collect/files/services/indicator_store.py	interpolation	e
-mirobody/collect/files/services/list_my_data.py	interpolation	str(e)
 mirobody/collect/files/services/list_my_data.py	interpolation	total_categories
 mirobody/collect/files/services/list_my_data.py	interpolation	total_records
-mirobody/collect/files/services/report_date.py	interpolation	e
 mirobody/collect/files/services/report_date.py	interpolation	file_key
-mirobody/collect/files/services/temp_file_manager.py	interpolation	filename
-mirobody/collect/files/services/temp_file_manager.py	interpolation	str(ex)
-mirobody/collect/files/services/temp_file_manager.py	interpolation	temp_file_path
-mirobody/collect/files/services/temp_file_manager.py	interpolation	upload_file.filename
-mirobody/collect/ingest/repositories/health_data.py	interpolation	(total_records + batch_size - 1) // batch_size
-mirobody/collect/ingest/repositories/health_data.py	interpolation	deleted
-mirobody/collect/ingest/repositories/health_data.py	interpolation	e
-mirobody/collect/ingest/repositories/health_data.py	interpolation	i // batch_size + 1
-mirobody/collect/ingest/repositories/health_data.py	interpolation	sources
-mirobody/collect/ingest/repositories/health_data.py	interpolation	str(e)
-mirobody/collect/ingest/repositories/health_data.py	interpolation	successfully_processed
-mirobody/collect/ingest/repositories/health_data.py	interpolation	window_from
-mirobody/collect/ingest/repositories/health_data.py	interpolation	window_to
-mirobody/collect/ingest/services/base.py	interpolation	e
-mirobody/collect/ingest/services/base.py	interpolation	unit
 mirobody/collect/ingest/services/repair_reconcile.py	interpolation	created
-mirobody/collect/ingest/services/repair_reconcile.py	interpolation	e
-mirobody/collect/ingest/services/repair_reconcile.py	interpolation	end
-mirobody/collect/ingest/services/repair_reconcile.py	interpolation	result
-mirobody/collect/ingest/services/repair_reconcile.py	interpolation	start
-mirobody/collect/ingest/services/repair_reconcile.py	interpolation	tz_name
-mirobody/collect/ingest/services/upload_health.py	interpolation	(t2 - t1) * 1000
-mirobody/collect/ingest/services/upload_health.py	interpolation	(t3 - t2) * 1e3
-mirobody/collect/ingest/services/upload_health.py	interpolation	e
-mirobody/collect/ingest/services/upload_health.py	interpolation	redacted
-mirobody/collect/ingest/services/upload_health.py	interpolation	source
-mirobody/collect/ingest/services/upload_health.py	interpolation	str(e)
-mirobody/collect/ingest/services/upload_health.py	interpolation	str(record.model_dump())
-mirobody/collect/ingest/services/upload_health.py	interpolation	total_processed
-mirobody/collect/ingest/services/upload_health.py	interpolation	user_timezone
 mirobody/collect/manager.py	interpolation	platform.name
 mirobody/collect/manager.py	interpolation	platform_name
 mirobody/collect/manager.py	interpolation	result
-mirobody/collect/manager.py	interpolation	str(e)
-mirobody/collect/providers/_platform/base.py	interpolation	auth_type.value
-mirobody/collect/providers/_platform/base.py	interpolation	cred['user_id']
-mirobody/collect/providers/_platform/base.py	interpolation	e
-mirobody/collect/providers/_platform/base.py	interpolation	str(e)
-mirobody/collect/providers/_platform/base.py	interpolation	user_timezone
-mirobody/collect/providers/_platform/database_service.py	interpolation	error_msg
-mirobody/collect/providers/_platform/database_service.py	interpolation	expires_at
-mirobody/collect/providers/_platform/database_service.py	interpolation	llm_access
-mirobody/collect/providers/_platform/database_service.py	interpolation	row['user_id']
-mirobody/collect/providers/_platform/database_service.py	interpolation	str(e)
-mirobody/collect/providers/_platform/normalize.py	interpolation	e
-mirobody/collect/providers/_platform/normalize.py	interpolation	effective_timezone
-mirobody/collect/providers/_platform/normalize.py	interpolation	str(e)
-mirobody/collect/providers/_platform/normalize.py	interpolation	time_str
-mirobody/collect/providers/_platform/normalize.py	interpolation	timestamp_str
-mirobody/collect/providers/_platform/oauth2.py	interpolation	e
-mirobody/collect/providers/_platform/platform.py	interpolation	directory
-mirobody/collect/providers/_platform/platform.py	interpolation	e
-mirobody/collect/providers/_platform/platform.py	interpolation	provider_file
-mirobody/collect/providers/_platform/platform.py	interpolation	provider_file.stem
-mirobody/collect/providers/_platform/platform.py	interpolation	str(e)
-mirobody/collect/providers/_platform/platform.py	interpolation	total_records
-mirobody/collect/providers/_platform/pull_task.py	interpolation	execution_interval
-mirobody/collect/providers/_platform/pull_task.py	interpolation	schedule_type.value
-mirobody/collect/providers/_platform/pull_task.py	interpolation	str(e)
-mirobody/collect/providers/_platform/startup.py	interpolation	str(e)
-mirobody/collect/providers/apple/platform.py	interpolation	e
-mirobody/collect/providers/apple/platform.py	interpolation	last_ts
-mirobody/collect/providers/apple/platform.py	interpolation	result.get('execution_time_ms', 0)
-mirobody/collect/providers/apple/platform.py	interpolation	result.get('status')
-mirobody/collect/providers/apple/platform.py	interpolation	result.get('summaries_created', 0)
-mirobody/collect/providers/apple/platform.py	interpolation	result.get('users_affected', 0)
-mirobody/collect/providers/apple/platform.py	interpolation	self.name
-mirobody/collect/providers/apple/platform.py	interpolation	str(e)
-mirobody/collect/providers/apple/provider.py	interpolation	str(e)
-mirobody/collect/providers/apple/services/database_service.py	extra_key	error
-mirobody/collect/providers/apple/services/database_service.py	interpolation	llm_access
-mirobody/collect/providers/apple/services/database_service.py	interpolation	str(e)
-mirobody/collect/providers/apple/statistics_service.py	interpolation	(t2 - t1) * 1e3
-mirobody/collect/providers/apple/statistics_service.py	interpolation	(t3 - t2) * 1e3
-mirobody/collect/providers/apple/statistics_service.py	interpolation	e
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	api_error_message
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	batch_end
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	batch_start
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	data_format
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	data_key
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	e
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	resp.text
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	str(db_error)
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	str(e)
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	type(user_data)
-mirobody/collect/providers/mirobody_garmin_connect/provider_garmin.py	interpolation	unmapped
-mirobody/collect/providers/mirobody_oura/provider_oura.py	interpolation	await resp.text()
-mirobody/collect/providers/mirobody_oura/provider_oura.py	interpolation	client_id[:3]
-mirobody/collect/providers/mirobody_oura/provider_oura.py	interpolation	e
-mirobody/collect/providers/mirobody_oura/provider_oura.py	interpolation	retry_after
-mirobody/collect/providers/mirobody_oura/provider_oura.py	interpolation	url
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	e
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	endpoint
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	error_details
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	id_field
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	raw_data
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	retry_after
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	self.client_id[:3]
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	self.redirect_url
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	str(e)
-mirobody/collect/providers/mirobody_whoop/provider_whoop.py	interpolation	text
-mirobody/collect/setup.py	interpolation	str(e)
-mirobody/mcp/service.py	extra_key	path
-mirobody/mcp/service.py	interpolation	e
-mirobody/mcp/service.py	interpolation	err
 mirobody/mcp/service.py	interpolation	name
-mirobody/mcp/tool.py	extra_key	line
 mirobody/mcp/tool.py	interpolation	", ".join(sorted(caller_ident))
 mirobody/mcp/tool.py	interpolation	dir
-mirobody/mcp/tool.py	interpolation	e
-mirobody/mcp/tool.py	interpolation	entry.name
-mirobody/mcp/tool.py	interpolation	error
 mirobody/mcp/tool.py	interpolation	function.__qualname__
 mirobody/mcp/tool.py	interpolation	getattr(function, "__qualname__", function.__name__)
-mirobody/mcp/tool.py	interpolation	str(e)
 mirobody/mcp/tool.py	interpolation	target_directory
-mirobody/server/auth.py	extra_key	token
-mirobody/server/auth.py	interpolation	str(e)
-mirobody/server/auth.py	interpolation	type(token)
-mirobody/server/bootstrap.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/server/bootstrap.py	extra_key	sql_filename
 mirobody/server/bootstrap.py	interpolation	_SCHEMA_DIR
-mirobody/server/bootstrap.py	interpolation	e
 mirobody/server/bootstrap.py	interpolation	env_name
 mirobody/server/bootstrap.py	interpolation	filename
 mirobody/server/bootstrap.py	interpolation	schema
-mirobody/server/bootstrap.py	interpolation	str(e)
-mirobody/server/routers/apple_router.py	interpolation	(t2 - t1) * 1e3
-mirobody/server/routers/apple_router.py	interpolation	(t3 - t2) * 1e3
-mirobody/server/routers/apple_router.py	interpolation	content_encoding
-mirobody/server/routers/apple_router.py	interpolation	current_user
-mirobody/server/routers/apple_router.py	interpolation	str(e)
-mirobody/server/routers/apple_router.py	interpolation	validated_data.metaInfo.taskId
-mirobody/server/routers/file_router.py	extra_key	token
-mirobody/server/routers/file_router.py	interpolation	close_error
-mirobody/server/routers/file_router.py	interpolation	connectionId
-mirobody/server/routers/file_router.py	interpolation	current_user
-mirobody/server/routers/file_router.py	interpolation	e
-mirobody/server/routers/file_router.py	interpolation	request.file_keys
-mirobody/server/routers/file_router.py	interpolation	send_error
-mirobody/server/routers/file_router.py	interpolation	str(e)
-mirobody/server/routers/indicator_router.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/server/routers/indicator_router.py	interpolation	e
-mirobody/server/routers/middleware.py	interpolation	str(e)
-mirobody/server/routers/public_router.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/server/routers/public_router.py	interpolation	actual_platform
-mirobody/server/routers/public_router.py	interpolation	current_user
-mirobody/server/routers/public_router.py	interpolation	error_msg
-mirobody/server/routers/public_router.py	interpolation	indicator_data.get('key', 'unknown')
-mirobody/server/routers/public_router.py	interpolation	p
-mirobody/server/routers/public_router.py	interpolation	platform_filter
-mirobody/server/routers/public_router.py	interpolation	platform_name
-mirobody/server/routers/public_router.py	interpolation	request.llm_access
-mirobody/server/routers/public_router.py	interpolation	s
-mirobody/server/routers/public_router.py	interpolation	str(e)
-mirobody/server/routers/public_router.py	interpolation	user_info
-mirobody/server/routers/records_router.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/server/routers/records_router.py	interpolation	e
-mirobody/server/routers/session_share_router.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/server/routers/session_share_router.py	interpolation	current_user
-mirobody/server/routers/session_share_router.py	interpolation	str(e)
-mirobody/server/routers/sharing_router.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/server/routers/sharing_router.py	interpolation	denied
-mirobody/server/routers/sharing_router.py	interpolation	e
-mirobody/server/routers/sharing_router.py	interpolation	handle
-mirobody/server/routers/user_router.py	interpolation	accept_language
-mirobody/server/server.py	interpolation	exc
-mirobody/server/server.py	interpolation	request.url.path
 mirobody/server/worker.py	interpolation	[c.__name__ for c in task_classes]
 mirobody/task/loader.py	interpolation	dir
-mirobody/task/loader.py	interpolation	e
-mirobody/task/loader.py	interpolation	entry.name
 mirobody/task/loader.py	interpolation	module_name
 mirobody/task/loader.py	interpolation	target
 mirobody/task/profile_refresh.py	interpolation	result.get('current_version')
@@ -311,146 +45,36 @@ mirobody/task/profile_refresh.py	interpolation	result.get('last_execute_doc_id')
 mirobody/task/profile_refresh.py	interpolation	result.get('profile_id')
 mirobody/task/profile_refresh.py	interpolation	result.get('version')
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	chunk_end.strftime('%Y-%m-%d')
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	coverage
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	current_start.strftime('%Y-%m-%d')
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	data_begin_utc
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	e
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	end_date
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	end_date.date()
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	estimated_active_min / 60
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	gmi
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	indicator
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	mean_glucose
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	query_start
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	sampling_interval_min
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	since_time.isoformat()
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	since_timestamp
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	source
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	start_date
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	start_date.date()
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	timezone_str
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	total_window_min / 60
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	user_id or 'all users'
 mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	user_label
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	utc_time_str
-mirobody/translate/aggregate/database_service.py	interpolation	e
-mirobody/translate/aggregate/rule_generator.py	interpolation	rule.source_indicator
-mirobody/translate/aggregate/rule_generator.py	interpolation	rule.target_indicator
-mirobody/translate/aggregate/service.py	interpolation	e
 mirobody/translate/aggregate/service.py	interpolation	end_date.isoformat()
 mirobody/translate/aggregate/service.py	interpolation	last_timestamp
 mirobody/translate/aggregate/service.py	interpolation	start_date.isoformat()
 mirobody/translate/aggregate/service.py	interpolation	user_id or 'all'
-mirobody/translate/aggregate/task.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/translate/aggregate/task.py	interpolation	e
 mirobody/translate/aggregate/task.py	interpolation	stats_dict['execution_time_ms']
 mirobody/translate/aggregate/task.py	interpolation	stats_dict['summaries_created']
 mirobody/translate/aggregate/task.py	interpolation	stats_dict['users_affected']
-mirobody/translate/canonical_units.py	interpolation	e
-mirobody/translate/canonical_units.py	interpolation	from_unit
-mirobody/translate/canonical_units.py	interpolation	indicator
-mirobody/translate/canonical_units.py	interpolation	standard_unit
-mirobody/translate/canonical_units.py	interpolation	unit
-mirobody/translate/derive/rules.py	interpolation	computed
-mirobody/translate/derive/rules.py	interpolation	day
-mirobody/translate/derive/rules.py	interpolation	denominator
-mirobody/translate/derive/rules.py	interpolation	e
-mirobody/translate/derive/rules.py	interpolation	numerator
-mirobody/translate/derive/rules.py	interpolation	result
-mirobody/translate/derive/rules.py	interpolation	rule.name
-mirobody/translate/derive/rules.py	interpolation	total_computed
-mirobody/translate/derive/task.py	interpolation	e
-mirobody/translate/derive/task.py	interpolation	stats['total_computed']
-mirobody/translate/derive/task.py	interpolation	stats['total_skipped']
-mirobody/translate/indicators_info.py	interpolation	indicator
-mirobody/translate/value_range_validator.py	interpolation	e
-mirobody/translate/value_range_validator.py	interpolation	indicator
-mirobody/translate/value_range_validator.py	interpolation	loaded
-mirobody/translate/value_range_validator.py	interpolation	raw_rules
-mirobody/translate/value_range_validator.py	interpolation	rule_str
-mirobody/translate/value_range_validator.py	interpolation	self._rule_set
-mirobody/user/account_merge.py	extra_key	affected_so_far
-mirobody/user/account_merge.py	interpolation	str(e)
-mirobody/user/auth/oauth_service.py	extra_key	refresh_token
-mirobody/user/auth/oauth_service.py	extra_key	token
-mirobody/user/auth/oauth_service.py	interpolation	data
-mirobody/user/auth/oauth_service.py	interpolation	e
 mirobody/user/auth/oauth_service.py	interpolation	err
-mirobody/user/auth/oauth_service.py	interpolation	str(e)
-mirobody/user/auth/webauthn.py	interpolation	e
-mirobody/user/auth/webauthn.py	interpolation	self._origin
-mirobody/user/platform.py	interpolation	active
-mirobody/user/platform.py	interpolation	email
-mirobody/user/platform.py	interpolation	error_msg
-mirobody/user/platform.py	interpolation	link['user_id']
-mirobody/user/platform.py	interpolation	result
-mirobody/user/platform.py	interpolation	str(e)
-mirobody/user/platform.py	interpolation	user['id']
-mirobody/user/profile.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/user/profile.py	interpolation	e
-mirobody/user/profile.py	interpolation	previous_scenario
-mirobody/user/profile.py	interpolation	scenario_info['scenario_en']
-mirobody/user/profile.py	interpolation	scenario_info['scenario_zh']
-mirobody/user/profile.py	interpolation	scenario_zh
-mirobody/user/profile.py	interpolation	scenario_zh_clean
-mirobody/user/user.py	interpolation	str(e)
-mirobody/user/user_service.py	extra_key	affected
-mirobody/user/user_service.py	interpolation	err
-mirobody/user/user_service.py	interpolation	existing_owner
-mirobody/utils/config/agent_options.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/utils/config/agent_options.py	interpolation	str(e)
-mirobody/utils/config/config.py	interpolation	e
 mirobody/utils/config/config.py	interpolation	file
-mirobody/utils/config/config.py	interpolation	str(e)
 mirobody/utils/config/config.py	interpolation	upper_key
-mirobody/utils/config/encrypt.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/utils/config/postgresql.py	extra_key	params
-mirobody/utils/config/postgresql.py	extra_key	records
-mirobody/utils/config/postgresql.py	extra_key	time_cost
 mirobody/utils/config/postgresql.py	interpolation	" ".join(str(query).split())
-mirobody/utils/config/storage/aliyun.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/utils/config/storage/aliyun.py	interpolation	error_msg
-mirobody/utils/config/storage/aliyun.py	interpolation	object_key
 mirobody/utils/config/storage/aliyun.py	interpolation	self.bucket
 mirobody/utils/config/storage/aliyun.py	interpolation	self.cdn
 mirobody/utils/config/storage/aliyun.py	interpolation	self.cdn or 'none'
 mirobody/utils/config/storage/aliyun.py	interpolation	self.endpoint
-mirobody/utils/config/storage/aliyun.py	interpolation	str(e)
-mirobody/utils/config/storage/aws.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/utils/config/storage/aws.py	interpolation	error_msg
-mirobody/utils/config/storage/aws.py	interpolation	object_key
 mirobody/utils/config/storage/aws.py	interpolation	self.bucket
 mirobody/utils/config/storage/aws.py	interpolation	self.region
-mirobody/utils/config/storage/factory.py	interpolation	e
 mirobody/utils/config/storage/local.py	interpolation	self.base_path
 mirobody/utils/config/storage/local.py	interpolation	self.proxy_url
-mirobody/utils/config/storage/local.py	interpolation	str(e)
 mirobody/utils/db.py	interpolation	logged_query
 mirobody/utils/http.py	interpolation	message
 mirobody/utils/http.py	interpolation	msg
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	e
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	image_path
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	page_num
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	pdf_path
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	stats
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - api_start
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - conversion_start
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - start_time
-mirobody/utils/llm/file_processors/backends_openai.py	interpolation	time.time() - total_start
-mirobody/utils/llm/file_processors/results.py	interpolation	dropped
-mirobody/utils/llm/file_processors/results.py	interpolation	e
-mirobody/utils/llm/file_processors/results.py	interpolation	json_str[:100]
-mirobody/utils/llm/file_processors/results.py	interpolation	result.get('page', 0)
-mirobody/utils/llm/file_processors/results.py	interpolation	result['error']
-mirobody/utils/llm/hipaa_policy.py	interpolation	value[:30]
-mirobody/utils/llm/utils.py	interpolation	str(e)
 mirobody/utils/plugin_dirs.py	interpolation	ep.name
 mirobody/utils/plugin_dirs.py	interpolation	group
-mirobody/utils/scheduler.py	exc_info	traceback of a broad except: driver exceptions quote SQL and parameters
-mirobody/utils/scheduler.py	interpolation	current_time.isoformat()
-mirobody/utils/scheduler.py	interpolation	e
-mirobody/utils/scheduler.py	interpolation	force
-mirobody/utils/scheduler.py	interpolation	persisted.isoformat()
-mirobody/utils/scheduler.py	interpolation	str(e)
-mirobody/utils/tasks.py	interpolation	exc
-mirobody/utils/tasks.py	interpolation	task.get_name()
