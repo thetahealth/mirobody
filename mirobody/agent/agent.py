@@ -145,24 +145,16 @@ class MirobodyAgent:
 
         return agent_llm_client, model_name, fallback_used, fallback_message
     
-    async def _load_tools(self, user_id: str) -> list:
-
-        tools = []
+    async def _load_tools(self, user_id: str) -> list[BaseTool]:
+        """The MCP tools as LangChain tools, bound to `user_id`. A tool that
+        cannot be built is logged and left out by `load_global_tools`."""
         from .tool_loader import load_global_tools
 
-        disallowed_tools = list(self.disallowed_tools)
-
-        try:
-            global_tools = await load_global_tools(
-                user_id=user_id,
-                allowed_tools=self.allowed_tools,
-                disallowed_tools=disallowed_tools
-            )
-            tools.extend(global_tools)
-            logger.info(f"Loaded {len(global_tools)} global tools")
-        except Exception as e:
-            logger.warning(f"Failed to load global tools: {e}")
-        return tools
+        return await load_global_tools(
+            user_id=user_id,
+            allowed_tools=self.allowed_tools,
+            disallowed_tools=self.disallowed_tools,
+        )
 
     def _get_base_prompt(self, prompt_name: str) -> str:
         """The agent's own system prompt: the `PROMPTS` template named by the
@@ -556,24 +548,11 @@ class MirobodyAgent:
             graph_input = {"messages": messages}
 
         try:
-            # subgraphs=True surfaces subagent (subgraph) events: without it the
-            # parent graph only sees a single `task` ToolMessage when the subagent
-            # FINISHES, so nothing streams during a subagent run (the original bug).
-            # With it, each item becomes a (namespace, stream_type, payload) triple;
-            # the subagent's react subgraph reuses node names "model"/"tools", so its
-            # tokens and tool calls flow through `stream_blocks` into the same
-            # text/tool_call/tool_result blocks, no client change needed.
-            async for stream_item in agent.astream(
-                graph_input,
-                stream_mode=["messages", "updates"],
-                subgraphs=True,
-                config=config
+            # No `subgraphs=True`: the graph has none (`harness.assemble`
+            # disables the general-purpose subagent and passes `subagents=[]`).
+            async for stream_type, stream_event in agent.astream(
+                graph_input, stream_mode=["messages", "updates"], config=config,
             ):
-                # subgraphs=True yields 3-tuples; tolerate 2-tuples defensively.
-                if isinstance(stream_item, tuple) and len(stream_item) == 3:
-                    namespace, stream_type, stream_event = stream_item
-                else:
-                    namespace, (stream_type, stream_event) = (), stream_item
                 # An `ask_user` call: the middleware paused the graph after the
                 # model step. Hand the pending question to the client and end
                 # the turn; the next user message resumes this thread.
@@ -582,15 +561,9 @@ class MirobodyAgent:
                     if pending:
                         yield pending
                     return
-                try:
-                    async for block in stream_blocks(
-                        stream_type, stream_event, trace_id=trace_id, namespace=namespace
-                    ):
-                        if block:
-                            yield block
-                except Exception as e:
-                    logger.error("Error processing stream chunk: error_type=%s trace_id=%s", type(e).__name__, trace_id)
-                    continue
+                # `stream_blocks` logs and drops an item it cannot read.
+                async for block in stream_blocks(stream_type, stream_event, trace_id=trace_id):
+                    yield block
 
             logger.info("agent stream completed")
 
