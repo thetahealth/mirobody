@@ -19,18 +19,13 @@ Measured coverage of the resolver these tools call: see
 server (`mcp/stdio.py`) calls too, so both transports answer alike.
 """
 
-import logging
 from typing import Any
-
-logger = logging.getLogger(__name__)
 
 
 class TerminologyService:
-    """Canonical-code lookup for health indicator names."""
-
-    def __init__(self):
-        self.name = "Terminology Service"
-        self.version = "1.0.0"
+    """Canonical-code lookup for health indicator names. A failure is
+    contained where every tool's is: `call_tool` over MCP, and
+    `ToolFaultMiddleware` in a chat turn."""
 
     async def resolve_indicator(self, names: list[str]) -> dict[str, Any]:
         """
@@ -64,11 +59,7 @@ class TerminologyService:
         """
         from mirobody.translate.terminology import resolve_indicators
 
-        try:
-            return resolve_indicators(names)
-        except Exception as e:
-            logger.error(f"[resolve_indicator] {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+        return resolve_indicators(names)
 
     #-------------------------------------------------------------------------
 
@@ -124,8 +115,4 @@ class TerminologyService:
         """
         from mirobody.translate.terminology import normalize_units
 
-        try:
-            return normalize_units(units)
-        except Exception as e:
-            logger.error(f"[normalize_unit] {e}", exc_info=True)
-            return {"success": False, "error": str(e)}
+        return normalize_units(units)

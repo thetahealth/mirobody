@@ -30,12 +30,11 @@ import logging
 from pathlib import PurePosixPath
 from typing import Any
 
-from deepagents.backends.protocol import EditResult, FileUploadResponse, WriteResult
-
 from mirobody.collect import GeneticHandler
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.db import execute_query
 from .backend import PgFilesystemBackend, _is_text_mime
-from .naming import guess_mime, safe_basename
+from .naming import disambiguate, guess_mime, safe_basename
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +45,6 @@ _MAX_LIBRARY_FILES = 200
 _MAX_SESSION_FILES = 50
 _ARCHIVE_MIMES = frozenset({"application/zip", "application/x-zip-compressed",
                            "application/gzip", "application/x-gzip"})
-
-_READONLY = (
-    "This path is a read-only view of your stored files. Write scratch notes to "
-    "the workspace root (/) instead."
-)
 
 
 class ThFilesBackend(PgFilesystemBackend):
@@ -68,9 +62,9 @@ class ThFilesBackend(PgFilesystemBackend):
     ):
         if scope not in ("uploads", "library"):
             raise ValueError(f"ThFilesBackend scope must be uploads|library, got {scope!r}")
-        # session_id is irrelevant to a projection: the row key is the file, and
-        # `/uploads/` narrows by the keys this request named rather than by session.
-        super().__init__(user_id=user_id, session_id="", scope=scope,
+        # The row key is the file, and `/uploads/` narrows by the keys this
+        # request named rather than by session.
+        super().__init__(user_id=user_id, scope=scope,
                          supports_file_block=supports_file_block, supports_image=supports_image)
         self._keys = [str(k) for k in (file_keys or [])][:_MAX_SESSION_FILES]
         # file_key -> the name THIS request attached the file under. `/uploads/`
@@ -154,8 +148,6 @@ class ThFilesBackend(PgFilesystemBackend):
                 params=params,
             )
         except Exception as exc:
-            from mirobody.kernel.ops import is_driver_exception
-
             logger.warning("stored-file projection failed: scope=%s error_type=%s",
                            self._scope, type(exc).__name__,
                            exc_info=not is_driver_exception(exc))
@@ -186,13 +178,17 @@ class ThFilesBackend(PgFilesystemBackend):
             base = safe_basename(pinned or r.get("file_name") or r.get("file_key") or "")
             if not base:
                 continue
-            # Newest wins; a repeat name gets its key appended rather than
-            # shadowing the older file, matching what the sync did.
+            # Newest wins; a repeat name is tagged with its key rather than
+            # shadowing the older file. The tag goes before the suffix
+            # (`naming.disambiguate`): "lab.pdf__thf_<key>" ended in no known
+            # suffix, so the read skipped extraction and sent the bytes as an
+            # octet-stream block, which qwen and DeepSeek answer with a 400.
             if base in seen:
                 key = str(r.get("file_key") or "")
-                suffix = safe_basename(key)[:8]
-                base = f"{base}__thf_{suffix}" if suffix else base
-                if base in seen:
+                # The whole key when two share their last eight characters.
+                base = next((name for name in (disambiguate(base, key), disambiguate(base, key, width=None))
+                             if name not in seen), "")
+                if not base:
                     continue
             seen.add(base)
             out.append(self._row_from_file(dict(r), f"/{base}"))
@@ -222,16 +218,3 @@ class ThFilesBackend(PgFilesystemBackend):
             logger.info("stored-file genotype read refused: scope=%s", self._scope)
             return None
         return raw
-
-    # ── writes are refused ───────────────────────────────────────────────────
-
-    async def awrite(self, file_path: str, content: str) -> WriteResult:
-        return WriteResult(error=_READONLY)
-
-    async def aedit(self, file_path: str, old_string: str, new_string: str,
-                    replace_all: bool = False) -> EditResult:
-        return EditResult(error=_READONLY)
-
-    async def aupload_files(self, files) -> list[FileUploadResponse]:
-        return [FileUploadResponse(path=getattr(f, "path", ""), error=_READONLY)
-                for f in (files or [])]

@@ -19,6 +19,7 @@ from langchain.agents.middleware import AgentMiddleware
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from mirobody.agent.middleware.empty_answer import NUDGE_NAME
+from mirobody.agent.middleware.model_budget import LAST_CALL_NAME
 from mirobody.agent.tools.genetic_service import TOOL_NAME
 from mirobody.kernel import tools
 
@@ -30,6 +31,8 @@ _SCRATCH_REFUSAL = "Scratch files are unavailable after a genotype query. Use qu
 _READ_FILES = frozenset({"read_file", "grep", "glob", "ls"})
 _WRITE_FILES = frozenset({"write_file", "edit_file"})
 _READ_MOUNTS = ("/uploads", "/library", "/memories")
+#: Human messages the harness writes into a turn; a turn starts at the person's.
+_HARNESS_NAMES = frozenset({NUDGE_NAME, LAST_CALL_NAME})
 
 
 def _digest(content: Any) -> bytes:
@@ -75,8 +78,9 @@ def redact_genotype_history(messages: Sequence[Any]) -> list[Any]:
     genetic_ids = _genetic_call_ids(messages)
     for message in messages:
         # A turn starts at the person's message, not at the harness's own
-        # (the empty-answer nudge), or the answer after it went unredacted.
-        if isinstance(message, HumanMessage) and message.name != NUDGE_NAME:
+        # (the empty-answer nudge, the last-call instruction), or the answer
+        # after it went unredacted.
+        if isinstance(message, HumanMessage) and message.name not in _HARNESS_NAMES:
             dependent_answer = False
         if _is_genetic_result(message, genetic_ids):
             redacted.append(_redacted_tool(message))

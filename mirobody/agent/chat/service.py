@@ -17,6 +17,7 @@ from .message import (
 )
 from . import turn
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.user import JwtTokenValidator
 from mirobody.user.auth.bearer import bearer_subject
 from mirobody.user.user import get_user_info
@@ -72,11 +73,12 @@ def self_authenticating(fn):
 async def _json_body(request: Request) -> tuple[dict | None, Response | None]:
     """Parse a JSON object body. Five handlers repeated this same try/except
     plus dict check verbatim; the error codes they returned (-1 vs -2) differed
-    only by which one the author happened to paste."""
+    only by which one the author happened to paste. The parser's own message
+    quotes the body, so the reply is a fixed sentence."""
     try:
         params = await request.json()
-    except Exception as e:
-        return None, json_response_with_code(-1, str(e), request=request)
+    except ValueError:
+        return None, json_response_with_code(-1, "The request body is not valid JSON.", request=request)
     if not params or not isinstance(params, dict):
         return None, json_response_with_code(-1, "Invalid request body.", request=request)
     return params, None
@@ -156,10 +158,11 @@ class ChatService:
 
     @public_endpoint
     async def model_handler(self, request: Request) -> Response:
-        """Provider names whose key resolves: bare names, no `Agent/` prefix.
+        """The `MODELS` entries whose key resolves, the default first
+        (`registry.available_models`): bare names, no `Agent/` prefix.
 
         The shipped web client splits each entry on `/` into `{agent, provider}`
-        and falls back to the whole string as the provider when there is no
+        and falls back to the whole string as its `provider` when there is no
         slash, so a bare name works unchanged. `?labels=1` answers with
         `{"name", "model"}` objects instead, so a picker can show the model a
         person knows while still sending back the entry's name.
@@ -224,25 +227,14 @@ class ChatService:
 
         try:
             if session_id:
-                history = await get_chat_history(user_id, session_id)
                 return json_response_with_code(
-                    data={
-                        "history": history
-                    },
-                    request=request
-                )
-            summaries = await get_session_summaries(user_id)
+                    data={"history": await get_chat_history(user_id, session_id)}, request=request)
             return json_response_with_code(
-                data={
-                    "summaries": summaries
-                },
-                request=request
-            )
+                data={"summaries": await get_session_summaries(user_id)}, request=request)
         except Exception as e:
-            return json_response_with_code(
-                code=-1,
-                msg=str(e)
-            )
+            logger.error("reading chat history failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-1, "Could not load the conversation history.", request=request)
 
     #-------------------------------------------------------------------------
 
@@ -284,8 +276,9 @@ class ChatService:
                 or params.get("questionId")
                 or params.get("question_id")
             )
-        except (KeyError, TypeError, ValueError) as e:
-            return json_response_with_code(-1, f"invalid rating payload: {e}", request=request)
+        except (KeyError, TypeError, ValueError):
+            return json_response_with_code(-1, "A rating is an integer `rating` and the `responseId` it rates.",
+                                           request=request)
 
         if not message_id:
             return json_response_with_code(-1, "missing responseId", request=request)
@@ -312,12 +305,10 @@ class ChatService:
 
         #-------------------------------------------------
 
-        try:
-            params = await request.json()
-            params["user_id"] = str(user_id)
-
-        except Exception as e:
-            return json_response_with_code(-1, str(e), request=request)
+        params, err_response = await _json_body(request)
+        if err_response:
+            return err_response
+        params["user_id"] = str(user_id)
 
         #-------------------------------------------------
 
@@ -347,7 +338,7 @@ class ChatService:
         if "timezone" not in params or "language" not in params:
             user_info, err = await get_user_info(user_id)
             if err:
-                logger.warning(err, extra={"user": user_id})
+                logger.warning("no profile zone or language for a chat: user_id=%s", user_id)
             else:
                 if "timezone" not in params:
                     from mirobody.utils.config import get_default_timezone
@@ -392,13 +383,12 @@ class ChatService:
     async def beneficiary_user_handler(self, request: Request, user_id: str) -> Response:
         try:
             data = await beneficiary_users(user_id)
-
         except Exception as e:
-            return json_response_with_code(-1, str(e), request=request)
-        
-        return json_response_with_code(data=data, request=request)
+            logger.error("listing care-circle members failed: user_id=%s error_type=%s", user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            return json_response_with_code(-1, "Could not load the people you can ask about.", request=request)
 
-    #-------------------------------------------------------------------------
+        return json_response_with_code(data=data, request=request)
 
     #-------------------------------------------------------------------------
 

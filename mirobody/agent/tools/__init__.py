@@ -22,14 +22,15 @@ The loader scans this directory with the following rules:
    - Use underscore prefix for internal helpers (e.g., _my_helper.py)
 
 3. CLASS FILTERING (load_tools_from_module)
-   - Only classes ending with "Service" are registered as tool providers
-   - Example: ChartService ✓, MemoryService ✓, ChartHelper ✗
+   - Only classes ending with "Service" are registered as tool classes
+   - Example: MedicationsService ✓, ChartHelper ✗
    - Abstract and builtin classes are skipped
 
 4. METHOD FILTERING (load_tools_from_class)
    - Methods starting with underscore are SKIPPED (private methods)
    - Methods from base classes are SKIPPED (only current class methods)
    - Methods imported from other modules are SKIPPED
+   - With `__tools__` set, only the methods it names are tools
 
 5. USER_INFO INJECTION
    - If method has `user_info` parameter, it's auto-injected by MCP server
@@ -60,9 +61,12 @@ tools/
 ├── medications_service.py           # query_medications: plan / log / history (4 parameters)
 ├── genetic_service.py               # query_genetic_data: genotype calls by rsID,
 │                                    #   gene or region (6 parameters)
+├── pharmacogenomics_service.py      # query_pharmacogenomics: CPIC drug-gene links
+│                                    #   and array coverage (2 parameters)
 ├── _authz.py                        # who a read is about
 ├── _base.py                         # RecordTool: authorization and the
 │                                    #   never-raises contract, shared
+├── _genotype.py                     # the active genotype upload, read alike
 └── _render.py                       # envelope -> compact table / REST rows
 
 Every file here WITHOUT a leading underscore IS a tool; the underscored ones
@@ -81,11 +85,12 @@ meant.
 
 Note: filesystem tools (ls, read_file, write_file, edit_file, glob, grep) are
 NOT MCP tools here: the agent gets them natively from the deepagents
-FilesystemMiddleware, backed by the PgFilesystemBackend in
-mirobody/agent/filesystem/backend.py. There is no write_todos and no task/
-subagent tool: deepagents 0.7 dropped TodoListMiddleware from its default stack
-and the agent does not add it back, and the general-purpose subagent is disabled
-outright (see agent.MirobodyAgent._apply_harness_profile).
+FilesystemMiddleware, over the CompositeBackend of read-only mounts that
+`agent.MirobodyAgent._build_backend` builds (mirobody/agent/filesystem/). There
+is no write_todos and no task/subagent tool: deepagents 0.7 dropped
+TodoListMiddleware from its default stack and the agent does not add it back,
+and the general-purpose subagent is disabled outright
+(`harness.disable_general_purpose_subagent`).
 
 =============================================================================
 CHARTING: ONE PATH, ```vis-chart``` blocks
@@ -112,18 +117,17 @@ EXAMPLE: Adding a New Tool
 ```python
 # new_service.py (in tools/ root, no underscore prefix)
 
-from typing import Any, Dict, Optional
+from typing import Any
 
 class NewService:  # Must end with "Service"
 
-    def __init__(self):
-        self.name = "New Service"
+    __tools__ = ("my_tool",)  # exactly the methods that are tools
 
     async def my_tool(
         self,
         param1: str,
-        user_info: Optional[Dict[str, Any]] = None,  # Auto-injected
-    ) -> Dict[str, Any]:
+        user_info: dict[str, Any] | None = None,  # Auto-injected
+    ) -> dict[str, Any]:
         \"\"\"
         Tool description (parsed from docstring).
 

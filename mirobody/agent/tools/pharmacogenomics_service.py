@@ -15,6 +15,7 @@ from mirobody.translate.pgx import load_cpic
 
 from ._authz import refused
 from ._base import RecordTool
+from ._genotype import active_set, fetch_rows, in_clause, source_note
 from ._render import envelope_meta, render_compact
 
 TOOL_NAME = "query_pharmacogenomics"
@@ -71,19 +72,12 @@ class PharmacogenomicsService(RecordTool):
         if problems:
             return refused(tuple(problems))
 
-        sets = await self._read(
-            "SELECT id, format_id, vendor, build_declared, build_detected, site_table_version "
-            "FROM th_genotype_set WHERE user_id = :user_id AND status = 'active' LIMIT 1",
-            {"user_id": caller_id},
-        )
-        if not sets:
+        active = await active_set(self._execute, caller_id)
+        if active is None:
             return tools.Envelope(tools.STATUS_OK, data=[], meta=tools.Meta(row_count=0),
                                   assumptions=("no active genotype upload",))
-        active = sets[0]
         notes = [
-            (f"source: genotype set {active['id']}, vendor={active.get('vendor') or active['format_id']}, "
-             f"declared build={active.get('build_declared') or 'unknown'}, "
-             f"detected build={active['build_detected']}, sites={active['site_table_version']}"),
+            source_note(active),
             "CPIC A/B marks a gene-drug guideline, not a patient-specific phenotype or prescribing advice",
             "array calls alone cannot establish phase, copy number or exclusion of untyped alleles",
         ]
@@ -122,10 +116,10 @@ class PharmacogenomicsService(RecordTool):
                 required = knowledge.array_coverage(pair.gene, {}).missing_sites
                 calls: dict[str, str] = {}
                 if required:
-                    binds = {f"site_{i}": site for i, site in enumerate(required)}
-                    selected = await self._read(
-                        "SELECT rsid, call_status FROM th_genotype WHERE set_id = :set_id "
-                        "AND rsid IN (" + ", ".join(f":{key}" for key in binds) + ")",
+                    placeholders, binds = in_clause("site", required)
+                    selected = await fetch_rows(
+                        self._execute,
+                        f"SELECT rsid, call_status FROM th_genotype WHERE set_id = :set_id AND rsid IN ({placeholders})",
                         {"set_id": active["id"], **binds},
                     )
                     calls = {str(row["rsid"]): str(row["call_status"]) for row in selected}
@@ -149,10 +143,3 @@ class PharmacogenomicsService(RecordTool):
             data=rows, meta=tools.Meta(row_count=len(rows), truncated=len(pairs) > MAX_PAIRS),
             assumptions=tuple(notes),
         )
-
-    async def _read(self, sql: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
-        if self._execute is None:
-            from mirobody.utils import execute_query
-
-            self._execute = execute_query
-        return [dict(row) for row in await self._execute(sql, dict(params)) or []]

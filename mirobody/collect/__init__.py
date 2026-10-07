@@ -98,7 +98,6 @@ _EXPORTS = {
     "get_user_data_distribution": "files.services.list_my_data",
     "set_file_report_date": "files.services.report_date",
     "FileAbstractExtractor": "files.services.file_abstract_extractor",
-    "lookup_extracted_text": "files.services.file_abstract_extractor",
     "GeneticHandler": "files.handlers.genetic",
     # What `mirobody.agent` needs beyond the above.
     "PostgresDoseLogStore": "meds",
@@ -138,7 +137,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .files.file_upload_manager import get_websocket_file_upload_manager
     from .files.handlers.genetic import GeneticHandler
     from .files.services.drive_listing import get_uploaded_files_paginated, regenerate_file_url
-    from .files.services.file_abstract_extractor import FileAbstractExtractor, lookup_extracted_text
+    from .files.services.file_abstract_extractor import FileAbstractExtractor
     from .files.services.file_db_service import SOURCE_ASK, SOURCE_DATA, FileDbService
     from .files.services.file_processing_service import (
         FileUploadData,

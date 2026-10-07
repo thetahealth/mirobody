@@ -1,9 +1,9 @@
 """The agent: one harness, on LangChain + deepagents.
 
-`MirobodyAgent.generate_response` runs a turn: the LLM client for the requested
-provider, the four record tools an external MCP client also sees, plus the
-harness's own filesystem tools, the `eval` REPL and `ask_user`), a Postgres-
-backed virtual filesystem that projects the person's uploads, library and
+`MirobodyAgent.generate_response` runs a turn: the chat model of the
+requested `MODELS` entry, the four record tools an external MCP client also
+sees (plus the harness's own filesystem tools, the `eval` REPL and
+`ask_user`), a Postgres-backed virtual filesystem that projects the person's uploads, library and
 health profile read-only, a LangGraph checkpointer that holds the conversation
 per session, and the middleware that keeps a turn bounded (model-call budget,
 tool-call cap, fault containment, retry governance). Every moving part is
@@ -20,24 +20,26 @@ import logging
 import uuid
 from typing import Any, TYPE_CHECKING
 from collections.abc import AsyncGenerator
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
-from .registry import llm_client, llm_client_names
+from .registry import default_model, llm_client, llm_client_names
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.config.llm import chat_default, chat_entries
+from mirobody.utils.config.llm import chat_entries
 
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error
 from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
-from .models.clients import build_llm_clients
+from .models.clients import build_llm_clients, unavailable_reason
 from .models.usage import usage_block
 from .prompt import attachment_reminder, build_system_prompt, question_language
-from .wire.blocks import ERROR, NOTICE
+from .wire.blocks import ERROR, NOTICE, TEXT
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
     GenotypeRowGuardMiddleware,
@@ -51,6 +53,33 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _zone(name: str | None) -> str:
+    """`name` when it is an IANA zone, else the deployment's default zone,
+    else UTC. A turn's zone arrives from a header, the request body or the
+    profile, and `GMT+8`, `UTC+8`, `+08:00`, `CST` or `Etc/Unknown` reached
+    `ZoneInfo` in the system prompt unchecked and failed every turn."""
+    from mirobody.utils.config import get_default_timezone
+
+    for candidate in (name, get_default_timezone()):
+        if not candidate:
+            continue
+        try:
+            ZoneInfo(candidate)
+        except (ZoneInfoNotFoundError, ValueError):
+            logger.warning("a time zone is not an IANA name; falling back")
+            continue
+        return candidate
+    return "UTC"
+
+
+def _route(model: str) -> Any:
+    """The resolved route (`config.llm.RouteSpec`) of the chat entry `model`,
+    or None when it is not one."""
+    from mirobody.utils.config.llm import resolve_named
+
+    return resolve_named(model) if model in chat_entries() else None
+
+
 def _latest_question(messages: list) -> str:
     """The text of the last user message, whichever form the list holds."""
     for message in reversed(messages or []):
@@ -62,15 +91,6 @@ def _latest_question(messages: list) -> str:
     return ""
 
 
-def _default_provider() -> str:
-    """The model to chat with when the caller names none: the first
-    `MODELS` entry (config order, utility-only entries excluded) whose key is
-    present: the order of that table is the contract. With no key present,
-    the first entry, so the error a chat then raises names a real entry and
-    its missing key."""
-    return chat_default() or next(iter(chat_entries()), "")
-
-
 class MirobodyAgent:
 
     def __init__(
@@ -80,85 +100,66 @@ class MirobodyAgent:
         disallowed_tools: list[str] | None = None,
         prompt_templates: dict[str, str] = None,
         record_owner: str = "",
+        may_write: bool = False,
         **kwargs
     ):
         self.record_owner = record_owner
-        from mirobody.utils.config import get_default_timezone
-        self.timezone = timezone or get_default_timezone()
+        # Whether the asker may change the record this turn reads (the chat
+        # layer resolves it per turn); an `ask_user` date is filed only then.
+        self.may_write = may_write
+        self.timezone = _zone(timezone)
         self.allowed_tools = allowed_tools
         self.disallowed_tools = disallowed_tools or []
         self.prompt_templates = prompt_templates
         # The persona name the prompt addresses the model by. Configurable so a
         # deployment can brand it; it is not an identifier anywhere else.
         self.agent_name = safe_read_cfg("AGENT_NAME") or "Mirobody"
-        self.default_provider = safe_read_cfg("DEFAULT_MODEL") or _default_provider()
+        # With no entry ready, the first one, so the error a chat then raises
+        # names a real entry and its missing key.
+        self.default_model = default_model() or next(iter(chat_entries()), "")
         # Two layers, not interchangeable (see `_build_agent`). MODEL_CALL_LIMIT
-        # is the real budget, counted in model calls and enforced by
-        # ModelCallLimitMiddleware, which ends the run gracefully so the model
-        # still writes an answer. RECURSION_LIMIT is a raw LangGraph super-step
+        # is the real budget, counted in model calls by ModelCallBudgetMiddleware,
+        # whose last call is made without tools so the model answers from what
+        # it has. RECURSION_LIMIT is a raw LangGraph super-step
         # ceiling, a last-resort net for a runaway: it must sit above the call
         # budget or it fires first and hard-fails with GraphRecursionError.
         # Unset, `harness.recursion_limit_for` derives it from the built graph.
         self.model_call_limit = int(safe_read_cfg("MODEL_CALL_LIMIT") or 50)
         self.recursion_limit = int(safe_read_cfg("RECURSION_LIMIT") or 0) or None
 
-    async def _init_llm_client(self, provider: str | None) -> tuple[Any, str, bool, str]:
-        original_provider = provider
-        fallback_used = False
-        fallback_message = ""
+    def _chat_model(self, requested: str | None) -> tuple[Any, str, str | None]:
+        """The client of the `MODELS` entry this turn answers with: the one
+        the request names when it is configured, else the default. Returns the
+        client, that entry's name, and the notice to show when a named entry
+        was not configured and the default answers instead."""
+        name = requested or self.default_model
+        client = llm_client(name)
+        notice = None
+        if client is None and requested:
+            logger.warning("the requested model is not configured; using the default")
+            name, client = self.default_model, llm_client(self.default_model)
+            notice = f"Model '{requested}' is not configured. Using the default, '{name}'."
+        if client is None:
+            available = ", ".join(llm_client_names()) or "none"
+            raise ConfigError(f"Model '{requested or name}' is not configured. Available models: {available}.")
+        # An entry whose key or address is missing is a placeholder
+        # (`build_llm_clients`); its reason names the variable to set.
+        reason = unavailable_reason(client)
+        if reason:
+            logger.error("chat model unavailable: its key or address is not set")
+            raise ConfigError(f"Model '{name}' cannot be used: {reason}")
+        return client, name, notice
 
-        if provider:
-            agent_llm_client = llm_client(provider)
-        else:
-            agent_llm_client = llm_client(self.default_provider)
-
-        # Fallback to default provider if the requested one is not supported
-        if not agent_llm_client:
-            default_provider = self.default_provider
-            logger.warning(f"Provider '{original_provider}' not supported, falling back to '{default_provider}'")
-            agent_llm_client = llm_client(default_provider)
-
-            if agent_llm_client:
-                fallback_used = True
-                fallback_message = f"Provider '{original_provider}' not configured. Using default '{default_provider}'.\n"
-            else:
-                available = llm_client_names()
-                available_str = ", ".join(available) if available else "None"
-                raise ConfigError(
-                    f"Provider '{original_provider or default_provider}' is not configured. "
-                    f"Available providers: {available_str}"
-                )
-
-        # Validate client (check for PlaceholderClient)
-        try:
-            _ = agent_llm_client.invoke
-        except AttributeError as attr_error:
-            logger.error(f"Provider validation failed: {attr_error}")
-            raise ConfigError(f"Provider initialization failed: {attr_error}") from attr_error
-        
-        # Extract model name
-        model_name = getattr(agent_llm_client, "model_name", None) or getattr(agent_llm_client, "model", "Unknown")
-
-        return agent_llm_client, model_name, fallback_used, fallback_message
-    
-    async def _load_tools(self, user_id: str) -> list:
-
-        tools = []
+    async def _load_tools(self, user_id: str) -> list[BaseTool]:
+        """The MCP tools as LangChain tools, bound to `user_id`. A tool that
+        cannot be built is logged and left out by `load_global_tools`."""
         from .tool_loader import load_global_tools
 
-        disallowed_tools = list(self.disallowed_tools)
-
-        try:
-            global_tools = await load_global_tools(
-                user_id=user_id,
-                allowed_tools=self.allowed_tools,
-                disallowed_tools=disallowed_tools
-            )
-            tools.extend(global_tools)
-            logger.info(f"Loaded {len(global_tools)} global tools")
-        except Exception as e:
-            logger.warning(f"Failed to load global tools: {e}")
-        return tools
+        return await load_global_tools(
+            user_id=user_id,
+            allowed_tools=self.allowed_tools,
+            disallowed_tools=self.disallowed_tools,
+        )
 
     def _get_base_prompt(self, prompt_name: str) -> str:
         """The agent's own system prompt: the `PROMPTS` template named by the
@@ -206,10 +207,10 @@ class MirobodyAgent:
             logger.info("Built system prompt successfully")
             return system_prompt
         except Exception as e:
-            logger.error(f"Failed to build system prompt: {str(e)}")
+            logger.error("system prompt failed to render: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             raise AgentError(
-                f"System prompt construction failed: {str(e)}",
-                user_message=f"Failed to build the agent's system prompt. Details: {str(e)}"
+                f"The system prompt could not be rendered ({type(e).__name__}); check PROMPTS in the configuration."
             ) from e
     
     async def _build_backend(
@@ -303,28 +304,6 @@ class MirobodyAgent:
             config["configurable"] = {"thread_id": session_id}
         return config
 
-    async def _prepare_context(
-        self,
-        user_id: str,
-        provider: str | None,
-        prompt_name: str,
-        question: str = "",
-    ) -> tuple["BaseChatModel", str, str | None, list[BaseTool], str]:
-        """
-        Prepare LLM client, tools, and system prompt.
-
-        Returns:
-            Tuple of (llm_client, model_name, fallback_msg, tools, system_prompt)
-        """
-        llm_client, model_name, fallback_used, fallback_msg = await self._init_llm_client(provider)
-
-        loaded_tools = await self._load_tools(user_id)
-
-        base_prompt = self._get_base_prompt(prompt_name)
-        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools, question)
-
-        return llm_client, model_name, (fallback_msg if fallback_used else None), loaded_tools, system_prompt
-
     #: Which LangChain transport package carries a non-text content block
     #: inside a ``ToolMessage``: the only shape ``read_file`` can deliver a
     #: PDF in. Keyed by module root, so it covers every client a package
@@ -398,24 +377,34 @@ class MirobodyAgent:
         logger.info(f"file-block support: pdf=False (unrecognised transport {type(llm_client).__name__})")
         return False
 
-    def _supports_image(self, client: Any, provider: str | None) -> bool:
-        """Whether this turn's model is sent an image, or its OCR text.
+    def _supports_image(self, client: Any, model: str) -> bool:
+        """Whether this turn's model, the `MODELS` entry `model` that
+        `_chat_model` picked, is sent an image, or its OCR text.
 
-        The entry that answers is the one `_init_llm_client` picked: the
-        requested provider when it has a client, else the default. A profile
-        or entry `false` is final; a local entry asks its server
+        A profile or entry `false` is final; a local entry asks its server
         (`served.sees`), because the entry names the model it was written for
         and a text-only one may be running instead (MiniCPM5-2B answered an
         image block with "image input is not supported").
         """
         if (getattr(client, "profile", None) or {}).get("image_inputs") is False:
             return False
-        from mirobody.utils.config.llm import resolve_named
         from mirobody.utils.config.served import sees
 
-        name = provider if provider and llm_client(provider) else self.default_provider
-        spec = resolve_named(name) if name in chat_entries() else None
+        spec = _route(model)
         return sees(spec) if spec is not None else True
+
+    def _still_loading(self, model: str) -> bool:
+        """Whether `model` runs on a local model server whose router is still
+        downloading or loading it (`served.served_status`). A question sent
+        then waits for the load with no sign of life: 14 minutes, measured on
+        a 4-core CPU on the first start (2026-10-07). An `unloaded` model is
+        left to the request, which is what starts its load."""
+        from mirobody.utils.config.served import served_status
+
+        spec = _route(model)
+        if spec is None or not (spec.base_url_env and spec.base_url):
+            return False
+        return served_status(spec.base_url, spec.model) == "loading"
 
     #: Read-only tools the `eval` REPL may call as `tools.<name>`; each guards
     #: itself because the PTC bridge bypasses the tool middleware.
@@ -463,12 +452,14 @@ class MirobodyAgent:
             )
 
             # The stack itself (fault containment → retry governance → invalid-call
-            # repair → model-call budget → per-tool caps → interpreter) is
-            # `harness.standard_middleware`.
+            # repair → empty-answer repair → model-call budget → per-tool caps →
+            # interpreter) is `harness.standard_middleware`.
             from langchain_quickjs import CodeInterpreterMiddleware
 
-            # What this agent adds at the tail: cross-provider prompt caching,
-            # last so its decision wins.
+            # What this agent adds at the tail: the genotype guard and, last so
+            # its decision wins, cross-provider prompt caching. The genotype-safe
+            # summarisation takes the place of deepagents' own, which runs
+            # before the stack (a middleware of the same name replaces it).
             genotype_guard = GenotypeRowGuardMiddleware()
             tail: list[Any] = [
                 GenotypeSafeSummarizationMiddleware(llm_client, backend, genotype_guard),
@@ -526,9 +517,10 @@ class MirobodyAgent:
         except AgentError:
             raise
         except Exception as e:
-            logger.error(f"Agent building failed: {str(e)}")
-            raise AgentError(f"Failed to build agent: {str(e)}")
-            
+            logger.error("agent build failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            raise AgentError(f"The agent could not be built ({type(e).__name__}).") from e
+
     async def _stream_agent_response(
         self,
         agent: Any,
@@ -551,24 +543,11 @@ class MirobodyAgent:
             graph_input = {"messages": messages}
 
         try:
-            # subgraphs=True surfaces subagent (subgraph) events: without it the
-            # parent graph only sees a single `task` ToolMessage when the subagent
-            # FINISHES, so nothing streams during a subagent run (the original bug).
-            # With it, each item becomes a (namespace, stream_type, payload) triple;
-            # the subagent's react subgraph reuses node names "model"/"tools", so its
-            # tokens and tool calls flow through `stream_blocks` into the same
-            # text/tool_call/tool_result blocks, no client change needed.
-            async for stream_item in agent.astream(
-                graph_input,
-                stream_mode=["messages", "updates"],
-                subgraphs=True,
-                config=config
+            # No `subgraphs=True`: the graph has none (`harness.assemble`
+            # disables the general-purpose subagent and passes `subagents=[]`).
+            async for stream_type, stream_event in agent.astream(
+                graph_input, stream_mode=["messages", "updates"], config=config,
             ):
-                # subgraphs=True yields 3-tuples; tolerate 2-tuples defensively.
-                if isinstance(stream_item, tuple) and len(stream_item) == 3:
-                    namespace, stream_type, stream_event = stream_item
-                else:
-                    namespace, (stream_type, stream_event) = (), stream_item
                 # An `ask_user` call: the middleware paused the graph after the
                 # model step. Hand the pending question to the client and end
                 # the turn; the next user message resumes this thread.
@@ -577,17 +556,17 @@ class MirobodyAgent:
                     if pending:
                         yield pending
                     return
-                try:
-                    async for block in stream_blocks(
-                        stream_type, stream_event, trace_id=trace_id, namespace=namespace
-                    ):
-                        if block:
-                            yield block
-                except Exception as e:
-                    logger.error("Error processing stream chunk: error_type=%s trace_id=%s", type(e).__name__, trace_id)
-                    continue
+                # `stream_blocks` logs and drops an item it cannot read.
+                async for block in stream_blocks(stream_type, stream_event, trace_id=trace_id):
+                    yield block
 
             logger.info("agent stream completed")
+
+        except AgentError as e:
+            # Raised by our own middleware (a model that keeps sending malformed
+            # calls): its message is ours, and says more than a type name.
+            logger.error("agent stream stopped: error_type=%s", type(e).__name__)
+            yield {"type": ERROR, "message": str(e)}
 
         except Exception as e:
             # Type name only, in the log and to the client: provider error bodies
@@ -614,9 +593,13 @@ class MirobodyAgent:
         file_list: list[dict[str, Any]] | None = None,
         provider: str | None = None,
         prompt_name: str = "",
+        language: str = "",
         **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
-
+        """One turn, as `wire.blocks` (`registry.AbstractAgent`). `provider` is
+        the request's field of that name: the `MODELS` entry to answer with,
+        the default when empty. `language` is the asker's, for a sentence the
+        harness says itself."""
         if not messages:
             yield {"type": ERROR, "message": "Empty message"}
             return
@@ -625,27 +608,30 @@ class MirobodyAgent:
             yield {"type": ERROR, "message": "User ID is required"}
             return
 
-        logger.info(f"agent request: session={session_id}, provider={provider}, messages={len(messages)}")
+        logger.info("agent request: session_id=%s model=%s message_count=%d", session_id, provider, len(messages))
 
         try:
+            llm_client, model, notice = self._chat_model(provider)
+            if notice:
+                # The SYSTEM speaking, not the model. On the reasoning channel
+                # it was indistinguishable from the model's own trace.
+                yield {"type": NOTICE, "message": notice}
+            if await asyncio.to_thread(self._still_loading, model):
+                logger.info("chat model still loading; answered without it: session_id=%s", session_id)
+                yield {"type": TEXT, "text": localize("local_model_loading", language or "en", module="chat")}
+                return
+            model_name = getattr(llm_client, "model_name", None) or getattr(llm_client, "model", "Unknown")
+
             # Uploads reach the agent as FILES, never as message payload:
             # `_build_backend` projects them into /uploads/ by file_key
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
-            llm_client, model_name, fallback_msg, loaded_tools, system_prompt = await self._prepare_context(
-                user_id=user_id,
-                provider=provider,
-                prompt_name=prompt_name,
-                question=_latest_question(messages),
-            )
-
-            if fallback_msg:
-                # The SYSTEM speaking, not the model. On the reasoning channel
-                # it was indistinguishable from the model's own trace.
-                yield {"type": NOTICE, "message": fallback_msg}
+            loaded_tools = await self._load_tools(user_id)
+            system_prompt = await self._build_system_prompt(
+                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages))
 
             supports_file_block = self._supports_file_block(llm_client)
-            supports_image = await asyncio.to_thread(self._supports_image, llm_client, provider)
+            supports_image = await asyncio.to_thread(self._supports_image, llm_client, model)
 
             agent, backend = await self._build_agent(
                 session_id=session_id,
@@ -664,13 +650,13 @@ class MirobodyAgent:
             # A thread paused on `ask_user` takes this message as the answer;
             # the attachment note belongs to a NEW turn only.
             final_messages = messages
-            resume = await pending_answer(agent, stream_config, messages, user_id)
+            resume = await pending_answer(agent, stream_config, messages, user_id, may_write=self.may_write)
             if resume is None:
                 # Name this turn's attachments and where to read them, so the
                 # model never needs an `ls /uploads/` round trip and never
-                # silently misses one. Transient: appended to the run's messages,
-                # not to the cached system prompt. Matches the list's element
-                # type (BaseMessage vs dict) rather than mixing forms.
+                # silently misses one. A message of this turn, not part of the
+                # cached system prompt (`attachment_reminder`). Matches the list's
+                # element type (BaseMessage vs dict) rather than mixing forms.
                 reminder = await attachment_reminder(backend, file_list)
                 if reminder:
                     if final_messages and isinstance(final_messages[-1], BaseMessage):
@@ -692,7 +678,7 @@ class MirobodyAgent:
                 yield usage
 
         except AgentError as e:
-            # An AgentError's message is ours (configuration, no provider…) and
+            # An AgentError's message is ours (configuration, no model…) and
             # safe to show; anything else is reported by type only.
             logger.error("agent error: error_type=%s", type(e).__name__)
             yield {"type": ERROR, "message": str(e)}

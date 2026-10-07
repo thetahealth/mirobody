@@ -307,3 +307,335 @@ def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
     assert seen["model"] == "vendor/model-b"
     assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
     assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400
+
+
+# -- the agent and the MCP surface: a secret, a record, a caller ---------------
+
+
+_LITERAL_KEY = "sk-proj-THIS-IS-THE-LITERAL-SECRET"
+
+
+def test_a_secret_written_where_a_key_name_belongs_is_never_repeated(caplog):
+    from mirobody.agent.models.clients import build_llm_clients, unavailable_reason
+
+    table = {"gpt": {"llm_type": "openai", "model": "gpt-x", "api_key": _LITERAL_KEY},
+             "named": {"llm_type": "openai", "model": "gpt-y", "api_key": "OPENAI_API_KEY"}}
+    with caplog.at_level("DEBUG"):
+        clients = build_llm_clients(table, resolve=lambda name: None)
+    assert _LITERAL_KEY not in caplog.text
+    assert _LITERAL_KEY not in unavailable_reason(clients["gpt"])
+    with pytest.raises(AttributeError) as raised:
+        _ = clients["gpt"].invoke
+    assert _LITERAL_KEY not in str(raised.value)
+    # A variable NAME is what tells the operator what to set: it stays.
+    assert "OPENAI_API_KEY" in unavailable_reason(clients["named"])
+
+
+def test_a_turn_on_a_model_whose_key_is_a_literal_never_shows_it(monkeypatch):
+    pytest.importorskip("langchain_core")
+    from mirobody.agent import agent as agent_module
+    from mirobody.agent.errors import ConfigError
+    from mirobody.agent.models.clients import build_llm_clients
+
+    clients = build_llm_clients({"gpt": {"llm_type": "openai", "model": "gpt-x", "api_key": _LITERAL_KEY}},
+                                resolve=lambda name: None)
+    monkeypatch.setattr(agent_module, "llm_client", clients.get)
+    with pytest.raises(ConfigError) as raised:
+        agent_module.MirobodyAgent(timezone="UTC")._chat_model("gpt")
+    assert _LITERAL_KEY not in str(raised.value)
+
+
+def _turn_on_someone_elses_record(monkeypatch, *, grant: str, file_list: list[dict]) -> tuple[list[dict], dict]:
+    from mirobody.agent.chat import turn
+    from mirobody.agent.chat.model import ChatStreamRequest
+    from mirobody.user.care_circle import CareCircleDenied
+
+    seen = {"stored": 0}
+
+    async def resolve(operator, subject, *, require_write=False):
+        if grant == "none" or (require_write and grant != "write"):
+            raise CareCircleDenied("not granted")
+
+    async def store(params):
+        seen["stored"] += 1
+
+    async def save(params):
+        return None
+
+    async def owner(params):
+        return "Mum"
+
+    monkeypatch.setattr(turn, "resolve_subject", resolve)
+    monkeypatch.setattr(turn, "_store_files", store)
+    monkeypatch.setattr(turn, "_save_question", save)
+    monkeypatch.setattr(turn, "_record_owner", owner)
+    params = ChatStreamRequest(question="what does this say", user_id="7", query_user_id="9", file_list=file_list)
+
+    async def collect():
+        return [block async for block in turn.run(params)]
+
+    return asyncio.run(collect()), seen
+
+
+def test_an_attachment_on_someone_elses_record_needs_their_write_grant(monkeypatch):
+    blocks, seen = _turn_on_someone_elses_record(
+        monkeypatch, grant="read", file_list=[{"file_key": "web_uploads/k.pdf", "file_name": "lab.pdf"}])
+    assert blocks == [{"type": "error", "message": "No permission to add files to this user's record"}]
+    assert seen["stored"] == 0
+
+
+def test_a_question_on_someone_elses_record_needs_only_their_read_grant(monkeypatch):
+    blocks, seen = _turn_on_someone_elses_record(monkeypatch, grant="read", file_list=[])
+    assert {"type": "error", "message": "No permission to chat for this user"} not in blocks
+    assert _turn_on_someone_elses_record(monkeypatch, grant="none", file_list=[])[0] == [
+        {"type": "error", "message": "No permission to chat for this user"}]
+
+
+def test_the_agent_is_told_whether_the_asker_may_change_the_record(monkeypatch):
+    from mirobody.agent.chat import turn
+    from mirobody.agent.chat.model import ChatStreamRequest
+
+    async def owner(params):
+        return "Mum"
+
+    monkeypatch.setattr(turn, "_record_owner", owner)
+    params = ChatStreamRequest(question="q", user_id="7", query_user_id="9", session_id="s")
+    assert asyncio.run(turn._agent_kwargs(params, may_write=False))["may_write"] is False
+
+
+def test_a_date_answer_is_filed_only_with_the_askers_write_grant_on_that_record(monkeypatch):
+    pytest.importorskip("langchain_core")
+    import mirobody.collect as collect
+    from mirobody.agent import hitl
+
+    files = {"k-mum": {"user_id": "7", "query_user_id": "9"}, "k-other": {"user_id": "5", "query_user_id": "5"}}
+    filed = []
+
+    async def get_file(file_key, user_id=None):
+        return files.get(file_key)
+
+    async def set_date(owner, file_key, when):
+        filed.append((owner, file_key))
+        return {"report_date": "2026-01-06 00:00:00", "moved": 1, "skipped": 0}
+
+    monkeypatch.setattr(collect.FileDbService, "get_file_by_key", staticmethod(get_file))
+    monkeypatch.setattr(collect, "set_file_report_date", set_date)
+
+    out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum"], "2026-01-06", may_write=False))
+    assert filed == [] and "Nothing was filed" in out
+    out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum", "k-other"], "2026-01-06", may_write=True))
+    assert filed == [("9", "k-mum")] and "k-other: no such file" in out
+
+
+def test_a_share_link_that_is_not_a_uuid_never_reaches_the_database(monkeypatch):
+    from mirobody.agent.chat import session
+
+    async def execute_query(*args, **kwargs):
+        raise AssertionError("an id that cannot be a share link must not be looked up")
+
+    monkeypatch.setattr(session, "execute_query", execute_query)
+    answer = asyncio.run(session.get_shared_session_history("x' OR '1'='1"))
+    assert answer == {"code": -1, "msg": "Share session not found", "data": {}}
+
+
+def test_a_failed_read_of_a_shared_conversation_answers_with_a_sentence(monkeypatch):
+    from mirobody.agent.chat import session
+
+    async def execute_query(*args, **kwargs):
+        raise RuntimeError("SELECT session_id FROM th_session_share WHERE share_session_id = 'leak-7.31415'")
+
+    monkeypatch.setattr(session, "execute_query", execute_query)
+    answer = asyncio.run(session.get_shared_session_history("2f1c7a52-3c4e-4c5e-9a40-9d6c2c1d8b11"))
+    assert answer["code"] == -4 and "7.31415" not in answer["msg"] and "SELECT" not in answer["msg"]
+
+
+def _request(body: bytes = b"", query: bytes = b""):
+    from starlette.requests import Request
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return Request({"type": "http", "method": "POST", "path": "/api/x", "headers": [], "query_string": query,
+                    "client": ("127.0.0.1", 1)}, receive)
+
+
+def _reply(response) -> dict:
+    import json
+
+    return json.loads(response.body)
+
+
+def test_the_chat_service_replies_with_sentences_not_exception_text(monkeypatch):
+    from mirobody.agent.chat import service
+
+    _, response = asyncio.run(service._json_body(_request(b"{not json")))
+    assert _reply(response)["msg"] == "The request body is not valid JSON."
+
+    async def fails(*args, **kwargs):
+        raise RuntimeError("relation th_sessions: leak-7.31415")
+
+    monkeypatch.setattr(service, "get_session_summaries", fails)
+    monkeypatch.setattr(service, "beneficiary_users", fails)
+    chat = object.__new__(service.ChatService)
+    history = asyncio.run(service.ChatService.history_handler.__wrapped__(chat, _request(), "7"))
+    members = asyncio.run(service.ChatService.beneficiary_user_handler.__wrapped__(chat, _request(), "7"))
+    for response in (history, members):
+        assert _reply(response)["code"] == -1 and "7.31415" not in _reply(response)["msg"]
+
+
+def test_the_attachment_note_reads_report_dates_of_the_records_own_files_only(monkeypatch):
+    import json
+
+    import mirobody.utils as utils
+    from mirobody.agent.prompt import report_date_status
+
+    queries = []
+
+    async def execute_query(sql, params=None, **kwargs):
+        queries.append((sql, params))
+        if "user_id = :user_id" not in sql or params.get("user_id") != "7":
+            return [{"file_key": "k-someone-elses", "file_content": json.dumps({"date_source": "manual",
+                                                                                "report_date": "2020-02-02"})}]
+        return [{"file_key": "k-own", "file_content": json.dumps({"date_source": "extracted",
+                                                                   "report_date": "2026-01-06 00:00:00"})}]
+
+    monkeypatch.setattr(utils, "execute_query", execute_query)
+    note = asyncio.run(report_date_status("7", ["k-own", "k-someone-elses"]))
+    assert len(queries) == 1
+    assert note == "Report dates:\n- file_key=k-own: report date 2026-01-06 (found on the document)"
+
+
+class _DeclaresOneTool:
+    __tools__ = ("a_tool",)
+
+    def a_tool(self, q: str) -> dict:
+        """The tool.
+
+        Args:
+            q: what.
+        """
+        return {}
+
+    def zz_helper(self, x: str) -> dict:
+        """A public helper the allow-list keeps off `tools/list`."""
+        return {}
+
+
+class _DeclaresOneToolWithASchema:
+    __tools__ = ("a_tool",)
+    input_schema = {"type": "object", "properties": {"q": {"type": "string"}}}
+
+    async def a_tool(self, **kw) -> dict:
+        """The tool."""
+        return {}
+
+    async def type(self, **kw) -> dict:
+        """Not a tool."""
+        return {}
+
+
+@pytest.mark.parametrize("klass", [_DeclaresOneTool, _DeclaresOneToolWithASchema])
+def test_a_tool_class_publishes_exactly_the_methods_it_declares(klass):
+    pytest.importorskip("mcp")
+    from mirobody.mcp.tool import load_tools_from_class
+
+    assert sorted(load_tools_from_class(klass, __name__)) == ["a_tool"]
+
+
+def _mcp_request(body, *, secret: str = "", bearer: str = "abc"):
+    import json
+    from unittest.mock import MagicMock
+
+    request = MagicMock()
+    request.method = "POST"
+    request.url.path = "/mcp/x" if secret else "/mcp"
+    request.path_params = {"secret": secret} if secret else {}
+    request.headers = {"authorization": f"Bearer {bearer}", "host": "localhost"} if bearer else {"host": "localhost"}
+
+    async def read():
+        return body if isinstance(body, bytes) else json.dumps(body).encode()
+
+    async def as_json():
+        return json.loads(await read())
+
+    request.body = read
+    request.json = as_json
+    return request
+
+
+@pytest.fixture
+def mcp(monkeypatch):
+    """An MCP service whose bearer tokens are account 222's and whose personal
+    link reads account 111, with one tool that says whose record it read."""
+    pytest.importorskip("mcp")
+    import mirobody.mcp.service as service_module
+
+    async def bearer_subject(payload, *, mcp_resource="", decode=None):
+        return int(payload["sub"])
+
+    class Validator:
+        def verify_token(self, token):
+            return {"sub": "222"}, None
+
+    monkeypatch.setattr(service_module, "bearer_subject", bearer_subject)
+    monkeypatch.setattr(service_module, "get_jwt_token", lambda request: request.headers.get("authorization", ""))
+    svc = service_module.McpService(token_validator=Validator(), name="t", version="0")
+    gated: list[str] = []
+
+    async def resolve_secret(secret):
+        return "111"
+
+    async def gate(user_id):
+        gated.append(user_id)
+        return set()
+
+    async def whose(user_info, **_):
+        return {"success": True, "data": {"read": user_info["user_id"]}}
+
+    svc._resolve_secret_user = resolve_secret
+    svc._data_gated_tools = gate
+    svc._callable = {"whose": {"auth": True, "instance": whose, "parameters": {"user_info": None}}}
+    return svc, gated
+
+
+def _call(svc, body, **kwargs) -> dict:
+    import json
+
+    return json.loads(asyncio.run(svc.mcp_handler(_mcp_request(body, **kwargs))).body)
+
+
+def test_a_personal_link_reads_its_own_record_whatever_bearer_rides_with_it(mcp):
+    svc, gated = mcp
+    called = _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "whose", "arguments": {}}},
+                   secret="s")
+    assert called["result"]["structuredContent"] == {"read": "111"}
+    _call(svc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, secret="s")
+    assert gated == ["111"]
+
+
+def test_tools_list_on_bare_mcp_is_gated_for_the_bearers_account(mcp):
+    svc, gated = mcp
+    _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert gated == ["222"]
+
+
+@pytest.mark.parametrize("body", [b"null", b"5", b'"text"', b'[{"jsonrpc": "2.0", "id": 1, "method": "ping"}]'],
+                         ids=["null", "number", "string", "batch"])
+def test_a_body_that_is_not_an_object_is_an_invalid_request_not_a_500(mcp, body):
+    svc, _ = mcp
+    assert _call(svc, body, bearer="")["error"]["code"] == -32600
+
+
+@pytest.mark.parametrize("arguments", [["a"], "text", 5])
+def test_tool_arguments_that_are_not_an_object_are_refused(mcp, arguments):
+    svc, _ = mcp
+    answer = _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                         "params": {"name": "whose", "arguments": arguments}})
+    assert answer["error"]["code"] == -32602
+
+
+@pytest.mark.parametrize("member", [None, 222, "222"])
+def test_a_personal_link_request_takes_a_member_id_as_number_null_or_text(mcp, member):
+    svc, _ = mcp
+    caller, subject, refusal = asyncio.run(svc._personal_mcp_subject(_mcp_request({"user_id": member})))
+    assert (caller, subject, refusal) == ("222", "222", None)

@@ -29,6 +29,8 @@ from typing import Any
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import tool
 
+from mirobody.kernel.ops import is_driver_exception
+
 from .wire.blocks import INTERRUPT
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,8 @@ def ask_user(question: str, options: list[str] | None = None,
 
 
 _KEEP_WORDS = ("今天", "today", "keep", "上传日", "upload")
+#: A keep-word said to be NOT the answer: "不是今天，是上周三", "not today".
+_NEGATED_KEEP = re.compile(r"(不是|不按|不要|别按|并非|\bnot|n't)\s*(?:the\s+)?(今天|today|keep|上传日|upload)")
 _YMD = re.compile(r"(20\d{2})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})")
 _MD = re.compile(r"(?<!\d)(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?")
 
@@ -67,9 +71,11 @@ def parse_date_answer(answer: str, today: datetime | None = None) -> tuple[str, 
     ("unclear", None).
 
     A full date wins over the keep-words, so "不是今天，是2026-01-06" files
-    under the date; "就按今天（2026-09-03）" (the option the model offers) 
-    reads as keep because the only date in it IS today. A month-day without a
-    year is this year's."""
+    under the date; "就按今天（2026-09-03）" (the option the model offers)
+    reads as keep because the only date in it IS today. A keep-word that is
+    negated ("不是今天，是上周三") is not a keep: with no date the answer is
+    unclear, where it used to file under the upload day. A month-day without
+    a year is this year's."""
     text = (answer or "").strip()
     today = today or datetime.now()
     m = _YMD.search(text)
@@ -81,7 +87,8 @@ def parse_date_answer(answer: str, today: datetime | None = None) -> tuple[str, 
         if dt.date() == today.date() and any(w in text.lower() for w in _KEEP_WORDS):
             return "keep", None
         return "date", dt
-    if any(w in text.lower() for w in _KEEP_WORDS):
+    lowered = text.lower()
+    if not _NEGATED_KEEP.search(lowered) and any(w in lowered for w in _KEEP_WORDS):
         return "keep", None
     m = _MD.search(text)
     if m:
@@ -92,35 +99,39 @@ def parse_date_answer(answer: str, today: datetime | None = None) -> tuple[str, 
     return "unclear", None
 
 
-async def apply_report_date_answer(user_id: str, file_keys: list[str], answer: str) -> str:
+async def apply_report_date_answer(subject_id: str, file_keys: list[str], answer: str, *,
+                                   may_write: bool) -> str:
     """File the attachments under the user's answer; return the tool result
-    the resumed model reads. Authorization per file, the endpoint's rule."""
+    the resumed model reads.
+
+    Only files of `subject_id`'s record, the one this turn is about, and only
+    when the asker may change it (`may_write`, resolved per turn by the chat
+    layer): the grant `POST /health-indicators/file-date` asks for. Checking
+    the subject's own grant instead let a read-only care-circle member
+    redate someone else's readings."""
     from mirobody.collect import FileDbService
     from mirobody.collect import set_file_report_date
-    from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 
     kind, when = parse_date_answer(answer)
     if kind == "unclear":
         return (f"The user replied: {answer!r} — not a date. Nothing was filed; "
                 "ask again with a clearer question if the date still matters.")
+    if not may_write:
+        return (f"The user replied: {answer!r}. Nothing was filed: this account may read "
+                "this record but not change it.")
 
     lines = []
     for key in file_keys or []:
         row = await FileDbService.get_file_by_key(key)
-        if not row:
+        owner = str(row.get("query_user_id") or row.get("user_id")) if row else ""
+        if owner != str(subject_id):
             lines.append(f"- {key}: no such file in this user's record")
             continue
-        owner = str(row.get("query_user_id") or row.get("user_id"))
-        if owner != str(user_id):
-            try:
-                await resolve_subject(user_id, owner, require_write=True)
-            except CareCircleDenied:
-                lines.append(f"- {key}: no such file in this user's record")
-                continue
         try:
             result = await set_file_report_date(owner, key, when)
         except Exception as e:
-            logger.error(f"[ask_user] set_file_report_date failed for {key}: {e}", exc_info=True)
+            logger.error("[ask_user] filing a report date failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             lines.append(f"- {key}: could not be updated")
             continue
         if when is None:
@@ -179,7 +190,8 @@ def interrupt_block(interrupts: Any) -> dict[str, Any] | None:
     }
 
 
-async def pending_answer(agent: Any, config: dict, messages: Any, user_id: str = "") -> str | None:
+async def pending_answer(agent: Any, config: dict, messages: Any, user_id: str = "", *,
+                         may_write: bool = False) -> str | None:
     """The user's message as the answer to an open `ask_user`, if one is open.
 
     A thread paused on an interrupt has a next node to run and an interrupt on
@@ -188,16 +200,16 @@ async def pending_answer(agent: Any, config: dict, messages: Any, user_id: str =
     "this is a resume": the checkpointer's state does.
 
     When the open question asked which date attachments are from
-    (`report_date_for`), the answer is applied here and what comes back is
-    the tool result the model reads: the filing already done, no second
-    tool call (this module).
+    (`report_date_for`), the answer is applied here, to `user_id`'s record
+    and only when `may_write`, and what comes back is the tool result the
+    model reads: the filing already done, no second tool call (this module).
     """
     if not config.get("configurable", {}).get("thread_id"):
         return None
     try:
         state = await agent.aget_state(config)
     except Exception as e:
-        logger.debug(f"no thread state to resume: {e}")
+        logger.debug("no thread state to resume: error_type=%s", type(e).__name__)
         return None
     if not getattr(state, "next", None):
         return None
@@ -217,5 +229,5 @@ async def pending_answer(agent: Any, config: dict, messages: Any, user_id: str =
         return None
     file_keys = pending_report_date_files(interrupts)
     if file_keys and user_id:
-        return await apply_report_date_answer(str(user_id), file_keys, answer)
+        return await apply_report_date_answer(str(user_id), file_keys, answer, may_write=may_write)
     return answer

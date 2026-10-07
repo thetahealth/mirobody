@@ -13,7 +13,7 @@ What a turn has:
 | tools | [`tools/`](./tools/) via [`tool_loader.py`](./tool_loader.py) | the four record tools, each schema passed through verbatim, the same ones an MCP client sees over `/mcp`; the three terminology tools stay MCP-only (`tool_loader._MCP_ONLY_TOOLS`) |
 | virtual filesystem | [`filesystem/`](./filesystem/) — `backend.py`, `files_backend.py`, `profile_backend.py` | `/uploads`, `/library`, `/memories` — read-only projections of the tables that own the data |
 | REPL | `langchain-quickjs` | the `eval` tool, with the read-only data tool reachable inside it |
-| memory | [`checkpointer.py`](./checkpointer.py) | LangGraph Postgres checkpointer, `thread_id = session_id` |
+| memory | [`checkpointer.py`](./checkpointer.py) | LangGraph Postgres checkpointer, one thread per asker and session (`thread_for`) |
 | governance | [`middleware/`](./middleware/) | fault containment, retry refusal keyed on the envelope, prompt caching; plus the model-call and tool-call budgets |
 | one question | [`hitl.py`](./hitl.py) | `ask_user`, the human-in-the-loop interrupt (never an MCP tool) |
 | prompt | [`prompts/mirobody.jinja`](./prompts/mirobody.jinja), [`prompt.py`](./prompt.py) | names only tools the harness provides — the local suite fails otherwise |
@@ -36,12 +36,13 @@ PROMPTS:
   - agent/prompts/mirobody.jinja   # path, or path@name; the first is the default
 ALLOWED_TOOLS:        # whitelist, or
 DISALLOWED_TOOLS:     # blacklist (`eval` here turns the REPL off)
-DEFAULT_MODEL:     # else: the entry whose key is present
+DEFAULT_MODEL:     # used when ready; else the first entry whose key is present
 AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 ```
 
-`/api/models` lists the `MODELS` entries whose key resolves, as bare names.
-A chat request picks one with `provider`.
+`/api/models` lists the `MODELS` entries whose key resolves, as bare names,
+the default first (`registry.default_model`, which `mirobody doctor --probe`
+tests too). A chat request picks one with `provider`.
 
 ## Replacing the agent
 
@@ -62,7 +63,7 @@ class MyAgent:
     def __init__(self, **kwargs): ...          # MODELS / PROMPTS / tool lists + the turn's values
 
     @classmethod
-    def load_llm_clients(cls, providers: dict) -> dict:   # optional; {name: client}
+    def load_llm_clients(cls, models: dict) -> dict:      # optional; {name: client}
         return {}
 
     async def generate_response(self, user_id: str, messages: list[dict], **kwargs):
@@ -70,13 +71,14 @@ class MyAgent:
 ```
 
 `**kwargs` is not optional: `language`, `session_id`, `file_list`, `provider`,
-`prompt_name`, `timezone`, `token` and `record_owner` arrive that way, and the
-chat layer may add one without breaking a plugin that predates it. `user_id` is
-the person the turn is ABOUT — the care-circle target when someone asks on
-another's behalf — and is already authorised; `record_owner` is that person's
-name then, and `""` on the asker's own record. `messages` carries ONLY this turn: conversation
-state is the agent's own (the shipped one keys a LangGraph checkpointer on
-`session_id`).
+`prompt_name`, `timezone`, `record_owner` and `may_write` arrive that way, and
+the chat layer may add one without breaking a plugin that predates it.
+`user_id` is the person the turn is ABOUT — the care-circle target when someone
+asks on another's behalf — and is already authorised; `record_owner` is that
+person's name then, and `""` on the asker's own record; `may_write` says
+whether the asker may change that record. `messages` carries ONLY this turn:
+conversation state is the agent's own (the shipped one keys a LangGraph
+checkpointer on `session_id`).
 
 Every other agent runtime — Claude Code, Codex, Cursor, Claude Desktop, a Responses-API loop of
 your own — is meant to reach the same data through `/mcp`, and needs nothing

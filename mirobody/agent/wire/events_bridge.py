@@ -14,8 +14,8 @@ The pieces are composable on purpose. `messages_chunk_events` and
 `updates_item_events` are the whole conversion; `text_events`,
 `tool_call_events`, `tool_result_event`, `interrupt_event` and `result_status`
 are its parts, for a renderer that needs the raw message beside the event
-(this repository's ``queryDetail`` passes a tool result's content through
-verbatim, multimodal blocks included).
+(this repository's `tool_result` block passes a tool result's content
+through verbatim, multimodal blocks included).
 """
 
 from __future__ import annotations

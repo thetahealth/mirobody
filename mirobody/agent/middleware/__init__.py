@@ -10,6 +10,8 @@ Mirobody-specific middleware on top of the deepagents stack:
   becomes an error ToolMessage + retry instead of silently ending the turn.
 - `EmptyAnswerRepairMiddleware`: a reply with no answer text and no tool call
   is asked for once more instead of ending the turn blank.
+- `ModelCallBudgetMiddleware`: the turn's model-call budget, whose last call
+  is made without tool calls and asked for the answer.
 - `RetryGovernanceMiddleware`: a call that already failed unrecoverably is
   refused before it runs again (`mirobody.kernel.tools.RetryLedger`).
 - `NoVisionReadMiddleware`: for a model that cannot see, `read_file` answers an
@@ -24,6 +26,7 @@ back, so there is no `write_todos` tool.
 """
 
 from .empty_answer import EmptyAnswerRepairMiddleware
+from .model_budget import ModelCallBudgetMiddleware
 from .prompt_caching import UniversalPromptCachingMiddleware
 from .genotype_row_guard import GenotypeRowGuardMiddleware
 from .genotype_summarization import GenotypeSafeSummarizationMiddleware
@@ -34,6 +37,7 @@ from .tool_faults import InvalidToolCallRepairMiddleware, ToolFaultMiddleware
 __all__ = [
     "EmptyAnswerRepairMiddleware",
     "InvalidToolCallRepairMiddleware",
+    "ModelCallBudgetMiddleware",
     "GenotypeRowGuardMiddleware",
     "GenotypeSafeSummarizationMiddleware",
     "NoVisionReadMiddleware",
