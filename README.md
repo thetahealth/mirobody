@@ -65,6 +65,10 @@ With a model key, Docker is the only requirement: no Python, Node.js, GPU or Git
 
 **Which key.** Any one of these runs every surface: [OpenRouter](https://openrouter.ai/keys) (`OPENROUTER_API_KEY`), [OpenAI](https://platform.openai.com/api-keys) (`OPENAI_API_KEY`), [Gemini](https://aistudio.google.com/apikey) (`GOOGLE_API_KEY`), [Anthropic](https://platform.claude.com/settings/keys) (`ANTHROPIC_API_KEY`), DeepSeek, DashScope, or any OpenAI-compatible gateway through `<PROVIDER>_BASE_URL`. [`config.llm.yaml`](config.llm.yaml) names the variable (`api_key: OPENROUTER_API_KEY`), never the secret; `mirobody doctor` prints what each surface selected.
 
+**Which model.** [docs/model-choice.md](docs/model-choice.md) puts the two local sizes beside DeepSeek V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on the same questions, documents and journal sentences: how good the answers are, how fast, what they cost, and who reads your health data in each case.
+
+**Coming in 1.6.0: a Mirobody model.** Small and fast enough for an ordinary computer, post-trained for Mirobody's own tools and documents, and served by llama.cpp like the others: the best fit for this harness, so that a fully private deployment needs nothing more than an ordinary computer.
+
 → [Self-host guide](https://docs.mirobody.ai/en/self-host) · [Configuration](https://docs.mirobody.ai/en/configuration) · [Deploy on a server](https://docs.mirobody.ai/en/deployment/production)
 
 ## What you get

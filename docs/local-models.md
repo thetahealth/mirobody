@@ -25,6 +25,10 @@ Vulkan, CUDA, ROCm, Metal). One server serves them all:
 router mode, and each model downloads from Hugging Face the first time it is
 asked for.
 
+Whether to run locally at all, and how the two sizes compare with DeepSeek
+V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on the same evaluation, is
+[model-choice.md](model-choice.md).
+
 ## Choose a size
 
 The setup page offers the same two, with these figures. Download is the
@@ -33,7 +37,7 @@ GGUF files the preset fetches, document reader included; memory is the most
 
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 28 s median, Apple M1 Pro 16 GB | read as its OCR text | 16 of 24 questions passed, 14 with every expected fact |
+| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 28 s median, Apple M1 Pro 16 GB | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 24 of 31 journal entries |
 | **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | about 20 GB | about 2 min, Apple M4 Pro 48 GB | looked at | 16 of 16 earlier questions with no number the record lacks (a different question set) |
 
 Small runs on any computer with 16 GB of memory and no GPU, Windows, Linux or
@@ -171,6 +175,40 @@ on compose's own network.
 means Docker could not see the checkout, and mounted an empty directory where
 the preset should be. Colima shares only your home directory by default; keep
 the checkout under it, or add the path to colima's `mounts`.
+
+## The document reader
+
+GLM-OCR-0.9B reads documents at every size. Three small OCR models that
+upstream llama.cpp serves were run through the product's whole extraction
+path on synthetic reports ([`benchmarks/local_ocr/`](../benchmarks/local_ocr/README.md)):
+of 303 printed rows, GLM-OCR stored 283 with the printed value (302 with the
+generator's "SYNTHETIC SAMPLE" banner removed, as on a real report) and none
+the page does not print; PaddleOCR-VL-1.6 278 (282), with 12 (8) the page does
+not print; MinerU2.5-Pro 279 (299), with 3 (4). Of 301 handwritten rows they
+stored 99, 62 and 55 (219, 136 and 171 without the banner). GLM-OCR stays the
+default; [model-choice.md](model-choice.md#the-document-reader-glm-ocr-09b)
+has the whole table and the reasons.
+
+PaddleOCR-VL-1.6 is in the preset as `[paddleocr-vl]` (Apache-2.0, 1.8 GB
+with its vision projector), and since 1.5.4 the product reads its answers'
+OTSL tables and LaTeX units. Its prompts are not GLM-OCR's, so
+`LOCAL_OCR_MODEL=paddleocr-vl` alone is not enough: the `local-ocr` entry of
+`config.llm.yaml` needs both changes:
+
+```yaml
+  local-ocr:
+    model: paddleocr-vl           # the preset's section
+    ocr_prompts:
+      text: "OCR:"                # its own task prompts, from its model card
+      tables: "Table Recognition:"
+```
+
+A source install reads the checkout's file; the Docker image carries its own,
+so mount the edited one for `mirobody` and `mirobody_worker` in a
+`compose.override.yaml` ([model-choice.md](model-choice.md#health-data-on-openrouter)
+shows it), then `docker compose up -d` and `doctor --probe`.
+Expect more rows in its OCR text, and on handwriting its passes looping to the
+token cap (7 of 28 pages) and rows the page does not print.
 
 ## Check it
 

@@ -65,6 +65,10 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 
 **用哪把 key。** 下面任何一把都能把整套跑通：[OpenRouter](https://openrouter.ai/keys)（`OPENROUTER_API_KEY`）、[OpenAI](https://platform.openai.com/api-keys)（`OPENAI_API_KEY`）、[Gemini](https://aistudio.google.com/apikey)（`GOOGLE_API_KEY`）、[Anthropic](https://platform.claude.com/settings/keys)（`ANTHROPIC_API_KEY`）、DeepSeek、DashScope，或者任何 OpenAI 兼容网关（`<PROVIDER>_BASE_URL`）。[`config.llm.yaml`](config.llm.yaml) 写的是变量名（`api_key: OPENROUTER_API_KEY`），不是密钥本身；`mirobody doctor` 会列出每一环选中了什么。
 
+**用哪个模型。** [docs/model-choice.zh-CN.md](docs/model-choice.zh-CN.md) 把本地两种大小和 DeepSeek V4.1 Flash、Claude Sonnet 5.5、GPT-6 Luna 放在同样的题目、文档和日记句子上比：答得多好、多快、花多少钱，以及每种情况下谁会读到你的健康数据。
+
+**1.6.0 预告：Mirobody 自己的模型。** 足够小、足够快，普通电脑就能跑，针对 Mirobody 自己的工具和文档做了后训练，和其他模型一样由 llama.cpp 提供服务：最适合这套 harness 的模型，让完全私密的部署只需要一台普通电脑。
+
 → [自部署指南](https://docs.mirobody.ai/zh/self-host) · [配置](https://docs.mirobody.ai/zh/configuration) · [部署到服务器](https://docs.mirobody.ai/zh/deployment/production)
 
 ## 你会得到什么

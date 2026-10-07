@@ -54,8 +54,8 @@
   documents, and one of two models answers, picked on the setup page by what
   each downloads and needs. MiniCPM5-2B, the default: 3.0 GB with the
   reader, 5.7 GB of memory at most, 28 s a median answer on a 16 GB M1 Pro,
-  16 of 24 evaluation questions passed and 14 answered with every expected
-  fact. Qwen3.8-27B: 14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of
+  19 of 24 evaluation questions passed, all 140 printed rows of 12 documents
+  stored and 24 of 31 journal entries written. Qwen3.8-27B: 14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of
   16 earlier test questions with no number the record lacks, about two
   minutes an answer, 27 of 27 demo readings. `docker compose --profile
   local` (NVIDIA) or `--profile local-cpu` runs it next to the app. Each
@@ -64,10 +64,38 @@
   16 GB Mac's disk with swap. Both slots of a model share one KV pool
   (`kv-unified`), so one long question can use the whole context: split, a
   32k model answered in a 16k slot and two evaluation questions ended in
-  `ContextOverflowError`, at the same memory. The evaluation, its seed and how to rerun it
+  `ContextOverflowError`, at the same memory. A local reply stops at 6,144
+  tokens (the `local` entry's `max_tokens`): nothing below the context
+  bounded it, and on the evaluation MiniCPM5-2B wrote on after two questions'
+  tool results until the 600 s timeout; a chart answer with its reasoning is
+  about 2k tokens. The evaluation, its seed and how to rerun it
   are in `benchmarks/local_models/`; `docs/local-models.md` is the guide.
   The models download from Hugging Face the first time; `HF_ENDPOINT` in
   `.env` points the `llama` service at a mirror.
+- **A guide to choosing a model, and the two evaluations behind it.** No page
+  compared the local sizes with hosted models on the same cases, or said
+  what each costs and who reads the health data with it: the figures were
+  spread over `config.llm.yaml`'s comments and `docs/local-models.md`, the
+  hosted models had last been run on September's eight questions, and
+  `docs/local-models-roadmap.md` still named Qwen3.8-27B as 1.5.4's default.
+  `docs/model-choice.md`, in English and Chinese, puts MiniCPM5-2B and
+  Qwen3.8-27B beside DeepSeek V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on
+  the same 24 questions, 12 documents and 15 journal sentences, asked through the product's API of a synthetic record
+  (mirobody-gen, seed 7) and graded by Claude Code against a published
+  rubric. It says what leaves the machine in each mode, including GLM-OCR on
+  the machine with a cloud model answering; how to keep OpenRouter to
+  zero-data-retention hosts, one host per model; what an answer and a
+  hundred documents cost; and it previews the Mirobody model 1.6.0 will ship.
+  `benchmarks/local_models/` and `benchmarks/local_ocr/` are the two
+  evaluations, with cases, results, every grade's reason and the commands
+  to rerun them. The OCR one is why GLM-OCR stays the reader: 283 of 303
+  printed rows stored right, 302 without the generator's banner, and none
+  the page does not print (PaddleOCR-VL-1.6 278 and 12, MinerU2.5 279 and
+  3). PaddleOCR-VL is the preset's option, switched as
+  `docs/local-models.md` now says. The roadmap names the small size as the
+  default and marks which of its harness steps 1.5.4 took. To tell: the
+  README's "Which model" line links the guide, and `docs/README.md` and
+  `benchmarks/README.md` list all three.
 - **A table is read by its header, without a model**, when a document-OCR
   model is routed (the local setup). Rows under a header the rules know
   (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first
@@ -152,12 +180,18 @@ decisions.
   `claude-sonnet-5-5`; `openai` runs `gpt-6-sol` and `openai-utils`
   `gpt-6-luna`, both at `reasoning_effort: none`, the only effort at which
   GPT-6 takes a function tool on Chat Completions or a `temperature`.
-  GPT-6.1 Sol is not the `openai` entry because OpenAI serves its tool calls
-  only on the Responses API, and the agent speaks Chat Completions; it is the
-  `gpt` entry, on OpenRouter, which carries them.
+  The `gpt` entry, on OpenRouter, runs `openai/gpt-6-luna`: on the
+  evaluation in `benchmarks/local_models/` it graded 237 of 248 and was the
+  cheapest model measured ($0.0009 an answer), never rate-limited. It named
+  GPT-6.1 Sol, whose tool calls OpenAI serves only on the Responses API (the
+  agent speaks Chat Completions, so 6.1 Sol is not the `openai` entry), but
+  even pinned to Azure, OpenRouter kept 6.1 Sol rate-limited upstream (9 of
+  24 questions needed up to four retry rounds and one never got through; 50
+  of 140 document rows were never stored), at about 20 times Luna's price.
   `openrouter-utils` asks Gemini 3.8 Flash for `low` reasoning, not `minimal`,
   which Google documents as an error on that model; `claude-sonnet` and `gpt`
-  drop a `temperature` that Sonnet 5.5 and GPT-6.1 Sol do not take. Still each
+  send no `temperature`: Sonnet 5.5 answers 400 to a non-default one, and
+  OpenAI's GPT-6 guide says to remove it. Still each
   vendor's newest, so unchanged: `qwen3.8-flash`, `gemini-3.8-flash`,
   `deepseek-flash` (DeepSeek V4.1 Flash), `claude-haiku-4-5-20251001`. A model
   set through an entry's `model_env` variable is kept. To tell: `mirobody

@@ -9,17 +9,29 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
 
 ## Conclusion
 
-- **Today's default** (1.5.4) is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB) for the
-  agent and GLM-OCR-0.9B (1.4 GB) for documents, both on llama.cpp. Its answers
-  are as correct as a hosted model's on our questions, but it needs about 20 GB
-  of memory: a Mac with 32 GB, or a GPU with 24 GB.
-- **The goal** is two small models post-trained for Mirobody:
-  **MiniCPM5-2B** as the agent and **GLM-OCR-0.9B** for documents, about 3 GB
-  together, which runs in 8 to 16 GB of memory and without a GPU. Two models,
-  not one merged model, and the harness changes first (below).
-- **Photos**: GLM-OCR reads printed text and tables, nothing else. Understanding
-  what a photo shows, such as the calories on a plate or a rash, needs a model
-  that sees. The small pair will not, and Mirobody says so rather than guess.
+- **Today's default** (1.5.4) is the small size: **MiniCPM5-2B** (Q4_K_M,
+  1.6 GB) answers and **GLM-OCR-0.9B** (1.4 GB) reads documents, 3.0 GB
+  together on llama.cpp, in 16 GB of memory with no GPU. On the evaluation now
+  published in [`benchmarks/local_models/`](../benchmarks/local_models/README.md)
+  it passes 19 of 24 questions (Claude Code grade 209 of 248), stores all
+  140 printed rows of its 12 documents and writes 24 of 31 journal entries; before 1.5.4's
+  harness changes ([below](#first-the-harness)) it passed 16 of 24 questions,
+  stored 45 of 140 printed rows and wrote none of 31 journal entries.
+- **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), measured below:
+  as correct as a hosted model on our questions, and it sees photos, but it
+  needs about 20 GB of memory: a Mac with 32 GB, or a GPU with 24 GB.
+- **1.6.0 ships the goal**: the same two small models post-trained for
+  Mirobody, as Mirobody's own model ([Then, training](#then-training)), about
+  3 GB together, in 8 to 16 GB of memory and without a GPU. Two models, not
+  one merged model. It replaces the default only when it passes the same
+  evaluation as the model it replaces.
+- **Photos**: GLM-OCR reads printed text and tables, nothing else.
+  Understanding what a photo shows, such as the calories on a plate or a
+  rash, needs a model that sees: the large size, or a hosted one. The small
+  pair does not, and Mirobody says so rather than guess.
+- **Beside hosted models**: [model-choice.md](model-choice.md) puts both
+  sizes next to DeepSeek V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on
+  the same cases, with what each costs and who reads the data.
 
 ## What was measured
 
@@ -33,7 +45,7 @@ the database, and every "high" or "normal" against the range the report printed.
 
 | Model | Size | Runs passed | Numbers not in the record | Judged against the printed range | Median / p90 per answer | Sees images |
 | --- | --- | --- | --- | --- | --- | --- |
-| Qwen3.8-27B GSQ-RCO IQ3_S (default) | 13.0 GB | 16/16 | 0 | once said a report printed no range (readings now carry it) | 134 / 216 s | yes |
+| Qwen3.8-27B GSQ-RCO IQ3_S (the large size) | 13.0 GB | 16/16 | 0 | once said a report printed no range (readings now carry it) | 134 / 216 s | yes |
 | Qwen3.8-27B GSQ-RCO IQ2_S | 9.6 GB | 16/16 | 0 | yes | 109 / 224 s (machine under load) | with its mmproj (not tested) |
 | Qwen3.8-27B Q4_K_M on Ollama | 17 GB | 16/16 | 0 | yes | 99 / 234 s | yes |
 | Ternary-Bonsai-2-27B (PrismML's llama.cpp fork) | 6.6 GB | 16/16 | 0 | yes | 132 / 410 s | not tested |
@@ -43,9 +55,11 @@ the database, and every "high" or "normal" against the range the report printed.
 | MiMo-V2.6-Distill-Qwen-9B Q4_K_M | 5.4 GB | 10/16 | in 4 of 10 answers with data | not reached | 23 / 736 s | not tested |
 | Hosted (Claude Sonnet 5, GPT-5.6, Qwen3.8-flash) | | 16/16 each | | | 9–23 s | yes |
 
-Timings compare only within one session on one machine. The evaluation harness
-that produced these is not in the repository yet; publishing it under
-`benchmarks/` is the first step of the plan.
+Timings compare only within one session on one machine. The harness that
+produced these was never published; the evaluation that replaced it is
+[`benchmarks/local_models/`](../benchmarks/local_models/README.md): 24
+questions, 12 documents and 15 journal sentences through the product's own
+API, with cloud references run beside the local sizes.
 
 ### MiniCPM5-2B, in detail
 
@@ -98,26 +112,61 @@ question is about the picture.
 ### First, the harness
 
 These help every model, hosted ones included, and leave a small model less to
-get wrong:
+get wrong. Where 1.5.4 left each:
 
 1. **Arithmetic in the tool.** Means, monthly means, differences and trends
-   come back computed; the model reports them.
+   come back computed; the model reports them. *In place*: `view="stats"`
+   returns the count, minimum, maximum, mean, the first and last readings with
+   their days and the change between them, and `view="month"` the monthly
+   means; 1.5.4 made stats' days the readings' local days, and day, week and
+   month answers say how a day is counted. What remains is the model using
+   them: in the 2026-10-06 evaluation the small size averaged raw rows itself
+   on two questions (`p002-rhr-monthly`, `p003-weight-change`).
 2. **Dates in the tool.** "The past three months" becomes a parameter the
-   server resolves, so the model never computes a date.
+   server resolves, so the model never computes a date. *Remains.*
 3. **Charts cite the tool's rows.** The chart takes its points from the tool
    result instead of the model writing each one; the 92 invented points were
-   written by hand.
+   written by hand. *Remains*: the model still writes the points. 1.5.4 only
+   has the web client draw a chart with a stray brace, or say it could not.
 4. **Every number checked before it is shown.** A number in an answer that no
    tool result or document contains is flagged, and the answer regenerated.
+   *Remains*: the evaluation's `score.py` counts such numbers after the fact;
+   the product does not check them.
 5. **A shorter prompt for small models**, measured the way the prompt in
-   `benchmarks/local_agent/` was.
+   `benchmarks/local_agent/` was. *Remains* for the agent. The journal's
+   request now opens with two worked answers; between the two evaluations
+   MiniCPM5-2B's journal went from 0 of 31 entries to 24 of 31.
+
+Also in 1.5.4, and not on the list (each in the [CHANGELOG](../CHANGELOG.md)):
+
+- a table is read by its header with no model, from the printed page or from
+  an OCR model's grid, and the text model gets only what the rules leave,
+  told it is the rest of a medical report;
+- a long report is read a page at a time, and notes and logs give readings
+  with their rows' dates;
+- a looping extraction is bounded by its text and keeps its complete part;
+- a view asked for with no indicator answers with the catalogue, and minute
+  to month views keep the newest 92 points instead of flooding the context;
+- a keyword finds a reading whatever its unit and spelling (`FER`,
+  `haemoglobin`, a plural);
+- every JSON schema is closed, so OpenAI models read uploads and the journal;
+- a model's two slots share one KV pool, so one question can use the whole
+  context.
 
 ### Then, training
+
+This is what 1.6.0 ships, as Mirobody's own model
+([model-choice.md](model-choice.md#coming-in-160-a-mirobody-model)). P0 is
+where 1.5.4 leaves it: the harness changes above; the evaluation published in
+[`benchmarks/local_models/`](../benchmarks/local_models/README.md) and
+[`benchmarks/local_ocr/`](../benchmarks/local_ocr/README.md), with
+MiniCPM5-2B's baseline recorded (2026-10-06) and the cloud references beside
+it. Still to come: 200–500 questions split into train, dev and test.
 
 | Phase | Work | Passes when |
 | --- | --- | --- |
 | P0 | The harness changes above. The evaluation grows from 16 runs to 200–500 questions (languages, several people, date windows, photos), split into train, dev and test, with real reports held out for test, and is published under `benchmarks/` | MiniCPM5-2B's baseline is recorded |
-| P1 | Agent: the default 27B model answers the training questions through the real harness; only runs that pass every check are kept; LoRA fine-tuning of MiniCPM5-2B on them | the test split at the 27B model's level: every run passes, no number outside the record, judged against printed ranges |
+| P1 | Agent: the large 27B model answers the training questions through the real harness; only runs that pass every check are kept; LoRA fine-tuning of MiniCPM5-2B on them | the test split at the 27B model's level: every run passes, no number outside the record, judged against printed ranges |
 | P2 | Documents: GLM-OCR fine-tuned on rendered reports with phone-photo distortions (perspective, light, blur) to write rows of name, value, unit, range, flag and date | field accuracy and missed rows on the held-out real reports |
 | P3 | Reinforcement learning (GRPO) on what still fails, with the number check as the reward | no number outside the record on the test split |
 
@@ -126,7 +175,7 @@ What is already in place:
 - **Licences**: MiniCPM5-2B is Apache-2.0 and GLM-OCR's weights are MIT. Both
   publish fine-tuning routes (MiniCPM: TRL with PEFT, LLaMA-Factory, ms-swift,
   unsloth; GLM-OCR: a LLaMA-Factory guide).
-- **A teacher**: the default 27B model passes every run and judges against the
+- **A teacher**: the large 27B model passes every run and judges against the
   printed range.
 - **A reward that can be computed**: whether each number in an answer is in the
   record is checked mechanically, which also filters the teacher's runs.
@@ -142,8 +191,8 @@ the model it replaces.
 
 - **Understanding photos.** MiniCPM5-2B is text-only and GLM-OCR reads text.
   With the small pair, a meal photo is answered with a request to describe the
-  meal; photo understanding stays with a model that sees (the 27B default, or
-  a hosted key). A small vision model is a separate project.
+  meal; photo understanding stays with a model that sees (the large 27B size,
+  or a hosted key). A small vision model is a separate project.
 - **One merged model.** The two tasks need different data and different tests,
   and a regression in a merged model is hard to place. Mirobody already routes
   the agent and documents to separate entries, so two models drop in. A single

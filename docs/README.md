@@ -34,7 +34,10 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 | ③ | [walkthrough.md](walkthrough.md) | the four-minute care-circle walkthrough, all four scenes |
 | | [local-models.md](local-models.md) | running every model on your own machine: the two models, what they need, the start command per platform, and what each can read in a photo |
-| | [local-models-roadmap.md](local-models-roadmap.md) | the local models measured side by side, what GLM-OCR can and cannot read, and the plan for a ~3 GB post-trained pair |
+| | [local-models-roadmap.md](local-models-roadmap.md) | the local models measured side by side, what GLM-OCR can and cannot read, which harness steps 1.5.4 took, and the plan for the ~3 GB post-trained pair 1.6.0 ships |
+| | [model-choice.md](model-choice.md) | which model to run: the two local sizes beside DeepSeek V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on the same evaluation, what each costs, what leaves the machine in each mode, OpenRouter with zero data retention, and the 1.6.0 Mirobody model |
+| | [benchmarks/local_models/](../benchmarks/local_models/README.md) | the evaluation behind it: 24 questions, 12 documents and 15 journal sentences through the product's API on a synthetic record, every grade with its reason, and how to rerun it |
+| | [benchmarks/local_ocr/](../benchmarks/local_ocr/README.md) | GLM-OCR, PaddleOCR-VL-1.6 and MinerU2.5 end to end on synthetic printed and handwritten pages, and why GLM-OCR stays the document reader |
 | | [repository-layout.md](repository-layout.md) | the directory map and the two forms the code ships in (library vs application) |
 | | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
@@ -44,11 +47,11 @@ Start at [quickstart.md](quickstart.md) if you have not run it yet,
 specific subsystem, and [roadmap.md](roadmap.md) for known gaps and deferred
 work — each entry states the measurement that motivated it.
 
-The five guides `README.zh-CN.md` links also have Chinese editions, named
+The six guides `README.zh-CN.md` links also have Chinese editions, named
 `<guide>.zh-CN.md`: [provider-setup](provider-setup.zh-CN.md),
 [standardization](standardization.zh-CN.md), [walkthrough](walkthrough.zh-CN.md),
-[repository-layout](repository-layout.zh-CN.md) and
-[genetics](genetics.zh-CN.md). Edit the pair together, the
+[repository-layout](repository-layout.zh-CN.md),
+[genetics](genetics.zh-CN.md) and [model-choice](model-choice.zh-CN.md). Edit the pair together, the
 way the two READMEs are. Everything else here is English: these pages track the
 code closely, and a stale translation of a contributor guide is worse than none.
 
