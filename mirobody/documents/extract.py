@@ -18,7 +18,8 @@ Two things are the caller's:
 
 Extractor errors PROPAGATE. Whether a failed extraction is "no text, carry on"
 or a 422 is the caller's policy, not this module's; only "nothing here reads
-this kind" returns ``""``.
+this kind" returns ``""``. A PDF some of whose pages failed comes back as a
+`PartialText`, which is never cached, so the next upload of it reads them again.
 """
 
 from __future__ import annotations
@@ -59,6 +60,20 @@ TEXT_CHAR_CAP = 100_000
 #: Encodings a health document is actually saved in, in the order to try:
 #: utf-8-sig reads plain UTF-8 too and drops a BOM; GBK holds every GB2312 file.
 TEXT_ENCODINGS = ("utf-8-sig", "gbk")
+
+
+class PartialText(str):
+    """The text of a document some of whose pages could not be read, as a
+    `str` every caller reads as before. `extract_text` never caches one, and a
+    caller that stores text by content hash must not either: cached, the pages
+    that failed were never read again for the same bytes."""
+
+    missing_pages: tuple[int, ...]
+
+    def __new__(cls, text: str, missing_pages: tuple[int, ...]) -> PartialText:
+        partial = super().__new__(cls, text)
+        partial.missing_pages = missing_pages
+        return partial
 
 
 class TextCache(Protocol):
@@ -360,10 +375,12 @@ async def pdf_text(
 ) -> str:
     """A PDF's full text: each page's text layer, or (for a page whose layer is
     empty or too thin (a scan)) the OCR of the rendered page, concurrently.
-    Without an ``ocr`` the scanned pages are left out. A page that has a text
-    layer also gets its tables as HTML: the layer's own (`_layer_tables`)
-    where its characters lie in columns, else, with ``tables`` (an OCR model's
-    tables pass), that pass's reading of the rendered page.
+    Without an ``ocr`` the scanned pages are left out, and a page whose OCR
+    failed is too: the text is then a `PartialText` naming them. A page that
+    has a text layer also gets its tables as HTML: the layer's own
+    (`_layer_tables`) where its characters lie in columns, else, with
+    ``tables`` (an OCR model's tables pass), that pass's reading of the
+    rendered page.
 
     Measured on the 16 text-layer PDFs of the seed-7 corpus (979 printed rows,
     scored with benchmarks/local_ocr's own checks): the table rules read none
@@ -390,15 +407,15 @@ async def pdf_text(
                     texts[index] = f"{texts[index]}\n\n{found}"
 
         await asyncio.gather(*(_tables(i, png) for i, png in layered))
+    failed: list[tuple[int, Exception]] = []
     if to_ocr and ocr is not None:
-        failures: list[Exception] = []
 
         async def _one(index: int, png: bytes) -> None:
             async with gate:
                 try:
                     texts[index] = (await ocr(png, "image/png")).strip()
                 except Exception as exc:
-                    failures.append(exc)
+                    failed.append((index, exc))
                     logger.warning("pdf ocr: page failed: page_index=%d error_type=%s", index, type(exc).__name__)
 
         await asyncio.gather(*(_one(i, png) for i, png in to_ocr))
@@ -408,11 +425,13 @@ async def pdf_text(
         # document, and the cause (no vision provider, a model that cannot
         # read images) would be visible only in this log line (#68). That
         # case is the OCR's error, raised.
-        if len(failures) == len(to_ocr) and not any(texts):
-            raise failures[-1]
-    logger.info("pdf: page_count=%d ocr_page_count=%d table_page_count=%d layer_table_page_count=%d",
-                len(texts), len(to_ocr), len(layered), layer_table_pages)
-    return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
+        if len(failed) == len(to_ocr) and not any(texts):
+            raise failed[-1][1]
+    missing = sorted(i for i, _ in failed) if ocr is not None else [i for i, _ in to_ocr]
+    logger.info("pdf: page_count=%d ocr_page_count=%d missing_page_count=%d table_page_count=%d "
+                "layer_table_page_count=%d", len(texts), len(to_ocr), len(missing), len(layered), layer_table_pages)
+    text = "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
+    return PartialText(text, tuple(i + 1 for i in missing)) if missing else text
 
 
 # --- images ------------------------------------------------------------------------
@@ -605,8 +624,9 @@ async def extract_text(
 ) -> str:
     """The text of one document, by `detect.kind`; ``""`` when nothing here reads
     that kind (or ``kinds`` excludes it). Cached by content digest for the kinds
-    that cost a parser or a model call, never for plain text. The PDF knobs
-    (scan threshold, render DPI, OCR concurrency) pass through to `pdf_text`.
+    that cost a parser or a model call, never for plain text and never when
+    pages are missing (`PartialText`). The PDF knobs (scan threshold, render
+    DPI, OCR concurrency) pass through to `pdf_text`.
     """
     # The WebSocket upload (the only path the web client uses) accumulates
     # chunks into a `bytearray` (`file_upload_manager`), and pypdfium2 answers
@@ -639,6 +659,6 @@ async def extract_text(
         text = await xlsx_text(data)
     else:
         text = await office_text(data, which)
-    if key is not None and text:
+    if key is not None and text and not isinstance(text, PartialText):
         await cache.put(key, text)
     return text

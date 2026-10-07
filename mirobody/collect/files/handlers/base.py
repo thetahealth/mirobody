@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.documents.extract import PartialText
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
@@ -186,7 +187,9 @@ class BaseFileHandler(abc.ABC):
 
         Returns:
             Tuple of (original_text, content_hash), or (None, None) on empty
-            content / extraction failure.
+            content / extraction failure. A text with pages missing
+            (`PartialText`) comes without its hash: stored under it, it would
+            be what the next upload of these bytes reads instead of the pages.
         """
         try:
             await ctx.file.seek(0)
@@ -204,6 +207,10 @@ class BaseFileHandler(abc.ABC):
                 filename=ctx.filename,
                 content_type=ctx.content_type,
             )
+            if isinstance(original_text, PartialText):
+                logger.warning("text extracted with pages missing: message_id=%s missing_page_count=%d",
+                               ctx.message_id, len(original_text.missing_pages))
+                return original_text, None
             return original_text, content_hash
 
         except Exception as e:
