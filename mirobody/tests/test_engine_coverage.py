@@ -927,6 +927,37 @@ def test_a_chinese_length_word_is_no_metric_or_imperial_unit():
     assert abs(convert_value(12, "[in_us]", "[ft_us]") - 1) < 1e-12
 
 
+def test_every_conversion_factor_is_the_one_ucum_defines():
+    """The conversion table is written by hand and UCUM's own table ships
+    beside it, so every unit the table reads must convert by UCUM's ratio.
+    Energy, pressure and the US volumes had no factor at all: `kcal` to `kJ`
+    and `mmHg` to `kPa` came from a second, hand-copied table in
+    `translate.canonical_units`, and the MCP `convert_unit` refused both."""
+    import math
+
+    from mirobody.units import UCUM_FAMILY, conversion_factor, convert_value, convertible, scale
+    from mirobody.units.essence import magnitude
+
+    reference: dict[tuple, str] = {}
+    checked = 0
+    for unit in UCUM_FAMILY:
+        parsed = scale(unit)
+        ucum = magnitude(unit) if parsed else None
+        if ucum is None:
+            continue
+        ref = reference.setdefault(parsed[0], unit)
+        assert ucum[1] == magnitude(ref)[1], (unit, ref)
+        assert math.isclose(conversion_factor(unit, ref), ucum[0] / magnitude(ref)[0], rel_tol=1e-9), (unit, ref)
+        checked += 1
+    assert checked > 150
+    assert math.isclose(convert_value(1, "kcal", "kJ"), 4.184)
+    assert math.isclose(convert_value(120, "mm[Hg]", "kPa"), 15.99864)
+    # A temperature scale has an offset, so it converts without a factor.
+    assert convertible("[degF]", "Cel") and conversion_factor("[degF]", "Cel") is None
+    assert math.isclose(convert_value(98.6, "[degF]", "Cel"), 37.0)
+    assert math.isclose(convert_value(37.0, "Cel", "K"), 310.15)
+
+
 def test_free_prose_in_the_value_column_constrains_nothing():
     """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
     is the ABSENCE of a measurement rather than a claim about scale. Treating it

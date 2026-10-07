@@ -67,7 +67,6 @@ from mirobody.translate import (
     StandardIndicator,
     is_valid_indicator,
     get_standard_unit,
-    get_all_units_info
 )
 
 # Check if indicator is valid
@@ -84,10 +83,6 @@ value, unit = convert_to_standard(
     "lb"
 )
 # Returns: (70.1, "kg")
-
-# Get all unit information (frontend API)
-units_info = get_all_units_info()
-print(f"Total units: {units_info['total_units']}")
 ```
 
 ## 📊 Standard indicators — a sample

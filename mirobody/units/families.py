@@ -176,7 +176,7 @@ UCUM_FAMILY: dict[str, str] = {
 
     # ── Energy (Engy): caloric intake, exercise expenditure ──────────
     "kcal":         "Engy",
-    "cal":          "Engy",     # nutritional context: same as kcal usually
+    "cal":          "Engy",     # the small calorie; a food Calorie is kcal
     "J":            "Engy",
     "kJ":           "Engy",
     "MJ":           "Engy",

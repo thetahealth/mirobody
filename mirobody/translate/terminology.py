@@ -1,10 +1,11 @@
 """The terminology tools' bodies, shared by every surface that offers them.
 
 `resolve_indicator`, `normalize_unit` and `convert_unit` are served by the
-HTTP MCP server and the chat agent (`agent/tools/terminology_service.py`) and
-by the stdio server (`mcp/stdio.py`); `standardize_complaint` by the stdio
-server. The bodies live here so that one set of answers backs all of them:
-two copies of a tool drift, and a client cannot tell which one it met.
+HTTP MCP server (`agent/tools/terminology_service.py`; a chat turn does not get
+them, see `agent/tool_loader.py::_MCP_ONLY_TOOLS`) and by the stdio server
+(`mcp/stdio.py`); `standardize_complaint` by the stdio server. The bodies live
+here so that one set of answers backs all of them: two copies of a tool drift,
+and a client cannot tell which one it met.
 
 No user data, no network, no key: each answer comes from the vocabularies
 shipped in the package.
@@ -61,13 +62,9 @@ def normalize_units(units: list[str]) -> dict[str, Any]:
     return {"success": True, "message": f"{matched}/{len(results)} normalized", "results": results}
 
 
-#: The UCUM codes `normalize_unit` gives Fahrenheit, Celsius and kelvin.
-_TEMPERATURE_UCUM = frozenset({"[degF]", "Cel", "K"})
-
-
 def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "") -> dict[str, Any]:
     """One value between two units; `converted` is None when they do not convert."""
-    from mirobody.units import convert_value, normalize_unit
+    from mirobody.units import convert_value, normalize_unit, scale, unit_family
 
     src = normalize_unit(from_unit) or from_unit
     dst = normalize_unit(to_unit) or to_unit
@@ -85,14 +82,16 @@ def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "
     if converted is not None and not math.isfinite(converted):
         return {"success": False, "error": f"{value} {from_unit} is out of range in {to_unit}."}
     if converted is None:
-        # Temperature is refused by design (conversions here are a factor, and
-        # a temperature scale also has an offset), but the general reason below
-        # blamed percentages and molar mass for it.
-        if {src, dst} <= _TEMPERATURE_UCUM:
+        # Two units of one LOINC property where at least one has no parsed
+        # dimension (`kcal/(24.h)` and `kcal/d`) are a gap in the factor
+        # table, not two different things. Both parsed means the dimensions
+        # differ: `kg/m2` and `mg/dL` share `MCnc` and do not convert.
+        family = unit_family(src)
+        if family and family == unit_family(dst) and (scale(src) is None or scale(dst) is None):
             reason = (
-                "Temperature scales differ by an offset as well as a factor, and "
-                "this engine converts by factor only: °C = (°F − 32) × 5/9, and "
-                "K = °C + 273.15."
+                f"Both units measure the same kind of quantity (LOINC property {family}), "
+                "but this engine has no conversion factor between them yet. Report the "
+                "readings separately."
             )
         else:
             reason = (
