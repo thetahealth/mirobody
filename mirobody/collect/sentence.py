@@ -456,19 +456,31 @@ def _skip_reason(part: Part, haystack: str) -> str:
     return ""
 
 
+def blood_pressure(name: str, value: str) -> tuple[tuple[str, str], ...] | None:
+    """`((systolic name, number), (diastolic name, number))` when `name` says
+    blood pressure and `value` is a pair (`150/95`), else None. The names are
+    in the script `name` is in, and the vocabulary codes them 8480-6 and
+    8462-4. The table rules split a printed pair with this too, so a pair
+    typed into the journal and one printed in a report are the same two
+    readings."""
+    m = _BP_VALUE.match(value)
+    if not (m and _BP_NAME.search(name)):
+        return None
+    names = ("收缩压", "舒张压") if _CJK.search(name) else ("Systolic blood pressure", "Diastolic blood pressure")
+    return tuple(zip(names, m.groups(), strict=True))
+
+
 def _split_blood_pressure(parts: Sequence[Part]) -> list[Part]:
     """150/95 left as one value is two readings the model forgot to split.
     Split here, so a blood pressure never lands as one narrative value."""
     out: list[Part] = []
     for part in parts:
-        m = _BP_VALUE.match(part.value) if part.kind == KIND_MEASUREMENT else None
-        if not (m and _BP_NAME.search(part.name)):
+        pair = blood_pressure(part.name, part.value) if part.kind == KIND_MEASUREMENT else None
+        if pair is None:
             out.append(part)
             continue
-        zh = bool(_CJK.search(part.name))
-        names = ("收缩压", "舒张压") if zh else ("Systolic blood pressure", "Diastolic blood pressure")
         unit = part.unit or "mmHg"
-        out.extend(Part(**{**part.__dict__, "name": n, "value": v, "unit": unit}) for n, v in zip(names, m.groups(), strict=True))
+        out.extend(Part(**{**part.__dict__, "name": n, "value": v, "unit": unit}) for n, v in pair)
     return out
 
 
@@ -506,6 +518,7 @@ __all__ = [
     "RESPONSE_SCHEMA",
     "Skip",
     "available",
+    "blood_pressure",
     "mentions",
     "messages_for",
     "parts_from",

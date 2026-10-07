@@ -71,8 +71,11 @@ _READONLY = (
     "the workspace root (/) instead."
 )
 
-# `read_file`'s default `limit`, in lines. A read at the default returns the
-# whole document; only an explicit offset or limit slices it.
+# `aread`'s own default `limit`, in lines: a read at it returns the whole
+# document. deepagents' `read_file` always passes a limit of its own (100 lines
+# by default in 0.7.14, the floor, and in 0.7.19), so a model's read is a
+# window (`_text_read`), whole only when the model asks for 2000 lines from
+# line 1.
 _DEFAULT_READ_LIMIT = 2000
 # Cap for serving raw bytes back as base64 for a multimodal read. Beyond this we
 # return an error instead of base64-bombing the model context.
@@ -92,6 +95,38 @@ def _iso(value: Any) -> str:
             value = value.replace(tzinfo=UTC)
         return value.isoformat()
     return str(value or "")
+
+
+def _text_read(content: str, offset: int, limit: int, created: str, modified: str) -> ReadResult:
+    """A text read: all of `content` at the default limit, else lines `offset`
+    to `offset + limit` (`limit` 0: to the end).
+
+    A window that stops short of the end says so in a line after it. One that
+    just ends reads as the whole document: small-v3 read a 7-page check-up
+    book's lines 1-100, then 101-200, and answered that it had no physician
+    summary, which is on page 7 (benchmarks/local_models, 2026-10-07). The
+    window also goes in the fields deepagents prints above the text (`@@
+    lines 101-200 of 700 | next offset 200 @@`): without them it numbers the
+    window from the body it is handed, the notice counted as a document line.
+    A negative offset reads from line 1, as deepagents tells the model it did.
+    """
+    file_data = {"content": content, "encoding": "utf-8", "created_at": created, "modified_at": modified}
+    if not offset and limit == _DEFAULT_READ_LIMIT:
+        return ReadResult(file_data=file_data)
+    lines = content.splitlines()
+    offset = max(offset, 0)
+    shown = lines[offset: offset + limit] if limit else lines[offset:]
+    file_data["content"] = "\n".join(shown)
+    if not shown:
+        return ReadResult(file_data=file_data)
+    first, last, total = offset + 1, offset + len(shown), len(lines)
+    if last < total:
+        # After a blank line, past the window's last line: where deepagents
+        # expects a backend's own banner, and drops it when it cuts the window.
+        file_data["content"] += (f"\n\n[lines {first}–{last} of {total} shown; the document continues: "
+                                 f"call read_file with offset={last} to read on]")
+    return ReadResult(file_data=file_data, start_line=first, end_line=last, total_lines=total,
+                      next_offset=last if last < total else None)
 
 
 class PgFilesystemBackend(BackendProtocol):
@@ -375,14 +410,7 @@ class PgFilesystemBackend(BackendProtocol):
                         "encoding": "utf-8",
                         "created_at": created, "modified_at": modified}
                 )
-            if offset or limit != _DEFAULT_READ_LIMIT:
-                lines = content.splitlines()
-                sliced = lines[offset: offset + limit] if limit else lines[offset:]
-                content = "\n".join(sliced)
-            return ReadResult(
-                file_data={"content": content, "encoding": "utf-8",
-                           "created_at": created, "modified_at": modified}
-            )
+            return _text_read(content, offset, limit, created, modified)
 
         if ext in _IMAGE_EXTS and not self._supports_image:
             return await self._image_as_text(row, file_path, inline_text, created, modified)
@@ -425,15 +453,7 @@ class PgFilesystemBackend(BackendProtocol):
         else:
             content = inline_text
 
-        if offset or limit != _DEFAULT_READ_LIMIT:
-            lines = content.splitlines()
-            sliced = lines[offset: offset + limit] if limit else lines[offset:]
-            content = "\n".join(sliced)
-
-        return ReadResult(
-            file_data={"content": content, "encoding": "utf-8",
-                       "created_at": created, "modified_at": modified}
-        )
+        return _text_read(content, offset, limit, created, modified)
 
     # ─── write (create-only, text) ──────────────────────────────────────
 

@@ -361,6 +361,35 @@ decisions.
 
 ### Fixed
 
+- **A partial `read_file` says the document goes on.** deepagents'
+  `read_file` passes a 100-line limit by default, and the window it got back
+  just ended, mid-document, under a header that gave no total (`@@ lines
+  101-200 @@`): small-v3 read a 7-page check-up book's lines 1-100, then
+  101-200, and answered that it had no physician summary, which is on page 7
+  (benchmarks/local_models, 2026-10-07). A window that stops short of the end
+  now ends with `[lines 101–200 of 700 shown; the document continues: call
+  read_file with offset=200 to read on]`, under `@@ lines 101-200 of 700 |
+  next offset 200 @@`. The final window gets no such line (its header now
+  gives the total), a read at the backend's own default is the whole document
+  as before, and a negative offset reads from line 1, as deepagents already
+  told the model it did (the backend had sliced from the end). To tell: read
+  a long document with `read_file` and no limit; the result ends with that
+  line until the last window.
+- **A blood pressure printed as one pair in a table is read by the rules.**
+  `translate.parse_value("123/78")` is narrative by design, so the table rules
+  left `Blood Pressure | 123/78 | mmHg | 90-139/60-89` to the model, and 3 of
+  4 cloud models (DeepSeek V4.1 Flash, Claude Sonnet 5.5, GPT-6 Luna) stored
+  no blood pressure from a 7-page check-up book; DeepSeek also missed a clinic
+  note's `BP 111/65` (benchmarks/local_models, 2026-10-07). A row named 血压,
+  血壓, Blood Pressure, BP or B.P. whose value is a pair is now two readings,
+  named as the journal names a pair it splits (收缩压 / 舒张压 under a Chinese
+  name, else Systolic / Diastolic blood pressure; they code to 8480-6 and
+  8462-4), with the printed unit or mmHg, a paired range split
+  (`90-139/60-89`) or any other range on both, and the printed flag on both.
+  The row counts as read, so it alone no longer sends the document to the
+  model. To tell: a file with such a row stores both pressures labelled
+  `rules:table@v1`. A pair outside a table, or under any other name (`20/40`,
+  `1/80`), is still the model's to read.
 - **One printed reading is stored once, whichever page it was read on.** The
   merge compared a model row only with the table rules' rows, and the
   dedup only name, value and date as written, so a check-up book read a page
