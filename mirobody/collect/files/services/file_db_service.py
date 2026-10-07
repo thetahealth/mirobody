@@ -8,7 +8,7 @@ nothing from outside the project.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -629,25 +629,24 @@ class FileDbService:
         file_key: str,
         raw: str = "",
         file_abstract: str = "",
-        indicators: list[dict] | None = None,
         file_name: str | None = None,
         original_text: str = "",
         text_length: int = 0,
         content_hash: str = "",
     ) -> bool:
-        """
-        Update file with processing results.
-        
+        """Record a processed file: what it was read as, its abstract and the
+        name a model gave it. The readings and their count are not this
+        update's: the indicator extraction writes them when it finishes.
+
         Args:
             file_key: File key
             raw: Raw extracted content
             file_abstract: File abstract/summary
-            indicators: List of extracted indicators
             file_name: Optional generated file name
             original_text: Original text content (for rerank)
             text_length: Length of original text
             content_hash: SHA256 hash of file content
-            
+
         Returns:
             True if successful
         """
@@ -655,17 +654,15 @@ class FileDbService:
             # Fetch current file to get decrypted file_content for merging
             current = await FileDbService.get_file_by_key(file_key)
             if not current:
-                logger.warning(f"File not found for update: file_key={file_key}")
+                logger.warning("file not found for update: file_key=%s", file_key)
                 return False
 
             current_content = current.get("file_content", {})
             current_content.update({
                 "raw": raw,
                 "file_abstract": file_abstract,
-                "indicators": indicators or [],
-                "indicators_count": len(indicators) if indicators else 0,
                 "processed": True,
-                "processed_at": datetime.now().isoformat(),
+                "processed_at": datetime.now(UTC).isoformat(),
                 "status": "completed",
                 "error": "",
                 "progress": 100,
@@ -712,7 +709,8 @@ class FileDbService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update file processed: {file_key}, error: {e}")
+            logger.error("recording a processed file failed: file_key=%s error_type=%s", file_key,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
     
     # ============== DELETE Operations ==============

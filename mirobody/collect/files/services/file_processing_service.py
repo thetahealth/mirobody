@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from fastapi import UploadFile
 from pydantic import BaseModel
 
+from mirobody.collect.files.errors import failure_reason
 from mirobody.collect.files.file_processor import FileProcessor
 from mirobody.collect.files.memory_upload_file import MemoryUploadFile
 from mirobody.collect.files.services.file_uploader import (
@@ -47,140 +48,71 @@ async def process_files_async(
     files_data: list[dict[str, Any]],
     user_id: str,
     msg_id: str,
-):
+) -> None:
+    """Process a chat turn's attachments, each already stored and filed under
+    its `file_key` (`agent/chat/file.process_files_from_storage`), and write
+    each one's outcome to its own row.
+
+    Results are matched to rows by position, never by name: two attachments
+    named `image.png` had both results written to the first one's row. A
+    file that failed is `status: failed` with its reason; it was written
+    `completed` with no indicators. The rows are announced written
+    (`FileDbService.rows_written`) only after these updates, so an indicator
+    extraction that finishes first does not have its count and status
+    overwritten by them.
     """
-    Asynchronously process all uploaded files to extract indicators
+    from .file_db_service import FileDbService
 
-    Args:
-        files_data: List of file data dictionaries containing content_bytes, file_name, content_type, file_key
-        user_id: User ID
-        msg_id: Message ID
-    """
-    
-    async def process_single_file_wrapper(file_data: dict[str, Any], file_processor: FileProcessor) -> dict:
-        """
-        Wrapper function to process a single file
+    file_processor = FileProcessor()
 
-        Args:
-            file_data: Dictionary with file data (content_bytes, file_name, content_type, file_key)
-            file_processor: The FileProcessor instance
-
-        Returns:
-            dict: Processing result
-        """
+    async def process(file_data: dict[str, Any]) -> dict[str, Any]:
+        upload = MemoryUploadFile(
+            content=file_data["content_bytes"],
+            filename=file_data["file_name"],
+            content_type=file_data["content_type"],
+        )
         try:
-            filename = file_data["file_name"]
-            logger.info("processing file: msg_id=%s", msg_id)
-            
-            mock_file = MemoryUploadFile(
-                content=file_data["content_bytes"],
-                filename=filename,
-                content_type=file_data["content_type"],
-            )
-            
-            # Process single file (skip upload since already uploaded)
-            result = await file_processor.process_single_file(
-                file=mock_file,
+            return await file_processor.process_single_file(
+                file=upload,
                 user_id=user_id,
                 message_id=msg_id,
                 query="",
                 file_key=file_data.get("file_key"),
-                skip_upload_oss=True,  # Skip upload since already uploaded
+                skip_upload_oss=True,
             )
-            
-            if result.get("success"):
-                # Extract indicators from result if available
-                indicators = result.get("indicators", [])
+        except Exception as e:
+            logger.error("attachment processing failed: msg_id=%s error_type=%s", msg_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return {"success": False, "error": failure_reason(e)}
 
-                processed_file_info = {
-                    "file_name": filename,
-                    "processed": True,
-                    "raw": result.get("raw", result.get("content", "")),  # Use 'raw' field name
-                    "file_abstract": result.get("file_abstract", ""),  # Add file abstract
-                    "generated_file_name": result.get("file_name", filename),  # AI generated file name
-                    "indicators": indicators,
-                    "indicators_count": len(indicators),  # Add indicators count
-                    # Add original text fields for th_files columns
-                    "original_text": result.get("original_text", ""),
-                    "text_length": result.get("text_length", 0),
-                    "content_hash": result.get("content_hash", ""),
-                }
-            else:
-                processed_file_info = {
-                    "file_name": filename,
-                    "processed": False,
-                    "generated_file_name": result.get("file_name", filename),  # AI generated file name even on failure
-                    "error": result.get("error", "Processing failed"),
-                    # Still extract original text fields if available
-                    "original_text": result.get("original_text", ""),
-                    "text_length": result.get("text_length", 0),
-                    "content_hash": result.get("content_hash", ""),
-                }
-            
-            logger.info("file processing completed: msg_id=%s", msg_id)
-            
-            return processed_file_info
-            
-        except Exception as file_error:
-            logger.error("file processing failed: msg_id=%s error_type=%s",
-                         msg_id, type(file_error).__name__,
-                         exc_info=not is_driver_exception(file_error))
-            return {
-                "file_name": file_data.get("file_name", "unknown"),
-                "processed": False,
-                "error": "Processing failed"
-            }
-    
+    FileDbService.expect_rows(msg_id)
     try:
-        logger.info(f"Starting concurrent async processing for {len(files_data)} files, msg_id: {msg_id}")
-        
-        # Create file processor instance
-        file_processor = FileProcessor()
-        
-        # Use asyncio to process files concurrently
-        # Process all files concurrently using asyncio.gather
-        processing_tasks = [
-            process_single_file_wrapper(file_data, file_processor) 
-            for file_data in files_data
-        ]
-        
-        processed_files = await asyncio.gather(*processing_tasks, return_exceptions=False)
-        
-        # Filter out any None results
-        processed_files = [pf for pf in processed_files if pf is not None]
-        
-        # Update th_files with all processed results
-        if processed_files:
-            logger.info(f"Updating th_files with {len(processed_files)} processed files")
-            
-            from .file_db_service import FileDbService
-            
-            # Update each file's content in th_files table
-            for processed_file in processed_files:
-                file_key = None
-                # Find file_key from files_data
-                for file_data in files_data:
-                    if file_data.get("file_name") == processed_file.get("file_name"):
-                        file_key = file_data.get("file_key")
-                        break
-                
-                if file_key:
-                    # Update th_files with processing results (including original_text even if processing failed)
-                    await FileDbService.update_file_processed(
-                        file_key=file_key,
-                        raw=processed_file.get("raw", ""),
-                        file_abstract=processed_file.get("file_abstract", ""),
-                        indicators=processed_file.get("indicators", []),
-                        file_name=processed_file.get("generated_file_name"),
-                        original_text=processed_file.get("original_text", ""),
-                        text_length=processed_file.get("text_length", 0),
-                        content_hash=processed_file.get("content_hash", ""),
-                    )
-            
-            logger.info(f"Concurrent async processing completed for all files, msg_id: {msg_id}")
-            
-    except Exception:
-        logger.error(f"Concurrent async processing failed for files batch, msg_id: {msg_id}", stack_info=True)
+        results = await asyncio.gather(*(process(f) for f in files_data))
+        for file_data, result in zip(files_data, results, strict=True):
+            file_key = file_data.get("file_key")
+            if not file_key:
+                continue
+            if result.get("success"):
+                await FileDbService.update_file_processed(
+                    file_key=file_key,
+                    raw=result.get("raw", ""),
+                    file_abstract=result.get("file_abstract", ""),
+                    file_name=result.get("file_name") or file_data["file_name"],
+                    original_text=result.get("original_text", ""),
+                    text_length=result.get("text_length", 0),
+                    content_hash=result.get("content_hash", ""),
+                )
+            else:
+                await FileDbService.update_file_content(file_key, {
+                    "status": "failed",
+                    "processed": False,
+                    "progress": 0,
+                    "error": result.get("error") or result.get("message") or "Processing failed",
+                })
+        logger.info("attachments processed: msg_id=%s count=%d failed=%d", msg_id, len(results),
+                    sum(1 for r in results if not r.get("success")))
+    finally:
+        FileDbService.rows_written(msg_id)
 
 
 async def _invalidate_derived_profile(owner_id: str) -> None:
