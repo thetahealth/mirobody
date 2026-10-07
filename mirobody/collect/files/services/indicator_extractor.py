@@ -16,9 +16,12 @@ from collections.abc import Callable
 
 from mirobody.collect.files.services.table_indicators import (
     EXTRACTOR as TABLE_EXTRACTOR,
+    _is_unit,
+    _split_flag,
     left_for_model,
     same_reading,
     table_indicators,
+    value_key,
     without_rows,
 )
 from mirobody.utils.coerce import parse_date
@@ -329,7 +332,7 @@ class IndicatorExtractor:
         seen = {r["original_indicator"].strip().lower() for r in rows}
         extra = [i for i in result.get("indicators") or []
                  if str(i.get("original_indicator", "")).strip().lower() not in seen
-                 and not any(same_reading(i, r) for r in rows)]
+                 and not any(same_reading(i, r, misread=True) for r in rows)]
         result["indicators"] = rows + extra
         info = dict(result.get("content_info") or {})
         info["date_time"] = table_date or info.get("date_time", "")
@@ -382,36 +385,37 @@ class IndicatorExtractor:
     def _deduplicate_indicators(
         indicators: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        """
-        Deduplicate indicator data
-
-        Args:
-            indicators: Indicator list
-
-        Returns:
-            List[Dict[str, Any]]: Deduplicated indicator list
-        """
+        """One stored row per printed reading: rows with the same value
+        (`value_key`), the same analyte (`same_reading`) and the same date are
+        one reading, from two pages, two passes or one page read twice; the
+        row that also carries the printed range and unit is the one kept, so a
+        summary page's `Apolipoprotein A1 1.69 g/L↑` gives way to the table's
+        row. A log's same weight on two mornings is two readings: the dates
+        differ. A row whose value is a unit and nothing else (`HGB | L`,
+        `CREA | mmol/L`) is no reading: MiniCPM5-2B wrote 22 such rows for one
+        check-up book on the 2026-10-07 eval, and each sat in the catalogue as
+        a series of its own (`unit:conflict`)."""
         if not indicators:
             return []
 
-        # Name, value and the row's own date: a log prints the same weight on
-        # different mornings, and those are different readings.
-        seen = set()
-        unique_indicators = []
+        def fullness(row: dict[str, Any]) -> int:
+            return bool(str(row.get("reference_range") or "").strip()) + bool(str(row.get("unit") or "").strip())
 
+        groups: dict[tuple, list[int]] = {}
+        unique_indicators: list[dict[str, Any]] = []
         for indicator in indicators:
-            # Create deduplication key
-            name = indicator.get("original_indicator", "").strip().lower()
-            value = indicator.get("value", "").strip()
-            if not name or not value:
+            name = str(indicator.get("original_indicator") or "").strip()
+            value = str(indicator.get("value") or "").strip()
+            if not name or not value or _is_unit(_split_flag(value, "")[0].strip()):
                 continue
-
-            dedup_key = (name, value, str(indicator.get("date_time") or "").strip())
-
-            if dedup_key not in seen:
-                seen.add(dedup_key)
+            key = (value_key(value), str(parse_date(str(indicator.get("date_time") or "")) or ""))
+            twins = groups.setdefault(key, [])
+            twin = next((k for k in twins if same_reading(unique_indicators[k], indicator)), None)
+            if twin is None:
+                twins.append(len(unique_indicators))
                 unique_indicators.append(indicator)
+            elif fullness(indicator) > fullness(unique_indicators[twin]):
+                unique_indicators[twin] = indicator
 
         logger.info(f"Indicator deduplication completed: {len(indicators)} -> {len(unique_indicators)}")
         return unique_indicators
-

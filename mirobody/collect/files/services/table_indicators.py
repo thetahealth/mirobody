@@ -1168,37 +1168,66 @@ def left_for_model(text: str) -> str:
     return "\n".join(keep)
 
 
-def same_reading(a: dict, b: dict) -> bool:
-    """Whether two extractions name the same printed row: the same value (less
-    a trailing flag: `6.49↑` / `6.49`), and names a misread character apart
-    (`γ-谷氨酰转移酶` / `y-谷氨酰转移酶`) or names the vocabulary files under
-    one series (`血红蛋白（HGB）` / `血红蛋白` / `HGB` / `Hemoglobin`). Measured
-    on the 2026-10-07 small-model eval: the rule row `血红蛋白（HGB） 153` and
-    the model's `血红蛋白 153` were both stored, one printed row twice. Two
-    analytes with one value (`EO%` and `EO#`, both 0.6) stay two readings."""
-    if not _same_value(str(a.get("value", "")), str(b.get("value", ""))):
+def same_reading(a: dict, b: dict, *, misread: bool = False) -> bool:
+    """Whether two extractions name the same printed reading: the same value
+    (`value_key`: one number less its flag, unit and copied range, `6.49↑` /
+    `6.49` / `1.69 g/L↑` / `1.69`), and the same analyte: one name, one name
+    less its bracketed abbreviation or that abbreviation alone
+    (`Apolipoprotein B(ApoB)` / `Apolipoprotein B` / `ApoB`), or names the
+    vocabulary files under one series (`血红蛋白（HGB）` / `HGB` /
+    `Hemoglobin`). With `misread`, names a character apart too (`γ-谷氨酰转移酶`
+    / `y-谷氨酰转移酶`): two OCR passes of one page, the tables pass's row
+    against the text pass's, never two rows of one text (`HBsAg` / `HBeAg`,
+    both `Negative`, are 0.85 alike).
+
+    Measured on the 2026-10-07 small-model eval: the rule row `血红蛋白（HGB）
+    153` and the model's `血红蛋白 153` were both stored, and a check-up book's
+    summary page stored `Apolipoprotein A1 1.69 g/L↑` and `Apolipoprotein B
+    0.58 g/L↓` beside the table's rows. Two analytes with one value (`EO%` and
+    `EO#`, both 0.6) stay two readings."""
+    if value_key(str(a.get("value", ""))) != value_key(str(b.get("value", ""))):
         return False
-    names = [str(r.get("original_indicator", "")).strip() for r in (a, b)]
-    x, y = (_key(n) for n in names)
-    if not x or not y:
-        return False
-    if x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.8:
-        return True
-    series = _series_of_name(names[0])
-    return bool(series) and series == _series_of_name(names[1])
+    return _same_analyte(str(a.get("original_indicator", "")).strip(), str(b.get("original_indicator", "")).strip(),
+                         misread=misread)
 
 
-def _same_value(a: str, b: str) -> bool:
-    """The same printed value: as text, or as one number less a trailing flag
-    and less the range a model copied with it: on the OCR benchmark
-    (2026-10-07) MiniCPM5-2B returned a slip's whole cell, `2.873 (0.270 -
-    4.200)&mIU/L`, beside the rule's `2.873`."""
-    if a.strip() == b.strip():
+#: A name's trailing bracketed part: an abbreviation (`(HGB)`, `（ApoB）`).
+_BRACKETED = re.compile(r"^(.*?)\s*[(（]([^()（）]+)[)）]\s*$")
+
+
+def _base_and_bracket(name: str) -> tuple[str, str]:
+    """(the name less a trailing bracketed part, that part), keyed."""
+    m = _BRACKETED.match(name)
+    return (_key(m.group(1)), _key(m.group(2))) if m else (_key(name), "")
+
+
+def _same_analyte(x: str, y: str, *, misread: bool) -> bool:
+    kx, ky = _key(x), _key(y)
+    if not kx or not ky:
+        return False
+    (bx, ax), (by, ay) = _base_and_bracket(x), _base_and_bracket(y)
+    # One name, the same name less its bracket, or the bracket alone; never
+    # two brackets alike under two names (`Glucose(GLU)`, `Urine glucose(GLU)`).
+    if kx == ky or (bx and bx == by) or (ax and ax == ky) or (ay and ay == kx):
         return True
-    x, y = (translate.parse_value(_split_flag((_value_parts(v.strip()) or (v.strip(),))[0], "")[0], "")
-            for v in (a, b))
-    return (x.value_kind == y.value_kind == "quantity" and x.value_num == y.value_num
-            and x.comparator == y.comparator)
+    if misread and difflib.SequenceMatcher(None, kx, ky).ratio() >= 0.8:
+        return True
+    series = _series_of_name(x)
+    return bool(series) and series == _series_of_name(y)
+
+
+def value_key(value: str) -> tuple:
+    """What two printings of one value share: the number and its comparator,
+    less a trailing flag, a unit and a range a model copied with it (on the
+    OCR benchmark, 2026-10-07, MiniCPM5-2B returned a slip's whole cell,
+    `2.873 (0.270 - 4.200)&mIU/L`, beside the rule's `2.873`); else the text
+    less its flag, case set aside (`Positive H` / `positive`)."""
+    v = value.strip()
+    head = _split_flag((_value_parts(v) or (v,))[0], "")[0].strip()
+    parsed = translate.parse_value(head, "")
+    if parsed.value_kind == "quantity" and parsed.value_num is not None:
+        return ("number", parsed.value_num, parsed.comparator)
+    return ("text", head.casefold())
 
 
 @functools.lru_cache(maxsize=4096)
@@ -1212,4 +1241,4 @@ def _series_of_name(name: str) -> str:
     return coding.series_id if coding.coded else ""
 
 
-__all__ = ["EXTRACTOR", "left_for_model", "same_reading", "status_of", "table_indicators", "without_rows"]
+__all__ = ["EXTRACTOR", "left_for_model", "same_reading", "status_of", "table_indicators", "value_key", "without_rows"]

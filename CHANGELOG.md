@@ -302,6 +302,24 @@ decisions.
 
 ### Fixed
 
+- **One printed reading is stored once, whichever page it was read on.** The
+  merge compared a model row only with the table rules' rows, and the
+  dedup only name, value and date as written, so a check-up book read a page
+  at a time stored its summary page's `Apolipoprotein A1 1.69 g/L↑` beside the
+  table's `Apolipoprotein A1(ApoA1) 1.69`, and the same for ApoB and HBcAb
+  (benchmarks/local_models small-v2, 2026-10-07). Rows with one value
+  (`value_key`: the number less its flag, unit and copied range), one analyte
+  (one name, the name less its bracketed abbreviation or that abbreviation
+  alone, or one series by the vocabulary) and one date are now one row, and
+  the row that carries the printed range and unit is the one kept; a name a
+  misread character apart still counts only between the OCR's two passes.
+  `EO#` and `EO%` with one value stay two. A row whose value is a unit and
+  nothing else (`HGB | L`, `CREA | mmol/L`; 22 of them for that book, each a
+  `unit:conflict` series in the catalogue) is not stored. Replayed on
+  small-v2's stored rows for that book: 106 rows → 84, rows that are not
+  printed rows 28 → 6 (findings the corpus does not list), printed ranges
+  75 → 78 of 78 with the layer's tables. To tell: a book with a summary page
+  stores one apolipoprotein A1 reading, with its range.
 - **A flag printed after a unit or a word leaves the value.** A flag was split
   off only right after a number or a unit glued to it, so `1.69 g/L↑` and
   `0.58 g/L↓` were stored with the unit and arrow in the value and no number,
