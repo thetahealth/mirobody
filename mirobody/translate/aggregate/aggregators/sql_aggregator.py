@@ -1202,15 +1202,16 @@ class SQLAggregator:
             self, user_id: str, day_start: datetime, day_end: datetime
     ) -> dict[str, Any] | None:
         """
-        Sleep Onset Latency = time from InBed start to first Asleep start.
+        Sleep Onset Latency = time from the night's first InBed start to its
+        first Asleep start, in minutes, from series_data.
 
-        Uses 18:00-18:00 sleep window. Queries both sleepAnalysis_InBed and
-        sleepAnalysis_Asleep(Total)/Asleep(Core) from series_data.
-        Returns latency in minutes.
+        `day_start`/`day_end` are already the night: the task's source
+        indicator, sleepAnalysis_InBed, is on the catalogue's 18:00 window, so
+        its day begins at 18:00. Stepping back another six hours, as if it
+        began at midnight, read the night from 12:00 to 12:00. When several
+        sources record an InBed, the earliest is the night's.
         """
-        # Sleep window: previous day 18:00 to current day 18:00
-        sleep_start = day_start - timedelta(hours=6)  # 18:00 previous day
-        sleep_end = day_start + timedelta(hours=18)    # 18:00 current day
+        sleep_start, sleep_end = day_start, day_end
 
         query = """
         WITH inbed AS (
@@ -1223,6 +1224,7 @@ class SQLAggregator:
               AND value ~ '^[0-9]+\\.?[0-9]*$'
               AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
             GROUP BY source
+            ORDER BY inbed_time, source
             LIMIT 1
         ),
         first_asleep AS (
