@@ -7,8 +7,8 @@ AES key (not hex-decoded, despite the parameter name). The one consumer is
 `collect/providers/_platform/database_service.py` (device credentials and OAuth
 tokens).
 
-Not to be confused with `utils/config/encrypt.py`, which is the Fernet encrypter
-the log pipeline uses for its `encrypted_info` field.
+Not to be confused with `utils/config/encrypt.py`, the Fernet encrypter for
+secrets in the config files (`CONFIG_ENCRYPTION_KEY`).
 
 The two directions used to be written at two different API levels (the low-level
 `Cipher`/`modes.GCM` for encrypt, `AESGCM` for decrypt), each under three nested

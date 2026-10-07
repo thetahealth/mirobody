@@ -25,7 +25,6 @@ _EXPORTS = {
     "secret_fingerprint": ".log",
     "init_log_console": ".log",
     "init_log_file": ".log",
-    "init_log_tqdm": ".log",
     "init_log": ".log",
     "request_origin": ".http",
     "get_client_ip": ".http",
@@ -75,5 +74,5 @@ if TYPE_CHECKING:  # the same names, visible to type checkers and IDEs
         redirect,
         request_origin,
     )
-    from .log import JsonFormatter, init_log, init_log_console, init_log_file, init_log_tqdm, secret_fingerprint
+    from .log import JsonFormatter, init_log, init_log_console, init_log_file, secret_fingerprint
     from .req_ctx import get_req_ctx, update_req_ctx

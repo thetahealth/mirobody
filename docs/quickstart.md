@@ -112,8 +112,8 @@ and absent from a `pip install`. What `dev` is for is the API, the MCP surface
 and the agent; for the UI, use B.
 
 The secrets `dev` generates are per-run: sessions and encrypted config values
-do not survive a restart. Set `JWT_KEY`, `CONFIG_ENCRYPTION_KEY` and
-`LOG_ENCRYPTION_KEY` in the environment to keep them.
+do not survive a restart. Set `JWT_KEY` and `CONFIG_ENCRYPTION_KEY` in the
+environment to keep them.
 
 ## When it does not come up
 

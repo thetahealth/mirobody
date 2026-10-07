@@ -144,7 +144,6 @@ ensure_secret() {
 ensure_secret PG_PASSWORD
 ensure_secret PG_ENCRYPTION_KEY
 ensure_secret CONFIG_ENCRYPTION_KEY
-ensure_secret LOG_ENCRYPTION_KEY
 ensure_secret JWT_KEY
 # What the first-run page asks for before it changes where health data goes.
 ensure_secret SETUP_TOKEN

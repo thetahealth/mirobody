@@ -168,9 +168,9 @@ def _cmd_dev(args: argparse.Namespace) -> None:
     # builds its `FernetEncrypter` from `get_fernet_key("CONFIG_ENCRYPTION_KEY")`
     # BEFORE it loads any YAML, so a value supplied in config can never satisfy
     # it: the run logs "CONFIG_ENCRYPTION_KEY is not set" at ERROR and encrypts
-    # with a publicly-known key. `LOG_ENCRYPTION_KEY` reads the same way.
+    # with a publicly-known key.
     generated = []
-    for name, nbytes in (("JWT_KEY", 32), ("CONFIG_ENCRYPTION_KEY", 16), ("LOG_ENCRYPTION_KEY", 16)):
+    for name, nbytes in (("JWT_KEY", 32), ("CONFIG_ENCRYPTION_KEY", 16)):
         if not os.environ.get(name):
             os.environ[name] = secrets.token_hex(nbytes)
             generated.append(name)

@@ -182,7 +182,6 @@ class Config:
             name        = self.get_str("LOG_NAME"),
             dir         = self.get_str("LOG_DIR"),
             level       = logging.getLevelNamesMapping().get(self.get_str("LOG_LEVEL").strip().upper(), logging.INFO),
-            secret_key  = self.get_fernet_key("LOG_ENCRYPTION_KEY")
         )
 
         self.http = HttpConfig(
@@ -864,7 +863,6 @@ class Config:
             dir         = config.log.dir,
             level       = config.log.level,
             extra       = log_extra,
-            secret_key  = config.log.secret_key
         )
 
         return config

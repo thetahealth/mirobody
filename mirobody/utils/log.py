@@ -9,12 +9,7 @@ import logging
 import os
 
 from mirobody.kernel.ops import PHIPolicy
-from .config import FernetEncrypter
 from .req_ctx import get_req_ctx
-
-#-----------------------------------------------------------------------------
-
-_fernet_encryptor = None
 
 #-----------------------------------------------------------------------------
 
@@ -137,7 +132,6 @@ class JsonFormatter(logging.Formatter):
             "_phi_seen",  # PHIFilter's mark that it has run on this record
             # Additional field.
             "sql",
-            "encrypted_info",
             "exception"  # Added to predefined fields
         }
 
@@ -161,18 +155,10 @@ class JsonFormatter(logging.Formatter):
             json_record["stack_info"] = record.stack_info
 
         #-------------------------------------------------
-        # Check for function name in different places.
+        # Function name, unless the call was at module level.
 
-        function = None
-        if hasattr(record, "function_name"):
-            # Custom function name from our logger
-            function = record.function_name
-        elif hasattr(record, "funcName"):
-            function = record.funcName
-
-        # In case it is the module.
-        if function and function != "<module>":
-            json_record["function"] = function
+        if record.funcName and record.funcName != "<module>":
+            json_record["function"] = record.funcName
 
         #-------------------------------------------------
         # Filename and line number.
@@ -184,38 +170,6 @@ class JsonFormatter(logging.Formatter):
         # Module name.
         if hasattr(record, "module") and record.module:
             json_record["module"] = record.module
-
-        #-------------------------------------------------
-        # Field for encrypted info.
-
-        encrypted_info = getattr(record, "encrypted_info", "")
-        if encrypted_info:
-            plain_encrypted_info = json.dumps(
-                encrypted_info,
-                ensure_ascii=False,
-                separators=(',', ':'),
-                cls=JsonEncoder
-            )
-            
-            if _fernet_encryptor:
-                try:
-                    encrypted_encrypted_info = _fernet_encryptor.encrypt(plain_encrypted_info)
-                except Exception as e:
-                    logging.warning(str(e))
-                    encrypted_encrypted_info = "<unencrypted: encryption failed>"
-            else:
-                # Fail CLOSED. This used to fall back to the plaintext, so with
-                # no LOG_ENCRYPT_KEY configured every "encrypted_info" payload
-                # was written in the clear under a field name that promises the
-                # opposite: the worst of both, since a reader trusts the name.
-                encrypted_encrypted_info = (
-                    "<unencrypted: LOG_ENCRYPT_KEY not configured>"
-                )
-
-            json_record["encrypted_info"] = encrypted_encrypted_info \
-                if len(encrypted_encrypted_info) <= 200 \
-                else f"{encrypted_encrypted_info[:100]}**********{encrypted_encrypted_info[-100:]}"
-
 
         #-------------------------------------------------
         # Other fields.
@@ -245,22 +199,6 @@ class JsonFormatter(logging.Formatter):
 
         # To JSON string.
         return json.dumps(json_record, ensure_ascii=False, separators=(",", ":"), cls=JsonEncoder)
-
-#-----------------------------------------------------------------------------
-
-class TqdmLoggingHandler(logging.Handler):
-    def __init__(self):
-        super().__init__()
-
-    def emit(self, record):
-        from tqdm import tqdm
-        try:
-            msg = self.format(record)
-            tqdm.write(msg)
-            self.flush()
-
-        except Exception:
-            self.handleError(record)
 
 #-----------------------------------------------------------------------------
 
@@ -309,24 +247,16 @@ def _install_root(handlers: list[logging.Handler], level: int, extra: dict) -> N
     _silence_verbose_loggers(level)
 
 
-def init_log_console(level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+def init_log_console(level: int = logging.INFO, extra: dict | None = None):
     if extra is None:
         extra = {}
-    if secret_key:
-        global _fernet_encryptor
-        _fernet_encryptor = FernetEncrypter(secret_key)
-
     _install_root([logging.StreamHandler()], level, extra)
 
 #-----------------------------------------------------------------------------
 
-def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | None = None):
     if extra is None:
         extra = {}
-    if secret_key:
-        global _fernet_encryptor
-        _fernet_encryptor = FernetEncrypter(secret_key)
-
     if dir:
         os.makedirs(dir, exist_ok=True)
 
@@ -342,21 +272,12 @@ def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | 
 
 #-----------------------------------------------------------------------------
 
-def init_log_tqdm(level: int = logging.INFO):
-    tqdm_handler = TqdmLoggingHandler()
-    tqdm_handler.setFormatter(JsonFormatter())
-
-    logging.root.handlers = [tqdm_handler]
-    logging.root.setLevel(level=level)
-
-#-----------------------------------------------------------------------------
-
-def init_log(name: str = "", dir: str = "", level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+def init_log(name: str = "", dir: str = "", level: int = logging.INFO, extra: dict | None = None):
     if extra is None:
         extra = {}
     if name:
-        init_log_file(name, dir, level, extra, secret_key)
+        init_log_file(name, dir, level, extra)
     else:
-        init_log_console(level, extra, secret_key)
+        init_log_console(level, extra)
 
 #-----------------------------------------------------------------------------
