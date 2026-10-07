@@ -71,9 +71,8 @@ Both measurements below ran the small size in llama.cpp's CPU image (the
 
 - Later turns reuse the server's prompt cache and read only what is new; a
   new conversation reads its whole prompt again (6.8k and 8.4k tokens in the
-  two measurements). The preset
-  gives each model two slots (`np = 2`), so a title or a summary written in
-  the background takes cores from the answer.
+  two measurements). The preset gives each model two slots (`np = 2`), so a
+  title or a summary written in the background takes cores from the answer.
 - Both models loaded hold about 6.0 GiB in the container, so Docker's VM
   needs at least 8 GB of memory. Docker Desktop gives it half the computer's
   by default, 8 GB on a 16 GB machine; colima starts with 2 GB unless given
@@ -113,10 +112,10 @@ entries at it (`LOCAL_BASE_URL` and `LOCAL_OCR_BASE_URL`,
 exported in your shell is left out of `.env`, and one already there is named,
 since its vendor would come first. The first question waits for the models'
 download: `docker compose logs -f llama_cpu` shows it (`llama` for the GPU
-service below). On a stack that is already
-running, `docker compose --profile local-cpu up -d` starts it beside the app
-(the line the setup page shows; `--profile local` for the GPU service below);
-add `COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
+service below). On a stack that is already running,
+`docker compose --profile local-cpu up -d` starts it beside the app (the line
+the setup page shows; `--profile local` for the GPU service below); add
+`COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
 removes it and the next `up` leaves it out.
 
 **Windows**, to use the GPU (Intel, AMD or NVIDIA, through Vulkan; the CPU when
@@ -233,8 +232,9 @@ offers it to your network, where the demo accounts' code, `111111`, is public
 ([SECURITY.md](../SECURITY.md) says what to change first).
 
 `failed to initialize router models: ... Is a directory` in the model
-service's log (`docker compose logs llama_cpu`, or `llama` on the GPU) means Docker could not see the checkout, and mounted an empty directory where
-the preset should be. Colima shares only your home directory by default; keep
+service's log (`docker compose logs llama_cpu`, or `llama` on the GPU) means
+Docker could not see the checkout, and mounted an empty directory where the
+preset should be. Colima shares only your home directory by default; keep
 the checkout under it, or add the path to colima's `mounts`.
 
 ## The document reader
@@ -334,8 +334,9 @@ what was eaten.
 - **Nothing streams while the prompt is read.** A turn that adds 6.6k new
   tokens waits over a minute for its first byte on an M4 Pro, over two on an
   M1 Pro's 4 CPU cores, and longer on a slower processor
-  ([Without a GPU](#without-a-gpu)). The `local` entry allows 600 s of silence (`stream_chunk_timeout`); the
-  library default of 120 s fails a long turn.
+  ([Without a GPU](#without-a-gpu)). The `local` entry allows 600 s of
+  silence (`stream_chunk_timeout`); the library default of 120 s fails a long
+  turn.
 - **The first turn after loading is the slow one.** The server caches the
   prompt it has read, so later turns read only what changed.
 - **A reply can be all reasoning.** The agent asks once more when a reply has
