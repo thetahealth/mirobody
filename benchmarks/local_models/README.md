@@ -381,7 +381,7 @@ Classes in the table below:
 | `p002-sleep-july`: 23 nights | 10/10 | (a) | Small queried `keywords: ["sleep", …, "rest"]` with no window; "rest" pulled in resting heart rate and the raw rows were capped |
 | `p002-steps-chart`: chart not drawn | 12/12 | (a), with a (b) | One extra `}` in the vis-chart JSON. The client draws nothing, and nothing checks the block |
 | `p004-statin-pgx`: wrong side claim | 10/10 | (a) | Same tool result |
-| `view: "latest"` with no indicator | never | (a), with a (b) | small 3 calls, tiny 7 (then `retry_refused` 6 times); each costs a turn of an 8k-token prompt |
+| `view: "latest"` with no indicator | never | (a), with a (b) | small 3 calls, tiny 7 (then `retry_refused`, now `repeated_call`, 6 times); each costs a turn of an 8k-token prompt |
 | Journal: 0/31 | 26/31 | (a) | Same endpoint and prompt. Small answers 13 of 15 with a 6-token `{"entries": []}`. DeepSeek's misses: steps (6543, 5740) not written as readings. In one sentence it put the name inside the value (`"value": "收缩压 123"`); the journal stored that uncoded instead of refusing a non-numeric measurement |
 | Journal: 小腿抽筋 / leg cramps | coded LS13 | (c) | The case expects uncoded, as mirobody-gen marks it; the product's vocabulary codes it LS13 |
 | Check-up book: 0/78 | 77/78 (+40 not on a printed row) | (a) | Same 9,633-token request, not truncated. Small returned 149 tokens that parse to nothing |
@@ -756,7 +756,7 @@ changed by the evaluation.
   - The weight log (no printed date) went under 2025-12-14.
 - **`view: "latest"` with no indicator.** Both small models start this way.
   The tool answers `invalid_arguments`, and the 1B repeats the call until
-  `retry_refused`.
+  `retry_refused` (the run's name for what is now `repeated_call`).
 - **A vis-chart with a syntax slip is not drawn** (`p002-steps-chart`, small):
   one extra closing brace, and the client shows nothing.
 - **Upload state.** `GET /api/v1/data/uploaded-files` says `processed` before

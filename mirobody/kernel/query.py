@@ -492,7 +492,7 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     A view with no selection is not refused: it is a catalogue call
     (:attr:`QueryRequest.view_unapplied`). Refused, MiniCPM5-2B opened with
     `view="latest"` and no names 3 times and MiniCPM5-1B 7 times, then
-    repeated it until the harness refused the repeat (`retry_refused`) 6
+    repeated it until the harness refused the repeat (`repeated_call`) 6
     times (2026-10-06), each attempt a model turn on an 8k-token prompt. The
     catalogue is the list the next call copies its names from."""
     out: list[Rejection] = reject_unknown(args, TOOL_SCHEMA)
