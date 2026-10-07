@@ -82,6 +82,9 @@ Both measurements below ran the small size in llama.cpp's CPU image (the
   service, and both models load from its cache volume once downloaded.
 - The cache is the `mirobody_models` volume of one compose project: a second
   checkout, or another `COMPOSE_PROJECT_NAME`, downloads the models again.
+- This image logs `warning: no usable GPU found, --gpu-layers option will be
+  ignored`: the preset asks for the GPU, which the `local` service uses, and
+  the CPU build ignores the setting.
 
 ## Start the models
 
