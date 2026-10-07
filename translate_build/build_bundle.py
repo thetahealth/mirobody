@@ -161,6 +161,10 @@ def read_release(loinc: Path, whitelist: dict[str, str]) -> tuple[list[dict[str,
     codes = [r["LOINC_NUM"] for r in kept]
     if len(set(codes)) != len(codes):
         raise SystemExit("Loinc.csv repeats a LOINC_NUM")
+    # The resolver answers with any posting row and never reads loinc_skip.txt,
+    # so a code the cut both keeps and lists as skipped would be answered.
+    if not set(skipped).isdisjoint(codes):
+        raise SystemExit("loinc_skip.txt lists a code the cut keeps")
     return kept, sorted(skipped), reasons
 
 

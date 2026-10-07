@@ -1129,3 +1129,23 @@ def test_evidence_reads_the_same_whichever_entry_point_produced_it():
     assert resolve_reading("total cholesterol", "5.0", "mmol/L").evidence == (
         "name", "property", "scale",
     )
+
+
+# ── what the resolver takes on trust from the bundle ────────────────────────
+
+
+def test_a_posting_row_is_an_axis_row_and_never_a_skipped_code(resolver):
+    """`_lookup` answers with the axis row a posting names: no second lookup
+    by name and no skip list. That is right only while the cut writes one
+    corpus row per axis row, in the same order, and lists no code it keeps
+    in `loinc_skip.txt`. A re-cut that broke either would answer another
+    row's code, or a code the cut meant to drop."""
+    from mirobody._bundle import AXIS_CODE, AXIS_LCN, read_member
+
+    axis, names = resolver._axis, resolver._names
+    assert len(names) == len(axis)
+    assert int(resolver._alias_rows.max()) < len(axis)
+    assert all(names.raw(row) == axis.field_raw(row, AXIS_LCN) for row in range(len(axis)))
+    skipped = set((read_member("loinc_skip.txt") or b"").split())
+    assert skipped, "loinc_skip.txt is missing or empty"
+    assert skipped.isdisjoint(axis.field_raw(row, AXIS_CODE) for row in range(len(axis)))

@@ -12,6 +12,7 @@ from __future__ import annotations
 import io
 import logging
 import re
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import TYPE_CHECKING
@@ -21,14 +22,12 @@ from mirobody._bundle import (
     AXIS_ANALYTE as _ANALYTE,
     AXIS_CODE as _CODE,
     AXIS_COMPONENT as _COMPONENT,
-    AXIS_FOLDED_LCN as _FOLDED_LCN,
     AXIS_LCN as _LCN,
     AXIS_SYSTEM as _SYSTEM,
     AXIS_TIME as _TIME,
     bundle_version,
     load_alias_sources,
     load_axis,
-    read_code_list,
     read_members,
 )
 from mirobody._strtab import StringTable
@@ -173,8 +172,6 @@ class OfflineResolver:
         import numpy as np
 
         self._normalize = index_fold
-        # One pass over the tarball for all five members the resolver needs;
-        # `loinc_skip.txt` stays out because `_component_index` is lazy.
         blobs = read_members(_RUNTIME_MEMBERS, bundle_path=_BUNDLE)
 
         self._alias, alias_idx = self._table(blobs, "alias_keys.bin", "alias_index.npz")
@@ -190,9 +187,7 @@ class OfflineResolver:
             else np.zeros(len(self._names), dtype=np.float32)
         )
 
-        self._axis, self._order_code, self._order_name = load_axis(
-            bundle_path=_BUNDLE, members=blobs
-        )
+        self._axis, self._order_code, _by_name = load_axis(bundle_path=_BUNDLE, members=blobs)
         self._by_component: dict[bytes, list[int]] | None = None
 
         # term -> a target the index resolves, from two sources in precedence
@@ -202,7 +197,6 @@ class OfflineResolver:
         #      ~23k terms since 1.5.0 dropped ja and the five machine-derived
         #      files. Their targets are phrases meant for the index build, so
         #      they resolve only sometimes; hence (1).
-        self._skip: set[bytes] | None = None
         self._system_values: set[str] | None = None
         self._src = load_alias_sources(fold=index_fold)
 
@@ -278,12 +272,6 @@ class OfflineResolver:
         _code, component, prop, scale, system, method, lcn = self._axis_row(row)
         return component, prop, scale, system, method, self._axis.field(row, _TIME), lcn
 
-    def _loinc_for_name(self, name: str) -> str:
-        """Corpus long name -> LOINC_NUM, "" when the name is not a LOINC row."""
-        needle = self._normalize(name).encode("utf-8")
-        row = self._axis.find_field(needle, self._order_name, _FOLDED_LCN)
-        return self._axis.field(row, _CODE) if row >= 0 else ""
-
     # -- lookup ----------------------------------------------------------------
 
     def _posting(self, key: str) -> np.ndarray | None:
@@ -299,16 +287,16 @@ class OfflineResolver:
             return None
         return self._alias_rows[self._alias_off[i]:self._alias_off[i + 1]]
 
-    def _candidate_keys(self, term: str) -> list[str]:
-        """The lookup keys to try, most-specific first.
+    def _candidate_keys(self, term: str) -> Iterator[str]:
+        """The lookup keys to try, most-specific first, each once.
 
         The alias-table hop goes FIRST. A row in ``self._src`` is one person's
         statement that one term means one concept; a hit in the big alias index
         is every corpus row sharing a surface string, which ``_pick`` then
         guesses among by commonness.
 
-        Index-first got this wrong: ``血红蛋白`` matches 301 index rows, of which
-        the commonness prior likes *Hemoglobin A1c* best, so "hemoglobin"
+        Index-first got this wrong: ``血红蛋白`` matches hundreds of index rows,
+        of which the commonness prior likes *Hemoglobin A1c* best, so "hemoglobin"
         resolved to a different test entirely. The alias table says
         ``血红蛋白 -> Hemoglobin``. test_engine_coverage.py guards the class.
 
@@ -320,12 +308,21 @@ class OfflineResolver:
         existing key. snake_case is the convention the platform API documents
         in every ``POST /data`` example. Variants come last, after the term as
         written has missed, so they can only turn a miss into a hit.
+
+        A generator, because `_lookup` stops at the first key that hits and
+        the trailing-token test below costs two lookups of its own: built as a
+        list, it ran on every call, including the ones the first key answered.
         """
-        keys: list[str] = []
+        seen: set[str] = set()
+
+        def fresh(keys: Iterable[str]) -> Iterator[str]:
+            for key in keys:
+                if key not in seen:
+                    seen.add(key)
+                    yield key
+
         for surface in surface_variants(term):
-            for key in self._keys_for(self._normalize(surface)):
-                if key not in keys:
-                    keys.append(key)
+            yield from fresh(self._keys_for(self._normalize(surface)))
 
         # "Total cholesterol TC" -> "Total cholesterol". A lab report prints the
         # analyte beside its abbreviation constantly, and none of those strings
@@ -338,18 +335,13 @@ class OfflineResolver:
         stem = _TRAILING_ACRONYM.sub("", term).strip()
         if stem and stem != term.strip():
             if self._trailing_token_is_an_abbreviation(stem, term.strip()[len(stem):].strip()):
-                for key in self._keys_for(self._normalize(stem)):
-                    if key not in keys:
-                        keys.append(key)
+                yield from fresh(self._keys_for(self._normalize(stem)))
         # "monocyte count", "中性粒细胞计数": the analyte plus the word for how
         # it was counted. The index knows the analyte and the unit then picks
         # its count or fraction code (`variant_for_reading`). Appended last,
         # so it can only turn a miss into a hit.
         for stem in measure_stems(term):
-            for key in self._keys_for(self._normalize(stem)):
-                if key not in keys:
-                    keys.append(key)
-        return keys
+            yield from fresh(self._keys_for(self._normalize(stem)))
 
     def _trailing_token_is_an_abbreviation(self, stem: str, token: str) -> bool:
         """Is the trailing ALL-CAPS token a repeat of `stem`, or does it add to it?
@@ -394,9 +386,9 @@ class OfflineResolver:
     def _systems(self) -> set[str]:
         """Every SYSTEM axis value: the specimens a trailing token could name.
 
-        2,467 of them over 97k rows. Built on first use and only ever from the
-        trailing-token test, which is itself the coldest path in `resolve`:
-        it runs after every other candidate key has already missed.
+        Built on first use and only ever from the trailing-token test, which
+        is itself a cold path in `resolve`: it runs once every key of the
+        term as written has missed.
         """
         if self._system_values is None:
             self._system_values = {
@@ -446,65 +438,23 @@ class OfflineResolver:
         keys.append(norm)
         return keys
 
-    def _axes_of(self, code: str) -> tuple[str, str, str]:
-        """PROPERTY, SCALE, SYSTEM for a code, or ("", "", "") when unknown."""
-        row = self._row_for_code(code)
-        if row < 0:
-            return ("", "", "")
-        r = self._axis_row(row)
-        return (r[2], r[3], r[4])
-
-    def _skipped(self) -> set[bytes]:
-        """LOINC codes the bundle says not to answer with.
-
-        Non-clinical CLASS (SURVEY, PHENX, DOC, ADMIN, the PANEL.SURVEY.*
-        family) plus DEPRECATED and DISCOURAGED status. Loaded on first use:
-        `resolve()` needs it on every call, but importing the module should not
-        open the bundle. Kept as bytes, because `_component_index` compares it
-        against slices of the axis blob and decoding 97k codes to match a set
-        of strings would cost more than the check saves.
-
-        **It was built for `resolve()` and `resolve()` never consulted it.**
-        Only `_component_index` did, so the list gated which sibling a
-        unit-aware lookup could switch TO while leaving the first answer
-        ungated: `呼吸次数` came back as *First Respiration rate Set*, a nursing
-        documentation item, and 52 of the 7,354 eval cases answered with a code
-        LOINC has since retired.
-
-        A CLASS gate used to ride alongside this, `res/loinc_class_gated.tsv`,
-        10,045 codes from disciplines a lab report never prints (`癌胚抗原`
-        answered 17188-4 CLASS=CELLMARK instead of 2039-6 CLASS=CHEM). The
-        1.5.0 cut drops those families at build time, so all 10,045 are now
-        outside the bundle and the file gated nothing: measured, then deleted.
-        """
-        if self._skip is None:
-            self._skip = {
-                code.encode("ascii")
-                for code in read_code_list("loinc_skip.txt", bundle_path=_BUNDLE)
-            }
-        return self._skip
-
-    def _pick(self, rows, exclude: frozenset[int] = frozenset()) -> int:
+    def _pick(self, rows: np.ndarray) -> int:
         """Best corpus row: commonness prior, nudged toward plain specimens.
 
         Matches the two specimen patterns against raw blob slices. A hit like
-        `血红蛋白` has 301 candidate rows, and decoding all of them to run a
-        regex that only ever looks at ASCII would be 301 throwaway strings per
-        call: the loser rows are never needed as text.
+        `血红蛋白` has hundreds of candidate rows, and decoding all of them to
+        run a regex that only ever looks at ASCII would be as many throwaway
+        strings per call: the loser rows are never needed as text.
         """
         names = self._names
         rank = self._rank
-        # -1 must mean "every candidate was excluded" and nothing else. Seeding
-        # `best_row` from the first surviving row rather than leaving it at -1
-        # is what keeps that true: a comparison against -inf can only fail on a
-        # NaN score, and then the caller would read a miss where the old code
-        # returned `rows[0]`. No shipped rank is NaN; the invariant should not
+        # Seeded from the first row rather than left at -1: a comparison
+        # against -inf fails only on a NaN score, and a NaN rank must not turn
+        # a hit into a miss. No shipped rank is NaN; the answer should not
         # depend on that.
         best_row, best_score = -1, float("-inf")
         for r in rows:
             r = int(r)
-            if r in exclude:
-                continue
             if best_row < 0:
                 best_row = r
             name = names.raw(r)
@@ -600,12 +550,11 @@ class OfflineResolver:
         library.
         """
         if self._by_component is None:
-            skip = self._skipped()
             index: dict[bytes, list[int]] = {}
             axis = self._axis
             for i in range(len(axis)):
                 component = axis.field_raw(i, _COMPONENT)
-                if component and axis.field_raw(i, _CODE) not in skip:
+                if component:
                     index.setdefault(component, []).append(i)
             self._by_component = index
         return self._by_component
@@ -806,50 +755,32 @@ class OfflineResolver:
         )
 
     def _lookup(self, term: str) -> Resolution | None:
-        """First candidate key that hits the alias index, or None on a miss."""
+        """First candidate key that hits the alias index, or None on a miss.
+
+        A posting row IS an axis row: the 1.5.0 cut writes one corpus row per
+        code, in axis order, and only for codes it keeps, so every candidate
+        has a LOINC code and none is in `loinc_skip.txt` (the ACTIVE codes the
+        cut left out). `test_engine_coverage.py` pins both.
+        """
         for key in self._candidate_keys(term):
             rows = self._posting(key)
             if rows is None or not len(rows):
                 continue
-            # Take the best candidate whose code the bundle does not tell us
-            # to avoid. Re-picking rather than giving up matters: an alias with
-            # 300 candidates usually has a good one behind the skipped one, and
-            # refusing the whole term would trade far more coverage than the
-            # one wrong answer is worth. Bounded by the candidate count, and in
-            # practice it runs once.
-            skipped = self._skipped()
-            exclude: set[int] = set()
-            while True:
-                row = self._pick(rows, frozenset(exclude))
-                if row < 0:
-                    break
-                name = self._names.get(row)
-                code = self._loinc_for_name(name)
-                # Two ways a candidate cannot be an identity, both meaning
-                # "try the next one": the bundle says not to answer with this
-                # code, or the row has no LOINC code at all. The corpus spans
-                # six vocabularies and carries 4,991 `Deprecated ...` names, so
-                # a tenth of alias hits came back `resolved=True,
-                # method="lexical", loinc=""`, and a caller following this
-                # module's identity rule got `""` as a grouping key, merging
-                # every such reading into one bucket.
-                if not code or code.encode("ascii") in skipped:
-                    exclude.add(row)
-                    continue
-                return Resolution(
-                    term=term,
-                    canonical=name,
-                    loinc=code,
-                    candidates=int(len(rows)),
-                    resolved=True,
-                    method="lexical",
-                    # `("name",)`, not `()`: the alias table chose this code and
-                    # nothing corroborated it. Left empty, `"name" in evidence`
-                    # was False from `resolve()` and True from
-                    # `resolve_reading()` for the same term and code.
-                    evidence=("name",),
-                    axes=self._axes_of(code),
-                )
+            code, _component, prop, scale, system, _method, lcn = self._axis_row(self._pick(rows))
+            return Resolution(
+                term=term,
+                canonical=lcn,
+                loinc=code,
+                candidates=int(len(rows)),
+                resolved=True,
+                method="lexical",
+                # `("name",)`, not `()`: the alias table chose this code and
+                # nothing corroborated it. Left empty, `"name" in evidence`
+                # was False from `resolve()` and True from
+                # `resolve_reading()` for the same term and code.
+                evidence=("name",),
+                axes=(prop, scale, system),
+            )
         return None
 
 
