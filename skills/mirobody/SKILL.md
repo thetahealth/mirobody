@@ -26,8 +26,10 @@ files into coded rows and explains a report only from resolved evidence.
 ## Agent contract
 
 - **The model key comes from the user.** Ask for it, or for which provider they
-  use, or whether they want every model on this machine instead (llama.cpp,
-  about 20 GB of memory; `docs/local-models.md`). Never invent a key, never
+  use, or whether they want every model on this machine instead (llama.cpp:
+  the default small pair needs 16 GB of memory and no GPU, and on a CPU alone
+  a first answer takes 2–3 minutes; the large size needs about 20 GB;
+  `docs/local-models.md`). Never invent a key, never
   print one back, never paste it into a chat reply. Write it into `.env` and
   nowhere else, or leave it to the first-run page `./deploy.sh` links.
 - **Ask before anything that deletes data**: `docker compose down -v`,

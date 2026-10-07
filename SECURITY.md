@@ -141,7 +141,8 @@ There is no telemetry and no usage reporting.
 | Destination | When | What is sent |
 | --- | --- | --- |
 | The model behind your key (`config.llm.yaml`) | chat; reading a report photo or PDF; extracting indicators; splitting a journal sentence | the question and the rows the agent reads; the file; the sentence |
-| Your own model server (`LOCAL_BASE_URL`, `LOCAL_OCR_BASE_URL`), when set instead of a key | the same | the same, to that server: with it on this machine, none of it leaves |
+| Your own model server (`LOCAL_BASE_URL`, `LOCAL_OCR_BASE_URL`; llama.cpp's `llama-server` as shipped), when set instead of a key | the same | the same, to that server: with it on this machine, none of it leaves |
+| Hugging Face, or the mirror `HF_ENDPOINT` names | the first time the model server is asked for a model (the compose `llama` service, or `llama-server` on the host; this request is the model server's, not Mirobody's) | a download request for the model's files; nothing about you |
 | Garmin, Oura, Whoop | only after a person links one | OAuth tokens, and requests for that person's own data |
 | Your SMTP server | when `EMAIL_SMTP_*` is configured, to send a sign-in code | the address and the code |
 | S3 or Aliyun OSS | only when configured in place of the local disk | uploaded files |

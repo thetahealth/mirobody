@@ -22,16 +22,18 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
   needs about 20 GB of memory: a Mac with 32 GB, or a GPU with 24 GB.
 - **1.6.0 ships the goal**: the same two small models post-trained for
   Mirobody, as Mirobody's own model ([Then, training](#then-training)), about
-  3 GB together, in 8 to 16 GB of memory and without a GPU. Two models, not
+  3 GB together, in 16 GB of memory and without a GPU, like the small size
+  today. Two models, not
   one merged model. It replaces the default only when it passes the same
   evaluation as the model it replaces.
 - **Photos**: GLM-OCR reads printed text and tables, nothing else.
   Understanding what a photo shows, such as the calories on a plate or a
   rash, needs a model that sees: the large size, or a hosted one. The small
   pair does not, and Mirobody says so rather than guess.
-- **Beside hosted models**: [model-choice.md](model-choice.md) puts both
-  sizes next to DeepSeek V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on
-  the same cases, with what each costs and who reads the data.
+- **Beside hosted models**: [model-choice.md](model-choice.md) puts the
+  small size next to five cloud models (DeepSeek V4.1 Flash, Claude Sonnet
+  5.5, Claude Opus 5.5, Gemini 3.8 Flash and GPT-6 Luna) on the same cases,
+  with what each costs and who reads the data.
 
 ## What was measured
 

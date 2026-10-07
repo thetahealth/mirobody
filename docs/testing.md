@@ -12,23 +12,28 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 17 | 134 passed, 13 xfailed |
-| `'.[test,parse]'` | 74 | 134 passed, 13 xfailed |
-| `'.[test,app]'` | 146 | 134 passed, 13 xfailed |
+| `'.[test]'` | 17 | 228 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,parse]'` | 74 | 228 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,app]'` | 146 | 255 passed, 13 xfailed |
 
-The extras no longer change what a clone can run, and that is not a mistake in
-the table. Three public modules are kept in the repository: the resolver score,
-the cross-language identity gate, and `test_skills.py`, which checks the agent
-skills' commands and claims. The first two are checkout gates; the skills
-module also ships in the wheel as inspectable release evidence, but skips when
-the wheel is installed without the repository-root `skills/` directory. None
-needs an extra, so all three installs run all three in a clone. The 13 xfails are the
-known cross-language splits, described below. What the extras still decide is what the SERVER needs, which is
-what the package counts are for.
+The extras barely change what a clone can run, and that is not a mistake in
+the table. Four public modules are kept in the repository: the resolver score,
+the cross-language identity gate, `test_skills.py`, which checks the agent
+skills' commands and claims, and `test_security_gates.py`, which pins the
+server's security decisions. The skills module also ships in the wheel as
+inspectable release evidence, but skips when the wheel is installed without
+the repository-root `skills/` directory. The first three need no extra, so
+every install runs them in a clone; the security module needs FastAPI, which
+only `[app]` installs, and skips its 27 tests without it
+(`pytest.importorskip("fastapi")`). The 13
+xfails are the known cross-language splits, described below. What the extras
+still decide is what the SERVER needs, which is what the package counts are
+for.
 
-<sub>Measured 2026-09-23 on a clone-shaped tree (1.5.0). `pytest` in a checkout
-that also has the maintainers' local suite collects more; these are the numbers
-a clone sees.</sub>
+<sub>Package counts measured 2026-09-23 on a clone-shaped tree (1.5.0); test
+counts are this tree's (`pytest -q mirobody/tests`, 268 collected with
+`[app]`). `pytest` in a checkout that also has the maintainers' local suite
+collects more; these are the numbers a clone sees.</sub>
 
 They used to abort collection outright rather than skip — first with
 `ModuleNotFoundError: langchain_core`, then with `psycopg_pool` and `mandrill`

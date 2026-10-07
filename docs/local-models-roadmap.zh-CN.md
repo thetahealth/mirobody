@@ -15,11 +15,11 @@ Mirobody 不填任何 API key 也能跑：一个模型回答问题，一个模�
 - **大号**是 Qwen3.8-27B（GSQ-RCO IQ3_S，13 GB），实测见下：在我们的题目上答得和云端模型一样对，也能看照片，
   但要约 20 GB 内存：32 GB 内存的 Mac，或 24 GB 显存的显卡。
 - **1.6.0 交付目标**：把这两个小模型针对 Mirobody 做后训练，作为 Mirobody 自己的模型发布（[再训练](#再训练)），
-  合计约 3 GB，8–16 GB 内存、没有显卡也能跑。是两个模型，不合并成一个。只有通过了和被替换的模型同样的评测，才替换默认。
+  合计约 3 GB，和今天的小号一样，16 GB 内存、没有显卡就能跑。是两个模型，不合并成一个。只有通过了和被替换的模型同样的评测，才替换默认。
 - **看图**：GLM-OCR 只读印刷的文字和表格，别的一概不会。看懂一张照片拍的是什么，比如一盘菜的热量、一块皮疹，
   需要能看图的模型：大号，或云端模型。这对小模型做不到，Mirobody 会直说，而不是去猜。
-- **和云端模型比**：[model-choice.zh-CN.md](model-choice.zh-CN.md) 把两种大小和 DeepSeek V4.1 Flash、Claude Sonnet 5.5、
-  GPT-6 Luna 放在同一套题目上比，也写了各自的费用和谁会读到数据。
+- **和云端模型比**：[model-choice.zh-CN.md](model-choice.zh-CN.md) 把小号和五个云端模型（DeepSeek V4.1 Flash、Claude Sonnet 5.5、
+  Claude Opus 5.5、Gemini 3.8 Flash、GPT-6 Luna）放在同一套题目上比，也写了各自的费用和谁会读到数据。
 
 ## 实测了什么
 

@@ -70,9 +70,13 @@ the prompt, so the model cannot know it is answering for someone else.
 
 ### Reference ranges and abnormal flagging
 
-Readings are stored and charted, but nothing marks a value as outside its
-reference range — the agent reasons about "high" and "low" from the model's
-own knowledge instead of from data. One useful precedent resolves ranges by
+**Status:** the printed half is closed (Unreleased). A reading keeps the range
+its report printed and a flag: `query_health_indicators` returns `ref`, the
+range as printed, and `flag`, the report's own when a table rule read the row,
+else the extracting model's high/low/normal against that range (CHANGELOG,
+"Readings carry the printed range and a flag"). Open: a reading whose source
+printed no range (a device, a CSV without one) has none, and the agent then
+judges it from the model's own knowledge. One useful precedent resolves ranges by
 `condition → sex → default → union-of-all-sexes`, with that last fallback
 existing so an indicator that only has sex-stratified ranges (GGT, for example)
 still yields something usable for a user whose sex is unknown. That precedence
@@ -747,7 +751,12 @@ fix is here.
   with truncated JSON (`Unterminated string`); with only one provider configured
   there is no fallback, so the file lands as **Processed** in the UI while Drive
   keeps showing `Health indicators 0`. Needs chunking or a length-aware retry,
-  and a status the UI can show other than success.
+  and a status the UI can show other than success. **The extraction half is
+  closed (Unreleased):** text over 3,000 characters with page headers is read a
+  page at a time (78 of 78 rows of the 7-page check-up book MiniCPM5-2B had
+  answered with none), a request is bounded by its text, and an answer cut at
+  that bound keeps every value that closed before the cut. Not re-measured: the
+  status a file shows when its extraction still fails.
 - **The upload pipeline renames files, and the user cannot find their own
   document.** `scanned-9page.pdf` was stored as
   `2026-07-23_陈国跃_急性心肌梗死检查报告.pdf` — a genuinely impressive read off

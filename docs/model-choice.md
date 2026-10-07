@@ -64,6 +64,13 @@ start command for Windows, Linux and macOS.
 | A photo in the chat | read as its OCR text: it cannot see | looked at |
 | On the evaluation | 19 of 24 questions passed (grade 209 of 248), 140 of 140 printed rows, 24 of 31 journal entries | 16 of 16 runs of an earlier 8-question set, no number the record lacks; not run on the 24 questions below |
 
+The answer times are Apple silicon's, where llama.cpp runs on the GPU. With
+no GPU it is minutes, not seconds: in llama.cpp's CPU image on 4 vCPUs (Linux,
+2026-10-07) MiniCPM5-2B reads about 50 tokens a second and writes about 18, so
+a first answer takes 2–3 minutes and later turns reuse the server's prompt
+cache; the two models hold about 6.0 GiB, so Docker needs at least 8 GB of
+memory ([local-models.md](local-models.md#without-a-gpu)).
+
 On the evaluation below, the small size passes 19 of 24 questions (Claude
 Code grade 209 of 248), stores all 140 printed rows of the 12 documents and
 writes 24 of 31 journal entries. Before 1.5.4's harness changes it passed 16
@@ -81,7 +88,7 @@ the 600 s timeout. A local reply now stops at 6,144 tokens.
 
 ### The document reader: GLM-OCR-0.9B
 
-Every size reads documents the same way: GLM-OCR turns a photo or a scanned
+Both sizes read documents the same way: GLM-OCR turns a photo or a scanned
 page into text and tables, the tables' rows are read by their headers with no
 model, and the answering model reads what the rules leave. Three small OCR
 models that upstream llama.cpp serves were run through that whole path on
@@ -304,7 +311,8 @@ pins no host: OpenRouter routes it under your account's settings.
 
 The small size: `./deploy.sh`, then **100% on this machine** on the page it
 links. 16 GB of memory, no GPU, 3.0 GB to download. Expect about 28 s an
-answer on an M1 Pro, every printed row of a lab report stored, and most
+answer on an M1 Pro (2–3 minutes for a first answer on a CPU alone), every
+printed row of a lab report stored, and most
 questions answered right (19 of 24); it is weakest where it works out an
 average or a chart's window itself. Nothing about you leaves the machine.
 
@@ -429,7 +437,8 @@ What the numbers cannot tell you:
 - **One grader**, Claude Code, which also wrote the cases. The rubric and
   every grade's reason are published, so a reader can re-grade.
 - **Speed on two machines.** The local timings are an M1 Pro's and an M4
-  Pro's; the cloud ones depend on the host's load that night.
+  Pro's, on their GPUs; the CPU-only figures above are a separate measurement
+  on 4 vCPUs. The cloud ones depend on the host's load that night.
 - **GPT-6.1 Sol was dropped**: even pinned to Azure, OpenRouter kept it
   rate-limited upstream (9 of 24 questions needed up to four retry rounds and
   one never got through; 50 of 140 document rows were never stored), at about

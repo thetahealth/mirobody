@@ -42,7 +42,9 @@ Or run every model on the same machine, with no key: `./deploy.sh` alone
 prints a link to the first-run page, where **100% on this machine** points
 Mirobody at a [llama.cpp](https://github.com/ggml-org/llama.cpp) server, the
 local model runtime it ships a preset for (`docker compose --profile local`
-on an NVIDIA GPU, or `llama-server` on a Mac). Your documents and questions
+on an NVIDIA GPU, `--profile local-cpu` with none, or `llama-server` on a Mac
+or Windows). The default pair needs 16 GB of memory; on a CPU alone a first
+answer takes 2–3 minutes. Your documents and questions
 then stay on the machine; the models download once from Hugging Face. See
 [local models](https://github.com/thetahealth/mirobody/blob/main/docs/local-models.md).
 

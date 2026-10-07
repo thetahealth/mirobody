@@ -25,9 +25,8 @@ Vulkan, CUDA, ROCm, Metal). One server serves them all:
 router mode, and each model downloads from Hugging Face the first time it is
 asked for.
 
-Whether to run locally at all, and how the two sizes compare with DeepSeek
-V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on the same evaluation, is
-[model-choice.md](model-choice.md).
+Whether to run locally at all, and how the small size compares with the
+cloud models on the same evaluation, is [model-choice.md](model-choice.md).
 
 ## Choose a size
 
@@ -42,15 +41,35 @@ GGUF files the preset fetches, document reader included; memory is the most
 
 Small runs on any computer with 16 GB of memory and no GPU, Windows, Linux or
 macOS; the stack beside it takes about 1 GB more. Large wants a 32 GB Mac or a
-24 GB NVIDIA GPU. Two other sizes were measured and are not offered:
+24 GB NVIDIA GPU. Two other answering models were measured and dropped:
 MiniCPM5-1B answered 2 of the 24 questions with every expected fact for 0.4 GB
 less download, and Qwen3.5-9B did not fit beside the stack on 16 GB.
 
-The answering model is the only difference: every size reads documents with
-GLM-OCR and reads tables by rule, so a lab report's readings come out the same.
+The answering model is the only difference: both sizes read documents with
+GLM-OCR and read tables by rule, so a lab report's readings come out the same.
 What changes is how well questions are answered, how fast, and whether a photo
-in the chat is looked at (large) or read as its OCR text (small). [`benchmarks/local_models/`](../benchmarks/local_models/README.md) has
-the evaluation behind the figures, its cases and how to rerun it.
+in the chat is looked at (large) or read as its OCR text (small).
+[`benchmarks/local_models/`](../benchmarks/local_models/README.md) has the
+evaluation behind the figures, its cases and how to rerun it.
+
+### Without a GPU
+
+The times above are Apple silicon's, where llama.cpp runs on the GPU. On the
+CPU alone a first answer takes minutes. Measured on Linux on 2026-10-07, in
+llama.cpp's CPU image (`ghcr.io/ggml-org/llama.cpp:server`, the `local-cpu`
+profile below) with 4 vCPUs (colima, arm64):
+
+- MiniCPM5-2B reads a prompt at about 50 tokens a second and writes at about
+  18. A 6.8k-token prompt was answered in 137 s, so expect 2–3 minutes for
+  a first answer; later turns reuse the server's prompt cache and read only
+  what is new.
+- GLM-OCR reads a photographed page in about 17 s, its two passes together.
+- Both models loaded hold about 6.0 GiB in the container, so Docker's VM
+  needs at least 8 GB of memory. Docker Desktop gives it half the computer's
+  by default, 8 GB on a 16 GB machine; colima starts with 2 GB unless given
+  `--memory 8`.
+- The product's tool-call probe (`doctor --probe`) passed through this
+  service, and both models load from its cache volume once downloaded.
 
 ## Start the models
 
@@ -60,24 +79,30 @@ answering model and the reader in memory, so choosing another size on the
 setup page unloads the one before.
 
 **Any computer with Docker, no GPU needed** (Windows, Linux or macOS). The
-slowest, and the one that needs nothing besides Docker:
+slowest, a first answer in 2–3 minutes ([Without a GPU](#without-a-gpu)), and
+the one that needs nothing besides Docker, with at least 8 GB of memory for it:
 
 ```bash
 COMPOSE_PROFILES=local-cpu ./deploy.sh     # the stack, plus llama.cpp's CPU image beside it
 ```
 
 `deploy.sh` writes `COMPOSE_PROFILES` into `.env`, so a later
-`docker compose up -d` keeps the model service. On a running stack, add the
-line to `.env` and run `docker compose up -d`.
+`docker compose up -d` keeps the model service. On a stack that is already
+running, `docker compose --profile local-cpu up -d` starts it beside the app
+(the line the setup page shows; `--profile local` for the GPU service below);
+add `COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
+removes it and the next `up` leaves it out.
 
 **Windows**, to use the GPU (Intel, AMD or NVIDIA, through Vulkan; the CPU when
 there is none). winget's `ggml.llamacpp` is llama.cpp's own Vulkan release
-build, for x64 and arm64. In PowerShell, with the preset from the checkout in
-WSL (below; `Ubuntu` is the distribution's name in `wsl -l`):
+build, for x64 and arm64. In PowerShell, from the checkout in WSL (below;
+`Ubuntu` is the distribution's name in `wsl -l`), so that the preset's
+relative path, the one the setup page shows, resolves:
 
 ```powershell
 winget install --id ggml.llamacpp
-llama-server --models-preset \\wsl.localhost\Ubuntu\home\<you>\mirobody\docker\local-models.ini --port 8080 --models-max 2
+cd \\wsl.localhost\Ubuntu\home\<you>\mirobody
+llama-server --models-preset docker\local-models.ini --port 8080 --models-max 2
 ```
 
 The setup page looks for it through Docker Desktop's `host.docker.internal`,
@@ -128,7 +153,7 @@ Or two lines in `.env`, then `docker compose up -d` (a restart does not reread `
 ```bash
 LOCAL_BASE_URL=http://host.docker.internal:8080/v1        # app in Docker, models on the host
 LOCAL_OCR_BASE_URL=http://host.docker.internal:8080/v1
-# with `--profile local`:      http://llama:8080/v1 for both
+# with the local or local-cpu profile: http://llama:8080/v1 for both
 # app and models on the host:  http://127.0.0.1:8080/v1 for both
 ```
 
@@ -168,8 +193,8 @@ host's loopback, so `llama-server` keeps its default `127.0.0.1`. On Linux it
 points at the Docker bridge, so a server on the host has to listen there: give
 it the bridge address (`--host 172.17.0.1`, from `ip -4 addr show docker0`),
 not `0.0.0.0`, which also offers the server, with no key, to every machine on
-your network. The `--profile local` service needs neither: the app reaches it
-on compose's own network.
+your network. The `local` and `local-cpu` services need neither: the app
+reaches them on compose's own network.
 
 `failed to initialize router models: ... Is a directory` in the `llama` log
 means Docker could not see the checkout, and mounted an empty directory where
@@ -178,7 +203,7 @@ the checkout under it, or add the path to colima's `mounts`.
 
 ## The document reader
 
-GLM-OCR-0.9B reads documents at every size. Three small OCR models that
+GLM-OCR-0.9B reads documents with either size. Three small OCR models that
 upstream llama.cpp serves were run through the product's whole extraction
 path on synthetic reports ([`benchmarks/local_ocr/`](../benchmarks/local_ocr/README.md)):
 of 303 printed rows, GLM-OCR stored 283 with the printed value (302 with the
@@ -227,8 +252,8 @@ Any OpenAI-compatible server works: set the two addresses and the model names
 it serves (`curl <address>/v1/models`), on the setup page or as `LOCAL_MODEL`
 and `LOCAL_OCR_MODEL`.
 
-**Ollama.** `ollama pull qwen3.8:27b` (17 GB) answered the same sixteen questions
-correctly, and fastest. Two things to know:
+**Ollama.** `ollama pull qwen3.8:27b` (17 GB) answered the large size's earlier
+set (8 questions, asked twice) correctly, and fastest. Two things to know:
 
 - Ollama sets the context from the GPU's memory, and below 24 GB it is 4,096
   tokens, which cuts Mirobody's prompt short without an error. Set
@@ -239,7 +264,8 @@ correctly, and fastest. Two things to know:
 
 **Ternary Bonsai 2 27B** is the same Qwen3.8-27B in 6.6 GB and answered as well,
 but today only PrismML's [llama.cpp fork](https://github.com/PrismML-Eng/llama.cpp)
-runs it. It becomes the default once upstream llama.cpp does.
+runs it. Once upstream llama.cpp does, it is the candidate for the large size,
+at half the download.
 
 ## What each model can read in a photo
 
@@ -269,14 +295,22 @@ what was eaten.
 
 ## Things that behave differently from a hosted model
 
-- **Nothing streams while the prompt is read.** A turn that adds 6.6k new tokens
-  waits over a minute for its first byte. The `local` entry allows 600 s of
-  silence (`stream_chunk_timeout`); the library default of 120 s fails a long turn.
+- **Nothing streams while the prompt is read.** A turn that adds 6.6k new
+  tokens waits over a minute for its first byte on an M4 Pro, over two on 4 CPU
+  cores. The `local` entry allows 600 s of silence (`stream_chunk_timeout`); the
+  library default of 120 s fails a long turn.
 - **The first turn after loading is the slow one.** The server caches the
   prompt it has read, so later turns read only what changed.
 - **A reply can be all reasoning.** The agent asks once more when a reply has
   no answer text and no tool call; if the second one is empty too, the chat
   says it has no answer rather than showing a blank message.
+
+## How a document is read, whichever model reads the rest
+
+These hold with a vendor key as much as here: the vendor's model then
+extracts readings only from what the table rules left, though it still writes
+the file's title and summary from the document's text.
+
 - **A long report is read a page at a time.** Text over 3,000 characters
   with page headers goes to the model one page per request, two at once, and
   the pages' readings are joined: in one request MiniCPM5-2B returned none of

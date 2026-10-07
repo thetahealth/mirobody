@@ -245,7 +245,7 @@ case "$model_setup" in
         ;;
     needed)
         printf '\nChoose a model: open %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
-        printf 'and paste one API key, or run every model on this machine.\n'
+        printf 'and paste one API key, or run every model on this machine with llama.cpp.\n'
         printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
         ;;
     *)

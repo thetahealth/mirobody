@@ -47,7 +47,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 | | 模型在哪里跑 | 你需要 | 什么会离开这台机器 |
 | --- | --- | --- | --- |
 | **一把模型 key** | 在你粘贴 key 的那家厂商：OpenRouter、OpenAI、Gemini、Anthropic、DeepSeek、DashScope，或任何 OpenAI 兼容网关 | Docker 和一把 key | 你的提问、智能体读到的数据行和它读的文档，都会发给那家厂商 |
-| **100% 在本机运行** | **由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供模型服务**，跟服务一起跑；Mirobody 自己不跑模型。默认由 MiniCPM5-2B 回答问题、GLM-OCR-0.9B 读文档；内存更多时可换 Qwen3.8-27B，回答更好。模型名可以自己改（[说明](docs/local-models.md)） | Docker 和 16 GB 内存即可跑默认组合，不需要显卡，Windows、Linux、macOS 都行（Qwen3.8-27B 约需 20 GB）；模型一次性下载 3.0 GB（大号 14.5 GB） | 与你有关的任何数据都不会离开；在 16 GB 的 M1 Pro 上一个回答约 30 秒（Qwen3.8-27B 在 M4 Pro 上约两分钟） |
+| **100% 在本机运行** | **由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供模型服务**，跟服务一起跑；Mirobody 自己不跑模型。默认由 MiniCPM5-2B 回答问题、GLM-OCR-0.9B 读文档；内存更多时可换 Qwen3.8-27B，回答更好。模型名可以自己改（[说明](docs/local-models.md)） | Docker 和 16 GB 内存即可跑默认组合，不需要显卡，Windows、Linux、macOS 都行（Qwen3.8-27B 约需 20 GB）；模型一次性下载 3.0 GB（大号 14.5 GB） | 与你有关的任何数据都不会离开。在 16 GB 的 M1 Pro 上一个回答约 30 秒；没有显卡时，4 核 CPU 上第一个回答要 2–3 分钟（Qwen3.8-27B 在 M4 Pro 上约两分钟） |
 | **只用库** | 不需要模型：`pip install mirobody` 或 `uvx --python 3.12 mirobody` 把名称解析到 LOINC、单位换算到 UCUM | Python 3.12 | 什么都不会离开：词表随包发布 |
 
 用模型 key 时只需要 Docker：不用 Python，不用 Node.js，不用 GPU，不用 Git LFS，连 Git 都可以不装（`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` 得到的是同一份检出）。`deploy.sh` 会把密钥和你的 key 写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建；端口被占用、或同名的另一套 Mirobody 已经在跑时，它会停下来并说清楚怎么改。镜像要和自己的 Postgres 一起跑，所以单独 `docker run` 是跑不起来的。之后再加 key：写进 `.env`，然后 `docker compose up -d`；`restart` 不会重新读 `.env`。
@@ -65,7 +65,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 
 **用哪把 key。** 下面任何一把都能把整套跑通：[OpenRouter](https://openrouter.ai/keys)（`OPENROUTER_API_KEY`）、[OpenAI](https://platform.openai.com/api-keys)（`OPENAI_API_KEY`）、[Gemini](https://aistudio.google.com/apikey)（`GOOGLE_API_KEY`）、[Anthropic](https://platform.claude.com/settings/keys)（`ANTHROPIC_API_KEY`）、DeepSeek、DashScope，或者任何 OpenAI 兼容网关（`<PROVIDER>_BASE_URL`）。[`config.llm.yaml`](config.llm.yaml) 写的是变量名（`api_key: OPENROUTER_API_KEY`），不是密钥本身；`mirobody doctor` 会列出每一环选中了什么。
 
-**用哪个模型。** [docs/model-choice.zh-CN.md](docs/model-choice.zh-CN.md) 把本地两种大小和 DeepSeek V4.1 Flash、Claude Sonnet 5.5、GPT-6 Luna 放在同样的题目、文档和日记句子上比：答得多好、多快、花多少钱，以及每种情况下谁会读到你的健康数据。
+**用哪个模型。** [docs/model-choice.zh-CN.md](docs/model-choice.zh-CN.md) 把本地模型和五个云端模型（DeepSeek V4.1 Flash、Claude Sonnet 5.5、Claude Opus 5.5、Gemini 3.8 Flash、GPT-6 Luna）放在同样的题目、文档和日记句子上比：答得多好、多快、花多少钱，以及每种情况下谁会读到你的健康数据。
 
 **1.6.0 预告：Mirobody 自己的模型。** 足够小、足够快，普通电脑就能跑，针对 Mirobody 自己的工具和文档做了后训练，和其他模型一样由 llama.cpp 提供服务：最适合这套 harness 的模型，让完全私密的部署只需要一台普通电脑。
 
