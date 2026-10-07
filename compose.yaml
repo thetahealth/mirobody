@@ -48,7 +48,11 @@ services:
     env_file:
       - ${MIROBODY_ENV_FILE:-./docker/empty-environment}
     ports:
-      - "${MIROBODY_HOST_PORT:-18060}:18060"
+      # This machine only, like Postgres. On every interface, anyone on the
+      # network signed in with the demo accounts' public code (111111).
+      # MIROBODY_BIND=0.0.0.0 in .env offers the app to other machines; read
+      # SECURITY.md first.
+      - "${MIROBODY_BIND:-127.0.0.1}:${MIROBODY_HOST_PORT:-18060}:18060"
     environment: &mirobody_env
       ENV: ${ENV:-localdb}
       PYTHONUNBUFFERED: "1"

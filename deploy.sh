@@ -272,7 +272,15 @@ for old in "${project_name}_mirobody_redis" "${project_name}_mirobody_site_packa
 done
 
 port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
-url="http://localhost:${port:-18060}"
+# compose.yaml publishes the app on MIROBODY_BIND, 127.0.0.1 unless .env names
+# another address. A wildcard answers here as localhost too; one address only
+# as itself.
+bind="${MIROBODY_BIND:-$(setting MIROBODY_BIND)}"
+case "${bind:-127.0.0.1}" in
+    127.0.0.1 | 0.0.0.0 | '[::]' | localhost) host=localhost ;;
+    *) host="$bind" ;;
+esac
+url="http://${host}:${port:-18060}"
 # A key or server in .env, or a choice saved from the setup page earlier: only
 # the app knows which, so it is asked rather than .env counted.
 model_setup="$(curl -fsS "${url}/mirobody.json" 2>/dev/null \
@@ -303,3 +311,13 @@ fi
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
 fi
+# An address other than loopback offers the app to every machine that reaches
+# this one, where config.yaml's EMAIL_PREDEFINE_CODES lets anyone sign in with
+# the public demo code, whether or not the demo data was seeded.
+case "${bind:-127.0.0.1}" in
+    127.* | '[::1]' | localhost) ;;
+    *)
+        printf 'MIROBODY_BIND=%s offers this app to other machines, where the public code 111111 signs anyone in as you@mirobody.ai or mom@mirobody.ai.\n' "$bind" >&2
+        printf 'SECURITY.md says what to change first; PRODUCTION: true refuses to start while those codes remain.\n' >&2
+        ;;
+esac

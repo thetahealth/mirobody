@@ -194,7 +194,10 @@ points at the Docker bridge, so a server on the host has to listen there: give
 it the bridge address (`--host 172.17.0.1`, from `ip -4 addr show docker0`),
 not `0.0.0.0`, which also offers the server, with no key, to every machine on
 your network. The `local` and `local-cpu` services need neither: the app
-reaches them on compose's own network.
+reaches them on compose's own network, and they publish no port. The app
+itself is published on `127.0.0.1` only; `MIROBODY_BIND=0.0.0.0` in `.env`
+offers it to your network, where the demo accounts' code, `111111`, is public
+([SECURITY.md](../SECURITY.md) says what to change first).
 
 `failed to initialize router models: ... Is a directory` in the `llama` log
 means Docker could not see the checkout, and mounted an empty directory where
