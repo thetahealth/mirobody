@@ -15,6 +15,15 @@ from mirobody.utils.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _leaves(exc: BaseException) -> list[BaseException]:
+    """The exceptions an ExceptionGroup holds, however deep; `[exc]` for any
+    other. A TaskGroup raises what its tasks raised inside a group, whose type
+    names nothing and which `is_driver_exception` does not recognise."""
+    if isinstance(exc, BaseExceptionGroup):
+        return [leaf for inner in exc.exceptions for leaf in _leaves(inner)]
+    return [exc]
+
+
 class BaseTask:
     """A worker task whose subclass supplies ``queue_key`` and ``consume``.
 
@@ -170,10 +179,11 @@ class BaseTask:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                leaves = _leaves(exc)
                 logger.error(
                     "task consumer error: type=%s error_type=%s",
-                    cls.__name__, type(exc).__name__,
-                    exc_info=not is_driver_exception(exc),
+                    cls.__name__, type(leaves[0]).__name__,
+                    exc_info=not any(is_driver_exception(leaf) for leaf in leaves),
                 )
                 try:
                     await asyncio.wait_for(stop_event.wait(), timeout=cls.retry_sec)
