@@ -50,9 +50,11 @@ router = APIRouter(prefix="/api/v1", tags=["indicators"])
 # catalogue cap: a table the user scrolls is not a model's context window, and
 # capping it at one hid 44 of the demo user's 244 indicators while reporting
 # `count: 200` as though that were the total. Readings only: what the person
-# reported has its own tab (`/api/v1/journal`).
+# reported has its own tab (`/api/v1/journal`). No outside-window note:
+# `render_rest` shows no notes, and the note's whole-record catalogue took
+# 1.8 s over a million readings (synthetic, 2026-10-08) on every dated call.
 _service = HealthIndicatorsService(PostgresHealthQuery(reported=False), catalog_cap=REST_CATALOG_MAX,
-                                   row_cap=REST_ROW_MAX)
+                                   row_cap=REST_ROW_MAX, outside_note=False)
 # Every visible entry, reported ones included: the records table and the delta
 # count cover what a person logged as well as what was measured.
 _records = PostgresHealthQuery(reported=True)

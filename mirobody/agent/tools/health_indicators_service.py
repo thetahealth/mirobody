@@ -103,7 +103,8 @@ class HealthIndicatorsService(RecordTool):
     input_schema = query.TOOL_SCHEMA
 
     def __init__(self, health_query: Any = None, *, now: Any = None, catalog_cap: int | None = None,
-                 row_cap: int = query.ROW_CAP, bucket_cap: int = query.BUCKET_CAP) -> None:
+                 row_cap: int = query.ROW_CAP, bucket_cap: int = query.BUCKET_CAP,
+                 outside_note: bool = True) -> None:
         self._health_query = health_query
         self._now = now  # injected in tests; production reads the clock
         # A browser's catalogue and reading list are tables it scrolls, not a
@@ -111,6 +112,9 @@ class HealthIndicatorsService(RecordTool):
         self._catalog_cap = catalog_cap
         self._row_cap = row_cap
         self._bucket_cap = bucket_cap
+        # The note costs a whole-record catalogue on every dated call, and is
+        # written for a model; a caller that renders no notes turns it off.
+        self._outside_note = outside_note
 
     def _query(self) -> Any:
         if self._health_query is None:
@@ -196,7 +200,7 @@ class HealthIndicatorsService(RecordTool):
             method, fell_back = "catalog", True
 
         outside = ""
-        if method != "catalog" and (request.start or request.end):
+        if self._outside_note and method != "catalog" and (request.start or request.end):
             outside = _outside_note(await awaited(hq.catalog(subject_id, None)), rows, window)
         return _envelope_for(method, request, window, rows, fell_back=fell_back, bucket_cap=self._bucket_cap,
                              row_cap=self._row_cap, outside=outside)
