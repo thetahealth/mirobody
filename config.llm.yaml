@@ -22,9 +22,11 @@
 #   ANTHROPIC_API_KEY    claude          anthropic-utils
 #   DEEPSEEK_API_KEY     deepseek        deepseek-utils
 #
-# No key at all: run the local models (docker/local-models.ini, docs/local-models.md)
-# and set LOCAL_BASE_URL and LOCAL_OCR_BASE_URL; the `local*` entries then serve
-# every surface. With a key set as well, the key's models come first.
+# No key at all: serve the local models with llama.cpp's `llama-server` (the
+# preset docker/local-models.ini; docs/local-models.md) and choose "100% on this
+# machine" on the setup page, or set LOCAL_BASE_URL and LOCAL_OCR_BASE_URL; the
+# `local*` entries then serve every surface. With a key set as well, the key's
+# models come first.
 #
 # `mirobody doctor` (and the boot log) prints what the current config selects.
 # Model ids verified against each vendor's catalogue on 2026-10-06.
@@ -165,10 +167,10 @@ MODELS:
     supports_image: true
   local:
     # The local agent: MiniCPM5-2B, the `minicpm5-2b` section of
-    # docker/local-models.ini on llama.cpp's router, the size an ordinary
-    # computer runs and the one the setup page opens on. LOCAL_MODEL=qwen3.8-27b
-    # (or the page's large size) answers better on 20 GB. No key, and off
-    # until LOCAL_BASE_URL is set:
+    # docker/local-models.ini on llama.cpp's router: the small size, which an
+    # ordinary computer runs (16 GB, no GPU) and the setup page opens on.
+    # LOCAL_MODEL=qwen3.8-27b (or the page's large size) answers better with
+    # about 20 GB of memory. No key, and off until LOCAL_BASE_URL is set:
     #   LOCAL_BASE_URL=http://127.0.0.1:8080/v1                (the app on this machine)
     #   LOCAL_BASE_URL=http://host.docker.internal:8080/v1     (the app in Docker)
     llm_type: openai
@@ -178,7 +180,9 @@ MODELS:
     temperature: 0
     supports_image: true          # the server says whether the model sees (/props)
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
-                                  # 80 s for the first 8k tokens on an M4 Pro
+                                  # 80 s for the first 8k tokens on an M4 Pro; on 4 CPU
+                                  # cores MiniCPM5-2B reads ~50 tokens/s, and a 6.8k-token
+                                  # prompt was answered in 137 s (2026-10-07)
     max_tokens: 6144              # a reply (reasoning included) that runs on is cut here, not at the
                                   # context: MiniCPM5-2B generated with no end on two of the
                                   # evaluation's questions and they hit the 600 s timeout
@@ -274,7 +278,11 @@ MODELS:
     # GLM-OCR-0.9B (Q8_0 + its mmproj), `glm-ocr` in docker/local-models.ini.
     # Off until LOCAL_OCR_BASE_URL is set. It reads report photos and pages:
     # one pass per prompt, the text and then the tables, whose columns are
-    # read without a model.
+    # read without a model. The preset's other reader, `paddleocr-vl`
+    # (PaddleOCR-VL-1.6), answers its own prompts, so switching to it changes
+    # `model` and both `ocr_prompts` here ("OCR:" and "Table Recognition:";
+    # docs/local-models.md, The document reader); LOCAL_OCR_MODEL alone is not
+    # enough.
     llm_type: openai
     base_url: LOCAL_OCR_BASE_URL
     model: glm-ocr
@@ -303,25 +311,27 @@ MODELS:
 # Selection happens once; a failed call is reported, never retried elsewhere.
 
 # What the first-run page tells someone choosing 100% local (docs/local-models.md),
-# and where it looks for the model server when given no address, in order:
-# llama-server on this machine, compose's `llama` service, and a server beside
-# an app that is not in Docker.
+# and where it looks for llama.cpp's `llama-server` when given no address, in
+# order: one on this machine, compose's `llama` service (the `local` or
+# `local-cpu` profile), and a server beside an app that is not in Docker.
 LOCAL_SETUP:
   preset: docker/local-models.ini
   base_urls:
     - http://host.docker.internal:8080/v1
     - http://llama:8080/v1
     - http://127.0.0.1:8080/v1
-  # The sizes the page offers, smallest first: the model that answers
+  # The two sizes the page offers, small first: the model that answers
   # (`agent`) beside the document reader (`ocr`), both sections of the preset.
   # download_gb adds up the GGUF files the preset fetches (Hugging Face,
   # 2026-10-06); memory_gb is the peak llama-server held with both loaded
   # while answering, and answer_s the median seconds per answer, on the
-  # machine `measured_on` names (benchmarks/local_models has the evaluation).
-  # `sees`: whether the answering model reads a photo itself (else its OCR
-  # text). MiniCPM5-1B and Qwen3.5-9B were evaluated and are not offered: the
-  # 1B answered 2 of 24 questions fully for 0.4 GB less download, the 9B did
-  # not fit beside the stack on 16 GB.
+  # machine `measured_on` names (benchmarks/local_models has the evaluation),
+  # where llama.cpp runs on the GPU: with no GPU a first answer takes 2-3
+  # minutes (docs/local-models.md, Without a GPU). `sees`: whether the
+  # answering model reads a photo itself (else its OCR text). MiniCPM5-1B and
+  # Qwen3.5-9B were evaluated and dropped: the 1B answered 2 of 24 questions
+  # fully for 0.4 GB less download, the 9B did not fit beside the stack on
+  # 16 GB.
   tiers:
     - id: small
       sees: false
