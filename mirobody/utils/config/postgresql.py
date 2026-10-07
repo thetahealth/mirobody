@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 #-----------------------------------------------------------------------------
 
 class LoggedAsyncCursor(psycopg.AsyncCursor):
+    """The server pool's cursor: each statement at DEBUG, with its duration and
+    row count. Never its parameters: the pool serves sign-in, account merge and
+    profile updates, and `update_user_name` binds the person's name."""
+
     async def execute(
         self,
         query: psycopg.abc.Query,
@@ -25,20 +29,13 @@ class LoggedAsyncCursor(psycopg.AsyncCursor):
         prepare: bool | None = None,
         binary: bool | None = None
     ) -> Self:
-        start_time = time.time()
-        cur = await super().execute(query, params, prepare=prepare, binary=binary)
-        end_time = time.time()
-
-        logger.info(
+        start = time.perf_counter()
+        await super().execute(query, params, prepare=prepare, binary=binary)
+        logger.debug(
             " ".join(str(query).split()),
-            extra = {
-                "time_cost" : round((end_time-start_time)*1e3, 2),
-                "params"    : params,
-                "records"   : cur.rowcount
-            },
-            stacklevel = 2
+            extra={"duration_ms": round((time.perf_counter() - start) * 1e3, 2), "row_count": self.rowcount},
+            stacklevel=2,
         )
-
         return self
 
 

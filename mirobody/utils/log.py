@@ -1,4 +1,3 @@
-import base64
 import hmac
 import secrets
 from collections.abc import Callable
@@ -77,27 +76,14 @@ def user_tag(user_id: int | str | None) -> str:
 
 
 class JsonEncoder(json.JSONEncoder):
-    def default(self, o):
+    """Any value a record carries becomes text. Only `datetime` was handled, so
+    a `date`, `Decimal` or `UUID` extra raised inside `format()` and the line
+    was lost; `json` never hands this a list, tuple or dict."""
+
+    def default(self, o: object) -> str:
         if isinstance(o, datetime.datetime):
             return o.isoformat()
-        
-        if isinstance(o, bytes):
-            try:
-                s = str(o)
-                return s
-            except Exception:
-                return base64.urlsafe_b64encode(o).decode()
-        
-        elif isinstance(o, list):
-            return [self.default(item) for item in o]
-        
-        elif isinstance(o, tuple):
-            return tuple(self.default(item) for item in o)
-        
-        elif isinstance(o, dict):
-            return {key: self.default(value) for key, value in o.items()}
-        
-        return super().default(o)
+        return str(o)
 
 #-----------------------------------------------------------------------------
 

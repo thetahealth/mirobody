@@ -156,8 +156,10 @@ async def execute_query(
                 "row_count": len(ret) if isinstance(ret, list) else ret["record_count"],
                 "duration_ms": round((time.perf_counter() - start) * 1e3, 2),
             }
-            logged_query = _summarize_sql(query)  # the statement text: placeholders, no values
-            logger.info(logged_query, extra=extra, stacklevel=2)
+            # DEBUG: the statement text (placeholders, no values) was 71 of the
+            # 403 lines a local deployment logged at INFO.
+            logged_query = _summarize_sql(query)
+            logger.debug(logged_query, extra=extra, stacklevel=2)
         return ret
 
     except Exception as e:
