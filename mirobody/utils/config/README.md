@@ -83,26 +83,17 @@ provider is a device or data source (`PROVIDER_DIRS`), so 1.4.1 renamed
 (`EMBEDDING_PROVIDER` was renamed too, and is now removed with the surface it
 chose).
 
-**Upgrading from 1.3.x or 1.4.0?** The old spellings still work. Each is
-renamed onto its current name as the config file merges, and the log says so
-once. Rename them anyway — the alias is a migration courtesy, not the contract.
+**Upgrading from 1.3.x or 1.4.0?** Rename the old spellings: they are no
+longer read. Each one a config file or the environment still carries is named
+once in the boot log, with its successor, and ignored. The renamed keys were
+read under their new names from 1.4.0 to 1.5.4.
 
-Renaming happens at LOAD time, and that placement is the whole point: the
-shipped `config.llm.yaml` declares `MODELS`, `PROMPTS`, `ALLOWED_TOOLS` and
-`DISALLOWED_TOOLS` itself, so an alias that only filled in when the new key
-was *missing* would never have fired — the shipped default shadowed the
-overlay, which is exactly how a 1.3.x deployment came up with zero providers
-and an empty `/api/models` and nothing in the log. Because the rename happens
-as each file merges, ordinary layering still decides: a later file's old
-spelling overrides an earlier file's new one. Environment variables alias the
-same way, and the current spelling always wins when both are set.
-
-Four keys are **not** aliased, and a config that still carries one is named in
-the log rather than ignored: `PRIVATE_AGENT_DIRS` (use `AGENT_DIRS`),
-`MCP_RESOURCE_DIRS` (removed with the MCP `resources` capability), and
-`HEARTBEAT_INTERVAL` / `HEARTBEAT_COUNTER_THRESHOLD` — `SSE_HEARTBEAT_SECONDS`
-is not those under a new name, since the old pair multiplied to a first ping at
-40 s while the new one fires on silence.
+The same goes for the keys that were removed rather than renamed:
+`PRIVATE_AGENT_DIRS` (use `AGENT_DIRS`), `MCP_RESOURCE_DIRS` (removed with the
+MCP `resources` capability), `UTILS_EMBEDDING_MODEL` (nothing embeds since
+1.5.0), and `HEARTBEAT_INTERVAL` / `HEARTBEAT_COUNTER_THRESHOLD`:
+`SSE_HEARTBEAT_SECONDS` is not those under a new name, since the old pair
+multiplied to a first ping at 40 s while the new one fires on silence.
 
 ### 1. Models (`MODELS`)
 

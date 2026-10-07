@@ -34,39 +34,21 @@ _global_config = None
 #: carries it (see `server/bootstrap.py`).
 PLACEHOLDER_SENTINEL = "REPLACE_THIS_VALUE_IN_PRODUCTION"
 
-# Keys 1.4.0 and 1.4.1 renamed, and the one place that knows every spelling.
-# `_DEEP` went when the agent stopped being "the DeepAgent"; `PROVIDERS` became
-# `MODELS` once a provider meant a device. The upgrade failure was silent: a
-# 1.3.x overlay still said `PROVIDERS_DEEP`, the new key was absent from it,
-# and the agent booted with zero models and an empty `/api/models`.
-# Renaming happens at LOAD time, not read time, because the shipped
-# `config.llm.yaml` declares `MODELS` itself and would shadow a read-time
-# fallback. Renaming as each file merges lets ordinary layering decide.
-_RENAMED_KEYS = {
-    "PROVIDERS_DEEP": "MODELS",
-    "PROMPTS_DEEP": "PROMPTS",
-    "ALLOWED_TOOLS_DEEP": "ALLOWED_TOOLS",
-    "DISALLOWED_TOOLS_DEEP": "DISALLOWED_TOOLS",
-    "DEFAULT_PROVIDER_DEEP": "DEFAULT_MODEL",
-    # 1.4.1: in this project a "provider" is a device or data source
-    # (PROVIDER_DIRS, mirobody/collect/providers); the model table is MODELS.
-    "PROVIDERS": "MODELS",
-    "DEFAULT_PROVIDER": "DEFAULT_MODEL",
-}
-
-#: new spelling -> its old spellings, for the environment-variable half.
-_RENAMED_FROM: dict[str, tuple[str, ...]] = {}
-for _old, _new in _RENAMED_KEYS.items():
-    _RENAMED_FROM[_new] = (*_RENAMED_FROM.get(_new, ()), _old)
-
-#: Keys 1.4.0 REMOVED, with what replaced them. Deliberately not aliased:
-#: `SSE_HEARTBEAT_SECONDS` is not `HEARTBEAT_INTERVAL` under a new name (the
-#: old pair multiplied to a first ping at 40 s; the new one fires on silence),
-#: and the two directory keys have no successor. Silently ignoring them is what
-#: makes an upgrade look fine while behaving differently, so they are named.
+#: Keys no longer read, with what to write instead. Each one present is named
+#: once at boot, because an upgrade that drops a key without a word looks fine
+#: while behaving differently: a 1.3.x overlay still saying `PROVIDERS_DEEP`
+#: booted the agent with zero models. The renamed spellings were read as their
+#: successors from 1.4.0 to 1.5.4; they are named and ignored like the rest.
+#: `SSE_HEARTBEAT_SECONDS` is not `HEARTBEAT_INTERVAL` renamed: the old pair
+#: multiplied to a first ping at 40 s, the new one fires on silence.
 _REMOVED_KEYS = {
-    # No surface embeds: the semantic tier was deleted in 1.5.0, and the
-    # embedding client and model routing that outlived it are gone too.
+    "PROVIDERS_DEEP": "renamed `MODELS`",
+    "PROMPTS_DEEP": "renamed `PROMPTS`",
+    "ALLOWED_TOOLS_DEEP": "renamed `ALLOWED_TOOLS`",
+    "DISALLOWED_TOOLS_DEEP": "renamed `DISALLOWED_TOOLS`",
+    "DEFAULT_PROVIDER_DEEP": "renamed `DEFAULT_MODEL`",
+    "PROVIDERS": "renamed `MODELS` (a provider is a device)",
+    "DEFAULT_PROVIDER": "renamed `DEFAULT_MODEL`",
     "UTILS_EMBEDDING_MODEL": "removed; nothing embeds (the semantic tier went in 1.5.0)",
     "EMBEDDING_PROVIDER": "removed; nothing embeds (the semantic tier went in 1.5.0)",
     "PRIVATE_AGENT_DIRS": "removed; `AGENT_DIRS` is the one agent search path",
@@ -81,17 +63,6 @@ _REMOVED_KEYS = {
 _warned_keys: set[str] = set()
 
 
-def _warn_renamed(old_key: str, new_key: str) -> None:
-    if old_key in _warned_keys:
-        return
-    _warned_keys.add(old_key)
-    logger.warning(
-        "config key %s was renamed to %s; the old spelling is being "
-        "read as the new one. Rename it in your overlay — this alias is a "
-        "migration courtesy, not the contract.", old_key, new_key,
-    )
-
-
 def _warn_removed(key: str, reason: str) -> None:
     """`reason` is passed in rather than looked up here: `phi_lint` flags every
     subscript inside a `logger.*` call, and a table lookup at the call site is
@@ -101,18 +72,6 @@ def _warn_removed(key: str, reason: str) -> None:
     _warned_keys.add(key)
     logger.warning("config key %s is %s; it is being ignored.", key, reason)  # phi: ok `_REMOVED_KEYS` text
 
-
-def _legacy_env(upper_key: str) -> str | None:
-    """The 1.3.x environment variable for `upper_key`, if that is where the
-    value is. `None` when the key was never renamed or the old one is unset,
-    so a deployment on the current spelling pays one dict lookup and warns
-    never."""
-    for old in _RENAMED_FROM.get(upper_key, ()):
-        s = os.environ.get(old)
-        if s is not None:
-            _warn_renamed(old, upper_key)
-            return s
-    return None
 
 #-----------------------------------------------------------------------------
 
@@ -281,15 +240,6 @@ class Config:
                 _warn_removed(upper_key, _REMOVED_KEYS[upper_key])
                 continue
 
-            renamed = _RENAMED_KEYS.get(upper_key)
-            if renamed:
-                if any(isinstance(k, str) and k.upper() == renamed for k in data):
-                    # This file spells it both ways. The current name wins,
-                    # rather than whichever `data` happened to yield last.
-                    continue
-                _warn_renamed(upper_key, renamed)
-                upper_key = renamed
-
             if self._encrypter and isinstance(value, str) and len(value) > 0:
                 # Check non-empty strings.
 
@@ -356,14 +306,6 @@ class Config:
         if s is not None:
             return s
 
-        # The pre-1.4.0 spelling, if the deployment sets it in the environment
-        # rather than in an overlay. Before `self._raw`, because environment
-        # beats file, and the shipped `config.yaml` declares four of these, so
-        # checking after would mean the default always won.
-        s = _legacy_env(upper_key)
-        if s is not None:
-            return s
-
         # Then check the configuration variables.
         return self._raw.get(upper_key, default)
 
@@ -381,11 +323,6 @@ class Config:
         # Check key in upper case again.
         upper_key = stripped_key.upper()
         s = os.environ.get(upper_key)
-        if s is not None:
-            return s
-
-        # The pre-1.4.0 spelling: see `get`.
-        s = _legacy_env(upper_key)
         if s is not None:
             return s
 
