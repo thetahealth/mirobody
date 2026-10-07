@@ -42,9 +42,8 @@ from pydantic import BaseModel, Field
 from mirobody.engine import resolve_reading as resolve_indicator_name
 from mirobody.units.normalize import normalize_unit, parse_value_unit
 from mirobody.kernel import series
-from mirobody.collect import observations
+from mirobody.collect import PostgresHealthQuery, observations
 from mirobody.translate import devices
-from mirobody.utils import execute_query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 
@@ -65,6 +64,8 @@ _SOURCE_TABLE = "api"
 _STORE_VENDORS = {"healthkit": "apple", "apple_health": "apple", "hms": "huawei"}
 
 MAX_RECORDS_PER_REQUEST = 500
+
+_records = PostgresHealthQuery(reported=True)
 
 
 def _error(status: int, message: str, code: str, param: str | None = None) -> JSONResponse:
@@ -368,59 +369,35 @@ async def read_records(
 
     Row-level, not grouped by indicator like the web client's endpoint: `id` is
     what `DELETE /api/data?id=` takes, and a developer paging a series wants the
-    readings in order, not a name-keyed map to flatten first.
-    """
-    # `note_text` is the encrypted column: the one writer wraps it in
-    # `encrypt_content`, so it is read through `decrypt_content`.
-    #
-    # The filter is spliced in, not parameterised as `(:indicator IS NULL OR
-    # ...)`: with no filter psycopg binds NULL with no type and Postgres fails
-    # the whole statement with "could not determine data type of parameter",
-    # so the unfiltered listing (the common case) returned 500.
-    params = {
-        "uid": str(user_id),
-        "limit": limit + 1,          # one extra row answers `has_more`
-        "offset": offset,
-    }
-    filter_sql = ""
-    if indicator:
-        filter_sql = "AND name_text ILIKE :pattern"
-        params["pattern"] = f"%{indicator}%"
-    sql = f"""
-    SELECT id, name_text, value_text, unit_text, value_num, unit_ucum, code, series_id,
-           observed_start, observed_end, modality, source_ref, decrypt_content(note_text) AS note
-      FROM v_observation
-     WHERE user_id = :uid
-       {filter_sql}
-     ORDER BY observed_start DESC, id DESC
-     LIMIT :limit OFFSET :offset
+    readings in order, not a name-keyed map to flatten first. The page is the
+    records list every other surface reads (`PostgresHealthQuery.records`),
+    so `indicator` matches the printed or the display name, literally.
     """
     try:
-        rows = await execute_query(sql, params) or []
+        page = await _records.records(
+            str(user_id), kind="all", keywords=indicator, limit=limit, offset=offset, notes=True)
     except Exception as e:
         logger.error("records read failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return _error(500, "This lookup could not complete.", "internal_error")
 
-    has_more = len(rows) > limit
-    data = []
-    for row in rows[:limit]:
-        data.append(
-            {
-                "id": row.get("id"),
-                "indicator": row.get("name_text"),
-                "value": row.get("value_text"),
-                "unit": row.get("unit_text") or None,
-                "parsed_value": None if row.get("value_num") is None else str(row.get("value_num")),
-                "parsed_unit": row.get("unit_ucum") or None,
-                "loinc_code": row.get("code") or None,
-                "series": row.get("series_id"),
-                "time": row.get("observed_start").isoformat() if row.get("observed_start") else None,
-                "end_time": row.get("observed_end").isoformat() if row.get("observed_end") else None,
-                "source": row.get("modality") or None,
-                "comment": row.get("note") or "",
-            }
-        )
-    return {"object": "list", "data": data, "has_more": has_more}
+    data = [
+        {
+            "id": row["row_id"],
+            "indicator": row["name"],
+            "value": row["value"],
+            "unit": row["unit"] or None,
+            "parsed_value": None if row["value_num"] is None else str(row["value_num"]),
+            "parsed_unit": row["unit_ucum"] or None,
+            "loinc_code": row["code"] or None,
+            "series": row["series"],
+            "time": row["observed_start"] or None,
+            "end_time": row["observed_end"] or None,
+            "source": row["modality"] or None,
+            "comment": row["comment"],
+        }
+        for row in page["rows"]
+    ]
+    return {"object": "list", "data": data, "has_more": page["has_more"]}
 
 
 @router.delete("/data")

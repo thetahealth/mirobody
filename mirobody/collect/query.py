@@ -203,13 +203,17 @@ class PostgresHealthQuery:
         keywords: str | None = None,
         limit: int | None = 50,
         offset: int = 0,
+        notes: bool = False,
     ) -> dict[str, Any]:
         """Visible entries across every series, newest observed first, one page.
 
         `created_since` compares the start of each entry's current period
         (`_periods_cte`), the same instant `delta` counts, so the rows
         behind a "3 new" badge are exactly these. `start_time` / `end_time` are
-        days observed, inclusive. `limit=None` is every row, for an export.
+        days observed, inclusive. `keywords` is matched literally against the
+        printed and the display name. `limit=None` is every row, for an export.
+        `notes=True` adds each row's decrypted note as `comment`, a reading's
+        too; without it only a reported entry's note is decrypted.
         """
         from mirobody.utils import execute_query
 
@@ -240,13 +244,15 @@ class PostgresHealthQuery:
             page = "LIMIT :limit OFFSET :offset"
         elif params["offset"]:
             page = "OFFSET :offset"
+        comment = ", decrypt_content(o.note_text) AS comment" if notes else ""
         columns = f"""o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
-                   o.ref_text, o.flag_text, o.value_num, o.value_canonical, o.unit_canonical,
+                   o.ref_text, o.flag_text, o.value_num, o.unit_ucum, o.value_canonical, o.unit_canonical,
                    to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time,
+                   o.observed_start, o.observed_end,
                    o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
                    o.source_kind, p.period_start,
                    {_REPORTED_COLUMNS},
-                   {_FILE_KEY} AS file_key, {_FILE_NAME}"""
+                   {_FILE_KEY} AS file_key, {_FILE_NAME}{comment}"""
         where = " AND ".join(conditions)
         if created_since is None:
             # Browsing: the page first, then the chains of its rows only.
@@ -932,23 +938,35 @@ def _number(value: object) -> float | None:
 def _record_row(r: dict) -> dict:
     """One row of the records list: a reading row's fields (the same names the
     Indicators table and the tools read), plus what kind of entry it is, where
-    it came from, and `created_at`, the start of its current visible period.
+    it came from, `created_at`, the start of its current visible period, and
+    the stored instants and parsed number that the developer API's
+    `GET /api/data` answers with.
 
     An entry that is not a measurement carries no value and no unit, never a
     made-up one; what the person wrote is `text`."""
     row = _reading_row(r)
     row.pop("total", None)
     kind = r.get("kind") or KIND_MEASUREMENT
-    period = r.get("period_start")
     row.update({
         "kind": kind,
         "source_kind": r.get("source_kind") or "",
-        "created_at": period.isoformat() if isinstance(period, datetime) else _text(period),
+        "created_at": _iso(r.get("period_start")),
+        "observed_start": _iso(r.get("observed_start")),
+        "observed_end": _iso(r.get("observed_end")),
+        "value_num": r.get("value_num"),
+        "unit_ucum": r.get("unit_ucum") or "",
     })
+    if "comment" in r:
+        row["comment"] = _text(r["comment"])
     if kind != KIND_MEASUREMENT:
-        row.update({"value": "", "unit": "", "value_canonical": None, "unit_canonical": ""})
+        row.update({"value": "", "unit": "", "value_num": None, "unit_ucum": "", "value_canonical": None,
+                    "unit_canonical": ""})
         row["text"] = _text(r.get("note")) or _text(r.get("value_text"))
     return row
+
+
+def _iso(value: object) -> str:
+    return value.isoformat() if isinstance(value, datetime) else _text(value)
 
 
 __all__ = [
