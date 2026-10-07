@@ -39,6 +39,7 @@ import argparse
 import unicodedata
 import asyncio
 import importlib.util
+import logging
 import os
 import sys
 
@@ -222,6 +223,10 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
 
     async def configure() -> None:
         await Config.init(yaml_filenames=args.configs)
+        # The table is this command's output; at INFO it sat under the
+        # libraries' JSON lines (every statement `settings.apply` ran, among
+        # them). A warning still shows.
+        logging.getLogger().setLevel(logging.WARNING)
         # The setup page's choice, as the server applies it at boot: a
         # deployment set up in the browser has no key in .env, and this
         # reported "no model" for it. Without a database it says nothing,

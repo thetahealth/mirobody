@@ -389,7 +389,7 @@ class Server:
         # saved settings, or a deployment set up in the browser logs "no LLM
         # API key is set" at every boot while its model works.
         from mirobody.utils.config.doctor import log_report, provider_report
-        log_report(provider_report(config), logger)
+        log_report(provider_report(), logger)
 
         server = Server(
             server_name     = config.http.name,
