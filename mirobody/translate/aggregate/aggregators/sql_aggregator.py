@@ -13,6 +13,7 @@ from typing import Any
 
 from zoneinfo import ZoneInfo
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.translate.aggregate import windows
 from mirobody.translate.aggregate.models import CalculationTask
@@ -69,6 +70,19 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetim
     except Exception as e:
         logger.error(f"Error converting timezone {timezone}: {e}")
         return day_start_utc, day_start_utc + timedelta(hours=24)
+
+
+#: A text `value` that Postgres reads as a number. Values are written as text
+#: and not all are numbers (a category point, a stray "--").
+_NUMERIC_TEXT = r"^\s*[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?\s*$"
+
+
+def _num(column: str) -> str:
+    """`column` as numeric, NULL when it is not a number. An unguarded cast
+    failed the whole statement on the first such row, and a regex beside the
+    cast in one WHERE does not guard it, since Postgres may evaluate either
+    first; a CASE is evaluated in order."""
+    return f"(CASE WHEN {column} ~ '{_NUMERIC_TEXT}' THEN {column}::numeric END)"
 
 
 def _local_days_later(begin_utc: datetime, timezone: str, days: int) -> datetime:
@@ -430,54 +444,69 @@ class SQLAggregator:
         all_summaries = []
 
         for (user_id, timezone), user_tasks in user_groups.items():
-            # Split tasks into standard aggregation, CGM event detection, GMI, and custom derived
-            _special = self._cgm_event_methods | self._cgm_gmi_methods | self._custom_derived_methods
-            standard_tasks = [t for t in user_tasks if t.aggregation_type not in _special]
-            event_tasks = [t for t in user_tasks if t.aggregation_type in self._cgm_event_methods]
-            gmi_tasks = [t for t in user_tasks if t.aggregation_type in self._cgm_gmi_methods]
-            custom_derived_tasks = [t for t in user_tasks if t.aggregation_type in self._custom_derived_methods]
+            # One person's failure is theirs: raised, it failed the pass, and
+            # the cursor stayed put, so every later pass failed on the same row.
+            try:
+                all_summaries.extend(await self._aggregate_person_day(user_id, timezone, user_tasks, data_begin_utc))
+            except Exception as e:
+                logger.error("aggregation failed for one person-day: user_id=%s error_type=%s", user_id,
+                             type(e).__name__, exc_info=not is_driver_exception(e))
 
-            # Standard GROUP BY aggregation path
-            if standard_tasks:
-                indicators = list({task.source_indicator for task in standard_tasks})
-                aggregation_methods = {task.aggregation_type for task in standard_tasks}
+        return all_summaries
 
-                logger.debug(
-                    f"Single SQL processing: user {user_id}, {len(indicators)} indicators, "
-                    f"data_begin_utc: {data_begin_utc}"
-                )
+    async def _aggregate_person_day(
+            self, user_id: str, timezone: str, user_tasks: list[CalculationTask], data_begin_utc: datetime
+    ) -> list[dict[str, Any]]:
+        """Every task of one person, zone and day: the standard aggregation in
+        one statement, then the methods that need a query of their own."""
+        all_summaries: list[dict[str, Any]] = []
+        # Split tasks into standard aggregation, CGM event detection, GMI, and custom derived
+        _special = self._cgm_event_methods | self._cgm_gmi_methods | self._custom_derived_methods
+        standard_tasks = [t for t in user_tasks if t.aggregation_type not in _special]
+        event_tasks = [t for t in user_tasks if t.aggregation_type in self._cgm_event_methods]
+        gmi_tasks = [t for t in user_tasks if t.aggregation_type in self._cgm_gmi_methods]
+        custom_derived_tasks = [t for t in user_tasks if t.aggregation_type in self._custom_derived_methods]
 
-                agg_results = await self._execute_single_sql_aggregation(
-                    [user_id], indicators, data_begin_utc, timezone, aggregation_methods
-                )
+        # Standard GROUP BY aggregation path
+        if standard_tasks:
+            indicators = list({task.source_indicator for task in standard_tasks})
+            aggregation_methods = {task.aggregation_type for task in standard_tasks}
 
-                if agg_results:
-                    summaries = self._convert_to_summary_records(agg_results, standard_tasks, data_begin_utc)
-                    all_summaries.extend(summaries)
-                else:
-                    logger.debug(f"No aggregation results for user {user_id}, data_begin_utc {data_begin_utc}")
+            logger.debug(
+                f"Single SQL processing: user {user_id}, {len(indicators)} indicators, "
+                f"data_begin_utc: {data_begin_utc}"
+            )
 
-            # CGM event detection path (hypo_event_count, hypo_event_times)
-            if event_tasks:
-                event_summaries = await self._process_cgm_event_tasks(
-                    user_id, event_tasks, data_begin_utc
-                )
-                all_summaries.extend(event_summaries)
+            agg_results = await self._execute_single_sql_aggregation(
+                [user_id], indicators, data_begin_utc, timezone, aggregation_methods
+            )
 
-            # GMI 14-day rolling window path
-            if gmi_tasks:
-                gmi_summaries = await self._process_gmi_tasks(
-                    user_id, gmi_tasks, data_begin_utc
-                )
-                all_summaries.extend(gmi_summaries)
+            if agg_results:
+                summaries = self._convert_to_summary_records(agg_results, standard_tasks, data_begin_utc)
+                all_summaries.extend(summaries)
+            else:
+                logger.debug(f"No aggregation results for user {user_id}, data_begin_utc {data_begin_utc}")
 
-            # W2.7: Custom derived methods (sleep_onset_latency, morning_hr_jump, nighttime_resting_hr)
-            if custom_derived_tasks:
-                derived_summaries = await self._process_custom_derived_tasks(
-                    user_id, custom_derived_tasks, data_begin_utc
-                )
-                all_summaries.extend(derived_summaries)
+        # CGM event detection path (hypo_event_count, hypo_event_times)
+        if event_tasks:
+            event_summaries = await self._process_cgm_event_tasks(
+                user_id, event_tasks, data_begin_utc
+            )
+            all_summaries.extend(event_summaries)
 
+        # GMI 14-day rolling window path
+        if gmi_tasks:
+            gmi_summaries = await self._process_gmi_tasks(
+                user_id, gmi_tasks, data_begin_utc
+            )
+            all_summaries.extend(gmi_summaries)
+
+        # Methods with a query of their own on series_data
+        if custom_derived_tasks:
+            derived_summaries = await self._process_custom_derived_tasks(
+                user_id, custom_derived_tasks, data_begin_utc
+            )
+            all_summaries.extend(derived_summaries)
         return all_summaries
 
     async def _process_data_begin_split_aggregations(
@@ -588,8 +617,8 @@ class SQLAggregator:
             threshold = m.group(1)
             alias = f"{method}_value"
             clause = (
-                f"ROUND(COUNT(CASE WHEN value::numeric < {threshold} THEN 1 END) "
-                f"* 100.0 / NULLIF(COUNT(*), 0), 2) as {alias}"
+                f"ROUND(COUNT(CASE WHEN num < {threshold} THEN 1 END) "
+                f"* 100.0 / NULLIF(COUNT(num), 0), 2) as {alias}"
             )
             return ('pct_below', alias, clause)
 
@@ -598,8 +627,8 @@ class SQLAggregator:
             threshold = m.group(1)
             alias = f"{method}_value"
             clause = (
-                f"ROUND(COUNT(CASE WHEN value::numeric > {threshold} THEN 1 END) "
-                f"* 100.0 / NULLIF(COUNT(*), 0), 2) as {alias}"
+                f"ROUND(COUNT(CASE WHEN num > {threshold} THEN 1 END) "
+                f"* 100.0 / NULLIF(COUNT(num), 0), 2) as {alias}"
             )
             return ('pct_above', alias, clause)
 
@@ -608,8 +637,8 @@ class SQLAggregator:
             lower, upper = m.group(1), m.group(2)
             alias = f"{method}_value"
             clause = (
-                f"ROUND(COUNT(CASE WHEN value::numeric BETWEEN {lower} AND {upper} THEN 1 END) "
-                f"* 100.0 / NULLIF(COUNT(*), 0), 2) as {alias}"
+                f"ROUND(COUNT(CASE WHEN num BETWEEN {lower} AND {upper} THEN 1 END) "
+                f"* 100.0 / NULLIF(COUNT(num), 0), 2) as {alias}"
             )
             return ('tir', alias, clause)
 
@@ -638,37 +667,37 @@ class SQLAggregator:
         agg_clauses = ["user_id", "indicator", "source"]
 
         if 'avg' in aggregation_methods:
-            agg_clauses.append("ROUND(AVG(value::numeric), 2) as avg_value")
+            agg_clauses.append("ROUND(AVG(num), 2) as avg_value")
         if 'max' in aggregation_methods:
-            agg_clauses.append("ROUND(MAX(value::numeric), 2) as max_value")
+            agg_clauses.append("ROUND(MAX(num), 2) as max_value")
         if 'min' in aggregation_methods:
-            agg_clauses.append("ROUND(MIN(value::numeric), 2) as min_value")
+            agg_clauses.append("ROUND(MIN(num), 2) as min_value")
         if 'sum' in aggregation_methods or 'total' in aggregation_methods:
-            agg_clauses.append("ROUND(SUM(value::numeric), 2) as sum_value")
+            agg_clauses.append("ROUND(SUM(num), 2) as sum_value")
         if 'count' in aggregation_methods:
             agg_clauses.append("COUNT(*) as count_value")
         if 'stddev' in aggregation_methods:
-            agg_clauses.append("ROUND(STDDEV(value::numeric), 2) as stddev_value")
+            agg_clauses.append("ROUND(STDDEV(num), 2) as stddev_value")
         if 'variance' in aggregation_methods:
-            agg_clauses.append("ROUND(VARIANCE(value::numeric), 2) as variance_value")
+            agg_clauses.append("ROUND(VARIANCE(num), 2) as variance_value")
         if 'last' in aggregation_methods:
-            agg_clauses.append("(ARRAY_AGG(value::numeric ORDER BY time DESC))[1] as last_value")
+            agg_clauses.append("(ARRAY_AGG(num ORDER BY time DESC) FILTER (WHERE num IS NOT NULL))[1] as last_value")
         if 'first' in aggregation_methods:
-            agg_clauses.append("(ARRAY_AGG(value::numeric ORDER BY time ASC))[1] as first_value")
+            agg_clauses.append("(ARRAY_AGG(num ORDER BY time ASC) FILTER (WHERE num IS NOT NULL))[1] as first_value")
         if 'median' in aggregation_methods:
-            agg_clauses.append("PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value::numeric) as median_value")
+            agg_clauses.append("PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY num) as median_value")
         if 'p95' in aggregation_methods:
-            agg_clauses.append("PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY value::numeric) as p95_value")
+            agg_clauses.append("PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY num) as p95_value")
 
         # CGM blood glucose specific aggregations
         if 'time_of_max' in aggregation_methods:
             agg_clauses.append(
-                "TO_CHAR((ARRAY_AGG(time ORDER BY value::numeric DESC))[1], 'HH24:MI') "
+                "TO_CHAR((ARRAY_AGG(time ORDER BY num DESC) FILTER (WHERE num IS NOT NULL))[1], 'HH24:MI') "
                 "as time_of_max_value"
             )
         if 'time_of_min' in aggregation_methods:
             agg_clauses.append(
-                "TO_CHAR((ARRAY_AGG(time ORDER BY value::numeric ASC))[1], 'HH24:MI') "
+                "TO_CHAR((ARRAY_AGG(time ORDER BY num ASC) FILTER (WHERE num IS NOT NULL))[1], 'HH24:MI') "
                 "as time_of_min_value"
             )
         # Parameterized threshold aggregations: pct_below_X, pct_above_X, tir_X_Y
@@ -712,7 +741,7 @@ class SQLAggregator:
         SELECT {', '.join(agg_clauses)}
         FROM (
             -- Aggregator-hub sources: only the chosen source_id's rows.
-            SELECT sd.user_id, sd.indicator, sd.source, sd.value, sd.time
+            SELECT sd.user_id, sd.indicator, sd.source, {_num("sd.value")} AS num, sd.time
             FROM series_data sd
             INNER JOIN chosen_source_id c
               ON c.user_id = sd.user_id
@@ -729,7 +758,7 @@ class SQLAggregator:
             UNION ALL
 
             -- Non-hub sources: preserve all rows (multi source_id is incremental).
-            SELECT user_id, indicator, source, value, time
+            SELECT user_id, indicator, source, {_num("value")} AS num, time
             FROM series_data
             WHERE {user_filter}
               AND indicator = ANY(:indicators)
@@ -836,20 +865,23 @@ class SQLAggregator:
         3. Filter groups where ALL readings are <70 and duration >= 15 min
         4. Count = event count, collect start times = event times
         """
-        query = """
+        query = f"""
         WITH ordered AS (
             SELECT
                 time,
-                value::numeric as glucose,
+                glucose,
                 LAG(time) OVER (ORDER BY time) as prev_time
-            FROM series_data
-            WHERE user_id = :user_id
-              AND indicator = :indicator
-              AND source = :source
-              AND time >= :day_start
-              AND time < :day_end
-              AND value::numeric >= 20  -- Filter out sensor errors (0, near-zero values)
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+            FROM (
+                SELECT time, {_num("value")} AS glucose
+                FROM series_data
+                WHERE user_id = :user_id
+                  AND indicator = :indicator
+                  AND source = :source
+                  AND time >= :day_start
+                  AND time < :day_end
+                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+            ) points
+            WHERE glucose >= 20  -- Filter out sensor errors (0, near-zero values)
         ),
         readings AS (
             SELECT
@@ -1004,16 +1036,19 @@ class SQLAggregator:
         day_start_14d = _local_days_later(data_begin_utc, timezone, -13)
 
         # Fetch all raw readings sorted by time
-        query = """
-        SELECT time, value::numeric as glucose
-        FROM series_data
-        WHERE user_id = :user_id
-          AND indicator = :indicator
-          AND source = :source
-          AND time >= :day_start_14d
-          AND time < :day_end
-          AND value::numeric >= 20
-          AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+        query = f"""
+        SELECT time, glucose
+        FROM (
+            SELECT time, {_num("value")} AS glucose
+            FROM series_data
+            WHERE user_id = :user_id
+              AND indicator = :indicator
+              AND source = :source
+              AND time >= :day_start_14d
+              AND time < :day_end
+              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+        ) points
+        WHERE glucose >= 20
         ORDER BY time
         """
 
@@ -1234,7 +1269,7 @@ class SQLAggregator:
 
         Uses user's timezone from series_data. Returns jump in bpm.
         """
-        query = """
+        query = f"""
         WITH user_tz AS (
             SELECT COALESCE(
                 (SELECT timezone FROM series_data
@@ -1245,18 +1280,20 @@ class SQLAggregator:
             ) as tz
         ),
         hr_data AS (
-            SELECT
-                value::numeric as hr,
-                EXTRACT(HOUR FROM (time AT TIME ZONE 'UTC') AT TIME ZONE (SELECT tz FROM user_tz)) as local_hour,
-                source
-            FROM series_data
-            WHERE user_id = :user_id
-              AND indicator = 'heartRates'
-              AND time >= :day_start
-              AND time < :day_end
-              AND value ~ '^[0-9]+\\.?[0-9]*$'
-              AND value::numeric BETWEEN 30 AND 220
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+            SELECT hr, local_hour, source
+            FROM (
+                SELECT
+                    {_num("value")} AS hr,
+                    EXTRACT(HOUR FROM (time AT TIME ZONE 'UTC') AT TIME ZONE (SELECT tz FROM user_tz)) as local_hour,
+                    source
+                FROM series_data
+                WHERE user_id = :user_id
+                  AND indicator = 'heartRates'
+                  AND time >= :day_start
+                  AND time < :day_end
+                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+            ) points
+            WHERE hr BETWEEN 30 AND 220
         ),
         sleep_hr AS (
             SELECT AVG(hr) as avg_hr
@@ -1306,7 +1343,7 @@ class SQLAggregator:
 
         More accurate than device-reported resting HR. Uses PERCENTILE_CONT.
         """
-        query = """
+        query = f"""
         WITH user_tz AS (
             SELECT COALESCE(
                 (SELECT timezone FROM series_data
@@ -1317,16 +1354,18 @@ class SQLAggregator:
             ) as tz
         ),
         night_hr AS (
-            SELECT value::numeric as hr, MIN(source) OVER () as source
-            FROM series_data
-            WHERE user_id = :user_id
-              AND indicator = 'heartRates'
-              AND time >= :day_start
-              AND time < :day_end
-              AND value ~ '^[0-9]+\\.?[0-9]*$'
-              AND value::numeric BETWEEN 30 AND 220
-              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-              AND EXTRACT(HOUR FROM (time AT TIME ZONE 'UTC') AT TIME ZONE (SELECT tz FROM user_tz)) BETWEEN 1 AND 4
+            SELECT hr, MIN(source) OVER () as source
+            FROM (
+                SELECT {_num("value")} AS hr, source
+                FROM series_data
+                WHERE user_id = :user_id
+                  AND indicator = 'heartRates'
+                  AND time >= :day_start
+                  AND time < :day_end
+                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+                  AND EXTRACT(HOUR FROM (time AT TIME ZONE 'UTC') AT TIME ZONE (SELECT tz FROM user_tz)) BETWEEN 1 AND 4
+            ) points
+            WHERE hr BETWEEN 30 AND 220
         )
         SELECT
             PERCENTILE_CONT(0.10) WITHIN GROUP (ORDER BY hr) as p10_hr,
