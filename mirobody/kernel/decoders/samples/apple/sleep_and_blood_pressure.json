@@ -1,6 +1,6 @@
 {
   "test_id": "apple_sleep_and_blood_pressure",
-  "description": "The two HealthKit shapes that are not a plain quantity. A sleep record carries a stage name instead of a number, so its measurement is the span. A blood pressure arrives as a Correlation whose two children Apple also writes as top-level Records; the XML reader decodes the Correlation once and skips those children, so the pair shares one panel and is never counted twice.",
+  "description": "The two HealthKit shapes that are not a plain quantity. A sleep record carries a stage name instead of a number, so its measurement is the span; a stage that is time asleep also lands as the Total, because Apple never writes one, and InBed does not. A blood pressure arrives as a Correlation whose two children Apple also writes as top-level Records; the XML reader decodes the Correlation once and skips those children, so the pair shares one panel and is never counted twice.",
   "vendor": "apple",
   "cases": [
     {
@@ -8,16 +8,19 @@
       "tz": "Asia/Shanghai",
       "input": {"value": "HKCategoryValueSleepAnalysisAsleepDeep", "sourceName": "Watch", "startDate": "2026-06-01 01:00:00 +0800", "endDate": "2026-06-01 02:30:00 +0800"},
       "expected": {
-        "count": 1,
-        "values": {"sleepAnalysis_Asleep(Deep)": 5400000},
-        "intervals": {"sleepAnalysis_Asleep(Deep)": [[1780246800000, 1780252200000]]}
+        "count": 2,
+        "values": {"sleepAnalysis_Asleep(Deep)": 5400000, "sleepAnalysis_Asleep(Total)": 5400000},
+        "intervals": {
+          "sleepAnalysis_Asleep(Deep)": [[1780246800000, 1780252200000]],
+          "sleepAnalysis_Asleep(Total)": [[1780246800000, 1780252200000]]
+        }
       }
     },
     {
       "data_type": "HKCategoryTypeIdentifierSleepAnalysis",
       "tz": "Asia/Shanghai",
       "input": {"value": "HKCategoryValueSleepAnalysisInBed", "sourceName": "Watch", "startDate": "2026-06-01 01:00:00 +0800", "endDate": "2026-06-01 02:30:00 +0800"},
-      "expected": {"count": 1, "values": {"sleepAnalysis_InBed": 5400000}}
+      "expected": {"count": 1, "values": {"sleepAnalysis_InBed": 5400000}, "absent": ["sleepAnalysis_Asleep(Total)"]}
     },
     {
       "data_type": "HKCategoryTypeIdentifierSleepAnalysis",

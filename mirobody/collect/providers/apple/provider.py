@@ -12,7 +12,6 @@ from mirobody.kernel import decoders, meds
 from .models import AppleHealthRecord, MetaInfo
 from mirobody.collect.base import LinkRequest, Provider, ProviderInfo
 from mirobody.collect.core import LinkType, ProviderStatus
-from mirobody.translate import StandardIndicator
 from mirobody.collect.ingest import FormatDataInput, StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord
 from mirobody.collect.providers._platform.normalize import records_from_facts
 
@@ -20,16 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class AppleHealthProvider(Provider):
-
-    #: Apple writes one record per sleep stage and never a total, so the four
-    #: stages that are time asleep each also land as a Total record. InBed and
-    #: Awake are not asleep and do not.
-    _ASLEEP = (
-        StandardIndicator.SLEEP_ASLEEP_DEEP.value.name,
-        StandardIndicator.SLEEP_ASLEEP_CORE.value.name,
-        StandardIndicator.SLEEP_ASLEEP_REM.value.name,
-        StandardIndicator.SLEEP_UNSPECIFIED.value.name,
-    )
 
     @property
     def info(self) -> ProviderInfo:
@@ -70,7 +59,6 @@ class AppleHealthProvider(Provider):
         meta: MetaInfo = raw["meta_info"]
         default_tz = meta.timezone
         source = "apple_health_watch" if meta.directly_from_watch else "apple_health"
-        total_key = StandardIndicator.TOTAL_SLEEP.value.name
 
         records: list[StandardPulseRecord] = []
         unmapped: dict[str, int] = {}
@@ -96,8 +84,6 @@ class AppleHealthProvider(Provider):
             ):
                 r.task_id = meta.taskId
                 records.append(r)
-                if r.type in self._ASLEEP:
-                    records.append(r.model_copy(update={"type": total_key}))
 
         # A batch where EVERY record failed to parse is a client speaking the
         # vocabulary this endpoint dropped in 1.4.4, not a batch of readings we

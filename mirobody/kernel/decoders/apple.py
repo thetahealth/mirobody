@@ -110,6 +110,16 @@ SLEEP_STAGES: dict[str, str] = {
     "HKCategoryValueSleepAnalysisAsleepREM": "sleepAnalysis_Asleep(REM)",
 }
 
+#: Apple writes one record per stage and never a total, so each stage that
+#: is time asleep also lands as this one. InBed and Awake are not asleep.
+ASLEEP_TOTAL = "sleepAnalysis_Asleep(Total)"
+ASLEEP_STAGES = frozenset({
+    "sleepAnalysis_Asleep(Deep)",
+    "sleepAnalysis_Asleep(Core)",
+    "sleepAnalysis_Asleep(REM)",
+    "sleepAnalysis_Asleep(Unspecified)",
+})
+
 SLEEP_TYPE = "HKCategoryTypeIdentifierSleepAnalysis"
 BLOOD_PRESSURE = "HKCorrelationTypeIdentifierBloodPressure"
 
@@ -118,7 +128,10 @@ DATA_TYPES: tuple[str, ...] = (*QUANTITY, *CATEGORY, SLEEP_TYPE, BLOOD_PRESSURE)
 #: Every catalogue metric this table can emit. Derived, so it cannot drift
 #: from what `decode` produces; `connect.Coverage` is built from it.
 METRICS: frozenset[str] = (
-    frozenset(QUANTITY.values()) | frozenset(CATEGORY.values()) | frozenset(SLEEP_STAGES.values())
+    frozenset(QUANTITY.values())
+    | frozenset(CATEGORY.values())
+    | frozenset(SLEEP_STAGES.values())
+    | {ASLEEP_TOTAL}
 )
 
 #: The one conversion `mirobody.units` declines: `mi` folds to the US survey
@@ -207,7 +220,8 @@ def decode(
         metric = SLEEP_STAGES.get(str(item.get("value") or ""))
         if not metric or end <= start:
             return []
-        return [fact(metric, float(end - start), start, end, **common)]
+        stages = (metric, ASLEEP_TOTAL) if metric in ASLEEP_STAGES else (metric,)
+        return [fact(m, float(end - start), start, end, **common) for m in stages]
 
     metric = CATEGORY.get(data_type)
     if metric:
