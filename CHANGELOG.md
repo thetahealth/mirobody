@@ -339,6 +339,20 @@ decisions.
 
 ### Fixed
 
+- **A partial `read_file` says the document goes on.** deepagents'
+  `read_file` passes a 100-line limit by default, and the window it got back
+  just ended, mid-document, under a header that gave no total (`@@ lines
+  101-200 @@`): small-v3 read a 7-page check-up book's lines 1-100, then
+  101-200, and answered that it had no physician summary, which is on page 7
+  (benchmarks/local_models, 2026-10-07). A window that stops short of the end
+  now ends with `[lines 101–200 of 700 shown; the document continues: call
+  read_file with offset=200 to read on]`, under `@@ lines 101-200 of 700 |
+  next offset 200 @@`. The final window gets no such line (its header now
+  gives the total), a read at the backend's own default is the whole document
+  as before, and a negative offset reads from line 1, as deepagents already
+  told the model it did (the backend had sliced from the end). To tell: read
+  a long document with `read_file` and no limit; the result ends with that
+  line until the last window.
 - **A blood pressure printed as one pair in a table is read by the rules.**
   `translate.parse_value("123/78")` is narrative by design, so the table rules
   left `Blood Pressure | 123/78 | mmHg | 90-139/60-89` to the model, and 3 of
