@@ -85,10 +85,10 @@ def __dir__() -> list[str]:
 #   1. importlib.metadata, once the package is installed (wheel or editable).
 #   2. MIROBODY_VERSION, which CI exports from the git tag before
 #      `python -m build`; the isolated build env has no installed metadata.
-#   3. The literal below, the canonical version of this source tree and what
-#      `pip install -e .` bakes in. Bump it per release to match the CHANGELOG
-#      and the tag: the release workflow refuses a tag that disagrees, and the
-#      suite pins it to the CHANGELOG and the READMEs.
+#   3. The literal below: this tree's version, which `pip install -e .`
+#      bakes in. The release workflow refuses a tag that disagrees, and
+#      `scripts/check_versions.py` fails CI when compose.yaml, server.json or
+#      the Dockerfile name another version.
 import importlib.metadata
 
 try:
