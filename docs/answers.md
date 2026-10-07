@@ -132,7 +132,7 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 A view with nothing selected used to be refused ("the catalogue has one
 shape"). In the 2026-10-06 local-model evaluation MiniCPM5-2B opened with
 `view="latest"` and no indicator 3 times and MiniCPM5-1B 7 times, then
-repeated the refused call until the harness stopped it (`retry_refused`, 6
+repeated the refused call until the harness stopped it (`repeated_call`, 6
 times), each attempt a model turn on an 8k-token prompt; DeepSeek V4.1 Flash
 never sent it. Now the call is a catalogue call that teaches: the answer is
 the catalogue, `next_steps` is `use_indicators`, and a note says
@@ -268,7 +268,7 @@ strategy.
 Four middlewares, outermost first:
 
 1. **`ToolFaultMiddleware`** — a crashing tool becomes an error result instead
-   of a dead turn. The text carries the tool name, the fault kind and the
+   of a dead turn. The text carries the tool name, the error kind and the
    exception TYPE; never its message, because driver messages quote SQL with
    bound parameters and models echo what they are given.
 2. **`RetryGovernanceMiddleware`** — a call whose `(tool, normalised arguments)`

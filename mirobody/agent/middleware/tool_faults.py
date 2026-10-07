@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 def _fault_message(request, exc: Exception) -> ToolMessage:
     """The error ``ToolMessage`` the model sees in place of a crashed tool result.
 
-    The TEXT carries the tool name, the fault kind and the exception TYPE, never
+    The TEXT carries the tool name, the error kind and the exception TYPE, never
     its message: driver messages quote SQL with bound parameters, HTTP messages
     quote payloads, and models have historically echoed such strings to users
     verbatim. The full traceback goes to the log instead.
