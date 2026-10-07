@@ -75,8 +75,8 @@ class LinkProviderRequest(BaseModel):
     email: str | None = Field(None, description="Email for auth")
     connect_info: dict[str, Any] = Field(default_factory=dict, description="Authentication credentials for customized")
 
-    # Additional options (optional)
-    redirect_url: str | None = Field(None, description="Redirect URL for OAuth")
+    # Additional options (optional). The OAuth callback is the provider's
+    # configured redirect URL; a `redirect_url` sent here was never read.
     return_url: str | None = Field(None, description="Frontend return URL after OAuth completes")
     owner_user_id: str | None = Field(None, description="if sharing device,help link")
 
@@ -375,7 +375,7 @@ async def get_user_providers(
 
 
 @router.post("/user/providers/link", response_model=StandardResponse | ErrorResponse)
-async def link_provider(request: LinkProviderRequest, req: Request, current_user: str = Depends(verify_token)):
+async def link_provider(request: LinkProviderRequest, current_user: str = Depends(verify_token)):
     """
     Connect Provider
 
@@ -415,15 +415,7 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         if request.connect_info:
             credentials["connect_info"] = request.connect_info
 
-        options = {}
-        if request.redirect_url:
-            options["redirect_url"] = request.redirect_url
-        if hasattr(request, "return_url") and request.return_url:
-            options["return_url"] = request.return_url
-
-        host = req.headers.get("Host", "unknown")
-        scheme = req.url.scheme if req.url.scheme else "https"
-        options["default_return_url"] = f"{scheme}://{host}{API_PREFIX}/{actual_platform}/{provider_slug}/callback"
+        options = {"return_url": request.return_url} if request.return_url else {}
 
         # Call PlatformManager's simplified interface (business logic has been delegated)
         result_data = await platform_manager.link_provider(

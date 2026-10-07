@@ -484,7 +484,7 @@ async def link(self, request: Any) -> Dict[str, Any]:
     Initiate OAuth2 flow
 
     Args:
-        request: Contains user_id and options (redirect_url, return_url)
+        request: Contains user_id and options (return_url)
 
     Returns:
         Dict with 'link_web_url' for user to visit

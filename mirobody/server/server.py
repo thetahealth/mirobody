@@ -109,18 +109,10 @@ class Server:
         pg_pool         : AsyncConnectionPool[Any] | None = None,
         ephemeral      : EphemeralStore | None = None,
 
-        # The following parameters can be generated via
-        #   config.get_mcp_options().
+        # `config.mcp_tool_dirs` and `config.agent_dirs`.
 
         tool_dirs       : list[str] | None = None,
-
-        mcp_server_url  : str = "",
-
-        # The following parameters can be generated via
-        #   config.get_agent_options().
-
         agent_dirs      : list[str] | None = None,
-        api_keys        : dict[str, str] | None = None,
 
         # The following parameters can be generated via
         #   config.get_email_options().
@@ -152,8 +144,6 @@ class Server:
 
         **kwargs
     ):
-        if api_keys is None:
-            api_keys = {}
         if agent_dirs is None:
             agent_dirs = []
         if tool_dirs is None:
@@ -410,8 +400,8 @@ class Server:
 
             http_headers    = config.http.headers or {},
 
-            **config.get_mcp_options(),
-            **config.get_agent_options(),
+            tool_dirs       = config.mcp_tool_dirs,
+            agent_dirs      = config.agent_dirs,
 
             **config.get_jwt_options(),
             **config.get_email_options(),

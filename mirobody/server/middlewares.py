@@ -16,7 +16,7 @@ from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
 from mirobody.user.auth.bearer import aal2_required_response, bearer_subject, lacks_second_factor, mcp_resource
-from mirobody.utils.http import request_origin
+from mirobody.utils.http import loggable_path, request_origin
 
 logger = logging.getLogger(__name__)
 
@@ -74,21 +74,6 @@ def _with_security_headers(response: Response) -> Response:
     return response
 
 #-----------------------------------------------------------------------------
-
-def get_request_info(request):
-    try:
-        url = str(request.url)
-        path = str(request.url.path)
-    except Exception:
-        host = request.headers.get("Host", "unknown")
-        url = f"{request.scheme}://{host}{request.path}"
-        path = request.path
-
-    method = request.method
-    base_url = str(request.base_url)
-
-    return {"url": url, "base_url": base_url, "path": path, "method": method}
-
 
 class JwtMiddleware(BaseHTTPMiddleware):
     def __init__(
@@ -172,13 +157,10 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
         if request.state.user_id > 0:
             ctx["user_id"] = request.state.user_id
-            try:
-                ctx.update(get_request_info(request))
-            except Exception:
-                # Best-effort log enrichment. `ctx` already carries the user_id,
-                # which is the part anything downstream reads; failing the
-                # request because a header could not be parsed would be worse.
-                pass
+            # What `utils/log.py` reads from the context besides the trace id.
+            # A capability path (/mcp/<token>, /api/share/<id>) is digested.
+            ctx["path"] = loggable_path(request.url.path)
+            ctx["method"] = request.method
 
             # Get user's language. Parsed by `utils.i18n`, which the WebSocket
             # upload handshake also calls: this used to be the only copy, and
