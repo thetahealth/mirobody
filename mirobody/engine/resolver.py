@@ -120,9 +120,8 @@ class Resolution:
     evidence: tuple[str, ...] = ()
     #: ``True``/``False`` when a unit was printed and did/does not normalize to
     #: UCUM; ``None`` when the reading carried no unit at all. A `False` here is
-    #: the caller's signal that `loinc` rests on the name alone: 11 of 32 real
-    #: printed unit spellings measured do not normalize today, so this is common
-    #: and is a gap in our tables rather than a fault in the report.
+    #: the caller's signal that `loinc` rests on the name alone, and is usually
+    #: a gap in our unit tables rather than a fault in the report.
     unit_recognized: bool | None = None
     #: PROPERTY, SCALE, SYSTEM of `loinc`, so a caller can judge the answer
     #: without a second lookup. Empty when there is no code.
@@ -626,19 +625,22 @@ class OfflineResolver:
           dipstick result into a quantitative assay. Measured on the everyday
           qualitative panel, ten of thirty indicators did exactly that:
           尿糖, 尿酮体, 类风湿因子, 抗核抗体, 妊娠试验 and their English forms.
-          Half the shipped corpus is non-``Qn`` (38,687 rows), so this is not
-          an edge.
+          Over two-fifths of the shipped axis table is not ``Qn``, so this is
+          not an edge.
 
         Both constraints are applied to the sibling with the same **full**
         COMPONENT: `Glucose^post CFst`, not `Glucose`, so a fasting reading
         cannot decay into plain glucose. Prefers the same SYSTEM and a
         method-less variant.
 
-        Deterministic and reversible: no embedding, no scoring, still
-        `method="lexical"`, because the analyte came from the alias table and
-        the variant from a table lookup. Returns `loinc` unchanged whenever the
-        reading says nothing, already agrees, or has no sibling: "leave it
-        alone" is always available and always safe.
+        Deterministic: no embedding, no scoring, still `method="lexical"`,
+        because the analyte came from the alias table and the variant from a
+        table lookup. The code comes back unchanged when the reading says
+        nothing or already agrees, and with ``unit-unrecognized`` when the
+        unit is not in our tables. When the unit or the value fits no code of
+        this analyte in this specimen, the verdict is ``axis-conflict`` and
+        carries no code: the name's own code would file the reading under a
+        measurement the report did not make.
         """
         if not loinc:
             return UnitVerdict(code=loinc, outcome="no-signal")
@@ -665,9 +667,9 @@ class OfflineResolver:
         # A unit was printed and our tables do not know it. Answer from the name
         # and SAY SO, rather than either withholding the code or, as before,
         # returning it as though the unit had agreed. Withholding would be the
-        # larger error: measured across real printed spellings, 11 of 32 fail to
-        # normalize today (`Thousand/uL`, `uIU/mL`, `mm/hr`, `个/HP` …), so an
-        # unrecognized unit is usually OUR gap, not a bad report.
+        # larger error: an unrecognized unit is usually OUR gap, not a bad
+        # report. `Thousand/uL`, `uIU/mL`, `mm/hr` and `个/HP` were all printed
+        # on real reports before the alias table learned them.
         if printed_unit and ucum is None:
             return UnitVerdict(
                 code=loinc,
