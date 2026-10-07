@@ -5,18 +5,12 @@ Base classes and interfaces for Pulse system
 from abc import ABC, abstractmethod
 from typing import Any
 
-# from . import BasePullProvider  # Remove circular import
-# === Enum definitions ===
 from .core import (
     LinkRequest,
-    LinkType,
     ProviderInfo,
     UserProvider,
 )
 from .ingest.models.requests import FormatDataInput, StandardPulseData
-
-# Create AuthType alias for API compatibility
-AuthType = LinkType
 
 
 class Provider(ABC):
