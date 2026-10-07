@@ -27,6 +27,7 @@ import hashlib
 from functools import lru_cache
 
 from mirobody import units
+from .fold import unit_key
 from .outcome import (
     LOINC_SYSTEM,
     OUTCOME_CODED,
@@ -71,7 +72,9 @@ def release() -> str:
 def decision_id(name_key: str, unit_ucum: str, value_kind: str, rel: str, rule: str) -> str:
     """Sixteen hex characters of SHA-256 over the inputs a coding depends
     on. Two readings that fold to the same key, unit and kind share one
-    decision under one release and one rule, by construction."""
+    decision under one release and one rule, by construction. `code()`
+    passes the printed unit's folded key as `unit_ucum` when it did not
+    normalize, as the writer's `local_key` does."""
     joined = "\x1f".join((name_key, unit_ucum or "", value_kind, rel, rule))
     return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
 
@@ -141,10 +144,14 @@ def code(
     uncoded; `name_key` is what the decision is shared under."""
     rel = release()
     local = local_series_id(local_key)
+    # The unit a decision depends on: a printed unit that did not normalize
+    # still decides (it is why a reading needs input), so it is told apart
+    # from no unit at all, or the two outcomes would share one decision row.
+    unit_part = unit_ucum or unit_key(unit_text)
 
     if alias is not None:
         rule = f"{RULE_ALIAS}:{alias.scope}"
-        did = decision_id(name_key, unit_ucum, value_kind, rel, rule)
+        did = decision_id(name_key, unit_part, value_kind, rel, rule)
         if not alias.code:
             return Coding(OUTCOME_REFUSED, local, did, rule, rel, reason="alias:not-standard")
         if alias.code_system and alias.code_system != LOINC_SYSTEM:
@@ -176,7 +183,7 @@ def code(
         f"term={name_text}", f"method={hit.method}", f"candidates={hit.candidates}",
         "axes=" + ",".join(hit.evidence), f"unit_recognized={hit.unit_recognized}",
     )
-    did = decision_id(name_key, unit_ucum, value_kind, rel, RULE_ENGINE)
+    did = decision_id(name_key, unit_part, value_kind, rel, RULE_ENGINE)
     if hit.rejected_code and not hit.loinc:
         # The name reached a code and the printed unit contradicts every code
         # of that analyte: one of the two was read wrong, and a person can say
@@ -201,17 +208,19 @@ def code(
         return Coding(OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="engine:no-match", evidence=evidence)
     if hit.method != "lexical":
         return Coding(OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason=f"engine:untrusted:{hit.method}", evidence=evidence)
-    if value_kind == KIND_QUANTITY and not (unit_text or unit_ucum):
+    if value_kind == KIND_QUANTITY and not unit_ucum:
         # `空腹血糖 6.1` is mmol/L, and the name alone gives the mg/dL code:
         # the reading joined the mass series with no canonical value, and the
         # series statistics silently left it out. The unit is the only thing
-        # that picks between the two, so without one a person has to.
+        # that picks between the two, so without one a person has to; a
+        # printed unit that does not normalize ("mmol/l(空腹)") picks nothing.
         from mirobody.engine import get_resolver
 
         siblings = get_resolver().unit_variants(hit.loinc)
         if siblings:
             return Coding(
-                OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel, reason="unit:missing",
+                OUTCOME_NEEDS_INPUT, local, did, RULE_ENGINE, rel,
+                reason="unit:unrecognized" if unit_text else "unit:missing",
                 evidence=evidence + (f"candidate={hit.loinc}", "variants=" + ",".join(siblings)),
             )
     return _coded(hit.loinc, did, RULE_ENGINE, rel, local, value_kind, value_num, unit_ucum, evidence + (f"canonical={hit.canonical}",))
