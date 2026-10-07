@@ -126,7 +126,6 @@ _EXPORTS = {
     # canonical units
     "UNIT_CONVERSIONS": "canonical_units",
     "convert_to_standard": "canonical_units",
-    "get_all_units_info": "canonical_units",
     # ranges
     "ValueRangeValidator": "value_range_validator",
     "start_aggregate_indicator_scheduler": "aggregate.startup",
@@ -157,7 +156,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .aggregate.service import AggregateIndicatorService
     from .aggregate.startup import start_aggregate_indicator_scheduler
     from .derive.task import start_derived_scheduler
-    from .canonical_units import UNIT_CONVERSIONS, convert_to_standard, get_all_units_info
+    from .canonical_units import UNIT_CONVERSIONS, convert_to_standard
     from .value_range_validator import ValueRangeValidator
 
 

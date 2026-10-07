@@ -868,6 +868,96 @@ def test_the_unit_still_selects_between_two_real_siblings():
     assert "property" in molar.evidence
 
 
+#: Codes the PROPERTY gate refuses one of their own EXAMPLE_UCUM_UNITS. A
+#: ratchet: lower it when a fix lands, never raise it. Most of the rest needs
+#: more than a family entry: `%` admitted for `RelTime` would switch `PT 62 %`
+#: to an INR code, and `/mL` is declared on log counts.
+REFUSED_OWN_UNIT_CEILING = 1067
+
+
+def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
+    """`BMI 24 kg/m2` was refused: LOINC files BMI (39156-5) as a `Ratio`
+    and declares kg/m2 for it, while the family table admitted only `MCnc`
+    for kg/m2. 1,247 codes were refused a unit LOINC declares for them."""
+    from mirobody._bundle import AXIS_PROPERTY, read_member
+    from mirobody.engine import resolve_reading
+    from mirobody.units import normalize_unit, unit_families
+
+    table = (read_member("loinc_units.tsv") or b"").decode("utf-8")
+    assert table, "loinc_units.tsv is missing from the bundle"
+    refused = set()
+    for line in table.splitlines()[1:]:
+        code, _, declared = line.partition("\t")
+        row = resolver._row_for_code(code)
+        if row < 0:
+            continue
+        prop = resolver._axis.field(row, AXIS_PROPERTY)
+        for unit in declared.split(";"):
+            families = unit_families(normalize_unit(unit.strip()))
+            if families and prop not in families:
+                refused.add(code)
+    assert len(refused) <= REFUSED_OWN_UNIT_CEILING, f"{len(refused)} codes refuse a unit they declare"
+    assert resolve_reading("BMI", "24", "kg/m2").loinc == "39156-5"
+
+
+def test_a_milliequivalent_excretion_is_not_a_concentration():
+    """`mEq/24h` and `mEq/kg` were spellings of `meq/L`, so `sodium 150
+    mEq/24h`, a 24-hour urine excretion, answered serum sodium 2951-2 as a
+    concentration."""
+    from mirobody.engine import resolve_reading
+    from mirobody.units import normalize_unit, unit_family
+
+    assert normalize_unit("mEq/24h") == "meq/(24.h)" and unit_family("meq/(24.h)") == "SRat"
+    assert normalize_unit("mEq/kg") == "meq/kg" and unit_family("meq/kg") == "SCnt"
+    excretion = resolve_reading("sodium", "150", "mEq/24h")
+    assert excretion.loinc == "" and excretion.rejected_code == "2951-2"
+    assert resolve_reading("sodium", "140", "mEq/L").loinc == "2951-2"
+
+
+def test_a_chinese_length_word_is_no_metric_or_imperial_unit():
+    """`寸` (cun, a thirtieth of a metre) normalized to `cm` and `尺` (chi, a
+    third of a metre) to the foot, so a length printed in either was off by
+    a factor of three or more. The US survey foot and inch, which `ft` and
+    `in` normalize to, had no factor at all and converted to nothing."""
+    from mirobody.units import convert_value, normalize_unit
+
+    assert normalize_unit("寸") is None and normalize_unit("尺") is None
+    assert normalize_unit("英寸") == "[in_us]" and normalize_unit("英尺") == "[ft_us]"
+    assert convert_value(1, "[ft_us]", "m") == 1200 / 3937
+    assert abs(convert_value(12, "[in_us]", "[ft_us]") - 1) < 1e-12
+
+
+def test_every_conversion_factor_is_the_one_ucum_defines():
+    """The conversion table is written by hand and UCUM's own table ships
+    beside it, so every unit the table reads must convert by UCUM's ratio.
+    Energy, pressure and the US volumes had no factor at all: `kcal` to `kJ`
+    and `mmHg` to `kPa` came from a second, hand-copied table in
+    `translate.canonical_units`, and the MCP `convert_unit` refused both."""
+    import math
+
+    from mirobody.units import UCUM_FAMILY, conversion_factor, convert_value, convertible, scale
+    from mirobody.units.essence import magnitude
+
+    reference: dict[tuple, str] = {}
+    checked = 0
+    for unit in UCUM_FAMILY:
+        parsed = scale(unit)
+        ucum = magnitude(unit) if parsed else None
+        if ucum is None:
+            continue
+        ref = reference.setdefault(parsed[0], unit)
+        assert ucum[1] == magnitude(ref)[1], (unit, ref)
+        assert math.isclose(conversion_factor(unit, ref), ucum[0] / magnitude(ref)[0], rel_tol=1e-9), (unit, ref)
+        checked += 1
+    assert checked > 150
+    assert math.isclose(convert_value(1, "kcal", "kJ"), 4.184)
+    assert math.isclose(convert_value(120, "mm[Hg]", "kPa"), 15.99864)
+    # A temperature scale has an offset, so it converts without a factor.
+    assert convertible("[degF]", "Cel") and conversion_factor("[degF]", "Cel") is None
+    assert math.isclose(convert_value(98.6, "[degF]", "Cel"), 37.0)
+    assert math.isclose(convert_value(37.0, "Cel", "K"), 310.15)
+
+
 def test_free_prose_in_the_value_column_constrains_nothing():
     """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
     is the ABSENCE of a measurement rather than a claim about scale. Treating it
@@ -878,6 +968,20 @@ def test_free_prose_in_the_value_column_constrains_nothing():
         r = resolve_reading("尿蛋白", value, None)
         assert r.loinc == resolve("尿蛋白").loinc
         assert r.resolved
+
+
+def test_a_signed_number_is_a_quantity_and_prose_corroborates_no_scale():
+    """`-2.5`, an everyday base excess, classified as free prose, so a
+    negative result put no SCALE constraint on its reading. And prose in the
+    value column, which constrains nothing, was still reported as `scale`
+    evidence."""
+    from mirobody.engine import resolve_reading
+    from mirobody.value_scale import classify_value, scales_for_value
+
+    assert classify_value("-2.5") == classify_value("+1") == classify_value("<-1") == "qn"
+    assert scales_for_value("-2.5") == scales_for_value("2.5")
+    assert resolve_reading("total cholesterol", "见报告", "mg/dL").evidence == ("name", "property")
+    assert resolve_reading("total cholesterol", "193", "mg/dL").evidence == ("name", "property", "scale")
 
 
 def test_a_category_word_never_lands_on_a_specific_analyte():
@@ -891,6 +995,76 @@ def test_a_category_word_never_lands_on_a_specific_analyte():
     assert not resolve("尿常规").resolved            # was 19159-3, a collection method
     assert not resolve("电解质").resolved            # was 19096-7, a 24h urine narrative
     assert not resolve("骨量").resolved              # was 34019-0, a DENTAL bone volume
+
+
+def _override_rows() -> list[tuple[int, str, str]]:
+    """`(line number, term, target)` for every data row of the overrides file
+    the resolver reads at runtime."""
+    from mirobody._bundle import OVERRIDES_PATH
+
+    rows = []
+    with open(OVERRIDES_PATH, encoding="utf-8") as f:
+        for number, line in enumerate(f, 1):
+            if line.startswith("#") or not line.strip():
+                continue
+            term, _, target = line.rstrip("\n").partition("\t")
+            rows.append((number, term, target))
+    return rows
+
+
+def test_a_blocked_category_word_stays_blocked_inside_a_longer_name(resolver):
+    """A refusal written for a category word holds for every name derived
+    from it. `resolve` checked the block on the name as written, and the stems
+    it derives then looked the category word up as an ordinary index key:
+    `Stool OB` answered a budgerigar-droppings IgE, `电解质计数` an
+    electrolytes panel and `流感 FLU` an influenza assay."""
+    blocked = [term for _, term, target in _override_rows() if target == "!unresolved"]
+    assert blocked
+    leaks = [
+        name
+        for term in blocked
+        for name in (f"Serum {term}", f"{term} count")
+        if resolver.resolve(name).resolved
+    ]
+    assert not leaks, leaks[:10]
+    for name in ("Stool OB", "流感 FLU", "电解质计数"):
+        assert not resolver.resolve(name).resolved, name
+    # A blocked word at the END names the category too, so it is no
+    # abbreviation to strip: stripped, `Glucose STOOL` answers blood glucose.
+    assert not resolver.resolve("Glucose STOOL").resolved
+    # A name that is an index key of its own is not a derived form: `呕吐`
+    # is blocked and `呕吐计数` is LOINC's emesis count.
+    assert resolver.resolve("呕吐计数").loinc == "94070-0"
+
+
+def test_every_override_row_does_its_job(resolver):
+    """The loader passes over what it cannot use without a word: a row that is
+    not exactly `term<TAB>target`, a term repeated later (the first row wins),
+    a target the index does not hold. `乙肝e抗原 -> Hepatitis B virus e Ag`
+    named a LOINC COMPONENT rather than an index key and answered nothing from
+    the day it was written. These checks lived in the unshipped suite, reading
+    a path the file has since left."""
+    from mirobody.lexical import index_fold
+
+    rows = _override_rows()
+    assert len(rows) > 500
+    first: dict[str, tuple[int, str]] = {}
+    problems = []
+    for number, term, target in rows:
+        if not term or not target or "\t" in target:
+            problems.append(f"line {number}: not term<TAB>target")
+            continue
+        earlier, earlier_target = first.setdefault(index_fold(term), (number, target))
+        if earlier_target != target:
+            problems.append(f"line {number}: {term!r} repeats line {earlier} with another target")
+        elif target == "!unresolved":
+            if resolver.resolve(term).method != "refused":
+                problems.append(f"line {number}: {term!r} does not refuse")
+        elif not resolver.resolve(target).loinc:
+            problems.append(f"line {number}: target {target!r} resolves to nothing")
+        elif not resolver.resolve(term).loinc:
+            problems.append(f"line {number}: {term!r} still resolves to nothing")
+    assert not problems, "\n".join(problems)
 
 
 def test_what_is_not_a_lab_specimen_but_is_a_result_still_resolves():
@@ -1129,3 +1303,36 @@ def test_evidence_reads_the_same_whichever_entry_point_produced_it():
     assert resolve_reading("total cholesterol", "5.0", "mmol/L").evidence == (
         "name", "property", "scale",
     )
+
+
+def test_a_parenthetical_name_describes_its_answer_like_its_stem_does():
+    """`空腹血糖(GLU)` answers through its stem, and came back with the stem's
+    code but empty `evidence` and `axes`: by the field's own definition,
+    nothing had corroborated a code the alias table chose."""
+    from mirobody.engine import resolve
+
+    whole, stem = resolve("空腹血糖(GLU)"), resolve("空腹血糖")
+    assert whole.term == "空腹血糖(GLU)"
+    assert whole.loinc == stem.loinc
+    assert whole.evidence == stem.evidence == ("name",)
+    assert whole.axes == stem.axes != ("", "", "")
+
+
+# ── what the resolver takes on trust from the bundle ────────────────────────
+
+
+def test_a_posting_row_is_an_axis_row_and_never_a_skipped_code(resolver):
+    """`_lookup` answers with the axis row a posting names: no second lookup
+    by name and no skip list. That is right only while the cut writes one
+    corpus row per axis row, in the same order, and lists no code it keeps
+    in `loinc_skip.txt`. A re-cut that broke either would answer another
+    row's code, or a code the cut meant to drop."""
+    from mirobody._bundle import AXIS_CODE, AXIS_LCN, read_member
+
+    axis, names = resolver._axis, resolver._names
+    assert len(names) == len(axis)
+    assert int(resolver._alias_rows.max()) < len(axis)
+    assert all(names.raw(row) == axis.field_raw(row, AXIS_LCN) for row in range(len(axis)))
+    skipped = set((read_member("loinc_skip.txt") or b"").split())
+    assert skipped, "loinc_skip.txt is missing or empty"
+    assert skipped.isdisjoint(axis.field_raw(row, AXIS_CODE) for row in range(len(axis)))

@@ -5,7 +5,7 @@ Three tiers, degrading in order:
     T1  same dimension    :func:`scale` parses UCUM prefix × base unit into a
                           (dimension signature, factor). Zero domain knowledge:
                           cm↔m, kg↔[lb_av], mg/dL↔g/L, U/L↔[IU]/L (1:1),
-                          10*9/L↔/uL all live here.
+                          10*9/L↔/uL, kcal↔kJ, mm[Hg]↔kPa all live here.
     T2  mass ↔ substance  Off by a molar mass. :data:`MOLAR_MASS` is keyed by
                           LOINC code (see the three conventions in its comment).
                           Not in the table ⇒ no conversion, degrade to T3.
@@ -25,8 +25,13 @@ concentration, and refuses a conversion that is the identity. A dimension
 signature rejects the first and accepts the second by construction.
 
 `None` from :func:`scale` is **not an error**, it means "atomic unit": equal
-only to a unit spelled exactly the same way. `%`, `mm[Hg]`, `个/HP`, `meq/L` all
-take that path. Better to decline than to guess.
+only to a unit spelled exactly the same way. `%`, `个/HP`, `meq/L` all take that
+path. Better to decline than to guess.
+
+Temperature is the one scale with an offset, so no factor converts it:
+:func:`convert_value` and :func:`convertible` cross between `Cel`, `[degF]`
+and `K`, while :func:`scale`, :func:`conversion_factor` and
+:func:`canonicalize` keep each of them atomic.
 
 Original values are never rewritten. Provenance, right-to-be-forgotten and FHIR
 fidelity all depend on the reading as recorded; conversion is for the caller
@@ -38,9 +43,9 @@ validated against real unit-conversion cases, not invented for this module.
 
 **Not to be confused with** :func:`mirobody.translate.canonical_units.convert_to_standard`.
 That one takes a ``StandardIndicator`` and converts to the unit that indicator
-declares, one target per indicator, and it builds on this module: it imports
-`conversion_factor` and `MOLAR_MASS` from here rather than carrying its own
-numbers, which they used to and had already drifted on.
+declares, one target per indicator, and it builds on this module: it normalizes
+both spellings and converts with :func:`convert_value`, rather than carrying
+its own numbers, which it used to and they had drifted.
 
 This module takes two arbitrary UCUM strings and asks whether they are
 interconvertible at all, with no target in mind. Use that one to canonicalize a
@@ -55,7 +60,7 @@ layer: `translate.aggregate.service` reaches aiohttp and a database.
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from typing import NamedTuple
 
 from .families import UCUM_FAMILY
@@ -85,6 +90,7 @@ _PREFIX: dict[str, float] = {
 #: Base unit → (dimension tag, relative factor). The tags are private notation
 #: whose only job is deciding whether two units can convert:
 #:   M mass · V volume · N amount of substance · L length · T time · A activity
+#:   E energy · P pressure
 #: `1` is dimensionless (counts); its factor folds into the scalar and stays OUT
 #: of the signature: otherwise `10*9/L` and `/L` would read as different
 #: dimensions.
@@ -107,10 +113,41 @@ _BASE: dict[str, tuple[str, float]] = {
     "[oz_av]": ("M", 28.349523125),
     "[in_i]": ("L", 0.0254),
     "[ft_i]": ("L", 0.3048),
+    # The US survey foot, exactly 1200/3937 m, is what `ft` and `in`
+    # normalize to; it is 2 ppm longer than the international foot.
+    "[ft_us]": ("L", 1200 / 3937),
+    "[in_us]": ("L", 100 / 3937),
+    # US customary volumes in litres, exact: the gallon is 231 cubic inches.
+    "[gal_us]": ("V", 3.785411784),
+    "[qt_us]": ("V", 0.946352946),
+    "[pt_us]": ("V", 0.473176473),
+    "[cup_us]": ("V", 0.2365882365),
+    "[foz_us]": ("V", 0.0295735295625),
+    "[tbs_us]": ("V", 0.01478676478125),
+    "[tsp_us]": ("V", 0.00492892159375),
+    # Energy in joules and pressure in pascals, as UCUM defines them: `cal` is
+    # the thermochemical calorie, `[psi]` a pound-force per square inch. The
+    # prefixed forms (`kcal`, `kPa`, `mm[Hg]`, `cm[H2O]`, `mbar`) compose.
+    "J": ("E", 1.0),
+    "cal": ("E", 4.184),
+    "Pa": ("P", 1.0),
+    "bar": ("P", 100000.0),
+    "m[Hg]": ("P", 133322.0),
+    "m[H2O]": ("P", 9806.65),
+    "[psi]": ("P", 6894.757293168361),
     "1": ("1", 1.0),
 }
 
 _DIMENSIONLESS = "1"
+
+#: Temperature scales, as (to Celsius, from Celsius). Kept out of `_BASE`: a
+#: scale with an offset has no conversion factor, so only `convert_value`,
+#: which has the number, crosses between them.
+_TEMPERATURE: dict[str, tuple[Callable[[float], float], Callable[[float], float]]] = {
+    "Cel": (lambda v: v, lambda c: c),
+    "K": (lambda v: v - 273.15, lambda c: c + 273.15),
+    "[degF]": (lambda v: (v - 32) * 5 / 9, lambda c: c * 9 / 5 + 32),
+}
 
 #: (dimension signature, factor to that dimension's own base). Equal signatures
 #: convert directly (T1).
@@ -240,10 +277,12 @@ _SUBSTANCE_PER_VOLUME = (("N", 1), ("V", -1))
 
 
 def conversion_factor(from_unit: str, to_unit: str, *, loinc_code: str = "") -> float | None:
-    """`value_in_to_unit = value_in_from_unit * factor`; None when not convertible.
+    """`value_in_to_unit = value_in_from_unit * factor`; None when no factor
+    converts them.
 
     T1 compares factors within one dimension; T2 crosses M/V ↔ N/V when
-    `loinc_code` has a molar mass.
+    `loinc_code` has a molar mass. Two temperature scales have no factor
+    either (an offset is not one); :func:`convert_value` converts them.
     """
     if from_unit == to_unit:
         return 1.0
@@ -266,7 +305,10 @@ def conversion_factor(from_unit: str, to_unit: str, *, loinc_code: str = "") -> 
 
 
 def convertible(from_unit: str, to_unit: str, *, loinc_code: str = "") -> bool:
-    """Whether the two units can be interconverted (T1 or T2)."""
+    """Whether :func:`convert_value` converts between the two units: T1, T2, or
+    two temperature scales."""
+    if from_unit in _TEMPERATURE and to_unit in _TEMPERATURE:
+        return True
     return conversion_factor(from_unit, to_unit, loinc_code=loinc_code) is not None
 
 
@@ -277,6 +319,9 @@ def convert_value(value: float, from_unit: str, to_unit: str, *, loinc_code: str
     where the display unit's usual precision is known. A None must not be
     treated as zero, it means these readings belong to separate series.
     """
+    if from_unit != to_unit and from_unit in _TEMPERATURE and to_unit in _TEMPERATURE:
+        to_celsius, from_celsius = _TEMPERATURE[from_unit][0], _TEMPERATURE[to_unit][1]
+        return from_celsius(to_celsius(value))
     factor = conversion_factor(from_unit, to_unit, loinc_code=loinc_code)
     return None if factor is None else value * factor
 
@@ -286,7 +331,7 @@ def convert_value(value: float, from_unit: str, to_unit: str, *, loinc_code: str
 #: this composition, so rendering a signature with these symbols names the unit
 #: whose value is `raw * factor`.
 _CANONICAL_BASE: dict[str, str] = {
-    "M": "g", "V": "L", "N": "mol", "L": "m", "T": "s", "A": "U",
+    "M": "g", "V": "L", "N": "mol", "L": "m", "T": "s", "A": "U", "E": "J", "P": "Pa",
 }
 
 
@@ -332,7 +377,7 @@ def canonical_unit(ucum: str | None, *, loinc_code: str = "") -> str | None:
 
     `mg/dL` and `g/L` both answer `g/L`; with a `loinc_code` that
     :data:`MOLAR_MASS` bridges, both answer `mol/L` instead. None means atomic
-    (`%`, `mm[Hg]`, `meq/L`): see :func:`scale`.
+    (`%`, `meq/L`, a temperature): see :func:`scale`.
     """
     got = _canonical(ucum, loinc_code)
     return None if got is None else _render(got[0])
@@ -359,8 +404,8 @@ def canonicalize(value: float, unit: str | None, *, loinc_code: str = "") -> Can
         canonicalize(5.6, "mmol/L", loinc_code="2345-7")  #   (0.0056,   'mol/L')
 
     An unparseable unit is returned unchanged rather than raising: a reading
-    whose unit this module cannot fold is still a reading, and `%` or `mm[Hg]`
-    is already its own canonical form: equal only to itself, which is exactly
+    whose unit this module cannot fold is still a reading, and `%` or `Cel` is
+    already its own canonical form: equal only to itself, which is exactly
     what an unchanged pair means to a caller comparing pairs.
     """
     got = _canonical(unit, loinc_code)

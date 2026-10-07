@@ -16,13 +16,11 @@ Two tables:
   this lookup is exact.
 
 * :data:`AMBIGUOUS_UNITS`: units that legitimately span multiple
-  PROPERTYs (the worst offender is ``%``, which appears under
-  MFr/NFr/AFr/VFr/SFr/CFr/LenFr/RelACnc/RelRto: basically every
-  fraction-like PROPERTY in LOINC). The entry value is the full
+  PROPERTYs (the worst offender is ``%``, which appears under nearly
+  every fraction-like PROPERTY in LOINC). The entry value is the full
   ``frozenset`` of possible families. :func:`unit_family` returns the
-  primary (most-common) one from :data:`UCUM_FAMILY` for backward
-  compatibility; callers that want all candidates use
-  :func:`unit_families`.
+  primary one from :data:`UCUM_FAMILY`; callers that want all
+  candidates use :func:`unit_families`.
 
 LOINC has 231 distinct PROPERTY values; only ~30-40 carry real
 (non-annotation) units. Measured against the ``loinc_units.tsv`` the
@@ -78,7 +76,7 @@ UCUM_FAMILY: dict[str, str] = {
     "pmol/mL":  "SCnc",
 
     # ── Substance ratio (SRto) ────────────────────────────────────────
-    "mmol/mol": "SRto",   # HbA1c IFCC unit
+    "mmol/mol": "SRto",   # analyte/creatinine ratios; HbA1c (IFCC) is SFr
 
     # ── Substance rate (SRat): 24h excretion etc. ────────────────────
     "mmol/d":         "SRat",
@@ -92,6 +90,7 @@ UCUM_FAMILY: dict[str, str] = {
     "mmol/(6.h)":     "SRat",
     "umol/(12.h)":    "SRat",
     "umol/(8.h)":     "SRat",
+    "meq/(24.h)":     "SRat",
 
     # ── Mass rate (MRat): 24h urinary excretion, drug dosing ─────────
     "mg/d":         "MRat",
@@ -175,7 +174,7 @@ UCUM_FAMILY: dict[str, str] = {
 
     # ── Energy (Engy): caloric intake, exercise expenditure ──────────
     "kcal":         "Engy",
-    "cal":          "Engy",     # nutritional context: same as kcal usually
+    "cal":          "Engy",     # the small calorie; a food Calorie is kcal
     "J":            "Engy",
     "kJ":           "Engy",
     "MJ":           "Engy",
@@ -234,6 +233,7 @@ UCUM_FAMILY: dict[str, str] = {
     "nmol/g":       "SCnt",
     "umol/g":       "SCnt",
     "mmol/g":       "SCnt",
+    "meq/kg":       "SCnt",
 
     # ── Arbitrary concentration (ACnc): IU = "international units" ───
     "[IU]/L":     "ACnc",
@@ -403,14 +403,13 @@ UCUM_FAMILY: dict[str, str] = {
     "km":       "Len",
     "[in_us]":  "Len",      # inch (US survey: what the aliases resolve to)
     "[ft_us]":  "Len",      # foot (US survey)
-    "[in_i]":   "Len",      # inch (international, exactly 0.0254 m): the
-    "[ft_i]":   "Len",      # spelling convert._BASE can actually convert;
-                            # [in_us]/[ft_us] have no _BASE atom and stay atomic
+    "[in_i]":   "Len",      # inch (international, exactly 0.0254 m)
+    "[ft_i]":   "Len",
     "[mi_us]":  "Len",      # mile
     "[yd_us]":  "Len",      # yard
 
     # ── Compound / derived ────────────────────────────────────────────
-    "kg/m2":    "MCnc",   # BMI: treated as concentration family
+    "kg/m2":    "MCnc",   # BMI itself is filed as Ratio: see AMBIGUOUS_UNITS
     "g/m2":     "MCnc",
 
     # ── Pressure (Pres) ───────────────────────────────────────────────
@@ -507,10 +506,15 @@ UCUM_FAMILY: dict[str, str] = {
 AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     # `Ratio` and `DistWidth` are here for the red cell distribution width
     # printed as a coefficient of variation (RDW-CV, 788-0 and 30385-9):
-    # LOINC has filed it under both, and a CBC prints it as `%`.
+    # LOINC has filed it under both, and a CBC prints it as `%`. `VRto`
+    # (FEV1/FVC, 19926-5) and `RelVol` (FEV1 measured/predicted, 20152-5)
+    # declare `%` too. `RelTime` does not go here although 5894-1 (PT
+    # actual/normal) declares `%`: the INR codes share PT's component and
+    # are `RelTime`, so `PT 62 %` would switch to INR 6301-6.
     "%": frozenset({
         "MFr", "NFr", "AFr", "VFr", "SFr", "CFr",
         "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth",
+        "VRto", "RelVol",
     }),
     "mm[Hg]": frozenset({"Pres", "PPres"}),    # BP vs blood-gas pO2/pCO2
     # A report prints `U/mL` for tumour markers and antibodies (CA 19-9, CA
@@ -552,6 +556,15 @@ AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     "ng/g":   frozenset({"MCnt", "MRto"}),
     "ng/mg":  frozenset({"MRto", "MCnt"}),
     "ug/mg":  frozenset({"MRto", "MCnt"}),
+    # The same units on codes LOINC files as a dimensionless `Ratio`: BMI
+    # (39156-5) declares kg/m2, and urine analyte/creatinine ratios declare
+    # mg/mmol (32294-1), umol/g, mmol/g and nmol/mg. The gate must admit a
+    # code's own declared unit.
+    "kg/m2":   frozenset({"MCnc", "Ratio"}),
+    "mg/mmol": frozenset({"MRto", "Ratio"}),
+    "umol/g":  frozenset({"SCnt", "Ratio"}),
+    "mmol/g":  frozenset({"SCnt", "Ratio"}),
+    "nmol/mg": frozenset({"MRto", "Ratio", "SCnt"}),
 }
 
 

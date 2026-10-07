@@ -1,29 +1,23 @@
 """zh-Hant → zh-Hans character folding, so a Traditional query finds a
 Simplified alias.
 
-GENERATED from zhconv by a build script: do not edit by hand.
+Generated from zhconv's conversion table by a maintainers' script that does
+not ship; regenerate rather than edit, so the two strings stay aligned.
 
-**Why the engine needs this at all.** The alias lexicon build already mirrors
-every Simplified key to its Traditional form
-(``fhir/embeddings/lexicon._expand_zh_traditional``), so the shipped bundle
-carries 3,161 Traditional keys. But ``res/loinc/resolver_overrides.tsv`` is a RUNTIME
-file and gets no such expansion, and it is where the hand-curated everyday
-panel terms live. The result was a split that looked arbitrary from outside:
-
-    血紅蛋白    -> 718-7    (reached the bundle via the build's expansion)
-    白細胞      -> nothing  (its Simplified form is an override row)
-
-Folding the QUERY is the symmetric half of what the build does to the CORPUS,
-and it covers overrides, curated files and raw user input in one place.
+**Why the engine needs this at all.** The alias index's Chinese keys come from
+LOINC's zh-CN variant, and the hand-curated rows (``res/loinc/
+resolver_overrides.tsv``, ``aliases_src/``) are written in Simplified too, so
+a Traditional spelling such as ``白細胞`` found nothing. Folding the QUERY
+covers the index, the overrides and raw user input in one place.
 
 **What this does NOT do.** Folding is a script transform, not a translation.
 Taiwan clinical vocabulary differs from mainland vocabulary in WORD CHOICE, and
 folding those is actively dangerous: ``血紅素`` folds to ``血红素``, which the
-index answers with 4548-4 (HbA1c) while in Taiwan 血紅素 *is* haemoglobin.
-That is the ``血红蛋白 -> HbA1c`` failure with a new hat on. Region-specific
-terms are curated in ``resolver_overrides.tsv`` under their Traditional
-spelling, and ``_candidate_keys`` tries the term as written before any variant,
-so a curated row always beats a fold.
+index alone answers with 4548-4 (HbA1c) while in Taiwan 血紅素 *is*
+haemoglobin. That is the ``血红蛋白 -> HbA1c`` failure with a new hat on.
+Region-specific terms are curated in ``resolver_overrides.tsv`` under their
+Traditional spelling, and ``_candidate_keys`` tries the term as written before
+any variant, so a curated row always beats a fold.
 """
 
 from __future__ import annotations

@@ -7,13 +7,15 @@ mirobody.engine` stays numpy-only.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
-from mirobody.engine.resolver import Resolution, get_resolver, resolve_reading
+from mirobody.engine.resolver import Resolution, resolve_reading
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,21 @@ date for every reading of one report unless the report prints a different one
 per row; leave it empty rather than guessing, and never use today's date."""
 
 
+async def _ensure_config() -> None:
+    """Load the configuration for a bare library call, and leave a loaded one
+    alone.
+
+    The model routing reads its keys through the config system (which also
+    loads `.env`), and a standalone caller (the CLI, a script) has not set it
+    up. `Config.init` is not idempotent: it replaces the global config, which
+    drops a server's `-c` files, the root log handlers and the uvicorn access
+    filter, and `POST /api/standardize` ran it on every request.
+    """
+    from mirobody.utils import Config, global_config
+
+    if global_config() is None:
+        await Config.init()
+
 
 async def parse_text(document: str, *, resolve_names: bool = True) -> list[Reading]:
     """Parse report TEXT into readings: the same one LLM call as
@@ -49,10 +66,9 @@ async def parse_text(document: str, *, resolve_names: bool = True) -> list[Readi
     Split out of ``parse_file`` for ``POST /api/standardize``, which is handed
     raw text by the caller and had no way in short of writing a temp file.
     """
-    from mirobody.utils import Config
     from mirobody.utils.llm import async_get_text_completion
 
-    await Config.init()
+    await _ensure_config()
     raw = await async_get_text_completion(
         [
             {"role": "system", "content": _EXTRACT_PROMPT},
@@ -87,18 +103,12 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
     only. Raises RuntimeError with a plain message when no provider key is
     configured or nothing readable was found.
     """
-    # The provider auto-detection reads keys through the config system (which
-    # also loads .env); standalone callers (the CLI, a bare library user) 
-    # haven't initialized it. Init is idempotent and works with zero yaml files.
-    from mirobody.utils import Config
-
-    await Config.init()
+    await _ensure_config()
 
     from mirobody.documents import extract as documents
     from mirobody.documents.ocr import vision_ocr
 
-    with open(path, "rb") as f:
-        data = f.read()
+    data = await asyncio.to_thread(Path(path).read_bytes)
     text = await documents.extract_text(os.path.basename(path), None, data, ocr=vision_ocr)
     if not text.strip():
         raise RuntimeError(f"no readable text could be extracted from {os.path.basename(path)}")
@@ -108,11 +118,12 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
 def _iso_day(raw: object) -> str:
     """`YYYY-MM-DD` from what the model put in `collected`, or "".
 
-    Models answer this field with "2026-05-06", "2026/05/06", "May 6, 2026"
-    and "2026-05-06 09:15:00". Only the first is worth keeping as-is; the
-    rest go through `date.fromisoformat` after the separators are squared up,
-    and anything else is dropped. An unparseable date is no date: a caller
-    that guesses gets a wrong time axis, which is worse than a missing one.
+    Models answer this field with "2026-05-06", "2026/05/06",
+    "2026-05-06 09:15:00" and "May 6, 2026". The separators are squared up,
+    the date part goes through `date.fromisoformat`, and whatever that cannot
+    read ("May 6, 2026" among them) is dropped. An unparseable date is no
+    date: a caller that guesses gets a wrong time axis, which is worse than a
+    missing one.
     """
     text = str(raw or "").strip()
     if not text:
@@ -136,7 +147,6 @@ def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:
     if not isinstance(items, list):
         raise RuntimeError(f"extraction returned {type(items).__name__}, expected a JSON array")
 
-    resolver = get_resolver() if resolve_names else None
     readings: list[Reading] = []
     for it in items:
         if not isinstance(it, dict) or not it.get("name"):
@@ -154,9 +164,7 @@ def _readings_from_json(raw: str, *, resolve_names: bool) -> list[Reading]:
                 # The unit is right here, and LOINC codes the unit into the
                 # identity: resolving on the name alone would file a mmol/L
                 # reading under the mg/dL code.
-                resolution=(
-                    resolve_reading(name, value, unit) if resolver else None
-                ),
+                resolution=resolve_reading(name, value, unit) if resolve_names else None,
             )
         )
     return readings

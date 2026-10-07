@@ -26,25 +26,23 @@ existence.
 Everything here works from a plain ``pip install``
 --------------------------------------------------
 
-``mirobody/res/loinc/fhir_loinc_bundle.tar.gz`` is repacked on the way into a wheel (
-16 members / 39.7 MB in a checkout, 9 / 24.9 MB installed) and
+An installed package carries the same bundle members a checkout does:
+``scripts/build_backend.py`` repacks the copy that goes into a wheel down to the
+runtime members, which since 1.5.0 are all of them, and
 ``scripts/check_wheel_data.py`` enforces both directions, required members
-present and build inputs absent. Two things make that repack invisible here:
+present and build inputs absent.
 
-* :func:`load_axis` reads ``axis_fields.bin`` / ``axis_index.npz``, which are
-  runtime members and ship. It does **not** parse ``loinc_axis.csv``.
+* :func:`load_axis` reads ``axis_fields.bin`` / ``axis_index.npz``: one row per
+  code, with LOINC_NUM, COMPONENT, PROPERTY, SCALE_TYP, SYSTEM, METHOD_TYP,
+  LONG_COMMON_NAME, TIME_ASPCT and CLASS (``_bundle.AXIS_*`` name the fields).
 * the alias sources are loose files under ``res/loinc/aliases_src/``, not bundle
   members, and the resolver reads them on every load, so they ship too.
 
-The one thing a wheel does not carry is ``loinc_axis.csv``, and with it the
-four columns the runtime table has no use for: ``TIME_ASPCT``, ``CLASS``,
-``CLASSTYPE``, ``STATUS``. A tool that needs those (filtering to
-``CLASSTYPE=1`` laboratory rows, or dropping ``STATUS=DEPRECATED``) must read
-that member from a checkout, and will find :func:`read_member` returns ``None``
-against an installed package. Derive what you need at build time and vendor it;
-:func:`bundle_version` is there so you can assert the vendored artifact and the
-installed package came from one corpus. The ``VERSION`` member survives the
-repack, so that identifier means the same thing in both profiles.
+What neither profile carries is the rest of the LOINC release: ``CLASSTYPE``,
+``STATUS`` and every code the cut leaves out (``loinc_skip.txt`` lists the
+ACTIVE ones). A tool that needs those reads the licensed release at build time
+and vendors what it derives; :func:`bundle_version` is there so you can assert
+the vendored artifact and the installed package came from one corpus.
 """
 
 from __future__ import annotations

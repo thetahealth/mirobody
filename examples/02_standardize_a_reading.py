@@ -18,7 +18,6 @@ mg/dL and mmol/L, is silently wrong rather than obviously wrong.
 from mirobody.translate import (
     StandardIndicator,
     convert_to_standard,
-    get_all_units_info,
 )
 
 
@@ -55,8 +54,3 @@ try:
 except ValueError as e:
     print(f"  convert_to_standard('weight', ...) -> ValueError: {e}")
 print("  (pass the StandardIndicator member; a typo must not become a silent no-op)")
-
-
-# ── 4. the whole unit table, for a UI ────────────────────────────────────────
-units = get_all_units_info()
-print(f"\nget_all_units_info() -> {len(units)} entries, for populating a unit picker.")

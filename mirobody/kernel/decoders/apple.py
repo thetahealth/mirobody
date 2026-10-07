@@ -121,10 +121,9 @@ METRICS: frozenset[str] = (
     frozenset(QUANTITY.values()) | frozenset(CATEGORY.values()) | frozenset(SLEEP_STAGES.values())
 )
 
-#: Conversions `mirobody.units` declines, measured 2026-09-15. Fahrenheit is
-#: affine and the library is factor-based (`convertible("[degF]", "Cel")` is
-#: False); `mi` folds to the US survey mile, which has no metre factor there,
-#: while Apple means the international mile.
+#: The one conversion `mirobody.units` declines: `mi` folds to the US survey
+#: mile, which has no metre factor there, while Apple means the international
+#: mile.
 _MI_TO_M = 1609.344
 #: `mmol/L` → `mg/dL` needs the molar mass, which the library reaches through
 #: a LOINC code. 2339-0 is glucose in blood.
@@ -148,8 +147,6 @@ def _to_catalogue(metric: str, value: float, unit: str) -> float | None:
     want = units.normalize_unit(target) or target
     if raw in ("mi", "[mi_i]", "[mi_us]") and want == "m":
         return value * _MI_TO_M
-    if raw in ("degF", "[degF]") and want == "Cel":
-        return (value - 32.0) * 5.0 / 9.0
     got = units.normalize_unit(raw)
     if not got:
         return None

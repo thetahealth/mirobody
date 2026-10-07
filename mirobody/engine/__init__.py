@@ -2,8 +2,8 @@
 
 Zero infrastructure: no PostgreSQL, no Redis, no server. ``resolve`` needs no
 credentials at all (offline lookup against the shipped data bundles);
-``parse`` needs exactly one LLM key (any provider
-:func:`mirobody.utils.llm.unified_file_extract` auto-detects).
+``parse`` needs one model key, for whichever provider ``config.llm.yaml``
+routes the text surface to (:mod:`mirobody.utils.config.llm`).
 
     from mirobody.engine import resolve, parse_file
 
@@ -12,11 +12,11 @@ credentials at all (offline lookup against the shipped data bundles);
 
 The first two engine stages (① Collect, ② Translate) without persistence:
 
-* **Lexical resolution** against the shipped LOINC bundle: a 921k-entry
-  multilingual alias index, a 677k-name corpus sidecar, a per-row commonness
-  prior, and the LOINC axis table for the final name to LOINC_NUM hop. Plus
-  ``res/loinc/resolver_overrides.tsv``, hand-written corrections for terms the index
-  gets wrong (measured by ``test_engine_coverage.py``).
+* **Lexical resolution** against the shipped LOINC bundle: a multilingual
+  alias index of LOINC's own designations, the long name of every code the
+  cut keeps, a per-row commonness prior, and the LOINC axis table each posting
+  row is. Plus ``res/loinc/resolver_overrides.tsv``, hand-written corrections
+  for terms the index gets wrong (measured by ``test_engine_coverage.py``).
 * **Not** an embedding pipeline. A term that misses here returns
   ``unresolved``, not a guess. 1.4.x shipped an opt-in semantic tier behind a
   matrix that was never published; measured in both a wheel and a source tree,
