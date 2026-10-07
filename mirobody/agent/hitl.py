@@ -60,6 +60,8 @@ def ask_user(question: str, options: list[str] | None = None,
 
 
 _KEEP_WORDS = ("今天", "today", "keep", "上传日", "upload")
+#: A keep-word said to be NOT the answer: "不是今天，是上周三", "not today".
+_NEGATED_KEEP = re.compile(r"(不是|不按|不要|别按|并非|\bnot|n't)\s*(?:the\s+)?(今天|today|keep|上传日|upload)")
 _YMD = re.compile(r"(20\d{2})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})")
 _MD = re.compile(r"(?<!\d)(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]?")
 
@@ -69,9 +71,11 @@ def parse_date_answer(answer: str, today: datetime | None = None) -> tuple[str, 
     ("unclear", None).
 
     A full date wins over the keep-words, so "不是今天，是2026-01-06" files
-    under the date; "就按今天（2026-09-03）" (the option the model offers) 
-    reads as keep because the only date in it IS today. A month-day without a
-    year is this year's."""
+    under the date; "就按今天（2026-09-03）" (the option the model offers)
+    reads as keep because the only date in it IS today. A keep-word that is
+    negated ("不是今天，是上周三") is not a keep: with no date the answer is
+    unclear, where it used to file under the upload day. A month-day without
+    a year is this year's."""
     text = (answer or "").strip()
     today = today or datetime.now()
     m = _YMD.search(text)
@@ -83,7 +87,8 @@ def parse_date_answer(answer: str, today: datetime | None = None) -> tuple[str, 
         if dt.date() == today.date() and any(w in text.lower() for w in _KEEP_WORDS):
             return "keep", None
         return "date", dt
-    if any(w in text.lower() for w in _KEEP_WORDS):
+    lowered = text.lower()
+    if not _NEGATED_KEEP.search(lowered) and any(w in lowered for w in _KEEP_WORDS):
         return "keep", None
     m = _MD.search(text)
     if m:
