@@ -15,6 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.server.envelope import err
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
@@ -137,8 +138,6 @@ class UnhandledErrorMiddleware:
             # Once the response has started there is nothing left to answer
             # with: the server closes the connection.
             if not started:
-                from mirobody.server.envelope import err
-
                 answer = JSONResponse(err(500, "Internal server error.").model_dump(), status_code=500)
                 await answer(scope, receive, send)
 
