@@ -158,9 +158,9 @@ class SQLAggregator:
             if info.name:
                 self._indicator_units[info.name] = info.standard_unit
 
-        # Methods whose output unit differs from source indicator's unit
-        # Note: time units use "HHMM" instead of "HH:MM" to avoid colon being
-        # misinterpreted as a key-value separator when parsing the comment field.
+        # Methods whose output unit differs from source indicator's unit. A
+        # time of day is spelled "HHMM": it once rode in a `key: value`
+        # comment, where a colon split it, and stored rows carry that spelling.
         self._method_unit_overrides = {
             'time_of_max': 'HHMM',
             'time_of_min': 'HHMM',
@@ -315,14 +315,12 @@ class SQLAggregator:
         user_id=None means all users; otherwise filter to that user.
         """
 
-        # UNION separates sleep from normal data; `time` is stored UTC, so
-        # 'UTC' is named explicitly. Two things are load-bearing.
-        # `CAST(:user_id AS text)`: a bare `(:user_id IS NULL OR user_id =
-        # :user_id)` raises AmbiguousParameter on Postgres 15, since a
-        # parameter whose only context is `IS NULL` has no inferable type,
-        # and the blanket `except` below turned that into
-        # {"status": "success", "summaries_created": 0}. `time < :end_date`,
-        # not `<=`: callers pass a date-only end, which `<=` truncates.
+        # One branch per day window, as in get_trigger_tasks. Two things are
+        # load-bearing. `CAST(:user_id AS text)`: a bare `(:user_id IS NULL OR
+        # user_id = :user_id)` raises AmbiguousParameter on Postgres 15, since
+        # a parameter whose only context is `IS NULL` has no inferable type.
+        # `time < :end_date`, not `<=`: callers pass a date-only end, which
+        # `<=` truncates.
         query = _union_over_windows(
             """
             SELECT
