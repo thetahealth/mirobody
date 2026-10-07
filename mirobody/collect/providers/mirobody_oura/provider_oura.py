@@ -5,7 +5,6 @@ Oura Ring OAuth2 data provider with authentication and data pulling functionalit
 Supports sleep, activity, readiness, heart rate, SpO2, stress, and more.
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -19,6 +18,7 @@ from mirobody.collect.core import LinkType, ProviderStatus
 from mirobody.collect.core.push_service import push_service
 from mirobody.collect.ingest import FormatDataInput, StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord
 from mirobody.collect.providers._platform.base import BasePullProvider
+from mirobody.collect.providers._platform.http import VendorError, get_json, get_pages
 from mirobody.collect.providers._platform.oauth2 import OAuth2Client
 from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.kernel import decoders
@@ -38,27 +38,22 @@ class OuraProvider(BasePullProvider):
     TOKEN_URL = "https://api.ouraring.com/oauth/token"
     DEFAULT_SCOPES = "personal daily heartrate workout session spo2"
 
-    # Sandbox: no real token needed, any string works as Bearer token
-    # e.g. curl -H "Authorization: Bearer test" https://api.ouraring.com/v2/sandbox/usercollection/sleep
-    SANDBOX_API_PREFIX = "/v2/sandbox/usercollection"
-
-    # Endpoints to pull. Where each document's time comes from is declared
-    # once, in ``mirobody.kernel.decoders.oura.STRATEGY``.
-    API_ENDPOINTS = [
-        {"path": "/v2/usercollection/personal_info", "data_type": "personal_info", "paginated": False},
-        {"path": "/v2/usercollection/sleep", "data_type": "sleep", "paginated": True},
-        {"path": "/v2/usercollection/daily_sleep", "data_type": "daily_sleep", "paginated": True},
-        {"path": "/v2/usercollection/daily_activity", "data_type": "daily_activity", "paginated": True},
-        {"path": "/v2/usercollection/daily_readiness", "data_type": "daily_readiness", "paginated": True},
-        {"path": "/v2/usercollection/heartrate", "data_type": "heartrate", "paginated": False},
-        {"path": "/v2/usercollection/daily_spo2", "data_type": "daily_spo2", "paginated": True},
-        {"path": "/v2/usercollection/daily_stress", "data_type": "daily_stress", "paginated": True},
-        # Disabled: returns 401, likely requires Oura Membership ($5.99/mo) subscription
-        # {"path": "/v2/usercollection/daily_resilience", "data_type": "daily_resilience", "paginated": True},
-        # {"path": "/v2/usercollection/daily_cardiovascular_age", "data_type": "daily_cardiovascular_age", "paginated": True},
-        {"path": "/v2/usercollection/vo2_max", "data_type": "vo2_max", "paginated": True},
-        {"path": "/v2/usercollection/workout", "data_type": "workout", "paginated": True},
-    ]
+    #: The collections pulled, keyed by decoder type. Where each document's
+    #: time comes from is declared once, in `decoders.oura.STRATEGY`.
+    #: daily_resilience and daily_cardiovascular_age answer 401 without an
+    #: Oura Membership, so they are not asked for.
+    API_ENDPOINTS: dict[str, str] = {
+        "personal_info": "/v2/usercollection/personal_info",
+        "sleep": "/v2/usercollection/sleep",
+        "daily_sleep": "/v2/usercollection/daily_sleep",
+        "daily_activity": "/v2/usercollection/daily_activity",
+        "daily_readiness": "/v2/usercollection/daily_readiness",
+        "heartrate": "/v2/usercollection/heartrate",
+        "daily_spo2": "/v2/usercollection/daily_spo2",
+        "daily_stress": "/v2/usercollection/daily_stress",
+        "vo2_max": "/v2/usercollection/vo2_max",
+        "workout": "/v2/usercollection/workout",
+    }
 
     def __init__(self):
         super().__init__()
@@ -206,118 +201,43 @@ class OuraProvider(BasePullProvider):
     async def pull_from_vendor_api(
         self, access_token: str, refresh_token: str, days: int | None = None
     ) -> list[dict[str, Any]]:
-        """Fetch data from all Oura API endpoints"""
-        pull_days = days or 1
+        """The last `days` (one when unset) of every collection in `API_ENDPOINTS`.
 
-        start_date = (datetime.now(UTC) - timedelta(days=pull_days)).strftime("%Y-%m-%d")
-        end_date = datetime.now(UTC).strftime("%Y-%m-%d")
-
+        One package per decoder type: `{"data_type", "data", "timestamp"}`.
+        Every collection but personal_info pages with `next_token`, heart rate
+        included. A collection that fails is skipped and the rest still
+        arrive; a refused token raises `VendorAuthError` for the pull loop to
+        count.
+        """
+        now = datetime.now(UTC)
+        start_date = (now - timedelta(days=days or 1)).strftime("%Y-%m-%d")
+        end_date = now.strftime("%Y-%m-%d")
         headers = {"Authorization": f"Bearer {access_token}"}
-        all_data = []
-
-        async with aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=self.request_timeout)
-        ) as session:
-            for endpoint_config in self.API_ENDPOINTS:
-                path = endpoint_config["path"]
-                data_type = endpoint_config["data_type"]
-                paginated = endpoint_config.get("paginated", True)
-
-                # Heart rate uses datetime params
-                if data_type == "heartrate":
-                    params = {
-                        "start_datetime": f"{start_date}T00:00:00+00:00",
-                        "end_datetime": f"{end_date}T23:59:59+00:00",
-                    }
-                elif data_type == "personal_info":
-                    params = {}
-                else:
-                    params = {"start_date": start_date, "end_date": end_date}
-
+        pulled_at = int(time.time() * 1000)
+        packages: list[dict[str, Any]] = []
+        async with aiohttp.ClientSession() as session:
+            for data_type, path in self.API_ENDPOINTS.items():
+                url = f"{self.API_BASE_URL}{path}"
                 try:
-                    url = f"{self.API_BASE_URL}{path}"
-
-                    if paginated:
-                        data = await self._fetch_paginated_data(session, url, headers, params)
-                    elif data_type == "personal_info":
-                        data = await self._fetch_single_resource(session, url, headers)
+                    if data_type == "personal_info":
+                        body = await get_json(session, url, headers=headers, timeout_s=self.request_timeout)
+                        data = [body] if isinstance(body, dict) and body else []
                     else:
-                        # heartrate returns flat list in "data" key
-                        data = await self._fetch_list_data(session, url, headers, params)
-
-                    if data:
-                        all_data.append({
-                            "data_type": data_type,
-                            "data": data if isinstance(data, list) else [data],
-                            "timestamp": int(time.time() * 1000),
-                        })
-                        logger.info(f"Fetched {len(data) if isinstance(data, list) else 1} {data_type} records")
-                except Exception as e:
-                    logger.error(f"Failed to fetch Oura {data_type}: {e}")
-
-        return all_data
-
-    async def _fetch_paginated_data(
-        self, session: aiohttp.ClientSession, url: str,
-        headers: dict, params: dict
-    ) -> list[dict[str, Any]]:
-        """Handle Oura pagination (next_token)"""
-        all_records = []
-        next_token = None
-
-        while True:
-            req_params = dict(params)
-            if next_token:
-                req_params["next_token"] = next_token
-
-            async with session.get(url, headers=headers, params=req_params) as resp:
-                if resp.status == 429:
-                    retry_after = int(resp.headers.get("Retry-After", 60))
-                    logger.warning(f"Oura rate limited, waiting {retry_after}s")
-                    await asyncio.sleep(retry_after)
+                        params = (
+                            {"start_datetime": f"{start_date}T00:00:00+00:00",
+                             "end_datetime": f"{end_date}T23:59:59+00:00"}
+                            if data_type == "heartrate"
+                            else {"start_date": start_date, "end_date": end_date}
+                        )
+                        data = await get_pages(session, url, headers=headers, params=params, records_key="data",
+                                               token_param="next_token", timeout_s=self.request_timeout)
+                except (VendorError, TimeoutError, aiohttp.ClientError) as e:
+                    logger.warning("Oura collection skipped: data_type=%s error_type=%s",  # phi: ok decoder type name
+                                   data_type, type(e).__name__)
                     continue
-                if resp.status == 401:
-                    raise ValueError("Oura access token expired or invalid")
-                if resp.status != 200:
-                    logger.warning(f"Oura API error {resp.status} for {url}: {await resp.text()}")
-                    break
-
-                body = await resp.json()
-                records = body.get("data", [])
-                all_records.extend(records)
-
-                next_token = body.get("next_token")
-                if not next_token:
-                    break
-
-        return all_records
-
-    async def _fetch_single_resource(
-        self, session: aiohttp.ClientSession, url: str, headers: dict
-    ) -> dict[str, Any] | None:
-        """Fetch a single resource (e.g., personal_info)"""
-        async with session.get(url, headers=headers) as resp:
-            if resp.status != 200:
-                logger.error(f"Oura API error {resp.status} for {url}")
-                return None
-            return await resp.json()
-
-    async def _fetch_list_data(
-        self, session: aiohttp.ClientSession, url: str,
-        headers: dict, params: dict
-    ) -> list[dict[str, Any]]:
-        """Fetch list data without pagination (e.g., heartrate)"""
-        async with session.get(url, headers=headers, params=params) as resp:
-            if resp.status == 429:
-                retry_after = int(resp.headers.get("Retry-After", 60))
-                logger.warning(f"Oura rate limited, waiting {retry_after}s")
-                await asyncio.sleep(retry_after)
-                return await self._fetch_list_data(session, url, headers, params)
-            if resp.status != 200:
-                logger.warning(f"Oura API error {resp.status} for {url}: {await resp.text()}")
-                return []
-            body = await resp.json()
-            return body.get("data", [])
+                if data:
+                    packages.append({"data_type": data_type, "data": data, "timestamp": pulled_at})
+        return packages
 
     # =========================================================================
     # Raw Data Storage

@@ -93,7 +93,7 @@ WHOOP_REDIRECT_URL:  'https://abc123.ngrok-free.app/api/v1/pulse/theta/theta_who
 
 Optional, all with working defaults — set only to pin a different environment:
 `WHOOP_AUTH_URL`, `WHOOP_TOKEN_URL`, `WHOOP_API_BASE_URL`, `WHOOP_SCOPES`,
-`WHOOP_REQUEST_TIMEOUT`, `WHOOP_CONCURRENT_REQUESTS`, `WHOOP_MAX_DETAIL_RECORDS`.
+`WHOOP_REQUEST_TIMEOUT`.
 
 ## Garmin
 

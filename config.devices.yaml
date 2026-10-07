@@ -34,8 +34,6 @@ WHOOP_SCOPES:
   offline read:recovery read:sleep read:cycles read:profile read:workout
   read:body_measurement
 # WHOOP_REQUEST_TIMEOUT: 30
-# WHOOP_CONCURRENT_REQUESTS: 5
-# WHOOP_MAX_DETAIL_RECORDS: 50
 
 #-----------------------------------------------------------------------------
 # Garmin (OAuth 1.0a) — https://developer.garmin.com/gc-developer-program/

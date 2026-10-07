@@ -4,7 +4,6 @@ Whoop Provider
 Whoop OAuth2 data provider with authentication and data pulling functionality
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -19,6 +18,7 @@ from mirobody.collect.core import LinkType, ProviderStatus
 from mirobody.collect.core.push_service import push_service
 from mirobody.collect.ingest import FormatDataInput, StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord
 from mirobody.collect.providers._platform.base import BasePullProvider
+from mirobody.collect.providers._platform.http import VendorError, get_json, get_pages
 from mirobody.collect.providers._platform.oauth2 import OAuth2Client
 from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.kernel import decoders
@@ -29,6 +29,14 @@ from mirobody.utils.tasks import spawn
 from mirobody.utils.log import secret_fingerprint
 
 logger = logging.getLogger(__name__)
+
+#: WHOOP's collections, keyed by the decoder type each one holds.
+COLLECTIONS: dict[str, str] = {
+    "cycle": "/cycle",
+    "sleep": "/activity/sleep",
+    "workout": "/activity/workout",
+    "recovery": "/recovery",
+}
 
 
 class WhoopProvider(BasePullProvider):
@@ -63,17 +71,6 @@ class WhoopProvider(BasePullProvider):
                 safe_read_cfg("WHOOP_SCOPES")
                 or "offline read:recovery read:sleep read:cycles read:profile read:workout read:body_measurement"
         )
-
-        # Data pull configuration
-        try:
-            self.max_detail_records = int(safe_read_cfg("WHOOP_MAX_DETAIL_RECORDS") or 50)
-        except (ValueError, TypeError):
-            self.max_detail_records = 50
-
-        try:
-            self.concurrent_requests = int(safe_read_cfg("WHOOP_CONCURRENT_REQUESTS") or 5)
-        except (ValueError, TypeError):
-            self.concurrent_requests = 5
 
         try:
             self.request_timeout = int(safe_read_cfg("WHOOP_REQUEST_TIMEOUT") or 30)
@@ -251,202 +248,44 @@ class WhoopProvider(BasePullProvider):
         )
 
     async def pull_from_vendor_api(self, access_token: str, refresh_token: str, days: int | None = None) -> list[dict[str, Any]]:
+        """The last `days` of each WHOOP collection, and the body measurement.
+
+        One package per decoder type: `{"data_type", "data", "timestamp"}`.
+        A collection record is the whole record, the same object WHOOP's by-id
+        endpoint answers, so nothing is fetched twice. A collection that fails
+        is skipped and the rest still arrive; a refused token raises
+        `VendorAuthError` for the pull loop to count.
         """
-        Pull data from Whoop API using OAuth2 credentials.
-        If days is provided, limit the collection endpoints to the last N days
-        (aligned with pull_recent_data behavior); otherwise fetch full history.
-        Implements three-layer data fetching strategy:
-        1. Collection data (cycles, sleeps, workouts, recovery)
-        2. Detailed data (by-ID endpoints)
-        3. Static data (body measurements)
-        """
-        try:
-            if days and days > 0:
-                logger.info(f"Starting Whoop data pull (last {days} days)")
-            else:
-                logger.info("Starting comprehensive Whoop data pull")
-
-            if not access_token:
-                raise ValueError("Access token is required")
-
-            headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-            all_raw_data = []
-
-            async with aiohttp.ClientSession() as session:
-                # Layer 1: Fetch all collection data
-                logger.info("Layer 1: Fetching collection data")
-                # Optional date range params for recent window
-                collection_params = None
-                if days and days > 0:
-                    end_date = datetime.now(UTC)
-                    start_date = end_date - timedelta(days=days)
-                    collection_params = {
-                        "start": start_date.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                        "end": end_date.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                        "limit": 25,
-                    }
-
-                # Fetch cycles
-                cycles_url = f"{self.api_base_url}/cycle"
-                cycles = await self._fetch_paginated_data(session, cycles_url, headers, collection_params)
-                logger.info(f"Fetched {len(cycles)} cycle records")
-
-                # Fetch sleeps
-                sleeps_url = f"{self.api_base_url}/activity/sleep"
-                sleeps = await self._fetch_paginated_data(session, sleeps_url, headers, collection_params)
-                logger.info(f"Fetched {len(sleeps)} sleep records")
-
-                # Fetch workouts
-                workouts_url = f"{self.api_base_url}/activity/workout"
-                workouts = await self._fetch_paginated_data(session, workouts_url, headers, collection_params)
-                logger.info(f"Fetched {len(workouts)} workout records")
-
-                # Fetch recovery
-                recovery_url = f"{self.api_base_url}/recovery"
-                recoveries = await self._fetch_paginated_data(session, recovery_url, headers, collection_params)
-                logger.info(f"Fetched {len(recoveries)} recovery records")
-
-                # Layer 2: Fetch detailed data concurrently
-                logger.info("Layer 2: Fetching detailed data with concurrent requests")
-
-                # Prepare concurrent detail fetching
-                detail_tasks = []
-
-                # Cycle details
-                if cycles:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, cycles, f"{self.api_base_url}/cycle/{{id}}",
-                            "id", headers
-                        )
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        params: dict[str, Any] = {"limit": 25}
+        if days:
+            end = datetime.now(UTC)
+            params["start"] = (end - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            params["end"] = end.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+        pulled_at = int(time.time() * 1000)
+        packages: list[dict[str, Any]] = []
+        async with aiohttp.ClientSession() as session:
+            for data_type, path in COLLECTIONS.items():
+                try:
+                    records = await get_pages(
+                        session, f"{self.api_base_url}{path}", headers=headers, params=params,
+                        records_key="records", token_param="nextToken", timeout_s=self.request_timeout,
                     )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))  # Placeholder
-
-                # Sleep details
-                if sleeps:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, sleeps, f"{self.api_base_url}/activity/sleep/{{id}}",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))
-
-                # Workout details
-                if workouts:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, workouts, f"{self.api_base_url}/activity/workout/{{id}}",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))
-
-                # Recovery by cycle
-                if cycles:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, cycles, f"{self.api_base_url}/cycle/{{id}}/recovery",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))
-
-                # Execute all detail fetching concurrently
-                start_time = time.time()
-                results = await asyncio.gather(*detail_tasks, return_exceptions=True)
-                elapsed = time.time() - start_time
-                logger.info(f"Completed concurrent detail fetching in {elapsed:.2f} seconds")
-
-                # Unpack results
-                detailed_cycles = results[0] if not isinstance(results[0], Exception) and results[0] else []
-                detailed_sleeps = results[1] if not isinstance(results[1], Exception) and results[1] else []
-                detailed_workouts = results[2] if not isinstance(results[2], Exception) and results[2] else []
-                cycle_recoveries = results[3] if not isinstance(results[3], Exception) and results[3] else []
-
-                logger.info(f"Fetched details - Cycles: {len(detailed_cycles)}, Sleeps: {len(detailed_sleeps)}, "
-                             f"Workouts: {len(detailed_workouts)}, Recoveries: {len(cycle_recoveries)}")
-
-                # Layer 3: Fetch static data
-                logger.info("Layer 3: Fetching static data")
-
-                # Fetch body measurements
-                body_url = f"{self.api_base_url}/user/measurement/body"
-                body_measurements = await self._fetch_paginated_data(session, body_url, headers)
-                logger.info("Fetched body measurement data")
-
-                # Package all data into raw data format
-                timestamp = int(time.time() * 1000)
-                user_id = ""  # Do not fetch whoop user id; keep empty
-
-                # Add cycle data
-                if detailed_cycles:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "cycle",
-                        "data": detailed_cycles,
-                        "timestamp": timestamp,
-                    })
-
-                # Add sleep data (prefer detailed if available)
-                if detailed_sleeps:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "sleep",
-                        "data": detailed_sleeps,
-                        "timestamp": timestamp,
-                    })
-                elif sleeps:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "sleep",
-                        "data": sleeps,
-                        "timestamp": timestamp,
-                    })
-
-                # Add workout data
-                if detailed_workouts:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "workout",
-                        "data": detailed_workouts,
-                        "timestamp": timestamp,
-                    })
-
-                # Add recovery data
-                if cycle_recoveries:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "recovery",
-                        "data": cycle_recoveries,
-                        "timestamp": timestamp,
-                    })
-                elif recoveries:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "recovery",
-                        "data": recoveries,
-                        "timestamp": timestamp,
-                    })
-
-                if body_measurements:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "body",
-                        "data": body_measurements,
-                        "timestamp": timestamp,
-                    })
-
-            logger.info(f"Completed comprehensive Whoop data pull: {len(all_raw_data)} data packages")
-            return all_raw_data
-
-        except Exception as e:
-            logger.error(f"Error in Whoop data pull: {str(e)}")
-            return []
+                except (VendorError, TimeoutError, aiohttp.ClientError) as e:
+                    logger.warning("WHOOP collection skipped: data_type=%s error_type=%s",  # phi: ok decoder type name
+                                   data_type, type(e).__name__)
+                    continue
+                if records:
+                    packages.append({"data_type": data_type, "data": records, "timestamp": pulled_at})
+            try:
+                body = await get_json(session, f"{self.api_base_url}/user/measurement/body",
+                                      headers=headers, timeout_s=self.request_timeout)
+            except (VendorError, TimeoutError, aiohttp.ClientError) as e:
+                logger.warning("WHOOP body measurement skipped: error_type=%s", type(e).__name__)
+                body = None
+            if isinstance(body, dict) and body:
+                packages.append({"data_type": "body", "data": [body], "timestamp": pulled_at})
+        return packages
 
     async def _handle_whoop_auth_failure(self, user_id: str, error_details: str) -> None:
         """Handle Whoop authentication failure by cleaning up invalid credentials."""
@@ -472,151 +311,6 @@ class WhoopProvider(BasePullProvider):
         if not token:
             await self._handle_whoop_auth_failure(user_id, "Token refresh failed or no valid credentials")
         return token
-
-    async def _fetch_paginated_data(
-            self,
-            session: aiohttp.ClientSession,
-            endpoint: str,
-            headers: dict[str, str],
-            params: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Generic method to fetch paginated data from WHOOP API
-        
-        Args:
-            session: aiohttp session
-            endpoint: API endpoint URL
-            headers: Request headers (should include Authorization)
-            params: Optional query parameters
-            
-        Returns:
-            List of all records from all pages
-        """
-        all_records = []
-        next_token = None
-        params = params or {}
-
-        while True:
-            # Add nextToken if available
-            if next_token:
-                params["nextToken"] = next_token
-
-            # Retry logic for rate limiting
-            retry_count = 0
-            max_retries = 3
-            data = {}
-
-            while retry_count <= max_retries:
-                try:
-                    async with session.get(endpoint, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=self.request_timeout)) as resp:
-                        if resp.status == 429:  # Rate limited
-                            retry_after = int(resp.headers.get("Retry-After", "60"))
-                            if retry_count < max_retries:
-                                logger.warning(f"Rate limited on {endpoint}, retrying after {retry_after} seconds")
-                                await asyncio.sleep(min(retry_after, 60))  # Cap at 60 seconds
-                                retry_count += 1
-                                continue
-                            logger.error(f"Max retries exceeded for {endpoint} due to rate limiting")
-                            break
-                        elif resp.status == 401:
-                            # Token should have been validated at entry point, 401 indicates auth failure
-                            text = await resp.text()
-                            logger.error(f"Authentication failed for {endpoint}: {resp.status} - {text}")
-                            break
-                        elif resp.status != 200:
-                            text = await resp.text()
-                            logger.error(f"Failed to fetch {endpoint}: {resp.status} - {text}")
-                            break
-                        else:
-                            data = await resp.json()
-                            break
-                except TimeoutError:
-                    logger.error(f"Timeout fetching {endpoint}")
-                    if retry_count < max_retries:
-                        retry_count += 1
-                        await asyncio.sleep(2 ** retry_count)  # Exponential backoff
-                        continue
-                    break
-                except Exception as e:
-                    logger.error(f"Error fetching {endpoint}: {str(e)}")
-                    if retry_count < max_retries:
-                        retry_count += 1
-                        await asyncio.sleep(2 ** retry_count)
-                        continue
-                    break
-
-            # Check if we successfully got data
-            if retry_count > max_retries:
-                break
-
-            # Extract records and next token
-            if "records" in data:
-                records = data.get("records", [])
-                all_records.extend(records)
-                next_token = data.get("next_token")
-
-                logger.info(f"Fetched {len(records)} records from {endpoint}, total: {len(all_records)}")
-
-                # If no next token, we've reached the end
-                if not next_token:
-                    break
-            else:
-                # Non-paginated response, return as single item list
-                all_records.append(data)
-                break
-
-        return all_records
-
-    async def _fetch_detail_batch(
-            self,
-            session: aiohttp.ClientSession,
-            items: list[dict],
-            url_template: str,
-            id_field: str,
-            headers: dict[str, str],
-    ) -> list[dict[str, Any]]:
-        """
-        Fetch detailed data for a batch of items concurrently
-        
-        Args:
-            session: aiohttp session
-            items: List of items containing IDs
-            url_template: URL template with {id} placeholder
-            id_field: Field name containing the ID
-            headers: Request headers (should include Authorization)
-            
-        Returns:
-            List of detailed records
-        """
-        semaphore = asyncio.Semaphore(self.concurrent_requests)
-
-        async def fetch_one(item: dict) -> dict | None:
-            async with semaphore:
-                item_id = item.get(id_field)
-                if not item_id:
-                    return None
-
-                url = url_template.format(id=item_id)
-                try:
-                    details = await self._fetch_paginated_data(
-                        session, url, headers.copy()
-                    )
-                    return details[0] if details else None
-                except Exception as e:
-                    logger.error(f"Error fetching detail for {id_field}={item_id}: {str(e)}")
-                    return None
-
-        # Create tasks for concurrent execution
-        tasks = [fetch_one(item) for item in items[:self.max_detail_records]]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Filter out None values and exceptions
-        detailed_records = []
-        for result in results:
-            if result and not isinstance(result, Exception):
-                detailed_records.append(result)
-
-        return detailed_records
 
     async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         """
