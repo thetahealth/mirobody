@@ -35,7 +35,7 @@ from deepagents.backends.protocol import EditResult, FileUploadResponse, WriteRe
 from mirobody.collect import GeneticHandler
 from mirobody.utils.db import execute_query
 from .backend import PgFilesystemBackend, _is_text_mime
-from .naming import guess_mime, safe_basename
+from .naming import disambiguate, guess_mime, safe_basename
 
 logger = logging.getLogger(__name__)
 
@@ -186,13 +186,17 @@ class ThFilesBackend(PgFilesystemBackend):
             base = safe_basename(pinned or r.get("file_name") or r.get("file_key") or "")
             if not base:
                 continue
-            # Newest wins; a repeat name gets its key appended rather than
-            # shadowing the older file, matching what the sync did.
+            # Newest wins; a repeat name is tagged with its key rather than
+            # shadowing the older file. The tag goes before the suffix
+            # (`naming.disambiguate`): "lab.pdf__thf_<key>" ended in no known
+            # suffix, so the read skipped extraction and sent the bytes as an
+            # octet-stream block, which qwen and DeepSeek answer with a 400.
             if base in seen:
                 key = str(r.get("file_key") or "")
-                suffix = safe_basename(key)[:8]
-                base = f"{base}__thf_{suffix}" if suffix else base
-                if base in seen:
+                # The whole key when two share their last eight characters.
+                base = next((name for name in (disambiguate(base, key), disambiguate(base, key, width=None))
+                             if name not in seen), "")
+                if not base:
                     continue
             seen.add(base)
             out.append(self._row_from_file(dict(r), f"/{base}"))

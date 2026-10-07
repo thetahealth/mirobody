@@ -186,9 +186,10 @@ async def attachment_reminder(backend: Any,
     agree in the common case, but a request-derived listing can still name a
     path the mount does not serve, in at least three ways:
 
-    * two attachments share a name: the mount serves the second under a
-      ``__thf_`` suffix the request cannot predict, so a request-derived note
-      announces one path twice and every read lands on the first file;
+    * two attachments share a name: the mount serves the second under a name
+      tagged with its key (`naming.disambiguate`), which the request cannot
+      predict, so a request-derived note announces one path twice and every
+      read lands on the first file;
     * the row is gone or was never the caller's (deleted, another user's
       `file_key`): the projection filters on `user_id` and `is_del`, the
       request does not, so the note promises a file the mount will refuse;
