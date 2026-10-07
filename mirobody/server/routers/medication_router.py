@@ -9,7 +9,6 @@ envelope.
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import date, datetime
 from typing import Any
@@ -19,13 +18,9 @@ from pydantic import BaseModel, Field, model_validator
 
 from mirobody.collect import PostgresMedicationStore
 from mirobody.kernel import meds, series
-from mirobody.kernel.ops import is_driver_exception
-from mirobody.server.auth import verify_token
-from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+from mirobody.server.auth import subject_for, verify_token
+from mirobody.server.envelope import ErrorResponse, StandardResponse, failed
 from mirobody.user.user import get_user
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/medications", tags=["medications"])
 
@@ -169,15 +164,12 @@ def _plan_input(body: MedicationInput, subject_id: str, plan_id: str | None = No
 
 
 async def _subject(caller: str, target: str | None, *, write: bool = False) -> tuple[str, ErrorResponse | None]:
-    if not target or str(target) == str(caller):
-        return str(caller), None
-    try:
-        await resolve_subject(str(caller), str(target), require_write=write)
-    except CareCircleDenied:
-        if write:
-            return "", ErrorResponse(code=403, msg="This member has not shared write access to their medications.")
-        return "", ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
-    return str(target), None
+    subject = await subject_for(caller, target, write=write)
+    if subject is not None:
+        return subject, None
+    if write:
+        return "", ErrorResponse(code=403, msg="This member has not shared write access to their medications.")
+    return "", ErrorResponse(code=403, msg="Not permitted to read this member's medications.")
 
 
 async def _owner_or_404(caller: str, plan_id: str) -> tuple[str | None, ErrorResponse | None]:
@@ -241,14 +233,6 @@ def _json_course(course: meds.Course) -> dict[str, Any]:
     }
 
 
-def _failed(action: str, exc: Exception, msg: str) -> ErrorResponse:
-    # A type name only: a driver exception quotes the SQL with its bound
-    # parameters, and those are a drug name and a dose.
-    logger.error("medications %s failed: error_type=%s", action, type(exc).__name__,
-                 exc_info=not is_driver_exception(exc))
-    return ErrorResponse(code=500, msg=msg)
-
-
 _STATUSES = {meds.EFFECTIVE_ACTIVE, meds.EFFECTIVE_INTENDED, meds.EFFECTIVE_COMPLETED, meds.EFFECTIVE_STOPPED}
 
 
@@ -267,7 +251,7 @@ async def list_medications(
         plans = await PostgresMedicationStore().list(subject)
         today = await _today(subject)
     except Exception as exc:
-        return _failed("list", exc, "Medications could not be loaded.")
+        return failed("medications list", exc, "Medications could not be loaded.")
     rows = [_json_plan(p, today=today) for p in plans]
     if status:
         rows = [r for r in rows if r["effective_status"] == status]
@@ -287,7 +271,7 @@ async def get_medication(plan_id: str, user_id: str = Depends(verify_token)):
         courses = list(await store.courses(plan_id))
         today = await _today(owner)
     except Exception as exc:
-        return _failed("detail", exc, "This medication could not be loaded.")
+        return failed("medications detail", exc, "This medication could not be loaded.")
     return StandardResponse(data=_json_plan(plan, today=today, courses=courses))
 
 
@@ -299,7 +283,7 @@ async def medication_courses(plan_id: str, user_id: str = Depends(verify_token))
             return error
         courses = await PostgresMedicationStore().courses(plan_id)
     except Exception as exc:
-        return _failed("courses", exc, "This medication's history could not be loaded.")
+        return failed("medications courses", exc, "This medication's history could not be loaded.")
     return StandardResponse(data={"items": [_json_course(c) for c in courses]})
 
 
@@ -317,7 +301,7 @@ async def create_medication(
         await PostgresMedicationStore().create(plan)
         today = await _today(subject)
     except Exception as exc:
-        return _failed("create", exc, "This medication could not be saved.")
+        return failed("medications create", exc, "This medication could not be saved.")
     return StandardResponse(data=_json_plan(plan, today=today))
 
 
@@ -348,7 +332,7 @@ async def update_medication(plan_id: str, body: MedicationPatch, user_id: str = 
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("edit", exc, "This medication could not be saved.")
+        return failed("medications edit", exc, "This medication could not be saved.")
     return StandardResponse(data=_json_plan(plan, today=today))
 
 
@@ -366,7 +350,7 @@ async def _transition(plan_id: str, event: str, user_id: str):
         # is active"): a fixed sentence about states, never the drug.
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed(event, exc, "That medication change could not be completed.")
+        return failed(f"medications {event}", exc, "That medication change could not be completed.")
     return StandardResponse(data=_json_plan(plan, today=today))
 
 

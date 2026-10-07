@@ -1,8 +1,9 @@
-"""Assembling the middleware stack.
+"""Assembling the middleware stack, and the headers the HTTP server adds.
 
 Lifted out of `Server.__init__` so the composition root registers a stack rather
-than computing one. The two comments below are load-bearing incident records:
-both bugs took the whole server down at startup and are easy to reintroduce.
+than computing one. The two comments in `build_middlewares` are load-bearing
+incident records: both bugs took the whole server down at startup and are easy
+to reintroduce.
 """
 
 from __future__ import annotations
@@ -16,15 +17,32 @@ from starlette.middleware.gzip import GZipMiddleware
 from .middlewares import (
     JwtMiddleware,
     RequestRateLimiterMiddleware,
+    ResponseHeadersMiddleware,
+    UnhandledErrorMiddleware,
     UserInfoUpdaterMiddleware,
 )
 
 logger = logging.getLogger(__name__)
 
 
+def server_headers(http_headers: list[tuple[str, str]] | None) -> list[tuple[str, str]]:
+    """The configured headers the HTTP server adds to every response: all but
+    the CORS ones. `CORSMiddleware` answers those per request; uvicorn adding
+    them as well sent `Access-Control-Allow-Origin` twice, which a browser
+    refuses."""
+    return [(name, value) for name, value in http_headers or []
+            if not name.lower().startswith("access-control-")]
+
+
+def _listed(value: str) -> list[str]:
+    """A comma-separated header value as its items: "GET,POST" and
+    "GET, POST" alike."""
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 def build_middlewares(
     *,
-    http_headers=None,
+    http_headers: list[tuple[str, str]] | None = None,
     jwt_key: str = "",
     jwt_sub_decode_func=None,
     requires_second_factor=None,
@@ -36,6 +54,9 @@ def build_middlewares(
 ) -> list[Middleware]:
     """Outermost first, in the order Starlette applies them."""
     middlewares: list[Middleware] = [
+        # First, so its headers reach every response, the ones the layers
+        # below answer on their own included.
+        Middleware(ResponseHeadersMiddleware),
         Middleware(GZipMiddleware,
                    minimum_size=10_000),
     ]
@@ -58,12 +79,11 @@ def build_middlewares(
 
         # Warn if wildcard origin is used with credentials (invalid per CORS spec).
         if allowed_origin == "*" and allow_credentials:
-            # NOTE: do NOT `import logging` here. `logging` is imported at module
-            # scope, and a function-local import rebinds the name for the WHOLE of
-            # __init__, which made the `logger.info(...)` at the top of this same
-            # method raise UnboundLocalError and took the entire server down at
-            # startup (introduced in 06e1ad9, the CORS refactor).
-            logging.getLogger(__name__).warning(
+            # NOTE: no `import logging` in this function. A function-local import
+            # rebinds the name for the whole function: one here made a
+            # `logger.info(...)` above it raise UnboundLocalError and took the
+            # server down at startup (06e1ad9, the CORS refactor).
+            logger.warning(
                 "CORS: Access-Control-Allow-Origin='*' with Allow-Credentials=true "
                 "is invalid per the CORS spec and will be rejected by browsers. "
                 "Set a specific origin instead."
@@ -72,14 +92,15 @@ def build_middlewares(
         middlewares.append(
             Middleware(CORSMiddleware,
                        allow_origins=[allowed_origin] if allowed_origin else [],
-                       allow_methods=allowed_methods.split(", ") if "," in allowed_methods else [allowed_methods],
-                       allow_headers=allowed_headers.split(", ") if "," in allowed_headers else [allowed_headers],
+                       allow_methods=_listed(allowed_methods),
+                       allow_headers=_listed(allowed_headers),
                        allow_credentials=allow_credentials,
                        # So a browser client can read the request id it would quote.
                        expose_headers=["X-Request-Id"],
                        max_age=max_age,
                        )
         )
+    middlewares.append(Middleware(UnhandledErrorMiddleware))
     if jwt_key:
         middlewares.append(
             Middleware(JwtMiddleware, jwt_key=jwt_key, decode_func=jwt_sub_decode_func,

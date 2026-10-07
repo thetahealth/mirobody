@@ -1,3 +1,4 @@
+import logging
 import mandrill
 import secrets
 import smtplib
@@ -5,6 +6,12 @@ import time
 from mirobody.utils.ephemeral import EphemeralStore
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+logger = logging.getLogger(__name__)
+
+#: What a sign-in code that could not be sent answers. The provider's answer
+#: quotes the address, and the reply is logged (`json_response_with_code`).
+_NOT_SENT = "The code could not be sent. Try again."
 
 #-----------------------------------------------------------------------------
 
@@ -259,7 +266,10 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
                     
             return None
         
-        return f"Failed to send email to {lower_email}: {result}"
+        status = result[0].get("status") if result else None
+        reason = result[0].get("reject_reason") if result else None
+        logger.warning("sign-in code not sent: provider=mandrill status=%s reason=%s", status, reason)
+        return _NOT_SENT
 
     #-----------------------------------------------------
 
@@ -431,7 +441,9 @@ class SMTPEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator):
                     server.sendmail(self._from_email, [lower_email], msg.as_string())
 
         except Exception as e:
-            return f"Failed to send email: {str(e)}"
+            # No traceback: smtplib's exceptions quote the recipient address.
+            logger.error("sign-in code not sent: provider=smtp error_type=%s", type(e).__name__)
+            return _NOT_SENT
 
         #-------------------------------------------------
 

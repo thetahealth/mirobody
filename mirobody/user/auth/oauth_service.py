@@ -13,6 +13,8 @@ from mirobody.utils.ephemeral import EphemeralStore
 from .bearer import MCP_CLIENT_PREFIX, audience_matches, bearer_subject, mcp_resource
 from .jwt import REFRESH_TOKEN_TYPE, AbstractTokenValidator, minted_at
 
+from mirobody.kernel.ops import is_driver_exception
+
 from mirobody.utils import request_origin, secret_fingerprint, json_response, json_response_with_code, redirect, get_jwt_token, Request, Response, Route
 
 logger = logging.getLogger(__name__)
@@ -216,7 +218,6 @@ class OAuthService:
 
         try:
             data = await request.json()
-            logger.debug(f"request.json: {data}")
             client_id = f"{MCP_CLIENT_PREFIX}{secrets.token_hex(16)}"
             client_secret = secrets.token_hex(32)
 
@@ -271,7 +272,7 @@ class OAuthService:
                 "client_secret_expires_at": 0,
                 "created_at": time.time(),
             }
-            logger.info(f"Client registered: {client_id} with auth method: {requested_auth_method}")
+            logger.info("Client registered: client_id=%s method=%s", client_id, requested_auth_method)
 
             return json_response(
                 content = client_info,
@@ -280,10 +281,11 @@ class OAuthService:
             )
         
         except Exception as e:
-            logger.error(f"Client registration failed: {e}")
+            logger.error("OAuth client registration failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
             return json_response(
-                content = {"error": "registration_failed", "message": str(e)},
+                content = {"error": "registration_failed", "message": "The registration request could not be read."},
                 status_code = 400,
                 request = request
             )
@@ -403,7 +405,7 @@ class OAuthService:
                         client_id, client_secret = decoded.split(":", 1)
                     
                     except Exception as e:
-                        logger.warning(str(e))
+                        logger.warning("OAuth Basic credentials unreadable: error_type=%s", type(e).__name__)
 
             # `client_secret` was in this line, at INFO, in cleartext. It is a
             # long-lived credential: anyone with log read access could
@@ -665,12 +667,13 @@ class OAuthService:
             )
             
         except Exception as e:
-            logger.error(str(e))
+            logger.error("OAuth token request failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
             return json_response(
                 content     = {
                     "error": "server_error",
-                    "error_description": str(e)
+                    "error_description": "The token request failed."
                 },
                 status_code = 500,
                 request     = request

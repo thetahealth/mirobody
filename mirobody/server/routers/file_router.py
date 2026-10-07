@@ -8,18 +8,16 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import Any
 from fastapi import Request
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator
 from mirobody.utils import execute_query
 from mirobody.utils.i18n import language_from_headers
 from mirobody.utils.req_ctx import set_req_ctx
-from mirobody.server.auth import verify_token, verify_token_claims
-from mirobody.server.middlewares import aal2_required_response, lacks_second_factor
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
+from mirobody.server.auth import subject_for, verify_token, verify_token_claims
+from mirobody.server.envelope import ErrorResponse, StandardResponse, err, failed
+from mirobody.user.auth.bearer import aal2_required_response, lacks_second_factor
 
 from mirobody.collect import get_websocket_file_upload_manager
 from mirobody.collect import get_user_data_distribution
@@ -45,8 +43,10 @@ WEBSOCKET_IDLE_TIMEOUT = 5 * 60  # 5 minutes in seconds for idle connections
 WEBSOCKET_UPLOAD_TIMEOUT = 30 * 60  # 30 minutes in seconds for active uploads
 
 class FileUploadResponse(BaseModel):
-    """File upload response model"""
-    
+    """The envelope with a LIST in `data`, one entry per file: the shape the
+    web client's upload reads (`res[0].file_key`), so not `StandardResponse`,
+    whose `data` is an object."""
+
     code: int
     msg: str
     data: list[FileUploadData] | None
@@ -63,14 +63,6 @@ class FileDeleteRequest(BaseModel):
     def coerce_message_id_to_str(cls, v):
         """Convert message_id to string (accepts both str and int from frontend)"""
         return str(v) if v is not None else v
-
-
-class FileDeleteResponse(BaseModel):
-    """File deletion response model"""
-    
-    code: int
-    msg: str
-    data: dict[str, Any] | None
 
 
 
@@ -112,14 +104,7 @@ async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
     owner = str(rows[0].get("owner") or "")
     if not owner:
         return False
-    if owner == caller:
-        return True
-
-    try:
-        await resolve_subject(caller, owner)
-    except CareCircleDenied:
-        return False
-    return True
+    return await subject_for(caller, owner) is not None
 
 
 @router.get("/files/{file_path:path}", tags=["files"])
@@ -268,11 +253,13 @@ async def websocket_upload_health_report(
                 if not user_id:
                     await websocket.close(code=1008, reason="Invalid token")
                     return
+            except HTTPException:
+                logger.warning("upload socket refused its token: token=%s", secret_fingerprint(token))
+                await websocket.close(code=1008, reason="Token verification failed")
+                return
             except Exception as e:
-                logger.error(
-                    "Token verification failed: %s", e,
-                    extra={"token": secret_fingerprint(token)},
-                )
+                logger.error("upload socket token check failed: token=%s error_type=%s",
+                             secret_fingerprint(token), type(e).__name__, exc_info=not is_driver_exception(e))
                 await websocket.close(code=1008, reason="Token verification failed")
                 return
 
@@ -289,7 +276,8 @@ async def websocket_upload_health_report(
             if connectionId:
                 # Validate that connectionId starts with user_id (security check)
                 if not connectionId.startswith(f"{user_id}_") and connectionId != str(user_id):
-                    logger.warning(f"Invalid connectionId format: {connectionId}, expected prefix: {user_id}_ or exact match: {user_id}")
+                    logger.warning("upload socket ignored a connectionId not prefixed by its account: user_id=%s",
+                                   user_id)
                     # Fall back to user_id for backward compatibility
                     connection_id = str(user_id)
                 else:
@@ -395,14 +383,16 @@ async def websocket_upload_health_report(
                             else:
                                 logger.debug(f"[DataService] WebSocket already closed for user {user_id}, skipping timeout notification")
                         except Exception as send_error:
-                            logger.debug(f"[DataService] Failed to send timeout notification to user {user_id}: {send_error}")
+                            logger.debug("upload socket timeout notice not sent: user_id=%s error_type=%s",
+                                         user_id, type(send_error).__name__)
 
                         # Ensure connection is closed
                         try:
                             if websocket.client_state.value == 1:  # OPEN state
                                 await websocket.close(code=1000, reason="Idle timeout")
                         except Exception as close_error:
-                            logger.debug(f"[DataService] Error closing WebSocket for user {user_id}: {close_error}")
+                            logger.debug("upload socket close failed: user_id=%s error_type=%s",
+                                         user_id, type(close_error).__name__)
                         break
                     else:
                         # Not timeout yet, continue listening
@@ -412,11 +402,13 @@ async def websocket_upload_health_report(
                     logger.info(f"WebSocket connection normally disconnected: user_id={user_id}")
                     break
                 except Exception as e:
-                    logger.error(f"WebSocket message processing exception: {e}", stack_info=True)
+                    logger.error("upload socket message failed: user_id=%s error_type=%s", user_id,
+                                 type(e).__name__, exc_info=not is_driver_exception(e))
                     break
 
         except Exception as e:
-            logger.error(f"WebSocket connection exception: {e}", stack_info=True)
+            logger.error("upload socket failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
         finally:
             # Clean up connection using connection_id
             try:
@@ -428,11 +420,11 @@ async def websocket_upload_health_report(
                 pass
 
 
-@router.get("/api/v1/data/data-distribution")
+@router.get("/api/v1/data/data-distribution", response_model=StandardResponse | ErrorResponse)
 async def get_data_distribution(
     user_id: str | None = Query(None, description="User ID"),
     current_user: str = Depends(verify_token),
-) -> JSONResponse:
+):
     """
     Get user data distribution
 
@@ -444,51 +436,34 @@ async def get_data_distribution(
         User data distribution info
     """
     try:
-        # If user_id not provided, use current logged-in user's ID
-        target_user_id = user_id or current_user
-
-        if not target_user_id:
-            return JSONResponse(
-                content={"code": -1, "msg": "Empty user ID"},
-            )
-
         # `?user_id=` was honoured with no authorization check at all, so any
-        # authenticated caller could read any user's data-category distribution
-        #, which categories of health data they hold and how much. The route
+        # authenticated caller could read any user's data-category distribution:
+        # which categories of health data they hold and how much. The route
         # directly below this one (`/api/v1/data/uploaded-files`) already did
         # this correctly; the two were written apart and only one got the
         # check.
-        if str(target_user_id) != str(current_user):
-            try:
-                await resolve_subject(current_user, target_user_id)
-            except CareCircleDenied:
-                return JSONResponse(
-                    content={"code": -2, "msg": "No permission to query this user's data"},
-                )
+        target_user_id = await subject_for(current_user, user_id)
+        if target_user_id is None:
+            return err(403, "No permission to query this user's data.")
 
         logger.info(f"Get data distribution: user_id={target_user_id}")
 
         # Call service to get data distribution
         result = await get_user_data_distribution(target_user_id)
 
-        return JSONResponse(
-            content={"code": 0, "msg": "ok", "data": result},
-        )
+        return StandardResponse(data=result)
 
     except Exception as e:
-        logger.error(f"Failed to get data distribution: {str(e)}", stack_info=True)
-        return JSONResponse(
-            content={"code": -2, "msg": str(e)},
-        )
+        return failed("data distribution", e, "Failed to get the data distribution.")
 
 
-@router.get("/api/v1/data/uploaded-files")
+@router.get("/api/v1/data/uploaded-files", response_model=StandardResponse | ErrorResponse)
 async def get_uploaded_files(
     target_user_id: str | None = Query(None, description="Target user ID - view files uploaded for which user"),
     limit: int | None = Query(100, description="Maximum number of files to return"),
     offset: int | None = Query(0, description="Pagination offset"),
     current_user: str = Depends(verify_token),
-) -> JSONResponse:
+):
     """
     Get user's uploaded file history from th_files table.
     
@@ -510,34 +485,23 @@ async def get_uploaded_files(
     """
 
     try:
-        logger.info(f"Query uploaded files: current_user={current_user}, target_user_id={target_user_id}")
+        logger.info("Query uploaded files: caller_id=%s target_user_id=%s", current_user, target_user_id)  # phi: ok account ids
 
-        if target_user_id and target_user_id != str(current_user):
-            try:
-                await resolve_subject(current_user, target_user_id)
-            except CareCircleDenied:
-                return JSONResponse(
-                    content={"code": -2, "msg": "No permission to query this file"}
-                )
+        owner = await subject_for(current_user, target_user_id)
+        if owner is None:
+            return err(403, "No permission to query this user's files.")
 
-        # Use database service to get uploaded files
-        # Pass current_user for permission checking and target_user_id to determine which user's files to query
         result = await get_uploaded_files_paginated(
-            uploader_user_id=str(current_user),  # For permission checking
-            target_user_id=target_user_id,       # Determines which user's files to query
+            uploader_user_id=str(current_user),
+            target_user_id=owner,
             limit=limit,
             offset=offset,
         )
 
-        return JSONResponse(
-            content={"code": 0, "msg": "ok", "data": result},
-        )
+        return StandardResponse(data=result)
 
     except Exception as e:
-        logger.error(f"Failed to get uploaded file history: {str(e)}", stack_info=True)
-        return JSONResponse(
-            content={"code": -1, "msg": f"Failed to get uploaded files: {str(e)}"},
-        )
+        return failed("uploaded files list", e, "Failed to get uploaded files.")
 
 
 @router.post("/files/upload", response_model=FileUploadResponse)
@@ -573,12 +537,9 @@ async def upload_files(
         - msg: Response message
         - data: List of upload results, each containing file URL, file key, size, type, and timestamp
     """
-    owner = str(target_user_id or user_id)
-    if owner != str(user_id):
-        try:
-            await resolve_subject(user_id, owner, require_write=True)
-        except CareCircleDenied:
-            return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
+    owner = await subject_for(user_id, target_user_id, write=True)
+    if owner is None:
+        return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
 
     result = await upload_files_to_storage(files=files, user_id=owner, folder_prefix=folder)
     stored = result.get("data") or []
@@ -602,11 +563,11 @@ async def upload_files(
     )
 
 
-@router.post("/api/v1/data/delete-files", response_model=FileDeleteResponse)
+@router.post("/api/v1/data/delete-files", response_model=StandardResponse | ErrorResponse)
 async def delete_uploaded_files(
     request: FileDeleteRequest,
     user_id: str = Depends(verify_token)
-) -> FileDeleteResponse:
+):
     """
     Delete uploaded files from th_files table.
     
@@ -622,18 +583,16 @@ async def delete_uploaded_files(
         user_id: User authentication data
         
     Returns:
-        FileDeleteResponse: Response containing deletion results
+        The deletion results in `data`.
     """
     try:
-        logger.info(f"File deletion request: message_id={request.message_id}, file_keys={request.file_keys}, user_id={user_id}")
-        
+        # Storage keys name their owner, so the log counts them.
+        logger.info("File deletion request: message_id=%s file_key_count=%d user_id=%s",
+                    request.message_id, len(request.file_keys or []), user_id)
+
         # Validate input
         if not request.message_id:
-            return FileDeleteResponse(
-                code=1,
-                msg="Message ID is required",
-                data=None
-            )
+            return err(400, "Message ID is required.")
 
                 
         # Filter out empty strings from file_keys
@@ -654,13 +613,11 @@ async def delete_uploaded_files(
                 user_id=user_id
             )
         
-        # Check result and return appropriate response
+        if "error" in result:
+            # The deletion raised; `error` carries the exception's text.
+            return err(500, "Failed to delete files.")
         if not result.get("success"):
-            return FileDeleteResponse(
-                code=1,
-                msg=result.get("error", "Failed to delete files"),
-                data=result
-            )
+            return err(404, "None of these files could be deleted.")
         
         # Successful deletion
         deleted_count = len(result.get("deleted_files", []))
@@ -674,18 +631,9 @@ async def delete_uploaded_files(
         else:
             msg = f"Successfully deleted {deleted_count} file(s)"
         
-        return FileDeleteResponse(
-            code=0,
-            msg=msg,
-            data=result
-        )
-        
+        return StandardResponse(msg=msg, data=result)
+
     except Exception as e:
-        logger.error(f"Error in delete_uploaded_files endpoint: {str(e)}", stack_info=True)
-        return FileDeleteResponse(
-            code=1,
-            msg=f"Internal server error: {str(e)}",
-            data=None
-        )
+        return failed("file deletion", e, "Failed to delete files.")
 
 

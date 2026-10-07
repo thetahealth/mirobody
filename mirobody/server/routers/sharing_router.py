@@ -17,11 +17,12 @@ was no API for that switch. The only way permissions were ever set was
 `{"all": 1}`: read everything. `POST /invitation/health-access` is the member's
 own switch, and `care_circle_members.health_access` defaults to 0.
 
-Two paths are byte-identical to what the web client calls, because it calls
-exactly two: `shared-by-me/list` and `shared-by-me/remove` (grep of
-`frontend/assets/*.js`). Their response fields: `status: "authorized"`,
-`share_id`, `query_user_id`: are the client's vocabulary, mapped here from the
-integers the table stores. The wire stays; the storage got fixed.
+The web client calls four of them: `shared-by-me/list`, `shared-by-me/remove`,
+`shared-with-me/list` and `health-access` (a grep of its source). The first
+two are the ones it called before the rewrite, and their response fields
+(`status: "authorized"`, `share_id`, `query_user_id`) are the client's
+vocabulary, mapped here from the integers the table stores. The wire stays;
+the storage got fixed.
 """
 
 import logging
@@ -30,6 +31,7 @@ import logging
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import err, ok
 from fastapi import Depends
@@ -111,7 +113,8 @@ async def shared_by_me_list(user_id: str = Depends(verify_token)):
             for r in rows if int(r["user_id"]) != me
         ]})
     except Exception as e:
-        logger.error(f"shared-by-me/list: {e}", exc_info=True)
+        logger.error("circle member list failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return err(-1, "Could not list your circle.")
 
 
@@ -133,10 +136,10 @@ async def shared_by_me_remove(request: RemoveRequest, user_id: str = Depends(ver
     circle_id, member_user_id = resolved
     try:
         await cc.require_maintainer(user_id, circle_id)
-    except cc.CareCircleDenied as denied:
+    except cc.CareCircleDenied:
         # Same answer for "not yours" and "does not exist", so the endpoint is
         # not an oracle for which handles are real.
-        logger.info(f"remove refused for user {user_id} on member {handle}: {denied}")
+        logger.info("member removal refused: user_id=%s member_row_id=%s", user_id, handle)  # phi: ok ids
         return err(-2, "No such membership.")
     if member_user_id == int(user_id):
         return err(-3, "Leave the circle from your own side instead.")

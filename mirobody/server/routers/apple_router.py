@@ -1,5 +1,8 @@
-"""
-Apple Health Platform Routes
+"""The Apple Health ingest routes: what a phone app posts, signed in.
+
+Their answers are not `server/envelope.py`'s: `/health` and `/cda` carry
+`success` and `message`, the shape the mobile client reads, which this
+repository cannot rebuild (envelope.py lists the exceptions).
 """
 
 import logging
@@ -10,10 +13,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, Request, status
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from mirobody.collect import AppleHealthRequest, AppleHealthStatisticsRequest
 from mirobody.collect import process_apple_health_statistics
 from mirobody.collect import platform_manager
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 
 logger = logging.getLogger(__name__)
@@ -21,72 +26,46 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter(prefix="/apple", tags=["apple_health"])
 
+#: The most a gzip body may inflate to. Gzip reaches ~1000:1, so a 100 MB bomb
+#: inflates to ~100 GB; a `decompressobj` with `max_length` never holds more
+#: than this. 512 MB is far above any real export batch (the client chunks
+#: uploads) and far below harm.
+_MAX_DECOMPRESSED = 512 * 1024 * 1024
 
-async def _process_request_data(
-        request: Request,
-        content_encoding: str | None = Header(None, alias="content-encoding"),
-        content_type: str | None = Header(None, alias="content-type"),
-) -> dict[str, Any]:
+
+async def _process_request_data(request: Request, content_encoding: str | None) -> dict[str, Any]:
+    """The JSON body, inflated first when it arrives gzip-compressed.
+
+    Raises ValueError for a body that is neither; its message never quotes
+    the body, as the decoders' own messages do, and the body is readings.
     """
-    Process request data, supports gzip compression
+    raw_body = await request.body()
+    gzipped = bool(content_encoding) and content_encoding.lower() == "gzip"
+    logger.info("Apple upload body: bytes=%d encoding=%s", len(raw_body), "gzip" if gzipped else "identity")
 
-    Args:
-        request: FastAPI request object
-        content_encoding: Content encoding type
-        content_type: Content type
+    body = raw_body
+    if gzipped:
+        decompressor = zlib.decompressobj(wbits=31)  # 31 = gzip container
+        try:
+            body = decompressor.decompress(raw_body, _MAX_DECOMPRESSED)
+        except zlib.error:
+            raise ValueError("the body is not valid gzip") from None
+        if decompressor.unconsumed_tail:
+            raise ValueError("the body inflates past the size limit")
 
-    Returns:
-        Dict[str, Any]: Parsed JSON data
-
-    Raises:
-        ValueError: Raised when data parsing fails
-    """
     try:
-        # Read raw request body
-        raw_body = await request.body()
-        
-        logger.info(f"Raw body size: {len(raw_body)} bytes, content_encoding: {content_encoding}, content_type: {content_type}")
+        return json.loads(body.decode("utf-8"))
+    except ValueError:
+        # JSONDecodeError and UnicodeDecodeError are both ValueErrors.
+        raise ValueError("the body is not JSON") from None
 
-        # If gzip compressed, decompress first: with a ceiling. A compressed
-        # body is attacker-shaped input: gzip reaches ~1000:1, so a 100 MB
-        # bomb inflates to ~100 GB and `gzip.decompress` would try to hold all
-        # of it. Streaming through a `decompressobj` with `max_length` caps
-        # what we ever materialize. 512 MB is far above any real Apple Health
-        # export batch (the client chunks uploads) and far below harm.
-        _MAX_DECOMPRESSED = 512 * 1024 * 1024
-        if content_encoding and content_encoding.lower() == "gzip":
-            try:
-                decompressor = zlib.decompressobj(wbits=31)  # 31 = gzip container
-                decompressed_body = decompressor.decompress(raw_body, _MAX_DECOMPRESSED)
-                if decompressor.unconsumed_tail:
-                    raise ValueError(
-                        f"decompressed payload exceeds {_MAX_DECOMPRESSED} bytes"
-                    )
-            except ValueError:
-                raise
-            except Exception as e:
-                raise ValueError(f"Failed to decompress gzip data: {str(e)}")
-        else:
-            decompressed_body = raw_body
 
-        # Parse JSON
-        if content_type and "application/json" in content_type.lower():
-            try:
-                data = json.loads(decompressed_body.decode("utf-8"))
-            except Exception as e:
-                raise ValueError(f"Failed to parse JSON data: {str(e)}")
-        else:
-            # Try to parse directly as JSON (backward compatible)
-            try:
-                data = json.loads(decompressed_body.decode("utf-8"))
-            except Exception as e:
-                raise ValueError(f"Failed to parse data as JSON: {str(e)}")
-
-        return data
-
-    except Exception as e:
-        logger.error(f"Failed to process request data: {str(e)}", stack_info=True)
-        raise
+def _what_was_invalid(e: Exception) -> list[str]:
+    """Why a body failed its model, without its values: pydantic's message
+    quotes the input, and the input is readings."""
+    if isinstance(e, ValidationError):
+        return [x["type"] for x in e.errors()]
+    return [type(e).__name__]
 
 
 @router.post("/health")
@@ -94,7 +73,6 @@ async def process_apple_health_data(
         request: Request,
         current_user: str = Depends(verify_token),
         content_encoding: str | None = Header(None, alias="content-encoding"),
-        content_type: str | None = Header(None, alias="content-type"),
 ) -> JSONResponse:
     """
     Process Apple Health data
@@ -127,24 +105,23 @@ async def process_apple_health_data(
     try:
         # Process request data (supports gzip compression)
         t1 = time.time()
-        raw_data = await _process_request_data(request, content_encoding, content_type)
+        raw_data = await _process_request_data(request, content_encoding)
         t2 = time.time()
 
         # Validate data using Pydantic model
         try:
             validated_data = AppleHealthRequest(**raw_data)
         except Exception as e:
-            logger.error(f"Data validation failed: {str(e)}")
+            logger.warning("Apple Health body refused: errors=%s", _what_was_invalid(e))  # phi: ok error types
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                content={"success": False, "message": f"Invalid request data: {str(e)}"},
+                content={"success": False, "message": "Invalid request data."},
             )
 
-        # Add debug log
-        logger.info(f"Validated data: request_id={validated_data.request_id}, "
-            f"timezone={validated_data.metaInfo.timezone}, "
-            f"time_cost={(t2 - t1) * 1e3}, "
-            f"healthData_count={len(validated_data.healthData)}")
+        parse_ms = (t2 - t1) * 1e3
+        logger.info("Validated data: request_id=%s timezone=%s parse_ms=%.1f record_count=%d",
+                    validated_data.request_id, validated_data.metaInfo.timezone, parse_ms,
+                    len(validated_data.healthData))
 
         # Get Apple Health platform
         apple_platform = platform_manager.get_platform("apple")
@@ -166,10 +143,9 @@ async def process_apple_health_data(
         msg_id = f"apple_health_{current_user}_{int(time.time() * 1000)}"
         success = await apple_platform.post_data(provider_slug="apple_health", data=platform_data, msg_id=msg_id)
 
-        t3 = time.time()
-
-        # Add result log
-        logger.info(f"Processing result: success={success}, taskId={validated_data.metaInfo.taskId}, time_cost={(t3 - t2) * 1e3}")
+        process_ms = (time.time() - t2) * 1e3
+        task_id = validated_data.metaInfo.taskId
+        logger.info("Processing result: success=%s task_id=%s process_ms=%.1f", success, task_id, process_ms)
 
         if success:
             return JSONResponse(
@@ -193,26 +169,26 @@ async def process_apple_health_data(
         )
 
     except ValueError as e:
-        # Data parsing error
+        logger.warning("Apple Health body unreadable: error_type=%s", type(e).__name__)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={
                 "success": False,
                 "code": 1,
-                "message": f"Request data parsing failed: {str(e)}",
-                "msg": f"Request data parsing failed: {str(e)}"
+                "message": "Request data parsing failed.",
+                "msg": "Request data parsing failed."
             },
         )
     except Exception as e:
-        logger.error(f"Service error occurred: {str(e)}", stack_info=True)
-
+        logger.error("Apple Health upload failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return JSONResponse(
             status_code=status.HTTP_200_OK,
             content={
                 "success": False,
                 "code": 1,
-                "message": f"Processing failed: {str(e)}",
-                "msg": f"Processing failed: {str(e)}"
+                "message": "Processing failed.",
+                "msg": "Processing failed."
             }
         )
 
@@ -222,10 +198,9 @@ async def process_apple_health_statistics_data(
         request: Request,
         current_user: str = Depends(verify_token),
         content_encoding: str | None = Header(None, alias="content-encoding"),
-        content_type: str | None = Header(None, alias="content-type"),
 ) -> JSONResponse:
     """
-    Process Apple Health pre-aggregated statistics data (TH-154)
+    Process Apple Health pre-aggregated statistics data
 
     Accepts client-computed statistics (sum, average, min, max, mostRecent)
     and writes them directly as day-grained observations.
@@ -254,22 +229,19 @@ async def process_apple_health_statistics_data(
     }
     """
     try:
-        raw_data = await _process_request_data(request, content_encoding, content_type)
+        raw_data = await _process_request_data(request, content_encoding)
 
         try:
             validated_data = AppleHealthStatisticsRequest(**raw_data)
         except Exception as e:
-            logger.error(f"Statistics data validation failed: {str(e)}")
+            logger.warning("Apple statistics body refused: errors=%s", _what_was_invalid(e))  # phi: ok error types
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                content={"code": 1, "data": None, "msg": f"Invalid request data: {str(e)}"},
+                content={"code": 1, "data": None, "msg": "Invalid request data."},
             )
 
-        logger.info(
-            f"Statistics request: user={current_user}, "
-            f"statistics_count={len(validated_data.statistics)}, "
-            f"default_tz={validated_data.metaInfo.timezone}"
-        )
+        logger.info("Statistics request: user_id=%s statistics_count=%d timezone=%s",  # phi: ok an account id
+                    current_user, len(validated_data.statistics), validated_data.metaInfo.timezone)
 
         accepted = await process_apple_health_statistics(validated_data, current_user)
 
@@ -279,15 +251,17 @@ async def process_apple_health_statistics_data(
         )
 
     except ValueError as e:
+        logger.warning("Apple statistics body unreadable: error_type=%s", type(e).__name__)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"code": 1, "data": None, "msg": f"Request data parsing failed: {str(e)}"},
+            content={"code": 1, "data": None, "msg": "Request data parsing failed."},
         )
     except Exception as e:
-        logger.error(f"Statistics processing error: {str(e)}", stack_info=True)
+        logger.error("Apple statistics upload failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return JSONResponse(
             status_code=status.HTTP_200_OK,
-            content={"code": 1, "data": None, "msg": f"Processing failed: {str(e)}"},
+            content={"code": 1, "data": None, "msg": "Processing failed."},
         )
 
 
@@ -296,7 +270,6 @@ async def process_apple_cda_data(
         request: Request,
         current_user: str = Depends(verify_token),
         content_encoding: str | None = Header(None, alias="content-encoding"),
-        content_type: str | None = Header(None, alias="content-type"),
 ) -> JSONResponse:
     """
     Process Apple Health CDA (Clinical Document Architecture) data
@@ -318,7 +291,7 @@ async def process_apple_cda_data(
     """
     try:
         # Process request data (supports gzip compression)
-        data = await _process_request_data(request, content_encoding, content_type)
+        data = await _process_request_data(request, content_encoding)
 
         # Get Apple Health platform
         apple_platform = platform_manager.get_platform("apple")
@@ -355,14 +328,14 @@ async def process_apple_cda_data(
         )
 
     except ValueError as e:
-        # Data parsing error
+        logger.warning("Apple CDA body unreadable: error_type=%s", type(e).__name__)
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"success": False, "message": f"Request data parsing failed: {str(e)}"},
+            content={"success": False, "message": "Request data parsing failed."},
         )
     except Exception as e:
-        logger.error(f"Service error occurred: {str(e)}", stack_info=True)
-
+        logger.error("Apple CDA upload failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return JSONResponse(
-            status_code=status.HTTP_200_OK, content={"success": False, "message": f"Processing failed: {str(e)}"}
+            status_code=status.HTTP_200_OK, content={"success": False, "message": "Processing failed."}
         )

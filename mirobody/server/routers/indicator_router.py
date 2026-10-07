@@ -38,10 +38,9 @@ from pydantic import BaseModel, Field
 from mirobody.collect import RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+from mirobody.server.auth import subject_for, verify_token
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
-from mirobody.server.auth import verify_token
-from mirobody.server.envelope import ErrorResponse, StandardResponse
+from mirobody.server.envelope import ErrorResponse, StandardResponse, failed
 
 logger = logging.getLogger(__name__)
 
@@ -97,28 +96,8 @@ def _instant(value: str, name: str = "since") -> datetime:
     return parsed
 
 
-async def _readable(user_id: str, target_user_id: str | None) -> str | None:
-    """Whose record to read: the caller's, or a member's they may read. None
-    when they may not."""
-    if not target_user_id or target_user_id == user_id:
-        return user_id
-    try:
-        await resolve_subject(user_id, target_user_id)
-    except CareCircleDenied:
-        return None
-    return target_user_id
-
-
 def _denied() -> ErrorResponse:
     return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
-
-
-def _failed(action: str, exc: Exception, msg: str) -> ErrorResponse:
-    # `exc_info` only for our own bugs: a driver exception's message quotes
-    # the SQL with its bound parameters.
-    logger.error("health %s failed: error_type=%s", action, type(exc).__name__,
-                 exc_info=not is_driver_exception(exc))
-    return ErrorResponse(code=500, msg=msg)
 
 
 def _record_filters(kind: str, modality: str | None, start_time: str | None, end_time: str | None,
@@ -155,16 +134,11 @@ async def health_indicators(
     endpoint first shipped: 200, correct rows on the wire, and an empty list on
     screen.
     """
-    owner_id = user_id
-
     # Reading someone else's record goes through the care-circle check, not a
     # trusted query parameter: the same rule the agent's tools follow.
-    if target_user_id and target_user_id != user_id:
-        try:
-            await resolve_subject(user_id, target_user_id)
-        except CareCircleDenied:
-            return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
-        owner_id = target_user_id
+    owner_id = await subject_for(user_id, target_user_id)
+    if owner_id is None:
+        return _denied()
 
     args = {
         "keywords": _split(keywords),
@@ -196,7 +170,7 @@ async def health_indicator_records(
     user_id: str = Depends(verify_token),
 ):
     """One page of visible entries across every indicator, newest observed first."""
-    owner = await _readable(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return _denied()
     try:
@@ -205,7 +179,7 @@ async def health_indicator_records(
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("records", exc, "This query could not complete.")
+        return failed("health records", exc, "This query could not complete.")
     return StandardResponse(data=data)
 
 
@@ -239,7 +213,7 @@ async def export_health_indicators(
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("export", exc, "This export could not complete.")
+        return failed("health export", exc, "This export could not complete.")
     rows = [{k: r.get(k) for k in RECORD_EXPORT_COLUMNS} for r in page["rows"][:EXPORT_MAX]]
     truncated = len(page["rows"]) > EXPORT_MAX
     if format == "json":
@@ -265,7 +239,7 @@ async def data_delta(
 ):
     """How many visible entries are new since `since`, by source. The cursor is
     the browser's: the server keeps no "last visit" for anyone."""
-    owner = await _readable(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return _denied()
     if kind not in {"measurement", "all"}:
@@ -275,7 +249,7 @@ async def data_delta(
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("delta", exc, "This query could not complete.")
+        return failed("health delta", exc, "This query could not complete.")
     return StandardResponse(data=data)
 
 
@@ -316,7 +290,8 @@ async def patch_reading(patch: ReadingPatch, user_id: str = Depends(verify_token
             tz = await observations.user_tz(str(user_id))
             done = await observations.amend(str(user_id), patch.id, value_text=patch.value.strip(), user_tz=tz) is not None
     except Exception as e:
-        logger.error(f"[patch_reading] {e}", exc_info=True)
+        logger.error("reading correction failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This update could not complete.")
 
     if not done:
@@ -365,15 +340,12 @@ async def patch_file_date(patch: FileDatePatch, user_id: str = Depends(verify_to
     row = await FileDbService.get_file_by_key(patch.file_key)
     if not row:
         return ErrorResponse(code=404, msg="No such file.")
-    owner = str(row.get("query_user_id") or row.get("user_id"))
-    if owner != str(user_id):
-        try:
-            await resolve_subject(user_id, owner, require_write=True)
-        except CareCircleDenied:
-            # Same answer as an absent key: file keys are second-resolution
-            # timestamps plus 8 hex, enumerable enough that "forbidden" would
-            # confirm one exists.
-            return ErrorResponse(code=404, msg="No such file.")
+    owner = await subject_for(user_id, str(row.get("query_user_id") or row.get("user_id")), write=True)
+    if owner is None:
+        # Same answer as an absent key: file keys are second-resolution
+        # timestamps plus 8 hex, enumerable enough that "forbidden" would
+        # confirm one exists.
+        return ErrorResponse(code=404, msg="No such file.")
 
     when = None
     if patch.report_date is not None:
@@ -384,6 +356,7 @@ async def patch_file_date(patch: FileDatePatch, user_id: str = Depends(verify_to
     try:
         data = await set_file_report_date(owner, patch.file_key, when)
     except Exception as e:
-        logger.error(f"[patch_file_date] {e}", exc_info=True)
+        logger.error("file date change failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This update could not complete.")
     return StandardResponse(data=data)

@@ -22,8 +22,8 @@ Commands:
 * ``mirobody serve [config.yaml ...]``  the full HTTP server (chat, MCP,
   API). Requires the ``[app]`` extra; checked up front with a plain message
   instead of a traceback from deep inside an import chain.
-* ``mirobody worker [config.yaml ...]``: the background task worker
-  (IndicatorSync, ProfileRefresh queues).
+* ``mirobody worker [config.yaml ...]``: the background task worker (the
+  profile refresh queue, and any task a ``TASK_DIRS`` entry declares).
 * ``mirobody doctor [config.yaml ...]``, which LLM provider each surface
   (chat, vision, structured extraction, text, embeddings) would select with
   the current configuration, and what to set where one has none. Needs no
@@ -31,6 +31,13 @@ Commands:
   ``[parse]``.
 * ``mirobody fetch cpic --version vX.Y.Z`` downloads and validates a CPIC data
   extract without executing the upstream SQL or requiring a database.
+* ``mirobody import apple <export.zip>`` decodes an Apple Health export into
+  facts, offline, with no key, database or extra.
+* ``mirobody mcp``                      the stdio MCP server over the offline
+  vocabularies: no key, no database.
+* ``mirobody migrate-observations``, ``mirobody migrate-genotypes`` and
+  ``mirobody recode`` move stored rows into the current model, or recode them
+  under the installed vocabulary: maintenance after an upgrade (``[app]``).
 """
 
 from __future__ import annotations
@@ -39,6 +46,7 @@ import argparse
 import unicodedata
 import asyncio
 import importlib.util
+import json
 import os
 import sys
 
@@ -176,10 +184,14 @@ def _cmd_dev(args: argparse.Namespace) -> None:
     jwt_key = os.environ["JWT_KEY"]
     config_key = os.environ["CONFIG_ENCRYPTION_KEY"]
 
+    pg = _pg_from_url(pg_url)
+    # Every value from the URL goes in as a JSON string, which YAML reads back
+    # verbatim. Written bare, a password holding ` #` lost the rest, one holding
+    # `: ` became a mapping, one starting `*` an alias, and `07` the number 7.
     overlay = _DEV_CONFIG.format(
-        host=args.host, port=args.port,
+        host=json.dumps(args.host), port=args.port,
         jwt_key=jwt_key, config_key=config_key,
-        **_pg_from_url(pg_url),
+        **{key: json.dumps(value) for key, value in pg.items()},
     )
 
     print(f"mirobody dev — http://{args.host}:{args.port}")
@@ -187,8 +199,7 @@ def _cmd_dev(args: argparse.Namespace) -> None:
         print(f"  generated for this run only: {', '.join(generated)}")
         print("  sessions and encrypted config values do NOT survive a restart.")
         print("  set them in the environment to keep them.")
-    print(f"  postgres: {_pg_from_url(pg_url)['pg_host']}:{_pg_from_url(pg_url)['pg_port']}"
-          f"/{_pg_from_url(pg_url)['pg_dbname']}")
+    print(f"  postgres: {pg['pg_host']}:{pg['pg_port']}/{pg['pg_dbname']}")
     print()
 
     from mirobody.server import Server

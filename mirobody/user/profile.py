@@ -2,13 +2,15 @@ import asyncio
 import logging
 import re
 from typing import Any
-from datetime import datetime, date
 
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
 from mirobody.utils.llm_output import strip_code_fence
 from mirobody.utils.config import safe_read_cfg
+
+from .user import age_from_birth
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +86,8 @@ async def get_health_profile_core(user_id: str, maxlen: int = 2000) -> str | Non
         # This swallowed silently. Every agent turn calls it to put the
         # user's health context into the system prompt, so a failure here
         # degrades every answer the user gets, and left no trace explaining why.
-        logger.warning("health profile unavailable for %s: %s", user_id, e, exc_info=True)
+        logger.error("health profile read failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return None
     if not rows:
         return None
@@ -618,8 +621,8 @@ def _get_scenario_info(scenario_zh: str) -> dict[str, str] | None:
             "scenario_en": scenario_en,
             "scenario_image_url": scenario_image_url
         }
-    # Scenario not found
-    logger.warning(f"Scenario not found in mapping: {scenario_zh_clean}")
+    # The scenario names a health condition, so the log says only that it missed.
+    logger.warning("profile scenario not in the mapping")
     return None
 
 
@@ -649,32 +652,6 @@ class BasicInfoService:
             gender_map = {0: 'Unknown', 1: 'Male', 2: 'Female'}
         
         return gender_map.get(gender, 'Unknown' if not is_chinese else '未知')
-    
-    @staticmethod
-    def _calculate_age(birth: str | None) -> int | None:
-        """
-        Calculate age based on birth date
-        
-        Args:
-            birth: Birth date string (format: YYYY-MM-DD or other common formats)
-            
-        Returns:
-            Age
-        """
-        if not birth:
-            return None
-        
-        try:
-            if isinstance(birth, date):
-                birth_date = birth
-            else:
-                birth_date = datetime.strptime(str(birth)[:10], "%Y-%m-%d").date()
-            
-            today = date.today()
-            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-            return age
-        except (ValueError, TypeError):
-            return None
     
     @staticmethod
     async def get_user_basic_info(user_id: str) -> dict[str, Any]:
@@ -715,7 +692,7 @@ class BasicInfoService:
             return {
                 "blood_type": result.get('blood'),
                 "gender": BasicInfoService._convert_gender_to_text(raw_gender, lang),
-                "age": BasicInfoService._calculate_age(birth),
+                "age": age_from_birth(birth),
                 "language": lang
             }
         logger.info(f"No basic info found for user: {user_id}")
@@ -931,10 +908,8 @@ class UserProfileGenerator:
             previous_profile, previous_scenario = await cls._get_existing_profile(user_id)
             
             # Log previous scenario info
-            if previous_scenario:
-                logger.info(f"Found previous scenario for user {user_id}: {previous_scenario}")
-            else:
-                logger.info(f"No previous scenario found for user {user_id} (first time generation or no scenario matched before)")
+            logger.info("profile generation: user_id=%s previous_scenario=%s", user_id,
+                        "found" if previous_scenario else "none")
             
             # Format basic information
             basic_info_str = "\n".join([f"- {k}: {v}" for k, v in basic_info.items() if v])
@@ -973,7 +948,8 @@ class UserProfileGenerator:
             return merged_result
             
         except Exception as e:
-            logger.info(f"Failed to generate user profile: {e}")
+            logger.error("profile generation failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return ""
 
 
@@ -1070,15 +1046,13 @@ class UserProfileService:
         scenario_info = None
         if scenario_zh:
             scenario_info = _get_scenario_info(scenario_zh)
-            if scenario_info:
-                logger.info(f"Extracted scenario for user {user_id}: {scenario_zh} -> {scenario_info['scenario_en']}")
-            else:
-                logger.warning(f"Scenario extracted but not found in mapping for user {user_id}: {scenario_zh}")
+            if not scenario_info:
+                logger.warning("profile scenario extracted but not in the mapping: user_id=%s", user_id)
 
         # 8. Fallback to default scenario if no scenario matched
         if not scenario_info:
             scenario_info = _get_default_scenario_info()
-            logger.info(f"Using default fallback scenario for user {user_id}: {scenario_info['scenario_zh']}")
+            logger.info("profile scenario defaulted: user_id=%s", user_id)
 
         # 9. Save profile
         new_version = current_version + 1

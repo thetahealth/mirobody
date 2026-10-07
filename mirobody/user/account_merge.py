@@ -3,6 +3,8 @@ import logging
 
 from psycopg_pool import AsyncConnectionPool
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 # Tables where merging is a plain UPDATE col = winning WHERE col = losing:
@@ -331,14 +333,10 @@ async def merge_accounts(
                         )
 
     except Exception as e:
-        logger.error(str(e), extra={
-            "losing_user_id"  : losing_user_id,
-            "winning_user_id" : winning_user_id,
-            "reason"          : reason,
-            "affected_so_far" : affected,
-        })
-
-        return affected, str(e)
+        logger.error("account merge failed: losing_user_id=%s winning_user_id=%s reason=%s error_type=%s",
+                     losing_user_id, winning_user_id, reason, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return affected, "The accounts could not be merged. Nothing was changed; try again."
 
     return affected, None
 

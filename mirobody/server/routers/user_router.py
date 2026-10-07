@@ -1,7 +1,5 @@
-"""
-User Settings Module
-User settings management module
-"""
+"""A person's settings (profile, preferences, second factor) and the managed
+members they add."""
 
 import logging
 
@@ -10,8 +8,10 @@ from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from mirobody import translate
 from mirobody.user.auth.jwt import ACCESS_TOKEN_TYPE, validator_from_config
 from mirobody.server.auth import verify_token
+from mirobody.server.envelope import err, failed, ok
 from mirobody.utils import execute_query
 from mirobody.utils.config import get_default_timezone, global_config
 from mirobody.user import care_circle as cc
@@ -24,16 +24,19 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
 
+# Every field defaults to None, which the PUT reads as "not sent". The client
+# sends only what changed, and defaults of "other" and "en" reset the gender
+# and language of whoever saved a birth date or a time zone.
 class ProfileSettings(BaseModel):
-    gender: str | None = "other"
+    gender: str | None = None
     birth: str | None = None
     blood: str | None = None
 
 
 class PreferenceSettings(BaseModel):
-    language: str | None = "en"  # "zh", "en", "ja", "fr", "es"
+    language: str | None = None  # "zh", "en", "ja", "fr", "es"
     timezone: str | None = None
-    dateFormat: str | None = "YYYY-MM-DD"
+    dateFormat: str | None = None
 
 
 class SecuritySettings(BaseModel):
@@ -73,6 +76,19 @@ def gender_int_to_str(gender_int: int | None) -> str:
     gender_map = {1: "male", 2: "female", 0: "other"}
     return gender_map.get(gender_int, "other")
 
+
+def _is_zone(tz: str) -> bool:
+    """Whether `tz` is a zone the record's days can be cut in. An unknown one
+    used to be stored and then read as UTC wherever a day was computed."""
+    try:
+        translate.zone_for(tz)
+    except ValueError:
+        return False
+    return True
+
+
+_NOT_A_ZONE = "That is not a time zone. Use an IANA name, such as Europe/Paris."
+
 @router.post("/user/settings")
 async def set_user_settings(
     request: PostUserSettingsRequest,
@@ -82,6 +98,8 @@ async def set_user_settings(
     params = {}
 
     if request.timezone and isinstance(request.timezone, str):
+        if not _is_zone(request.timezone):
+            return err(400, _NOT_A_ZONE)
         update_fields.append("tz = :tz")
         params["tz"] = request.timezone
 
@@ -90,7 +108,7 @@ async def set_user_settings(
         params["mfa_enabled"] = request.mfa_enabled
 
     if not update_fields:
-        return JSONResponse(content={"code": -1, "msg": "Empty input."})
+        return err(400, "Empty input.")
 
     params["user_id"] = user_id
     update_sql = f"UPDATE health_app_user SET {', '.join(update_fields)} WHERE id = :user_id"
@@ -98,10 +116,7 @@ async def set_user_settings(
     try:
         await execute_query(update_sql, params=params)
     except Exception as e:
-        # A driver's message quotes the SQL with its bound parameters: it goes
-        # to neither the caller nor the log.
-        logger.warning("profile update failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
-        return JSONResponse(content={"code": -2, "msg": "Failed to update the profile."})
+        return failed("profile update", e, "Failed to update the profile.")
 
     response_data = None
 
@@ -135,9 +150,10 @@ async def set_user_settings(
                     )
                 }
         except Exception as e:
-            logger.warning("Failed to generate AAL1 token on MFA disable: %s", type(e).__name__)
+            logger.error("AAL1 token on MFA disable failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
-    return JSONResponse(content={"code": 0, "msg": "Okay.", "data": response_data})
+    return ok(response_data, msg="Okay.")
 
 
 @router.get("/user/settings")
@@ -148,7 +164,7 @@ async def get_user_settings(
 ):
     """Get user settings from database"""
     try:
-        logger.info(f"Getting settings for user: {user_id}, lang: {accept_language}, tz: {timezone}")
+        logger.info("Getting settings: user_id=%s", user_id)
 
         # Get user profile info from health_app_user table
         user_data = await get_user(user_id=user_id)
@@ -158,10 +174,7 @@ async def get_user_settings(
             # User not found or deleted
             logger.warning(f"No user data found for user_id: {user_id}")
 
-            return JSONResponse(
-                content={"code": -1, "msg": "User not found"},
-                status_code=404,
-            )
+            return JSONResponse(content=err(404, "User not found.").model_dump(), status_code=404)
 
         # Build security info if WebAuthn is configured
         security = None
@@ -199,19 +212,11 @@ async def get_user_settings(
         if security:
             settings["security"] = security
 
-        return JSONResponse(
-            content={"code": 0, "msg": "ok", "data": settings},
-        )
-
+        return ok(settings)
 
     except Exception as e:
-        logger.error("getting user settings failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
+        return failed("user settings read", e, "Failed to get user settings.")
 
-        # raise HTTPException(status_code=500, detail="Failed to get user settings")
-        return JSONResponse(
-            content={"code": -1, "msg": "Failed to get user settings."},
-        )
-    
 
 
 @router.put("/user/settings")
@@ -231,7 +236,8 @@ async def update_user_settings(
         update_fields = []
         update_params = {"user_id": int(user_id)}
 
-        # Update profile information if provided
+        # Update profile information if provided. A field left at None was
+        # not sent (see `ProfileSettings`).
         if settings.profile:
             profile = settings.profile
 
@@ -249,12 +255,12 @@ async def update_user_settings(
 
         # Update preferences if provided
         if settings.preferences:
-            if settings.preferences.timezone is not None:
+            tz = settings.preferences.timezone if settings.preferences.timezone is not None else timezone
+            if tz:
+                if not _is_zone(tz):
+                    return err(400, _NOT_A_ZONE)
                 update_fields.append("tz = :tz")
-                update_params["tz"] = settings.preferences.timezone
-            elif timezone:
-                update_fields.append("tz = :tz") 
-                update_params["tz"] = timezone
+                update_params["tz"] = tz
 
             if settings.preferences.language is not None:
                 update_fields.append("lang = :lang")
@@ -279,17 +285,10 @@ async def update_user_settings(
                 params=update_params,
             )
 
-        return JSONResponse(
-            content={"code": 0, "msg": "ok"},
-        )
+        return ok()
 
     except Exception as e:
-        logger.error("updating user settings failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
-        # raise HTTPException(status_code=500, detail="Failed to update user settings")
-
-        return JSONResponse(
-            content={"code": -1, "msg": "Failed to update user settings."},
-        )
+        return failed("user settings update", e, "Failed to update user settings.")
 
 
 @router.post("/user/virtual")
@@ -329,10 +328,8 @@ async def create_virtual_user(
         )
 
         if not user_result:
-            return JSONResponse(
-                content={"code": -1, "msg": "Failed to create virtual user - no result returned"},
-                status_code=500
-            )
+            return JSONResponse(content=err(500, "Failed to create the virtual user.").model_dump(),
+                                status_code=500)
 
         row = user_result[0]
         virtual_user_id = str(row["id"])
@@ -353,23 +350,13 @@ async def create_virtual_user(
 
         logger.info(f"Successfully created virtual user {virtual_user_id} for user {current_user_id}")
 
-        return JSONResponse(
-            content={
-                "code": 0, 
-                "msg": "ok",
-                "data": {
-                    "id": virtual_user_id,
-                    "name": virtual_user_name,
-                    "email": "",
-                    "managed": True,
-                }
-            },
-        )
+        return ok({
+            "id": virtual_user_id,
+            "name": virtual_user_name,
+            "email": "",
+            "managed": True,
+        })
 
     except Exception as e:
-        logger.error("creating a virtual user failed: %s", type(e).__name__, exc_info=not is_driver_exception(e))
-        
-        return JSONResponse(
-            content={"code": -1, "msg": "Failed to create the virtual user."},
-            status_code=500
-        )
+        answer = failed("virtual user creation", e, "Failed to create the virtual user.")
+        return JSONResponse(content=answer.model_dump(), status_code=500)

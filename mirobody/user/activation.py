@@ -35,11 +35,13 @@ ACCESS_BY_NAME = {"edit": cc.ACCESS_EDIT, "view": cc.ACCESS_VIEW, "none": cc.ACC
 
 
 class ActivationError(Exception):
-    """Refused, with a message the person on the page can act on."""
+    """Refused, with a message the person on the page can act on: always one
+    of the fixed sentences below, so it is safe to send back."""
 
     def __init__(self, code: int, message: str):
         super().__init__(message)
         self.code = code
+        self.message = message
 
 
 @dataclass(frozen=True)

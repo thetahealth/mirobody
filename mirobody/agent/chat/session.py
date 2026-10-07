@@ -121,7 +121,6 @@ async def get_session_summaries(user_id: str) -> list[dict[str, Any]]:
 async def get_session_summaries_by_person(user_id: str) -> dict[str, Any]:
     """The user's conversations grouped by the person each is about, as the
     `{code, msg, data}` envelope `/api/history_by_person` answers with."""
-    from mirobody.user.profile import BasicInfoService
 
     try:
         result = await execute_query(
@@ -149,7 +148,8 @@ async def get_session_summaries_by_person(user_id: str) -> dict[str, Any]:
             # is wrong for everyone whose birthday has not happened yet this year:
             # roughly half of all users at any moment, each reported one year too
             # old, in the profile block that goes into the agent's context.
-            user_age = BasicInfoService._calculate_age(_session.get("birth", ""))
+            from mirobody.user.user import age_from_birth
+            user_age = age_from_birth(_session.get("birth", ""))
             if user_age is None:
                 user_age = ""
 
