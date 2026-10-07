@@ -23,8 +23,8 @@ import re
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
-from zoneinfo import ZoneInfo
 
+from mirobody.kernel.series import zone
 from mirobody.utils import prompts
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,7 @@ async def build_system_prompt(
     if tools_description:
         tools_description += "\n\n---\n\n"
 
-    current_time = datetime.now(ZoneInfo(timezone)).strftime("%A, %B %d, %Y, at %I:00 %p %Z (UTC%z)")
+    current_time = datetime.now(zone(timezone)).strftime("%A, %B %d, %Y, at %I:00 %p %Z (UTC%z)")
 
     template = prompts.environment(enable_async=True).from_string(base_prompt)
     return await template.render_async(

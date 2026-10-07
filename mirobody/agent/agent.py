@@ -20,13 +20,13 @@ import logging
 import uuid
 from typing import Any, TYPE_CHECKING
 from collections.abc import AsyncGenerator
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
 from .registry import llm_client, llm_client_names
 from mirobody.kernel import query
+from mirobody.kernel.series import offset_name, zone
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import get_req_ctx
@@ -54,21 +54,23 @@ logger = logging.getLogger(__name__)
 
 
 def _zone(name: str | None) -> str:
-    """`name` when it is an IANA zone, else the deployment's default zone,
-    else UTC. A turn's zone arrives from a header, the request body or the
-    profile, and `GMT+8`, `UTC+8`, `+08:00`, `CST` or `Etc/Unknown` reached
-    `ZoneInfo` in the system prompt unchecked and failed every turn."""
+    """`name` when `kernel.series.zone` reads it (an IANA name, or a fixed
+    offset spelled `UTC+08:00`), else the deployment's default zone, else
+    UTC. A turn's zone arrives from a header, the request body or the
+    profile: `CST` or `Etc/Unknown` failed every turn in the system prompt,
+    and an offset the record tools read as +08:00 put the prompt's "now" in
+    the default zone, a day boundary away from the tools' "today"."""
     from mirobody.utils.config import get_default_timezone
 
     for candidate in (name, get_default_timezone()):
         if not candidate:
             continue
         try:
-            ZoneInfo(candidate)
-        except (ZoneInfoNotFoundError, ValueError):
-            logger.warning("a time zone is not an IANA name; falling back")
+            zone(candidate, strict=True)
+        except ValueError:
+            logger.warning("a time zone is not one the kernel reads; falling back")
             continue
-        return candidate
+        return offset_name(candidate) or candidate
     return "UTC"
 
 
