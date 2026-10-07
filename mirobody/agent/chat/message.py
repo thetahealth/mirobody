@@ -205,9 +205,8 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
     """
     history = []
     # `input_prompt` used to be selected here and surfaced on the response
-    # when truthy. Nothing in the project writes that column (neither
-    # save_message nor collect/files's update_message_content, which sets
-    # content, reasoning and message_type), so the branch never fired.
+    # when truthy. Nothing in the project writes that column (`save_message`
+    # is the only writer of `th_messages`), so the branch never fired.
     session_sql = """
         SELECT
             id, decrypt_content(content) AS content, reasoning, role, agent, provider,

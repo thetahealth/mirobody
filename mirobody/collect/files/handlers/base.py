@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from mirobody.collect.files.services.conversation_summary import update_message_content
 from mirobody.collect.files.services.report_date import resolve_report_date
 import abc
 import hashlib
@@ -301,19 +300,6 @@ class BaseFileHandler(abc.ABC):
         reason = failure_reason(e)
         logger.error("file processing failed: message_id=%s file_key=%s error_type=%s", ctx.message_id, file_key,
                      type(e).__name__, exc_info=not is_driver_exception(e))
-
-        if ctx.message_id:
-            try:
-                await update_message_content(
-                    message_id=ctx.message_id,
-                    content=f"{localize('file_upload_failed', language, 'file_processor')}\n\n"
-                            f"{localize('error', language, 'file_processor')}: {reason}",
-                    reasoning=f"Error occurred during file processing: {reason}",
-                )
-            except Exception as update_error:
-                logger.error("recording a failed upload on its message failed: message_id=%s error_type=%s",
-                             ctx.message_id, type(update_error).__name__,
-                             exc_info=not is_driver_exception(update_error))
 
         user_message = localize(f"{self.get_type_name()}_processing_failed", language, "file_processor")
         return {

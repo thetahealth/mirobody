@@ -7,7 +7,6 @@ Integrates various atomic services to provide complete file processing functiona
 from __future__ import annotations
 
 from mirobody.collect.files.errors import failure_reason
-from mirobody.collect.files.services.conversation_summary import update_message_content
 from mirobody.kernel.ops import is_driver_exception
 import logging
 from typing import Any
@@ -125,20 +124,6 @@ class FileProcessor:
             reason = failure_reason(e)
             logger.error("file processing failed: message_id=%s error_type=%s", message_id, type(e).__name__,
                          exc_info=not is_driver_exception(e))
-
-            # If there's a message ID, update message status to failed
-            if message_id:
-                try:
-                    await update_message_content(
-                        message_id=message_id,
-                        content=f"{localize('file_upload_failed', language, 'file_processor')}\n\n"
-                                f"{localize('error', language, 'file_processor')}: {reason}",
-                        reasoning=f"Error occurred during file processing: {reason}",
-                    )
-                except Exception as update_error:
-                    logger.error("recording a failed upload on its message failed: message_id=%s error_type=%s",
-                                 message_id, type(update_error).__name__,
-                                 exc_info=not is_driver_exception(update_error))
 
             return {
                 "success": False,

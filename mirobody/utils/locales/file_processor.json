@@ -76,13 +76,6 @@
     "ja": "テキスト処理に失敗しました",
     "es": "Procesamiento de texto falló"
   },
-  "error": {
-    "en": "Error",
-    "zh": "错误",
-    "fr": "Erreur",
-    "ja": "エラー",
-    "es": "Error"
-  },
   "extracting_abstract": {
     "en": "Generating file summary",
     "zh": "正在生成文件摘要",
