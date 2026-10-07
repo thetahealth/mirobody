@@ -1023,7 +1023,8 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
         head = re.match(r"\s*([<>≤≥]?\s*[-+]?\d+(?:\.\d+)?)", c)
         return {c, split_flag(c, "")[0], (_value_parts(c) or ("",))[0], head.group(1).replace(" ", "") if head else c}
 
-    return all(any(value in printed(c) and name in names for name, value in pairs) for c in results)
+    named_values = {value for name, value in pairs if name in names}
+    return all(printed(c) & named_values for c in results)
 
 
 #: Header words of a column that repeats an earlier report's result beside
@@ -1066,7 +1067,8 @@ def _code_columns(rows: list[list[str]]) -> frozenset[int]:
 def _line_read(line: str, pairs: set[tuple[str, str]]) -> bool:
     """Whether a plain line (a text layer's copy of a row) holds only read readings."""
     found = [(n, v) for n, v in pairs
-             if re.search(r"(?<![A-Za-z0-9])" + re.escape(n) + r"(?![A-Za-z0-9])", line)
+             if n in line and v in line
+             and re.search(r"(?<![A-Za-z0-9])" + re.escape(n) + r"(?![A-Za-z0-9])", line)
              and re.search(r"(?<![\d.])" + re.escape(v) + r"(?![\d.])", line)]
     if not found:
         return False
@@ -1082,19 +1084,20 @@ def _fold(text: str) -> str:
     return re.sub(r"--|[~～—–－一]", "-", "".join(text.split()))
 
 
-def _copied(line: str, rows: list[list[str]]) -> bool:
+def _copied(line: str, rows: list[str]) -> bool:
     """Whether a plain line with a number in it is a copy of one table row the
-    rules read, whole or in part: every word of it is in that row's cells. An
-    OCR's text pass prints each row of the page again, with the code, the row
-    number or the abbreviation the reading's name is not (`WBC 6.27 3.50~9.50`
-    for the row `白细胞计数 | WBC | 6.27 | 3.50~9.50`), or a column at a time
-    (`5.73↑` on a line of its own). Measured on the OCR benchmark (2026-10-07):
-    those copies were most of what the model was handed on pages whose every
-    row the rules had read, so it read them all again."""
+    rules read, whole or in part: every word of it is in that row's cells
+    (`rows`: each row's cells folded and joined by NUL). An OCR's text pass
+    prints each row of the page again, with the code, the row number or the
+    abbreviation the reading's name is not (`WBC 6.27 3.50~9.50` for the row
+    `白细胞计数 | WBC | 6.27 | 3.50~9.50`), or a column at a time (`5.73↑` on
+    a line of its own). Measured on the OCR benchmark (2026-10-07): those
+    copies were most of what the model was handed on pages whose every row
+    the rules had read, so it read them all again."""
     if not re.search(r"\d", line):
         return False
     words = [_fold(w) for w in line.split()]
-    return any(all(w in joined for w in words) for joined in ("\x00".join(_fold(c) for c in r) for r in rows))
+    return any(all(w in joined for w in words) for joined in rows)
 
 
 def without_rows(text: str, readings: list[dict[str, str]]) -> str:
@@ -1139,11 +1142,14 @@ def without_rows(text: str, readings: list[dict[str, str]]) -> str:
     text = _TR.sub(lambda m: "" if _row_read(cells_of(m.group(0)), pairs) else m.group(0), text)
     lines = [(line, _markdown_row(line) or _delimited_row(line)) for line in text.splitlines()]
     copied += [cells for _, cells in lines if cells is not None and _row_read(cells, pairs)]
+    # Folded once, not again for every line: on a 400-row book whose text
+    # pass copies each row, that cost 0.46 s of `without_rows`' 1.4 s.
+    folded = ["\x00".join(_fold(c) for c in cells) for cells in copied]
     kept = []
     for line, cells in lines:
         if cells is not None and _row_read(cells, pairs):
             continue
-        if cells is None and (_line_read(line, pairs) or _copied(line, copied) or _fold(line) in headings):
+        if cells is None and (_line_read(line, pairs) or _copied(line, folded) or _fold(line) in headings):
             # `_fold(line) in headings`: a column's header word on a line of
             # its own, a text pass reading the table a column at a time.
             continue

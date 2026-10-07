@@ -251,8 +251,9 @@ class IndicatorExtractor:
         (benchmarks/local_models, ref-*-rules) readings on no printed row fell
         from about 48 to 27, and the text sent by 37%."""
         started = time.monotonic()
-        rules, table_date, unread_count = table_indicators(original_text)
-        rest = without_rows(original_text, rules) if rules else original_text
+        # Off the event loop: both are pure CPU over the whole text.
+        rules, table_date, unread_count = await asyncio.to_thread(table_indicators, original_text)
+        rest = await asyncio.to_thread(without_rows, original_text, rules) if rules else original_text
         if rules and not unread_count and not left_for_model(rest):
             answer: dict[str, Any] | None = {"indicators": rules, "content_info": {"date_time": table_date}}
             extractor = TABLE_EXTRACTOR
