@@ -30,9 +30,10 @@ often; each is read the same way.
 
 A row is a reading only when it looks like one: a result that is a number, an
 ordinal (`1+`) or a nominal word (阴性, negative), beside a unit the unit engine
-knows and a range (or nothing there). A row of patient details (姓名, 年龄,
-送检医生, or `审核者：王五` in one cell) is skipped; any other row of two or
-more cells is left to the model.
+knows and a range (or nothing there). A blood pressure printed as a pair
+(`Blood Pressure | 123/78`) is two readings, split and named as the journal
+splits one. A row of patient details (姓名, 年龄, 送检医生, or `审核者：王五` in
+one cell) is skipped; any other row of two or more cells is left to the model.
 Measured on 2026-10-06, before these checks: a footer `检验者|李四|审核者|王五`
 and a page-2 `姓名|张三|性别|男` were stored as readings, a medication table was
 read under the lab table's header, and the right half of a side-by-side panel
@@ -58,6 +59,7 @@ from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
 from mirobody import translate
+from mirobody.collect.sentence import blood_pressure
 from mirobody.translate.parse import KIND_ABSENT
 from mirobody.units import normalize_unit
 from mirobody.zh_fold import fold_to_hans
@@ -775,9 +777,10 @@ def _cell(row: list[str], columns: dict[str, int], column: str) -> str:
     return row[i].strip() if i is not None and i < len(row) else ""
 
 
-def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict[str, str] | str | None:
-    """One panel of one row: a reading, `"admin"` for a patient-details row,
-    `"empty"` for a panel with nothing in it, or None for a row a model should read."""
+def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> list[dict[str, str]] | str | None:
+    """One panel of one row: its readings (two for a blood pressure printed as
+    a pair), `"admin"` for a patient-details row, `"empty"` for a panel with
+    nothing in it, or None for a row a model should read."""
     name, value, out = _cell(row, columns, "name"), _cell(row, columns, "value"), _cell(row, columns, "out")
     if value and out:
         return None  # a result in both columns: which one is printed is the model's to read
@@ -821,7 +824,8 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
             value, unit = m.group(1).replace(" ", ""), m.group(2).strip()
     if not _ref_like(ref):
         return None
-    if parsed.value_kind in _RESULT_KINDS:
+    pair = blood_pressure(_key(name), value)
+    if parsed.value_kind in _RESULT_KINDS or pair:
         if borrowed and not _unit_like(unit):
             return None
     elif (borrowed or len(value) > _SHORT_TEXT or re.search(r"\d|[:：]", value) or not _unit_like(unit)
@@ -831,7 +835,7 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
         # word with a colon is a label and its value (`检验者：段松洋`), and a
         # unit alone (`MCV | fl`) is a result whose number was not printed.
         return None
-    return {
+    reading = {
         "original_indicator": name,
         "value": value,
         "unit": unit,
@@ -841,14 +845,31 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
         "notes": "",
         "_date": _cell(row, columns, "date"),
     }
+    if pair:
+        # `parse_value` leaves a pair narrative, so the row went to the model,
+        # which missed it: 3 of 4 cloud models (DeepSeek V4.1 Flash, Claude
+        # Sonnet 5.5, GPT-6 Luna) dropped a check-up book's `Blood Pressure |
+        # 123/78 | mmHg | 90-139/60-89` (benchmarks/local_models, 2026-10-07).
+        return [{**reading, "original_indicator": n, "value": v, "unit": unit or "mmHg", "reference_range": r}
+                for (n, v), r in zip(pair, _pair_range(ref), strict=True)]
+    return [reading]
+
+
+def _pair_range(ref: str) -> tuple[str, str]:
+    """A blood pressure's printed range for each of its readings: a paired
+    range (`90-139/60-89`) split, any other given to both as printed."""
+    halves = [h.strip() for h in ref.split("/")]
+    if len(halves) == 2 and all(_RANGE_IN.fullmatch(h) for h in halves):
+        return halves[0], halves[1]
+    return ref, ref
 
 
 def _read_row(row: list[str], groups: list[dict[str, int]], *, borrowed: bool) -> _Row:
     out = _Row()
     for columns in groups:
         got = _reading(row, columns, borrowed=borrowed)
-        if isinstance(got, dict):
-            out.readings.append(got)
+        if isinstance(got, list):
+            out.readings.extend(got)
         elif got is None:
             out.unread = True
     if borrowed and out.unread:
@@ -982,9 +1003,16 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
     is no result of this report; a result may carry its unit (`125g/L`),
     its flag or its range (`2.873 (0.270 - 4.200)&mIU/L`)."""
     names = {c for c in cells if c}
+    # A blood pressure the rules split is read as printed: neither of its two
+    # readings carries the printed name or the pair (`Blood Pressure |
+    # 123/78`), and that row left in the text sends the document to the model.
+    pressures = {(n, v) for v in names if "/" in v for n in names
+                 if (split := blood_pressure(_key(n), _split_flag(v, "")[0])) and set(split) <= pairs}
+    pairs = pairs | pressures
     results = [c for i, c in enumerate(cells) if c and i not in codes and not _is_unit(c)
                and not (_RANGE_IN.search(c) and _range_cell(c))
-               and (translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c))]
+               and (translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c)
+                    or any(c == v for _, v in pressures))]
     if not results:
         # A row of word results (`Urine protein(PRO) | Negative | 阴性 | 02`) is
         # read when a read reading names it with that word and no other name
