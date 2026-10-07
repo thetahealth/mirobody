@@ -471,20 +471,24 @@ def xlsx_sheets(data: bytes) -> list[tuple[str, list[list[str]]]]:
         workbook.close()
 
 
+def _md_row(cells: list[str]) -> str:
+    """One markdown table row. A cell's line breaks become spaces and its `|`
+    a `/`: kept, a header cell written `Reference\\nrange` split the row over two
+    lines and a `115|150` cell added a column, and the table rules then read
+    every cell after it under the wrong header."""
+    return "| " + " | ".join(" ".join(c.split()).replace("|", "/") for c in cells) + " |"
+
+
 def _markdown_table(header: list[str], body: list[list[str]]) -> list[str]:
-    lines = [f"| {' | '.join(header)} |", "|" + "|".join(["---"] * len(header)) + "|"]
-    lines.extend(f"| {' | '.join(row)} |" for row in body)
-    return lines
+    return [_md_row(header), "|" + "---|" * len(header), *(_md_row(row) for row in body)]
 
 
 def xlsx_text_sync(data: bytes, *, row_budget: int = XLSX_ROW_BUDGET) -> str:
     """Sync: every non-empty sheet as a markdown table (first row = header),
     under one shared row budget so a huge workbook cannot blow up the text."""
     sheets = [(name, rows) for name, rows in xlsx_sheets(data) if rows]
-    if not sheets:
-        return ""
     parts: list[str] = []
-    for name, rows in sheets:
+    for k, (name, rows) in enumerate(sheets):
         header, body = rows[0], rows[1:]
         take = min(len(body), max(row_budget, 0))
         parts.append(f"--- sheet: {name} ---")
@@ -493,7 +497,7 @@ def xlsx_text_sync(data: bytes, *, row_budget: int = XLSX_ROW_BUDGET) -> str:
         if len(body) > take:
             parts.append(f"... and {len(body) - take} more rows")
         parts.append("")
-        if row_budget <= 0:
+        if row_budget <= 0 and k + 1 < len(sheets):
             parts.append("... (remaining sheets truncated)")
             break
     return "\n".join(parts).strip()
@@ -506,13 +510,8 @@ async def xlsx_text(data: bytes, *, row_budget: int = XLSX_ROW_BUDGET) -> str:
 # --- Word / PowerPoint --------------------------------------------------------------
 
 def _table_lines(rows) -> list[str]:
-    lines: list[str] = []
-    for r, row in enumerate(rows):
-        cells = [(c.text or "").strip().replace("|", "/") for c in row.cells]
-        lines.append("| " + " | ".join(cells) + " |")
-        if r == 0:
-            lines.append("|" + "---|" * len(cells))
-    return lines
+    cells = [[c.text or "" for c in row.cells] for row in rows]
+    return _markdown_table(cells[0], cells[1:]) if cells else []
 
 
 def docx_text_sync(data: bytes) -> str:
