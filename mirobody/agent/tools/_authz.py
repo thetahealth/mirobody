@@ -2,7 +2,7 @@
 
 There is no parameter naming another person. The chat layer decides whose
 record a turn reads and authorises it before the model runs
-(`chat/turn.py::_may_chat`); an MCP call reads the account its token or URL
+(`chat/turn.py::_access`); an MCP call reads the account its token or URL
 belongs to. A `member` parameter used to let the model name someone else: it
 could only guess the id, and 6 of 6 "妈妈的胆固醇" turns measured 2026-09-28
 guessed `member="妈妈"` and were refused. Underscore-prefixed so the tool

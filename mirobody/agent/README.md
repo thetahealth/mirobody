@@ -70,13 +70,14 @@ class MyAgent:
 ```
 
 `**kwargs` is not optional: `language`, `session_id`, `file_list`, `provider`,
-`prompt_name`, `timezone`, `token` and `record_owner` arrive that way, and the
-chat layer may add one without breaking a plugin that predates it. `user_id` is
-the person the turn is ABOUT — the care-circle target when someone asks on
-another's behalf — and is already authorised; `record_owner` is that person's
-name then, and `""` on the asker's own record. `messages` carries ONLY this turn: conversation
-state is the agent's own (the shipped one keys a LangGraph checkpointer on
-`session_id`).
+`prompt_name`, `timezone`, `record_owner` and `may_write` arrive that way, and
+the chat layer may add one without breaking a plugin that predates it.
+`user_id` is the person the turn is ABOUT — the care-circle target when someone
+asks on another's behalf — and is already authorised; `record_owner` is that
+person's name then, and `""` on the asker's own record; `may_write` says
+whether the asker may change that record. `messages` carries ONLY this turn:
+conversation state is the agent's own (the shipped one keys a LangGraph
+checkpointer on `session_id`).
 
 Every other agent runtime — Claude Code, Codex, Cursor, Claude Desktop, a Responses-API loop of
 your own — is meant to reach the same data through `/mcp`, and needs nothing

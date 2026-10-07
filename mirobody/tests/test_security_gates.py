@@ -343,3 +343,85 @@ def test_a_turn_on_a_model_whose_key_is_a_literal_never_shows_it(monkeypatch):
     with pytest.raises(ConfigError) as raised:
         asyncio.run(agent_module.MirobodyAgent(timezone="UTC")._init_llm_client("gpt"))
     assert _LITERAL_KEY not in str(raised.value)
+
+
+def _turn_on_someone_elses_record(monkeypatch, *, grant: str, file_list: list[dict]) -> tuple[list[dict], dict]:
+    from mirobody.agent.chat import turn
+    from mirobody.agent.chat.model import ChatStreamRequest
+    from mirobody.user.care_circle import CareCircleDenied
+
+    seen = {"stored": 0}
+
+    async def resolve(operator, subject, *, require_write=False):
+        if grant == "none" or (require_write and grant != "write"):
+            raise CareCircleDenied("not granted")
+
+    async def store(params):
+        seen["stored"] += 1
+
+    async def save(params):
+        return None
+
+    async def owner(params):
+        return "Mum"
+
+    monkeypatch.setattr(turn, "resolve_subject", resolve)
+    monkeypatch.setattr(turn, "_store_files", store)
+    monkeypatch.setattr(turn, "_save_question", save)
+    monkeypatch.setattr(turn, "_record_owner", owner)
+    params = ChatStreamRequest(question="what does this say", user_id="7", query_user_id="9", file_list=file_list)
+
+    async def collect():
+        return [block async for block in turn.run(params)]
+
+    return asyncio.run(collect()), seen
+
+
+def test_an_attachment_on_someone_elses_record_needs_their_write_grant(monkeypatch):
+    blocks, seen = _turn_on_someone_elses_record(
+        monkeypatch, grant="read", file_list=[{"file_key": "web_uploads/k.pdf", "file_name": "lab.pdf"}])
+    assert blocks == [{"type": "error", "message": "No permission to add files to this user's record"}]
+    assert seen["stored"] == 0
+
+
+def test_a_question_on_someone_elses_record_needs_only_their_read_grant(monkeypatch):
+    blocks, seen = _turn_on_someone_elses_record(monkeypatch, grant="read", file_list=[])
+    assert {"type": "error", "message": "No permission to chat for this user"} not in blocks
+    assert _turn_on_someone_elses_record(monkeypatch, grant="none", file_list=[])[0] == [
+        {"type": "error", "message": "No permission to chat for this user"}]
+
+
+def test_the_agent_is_told_whether_the_asker_may_change_the_record(monkeypatch):
+    from mirobody.agent.chat import turn
+    from mirobody.agent.chat.model import ChatStreamRequest
+
+    async def owner(params):
+        return "Mum"
+
+    monkeypatch.setattr(turn, "_record_owner", owner)
+    params = ChatStreamRequest(question="q", user_id="7", query_user_id="9", session_id="s")
+    assert asyncio.run(turn._agent_kwargs(params, may_write=False))["may_write"] is False
+
+
+def test_a_date_answer_is_filed_only_with_the_askers_write_grant_on_that_record(monkeypatch):
+    pytest.importorskip("langchain_core")
+    import mirobody.collect as collect
+    from mirobody.agent import hitl
+
+    files = {"k-mum": {"user_id": "7", "query_user_id": "9"}, "k-other": {"user_id": "5", "query_user_id": "5"}}
+    filed = []
+
+    async def get_file(file_key, user_id=None):
+        return files.get(file_key)
+
+    async def set_date(owner, file_key, when):
+        filed.append((owner, file_key))
+        return {"report_date": "2026-01-06 00:00:00", "moved": 1, "skipped": 0}
+
+    monkeypatch.setattr(collect.FileDbService, "get_file_by_key", staticmethod(get_file))
+    monkeypatch.setattr(collect, "set_file_report_date", set_date)
+
+    out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum"], "2026-01-06", may_write=False))
+    assert filed == [] and "Nothing was filed" in out
+    out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum", "k-other"], "2026-01-06", may_write=True))
+    assert filed == [("9", "k-mum")] and "k-other: no such file" in out

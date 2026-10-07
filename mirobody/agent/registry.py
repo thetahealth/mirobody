@@ -72,12 +72,13 @@ class AbstractAgent:
         `user_id` is the person whose record this turn is ABOUT (the care-circle
         target when someone is asking on another's behalf), already authorised;
         `record_owner` is then that person's name, and "" on the asker's own.
-        `messages` carries ONLY this turn; conversation state belongs to the
-        agent (the shipped one keys a LangGraph checkpointer on `session_id`).
-        `file_list` is this turn's attachments as `{"file_key", "file_name", …}`
-        dicts. `timezone` and `token` also arrive, and `**kwargs` is required:
-        the chat layer may add a keyword without breaking a plugin that
-        predates it.
+        `may_write` says whether the asker may change that record (true on
+        their own). `messages` carries ONLY this turn; conversation state
+        belongs to the agent (the shipped one keys a LangGraph checkpointer on
+        `session_id`). `file_list` is this turn's attachments as
+        `{"file_key", "file_name", …}` dicts. `timezone` also arrives, and
+        `**kwargs` is required: the chat layer may add a keyword without
+        breaking a plugin that predates it.
         """
         raise NotImplementedError
         yield {}  # pragma: no cover - makes this an async generator

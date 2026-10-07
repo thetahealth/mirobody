@@ -80,9 +80,13 @@ class MirobodyAgent:
         disallowed_tools: list[str] | None = None,
         prompt_templates: dict[str, str] = None,
         record_owner: str = "",
+        may_write: bool = False,
         **kwargs
     ):
         self.record_owner = record_owner
+        # Whether the asker may change the record this turn reads (the chat
+        # layer resolves it per turn); an `ask_user` date is filed only then.
+        self.may_write = may_write
         from mirobody.utils.config import get_default_timezone
         self.timezone = timezone or get_default_timezone()
         self.allowed_tools = allowed_tools
@@ -671,7 +675,7 @@ class MirobodyAgent:
             # A thread paused on `ask_user` takes this message as the answer;
             # the attachment note belongs to a NEW turn only.
             final_messages = messages
-            resume = await pending_answer(agent, stream_config, messages, user_id)
+            resume = await pending_answer(agent, stream_config, messages, user_id, may_write=self.may_write)
             if resume is None:
                 # Name this turn's attachments and where to read them, so the
                 # model never needs an `ls /uploads/` round trip and never
