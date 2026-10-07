@@ -204,7 +204,7 @@ async def pending_answer(agent: Any, config: dict, messages: Any, user_id: str =
     try:
         state = await agent.aget_state(config)
     except Exception as e:
-        logger.debug(f"no thread state to resume: {e}")
+        logger.debug("no thread state to resume: error_type=%s", type(e).__name__)
         return None
     if not getattr(state, "next", None):
         return None
