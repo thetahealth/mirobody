@@ -15,7 +15,8 @@ interpolated expressions are not of an allowed *shape*:
 ``except`` catches a broad type (``Exception``, ``BaseException``, bare): a
 database driver's exception text quotes the statement with its bound
 parameters. A non-constant ``exc_info=...`` expression (a guard such as
-``exc_info=not is_driver_exception(e)``) is accepted.
+``exc_info=not is_driver_exception(e)``) is accepted. A key of an ``extra=``
+dict must be in ``ops.LOG_FIELDS``, the keys the runtime filter keeps.
 
 The lint is deliberately shape-based, not name-based: it cannot prove a
 variable holds no PHI, but it makes "log the whole tool result" impossible
@@ -30,6 +31,8 @@ import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+
+from mirobody.kernel.ops import LOG_FIELDS
 
 # The tallies the observation model reports are past participles rather than
 # `*_count`: `report.inserted`, `report.skipped`, `report.coded`. They are
@@ -230,14 +233,12 @@ class _Visitor(ast.NodeVisitor):
                         "traceback of a broad except: driver exceptions quote SQL and parameters",
                     )
                 )
+            # The runtime filter's allowlist, not the shape rules above: a key
+            # `PHIFilter` drops is a field nobody will ever see in the log.
             for kw in node.keywords:
                 if kw.arg == "extra" and isinstance(kw.value, ast.Dict):
                     for k in kw.value.keys:
-                        if (
-                            isinstance(k, ast.Constant)
-                            and isinstance(k.value, str)
-                            and not (SAFE_NAME.match(k.value) or k.value in SAFE_EXACT)
-                        ):
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str) and k.value not in LOG_FIELDS:
                             self.findings.append(Finding(self.path, node.lineno, "extra_key", k.value))
         self.generic_visit(node)
 

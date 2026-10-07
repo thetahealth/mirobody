@@ -18,22 +18,35 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 #: The ``extra=`` keys a log record may carry. Everything else is dropped by
-#: the filter. Names, not values: a key called ``user_id`` may carry an id,
-#: a key called ``value`` may not exist.
+#: the filter, and ``phi_lint`` refuses any other key in an ``extra=`` dict,
+#: so a key the filter would drop never looks logged. Names, not values: a
+#: key called ``user_id`` may carry an id, a key called ``value`` may not exist.
 LOG_FIELDS: frozenset[str] = frozenset(
     {
+        "id",
         "user_id",
         "subject_id",
         "session_id",
         "request_id",
         "msg_id",
+        "message_id",
         "task_id",
+        "set_id",
+        "client_id",
+        "winning_user_id",
+        "losing_user_id",
         "tool_name",
+        "mcp_method",
         "provider",
         "data_type",
+        "content_type",
         "indicator_count",
         "row_count",
         "record_count",
+        "user_count",
+        "skipped_invalid_count",
+        "size_bytes",
+        "body_bytes",
         "error_type",
         "error_kind",
         "status",
