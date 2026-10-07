@@ -215,6 +215,10 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.
+* A named window that leaves out readings of a series it answered says so,
+  in one note naming the series and the date its readings start or end
+  outside it: a trend question read from a window holding 2 of 3 cholesterol
+  readings was answered from those two (newcomer review, 2026-10-07).
 * Every answer states its **window semantics**: `tz_exact` when the rows carry
   a stored local day, `date_padded_naive` when some row predates that column and
   was found by padding its naive timestamp a day either side. That is the
