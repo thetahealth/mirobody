@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 from collections.abc import Callable
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -41,7 +42,7 @@ class ValueRangeValidator:
         validator = ValueRangeValidator()
         await validator.load()  # Load rules from DB at startup
         result = validator.validate("heartRates", 300000.1)
-        # result.is_valid = False, result.reason = "value 300000.1 violates rule <=350"
+        # result.is_valid = False, result.value = 300000.1, result.reason = "violates rule <=350"
 
     Passthrough cases (always valid):
     - Indicator has no rules loaded
@@ -81,34 +82,37 @@ class ValueRangeValidator:
         try:
             rows = await execute_query(query, {"rule_set": self._rule_set}, db_config=db_config or "")
         except Exception as e:
-            logger.error(f"[ValueRangeValidator] Failed to load rules: {e}. All values will passthrough.")
+            logger.error("value range rules not loaded, every value passes: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             self._loaded = True
             return 0
 
         self._rules.clear()
         loaded = 0
+        skipped_count = 0
 
         for row in rows:
             indicator = row["indicator"]
             raw_rules = row["rules"]
 
-            # Parse JSON if needed
+            # A row that does not parse is skipped and counted; the log names no
+            # indicator, since the name is what was measured.
             if isinstance(raw_rules, str):
                 try:
                     raw_rules = json.loads(raw_rules)
                 except json.JSONDecodeError:
-                    logger.warning(f"[ValueRangeValidator] Invalid JSON rules for {indicator}: {raw_rules}")
+                    skipped_count += 1
                     continue
 
             if not isinstance(raw_rules, list):
-                logger.warning(f"[ValueRangeValidator] Rules for {indicator} is not a list: {raw_rules}")
+                skipped_count += 1
                 continue
 
             parsed = []
             for rule_str in raw_rules:
                 result = self._parse_rule(rule_str)
                 if result is None:
-                    logger.warning(f"[ValueRangeValidator] Invalid rule '{rule_str}' for {indicator}")
+                    skipped_count += 1
                     continue
                 op_str, threshold = result
                 parsed.append((rule_str, self._OPS[op_str], threshold))
@@ -118,7 +122,8 @@ class ValueRangeValidator:
                 loaded += 1
 
         self._loaded = True
-        logger.info(f"[ValueRangeValidator] Loaded {loaded} indicators for rule_set '{self._rule_set}'")
+        indicators_count = loaded
+        logger.info("value range rules loaded: indicators_count=%d skipped_count=%d", indicators_count, skipped_count)
         return loaded
 
     def validate(self, indicator: str, value: Any) -> ValidationResult:
@@ -149,7 +154,7 @@ class ValueRangeValidator:
                     is_valid=False,
                     indicator=indicator,
                     value=num_val,
-                    reason=f"value {num_val} violates rule {rule_str}",
+                    reason=f"violates rule {rule_str}",
                 )
 
         return ValidationResult(is_valid=True, indicator=indicator, value=num_val)

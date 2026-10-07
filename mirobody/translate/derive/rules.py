@@ -255,7 +255,8 @@ class DerivedAggregator:
             total_skipped += skipped
             results_by_rule[rule.name] = computed
 
-        logger.info("derived values computed: computed=%d skipped=%d", total_computed, total_skipped)
+        computed_count, skipped_count = total_computed, total_skipped
+        logger.info("derived values computed: computed=%d skipped=%d", computed_count, skipped_count)
         return {
             "total_computed": total_computed,
             "total_skipped": total_skipped,
@@ -279,7 +280,7 @@ class DerivedAggregator:
         try:
             rows = await execute_query(_RESOLVE.format(candidates=" UNION ALL ".join(union_parts)), params) or []
         except Exception as e:
-            logger.error("derived rule query failed: rule=%s error_type=%s", rule.name, type(e).__name__,
+            logger.error("derived rule query failed: rule=%s error_type=%s", rule.name, type(e).__name__,  # phi: ok a DERIVED_RULES name
                          exc_info=not is_driver_exception(e))
             return 0, 0
 
@@ -326,10 +327,13 @@ class DerivedAggregator:
             computed += 1
 
         if records_to_save and not await self.db_service.batch_save_summary_data(records_to_save):
-            logger.error("derived rule results not written: rule=%s records=%d", rule.name, len(records_to_save))
+            logger.error("derived rule results not written: rule=%s records=%d",  # phi: ok a DERIVED_RULES name
+                         rule.name, len(records_to_save))
             return 0, skipped
         if records_to_save:
-            logger.info("derived rule done: rule=%s computed=%d skipped=%d", rule.name, computed, skipped)
+            computed_count = computed
+            logger.info("derived rule done: rule=%s computed=%d skipped=%d",  # phi: ok a DERIVED_RULES name
+                        rule.name, computed_count, skipped)
         return computed, skipped
 
 

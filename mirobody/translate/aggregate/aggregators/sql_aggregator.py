@@ -67,8 +67,9 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetim
         day_start = datetime(local_date.year, local_date.month, local_date.day, 0, 0, 0)
         day_end = datetime(local_date.year, local_date.month, local_date.day, 23, 59, 59)
         return day_start, day_end
-    except Exception as e:
-        logger.error(f"Error converting timezone {timezone}: {e}")
+    except (ValueError, KeyError) as e:
+        # ZoneInfo raises ZoneInfoNotFoundError (a KeyError) or ValueError.
+        logger.error("local day of a summary not placed: error_type=%s", type(e).__name__)
         return day_start_utc, day_start_utc + timedelta(hours=24)
 
 
@@ -184,45 +185,40 @@ class SQLAggregator:
         Returns:
             List of CalculationTask objects
         """
-        try:
-            # Aware: `update_time` is a timestamptz, and a naive value is read in
-            # the session's zone, so a host clock off UTC skipped or repeated hours.
-            since_time = datetime.fromtimestamp(since_timestamp, tz=UTC)
+        # Aware: `update_time` is a timestamptz, and a naive value is read in
+        # the session's zone, so a host clock off UTC skipped or repeated hours.
+        since_time = datetime.fromtimestamp(since_timestamp, tz=UTC)
 
-            # One branch per day window the CATALOGUE declares, not per name
-            # that happens to contain "sleep": see ../windows.py. `time` is a
-            # UTC timestamp, so each branch reads it in the subject's zone
-            # first.
-            query = _union_over_windows(
-                """
-                SELECT
-                    user_id,
-                    indicator,
-                    timezone,
-                    {day_begin} AS data_begin_utc,
-                    MIN(update_time) as min_update_time,
-                    MAX(update_time) as max_update_time
-                FROM series_data
-                WHERE update_time > :since_time
-                  AND time >= NOW() - INTERVAL '3 months'
-                  AND {window_predicate}
-                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-                GROUP BY user_id, indicator, timezone, data_begin_utc
-                """
-            ) + "\nORDER BY min_update_time ASC"
+        # One branch per day window the CATALOGUE declares, not per name
+        # that happens to contain "sleep": see ../windows.py. `time` is a
+        # UTC timestamp, so each branch reads it in the subject's zone
+        # first.
+        query = _union_over_windows(
+            """
+            SELECT
+                user_id,
+                indicator,
+                timezone,
+                {day_begin} AS data_begin_utc,
+                MIN(update_time) as min_update_time,
+                MAX(update_time) as max_update_time
+            FROM series_data
+            WHERE update_time > :since_time
+              AND time >= NOW() - INTERVAL '3 months'
+              AND {window_predicate}
+              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+            GROUP BY user_id, indicator, timezone, data_begin_utc
+            """
+        ) + "\nORDER BY min_update_time ASC"
 
-            params = {
-                "since_time": since_time,
-                **windows.branch_params(),
-            }
+        params = {
+            "since_time": since_time,
+            **windows.branch_params(),
+        }
 
-            result = await execute_query(query, params)
-            logger.info(f"Fetched {len(result)} grouped series_data records since timestamp {since_timestamp}")
-            return _tasks_from_rows(result)
-
-        except Exception as e:
-            logger.error(f"Error fetching trigger tasks: {e}")
-            return []
+        result = await execute_query(query, params)
+        logger.info(f"Fetched {len(result)} grouped series_data records since timestamp {since_timestamp}")
+        return _tasks_from_rows(result)
 
     async def calculate_batch_aggregations(self, tasks: list[CalculationTask]) -> list[dict[str, Any]]:
         """The summary rows of `tasks`, ready for the writer: grouped by the
@@ -319,60 +315,55 @@ class SQLAggregator:
         user_id=None means all users; otherwise filter to that user.
         """
 
-        try:
-            # UNION separates sleep from normal data; `time` is stored UTC, so
-            # 'UTC' is named explicitly. Two things are load-bearing.
-            # `CAST(:user_id AS text)`: a bare `(:user_id IS NULL OR user_id =
-            # :user_id)` raises AmbiguousParameter on Postgres 15, since a
-            # parameter whose only context is `IS NULL` has no inferable type,
-            # and the blanket `except` below turned that into
-            # {"status": "success", "summaries_created": 0}. `time < :end_date`,
-            # not `<=`: callers pass a date-only end, which `<=` truncates.
-            query = _union_over_windows(
-                """
-                SELECT
-                    user_id,
-                    indicator,
-                    timezone,
-                    {day_begin} AS data_begin_utc,
-                    MIN(update_time) as min_update_time,
-                    MAX(update_time) as max_update_time
-                FROM series_data
-                WHERE (CAST(:user_id AS text) IS NULL OR user_id = CAST(:user_id AS text))
-                  AND time >= :start_date
-                  AND time < :end_date
-                  AND {window_predicate}
-                  AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-                GROUP BY user_id, indicator, timezone, data_begin_utc
-                """
-            ) + "\nORDER BY min_update_time ASC"
+        # UNION separates sleep from normal data; `time` is stored UTC, so
+        # 'UTC' is named explicitly. Two things are load-bearing.
+        # `CAST(:user_id AS text)`: a bare `(:user_id IS NULL OR user_id =
+        # :user_id)` raises AmbiguousParameter on Postgres 15, since a
+        # parameter whose only context is `IS NULL` has no inferable type,
+        # and the blanket `except` below turned that into
+        # {"status": "success", "summaries_created": 0}. `time < :end_date`,
+        # not `<=`: callers pass a date-only end, which `<=` truncates.
+        query = _union_over_windows(
+            """
+            SELECT
+                user_id,
+                indicator,
+                timezone,
+                {day_begin} AS data_begin_utc,
+                MIN(update_time) as min_update_time,
+                MAX(update_time) as max_update_time
+            FROM series_data
+            WHERE (CAST(:user_id AS text) IS NULL OR user_id = CAST(:user_id AS text))
+              AND time >= :start_date
+              AND time < :end_date
+              AND {window_predicate}
+              AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+            GROUP BY user_id, indicator, timezone, data_begin_utc
+            """
+        ) + "\nORDER BY min_update_time ASC"
 
-            # The public contract is INCLUSIVE of end_date's calendar day:
-            # `calculate_time_range_aggregations` computes
-            # `(end_date - start_date).days + 1`. The SQL above is half-open, so
-            # translate here rather than asking every caller to remember which
-            # shape it has to send. `repair_reconcile` pads to 23:59:59.999999; a
-            # bare `date` arrives at midnight. Normalising to the start of the
-            # following day covers both, and under `<=` they behaved completely
-            # differently: 1 row versus 3, verified against Postgres.
-            end_exclusive = (end_date + timedelta(days=1)).replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+        # The public contract is INCLUSIVE of end_date's calendar day:
+        # `calculate_time_range_aggregations` computes
+        # `(end_date - start_date).days + 1`. The SQL above is half-open, so
+        # translate here rather than asking every caller to remember which
+        # shape it has to send. `repair_reconcile` pads to 23:59:59.999999; a
+        # bare `date` arrives at midnight. Normalising to the start of the
+        # following day covers both, and under `<=` they behaved completely
+        # differently: 1 row versus 3, verified against Postgres.
+        end_exclusive = (end_date + timedelta(days=1)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
 
-            params = {
-                "user_id": user_id,
-                "start_date": start_date,
-                "end_date": end_exclusive,
-                **windows.branch_params(),
-            }
+        params = {
+            "user_id": user_id,
+            "start_date": start_date,
+            "end_date": end_exclusive,
+            **windows.branch_params(),
+        }
 
-            result = await execute_query(query, params)
-            logger.info(f"Fetched {len(result)} grouped series_data records for {user_id or 'all users'} from {start_date.date()} to {end_date.date()}")
-            return _tasks_from_rows(result)
-            
-        except Exception as e:
-            logger.error(f"Error fetching tasks for user {user_id} date range: {e}")
-            return []
+        result = await execute_query(query, params)
+        logger.info(f"Fetched {len(result)} grouped series_data records for {user_id or 'all users'} from {start_date.date()} to {end_date.date()}")
+        return _tasks_from_rows(result)
 
     async def _process_data_begin_aggregations(self, data_begin_tasks: list[CalculationTask]) -> list[dict[str, Any]]:
         """
@@ -988,13 +979,9 @@ class SQLAggregator:
         coverage = estimated_active_min / total_window_min
 
         if coverage < 0.70:
-            logger.warning(
-                f"[GMI] Insufficient sensor coverage for user {user_id}, source {source}: "
-                f"{coverage:.1%} (need ≥70%). Points={len(deduped)}, "
-                f"sampling_interval={sampling_interval_min}min, "
-                f"active≈{estimated_active_min / 60:.0f}h / {total_window_min / 60:.0f}h. "
-                f"Skipping GMI calculation."
-            )
+            coverage_pct = round(coverage * 100, 1)
+            logger.info("GMI skipped, sensor coverage under 70%%: user_id=%s coverage_pct=%s points_count=%d",
+                        user_id, coverage_pct, len(deduped))
             return None
 
         # Step 5: Mean glucose from ALL de-duplicated readings
@@ -1005,13 +992,6 @@ class SQLAggregator:
         # mmol/L: GMI(%) = 3.31 + 0.431 × mean_glucose
         # series_data stores blood glucose in mg/dL (StandardIndicator.BLOOD_GLUCOSE.standard_unit)
         gmi = round(3.31 + 0.02392 * mean_glucose, 2)
-
-        logger.info(
-            f"[GMI] user={user_id}, source={source}: "
-            f"mean={mean_glucose:.1f} mg/dL, GMI={gmi}%, "
-            f"points={len(deduped)}, interval={sampling_interval_min}min, "
-            f"coverage={coverage:.1%}"
-        )
 
         return gmi
 
@@ -1085,10 +1065,9 @@ class SQLAggregator:
                 })
 
             except Exception as e:
-                logger.warning(
-                    f"[SQLAggregator] Custom derived {task.aggregation_type} failed "
-                    f"for user={user_id}, day={query_start}: {e}"
-                )
+                logger.warning("custom derived aggregation failed: method=%s user_id=%s error_type=%s",
+                               task.aggregation_type, user_id, type(e).__name__,
+                               exc_info=not is_driver_exception(e))
 
         return summaries
 
@@ -1310,8 +1289,8 @@ class SQLAggregator:
             utc_dt = reference_date_utc.replace(hour=hours, minute=minutes, second=0, microsecond=0)
             local_dt = utc_dt.replace(tzinfo=UTC).astimezone(ZoneInfo(timezone_str))
             return local_dt.strftime('%H:%M')
-        except Exception as e:
-            logger.warning(f"Failed to convert UTC time {utc_time_str} to {timezone_str}: {e}")
+        except (ValueError, KeyError, AttributeError, TypeError) as e:
+            logger.warning("time of day not converted to local: error_type=%s", type(e).__name__)
             return utc_time_str
 
     @staticmethod
@@ -1362,8 +1341,8 @@ class SQLAggregator:
                 for t in times
             ]
             return json.dumps(local_times)
-        except Exception as e:
-            logger.warning(f"Failed to convert UTC times JSON to local: {e}")
+        except (ValueError, KeyError, TypeError) as e:
+            logger.warning("event times not converted to local: error_type=%s", type(e).__name__)
             return '[]'
 
     def _convert_to_summary_records(
