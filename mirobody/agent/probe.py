@@ -66,9 +66,10 @@ async def _chat(name: str | None = None, resolve: Any = None, entry: dict | None
     the entry itself, when they are not what the environment says, as for a
     key and model the setup page has not saved yet."""
     from mirobody.agent.models.clients import build_chat_model
-    from mirobody.utils.config.llm import chat_default, chat_entries
+    from mirobody.agent.registry import default_model
+    from mirobody.utils.config.llm import chat_entries
 
-    name = name or chat_default()
+    name = name or default_model()
     if not name:
         return False, "no chat entry is usable"
     model = build_chat_model(entry or chat_entries()[name], alias=name, resolve=resolve).bind_tools([_TOOL])
@@ -123,10 +124,11 @@ async def _ocr() -> tuple[bool, str]:
 def _local_models() -> set[tuple[str, str]]:
     """(endpoint, model) for every surface on a local server: an entry whose
     base_url is a variable, the way the shipped local entries are written."""
-    from mirobody.utils.config.llm import chat_default, chat_entries, endpoint_value, is_endpoint_name, resolve_route
+    from mirobody.agent.registry import default_model
+    from mirobody.utils.config.llm import chat_entries, endpoint_value, is_endpoint_name, resolve_route
 
     pairs = set()
-    name = chat_default()
+    name = default_model()
     entry = chat_entries().get(name) or {} if name else {}
     base = str(entry.get("base_url") or "")
     if is_endpoint_name(base) and endpoint_value(base):

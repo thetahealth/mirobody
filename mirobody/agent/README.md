@@ -36,12 +36,13 @@ PROMPTS:
   - agent/prompts/mirobody.jinja   # path, or path@name; the first is the default
 ALLOWED_TOOLS:        # whitelist, or
 DISALLOWED_TOOLS:     # blacklist (`eval` here turns the REPL off)
-DEFAULT_MODEL:     # else: the entry whose key is present
+DEFAULT_MODEL:     # used when ready; else the first entry whose key is present
 AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 ```
 
-`/api/models` lists the `MODELS` entries whose key resolves, as bare names.
-A chat request picks one with `provider`.
+`/api/models` lists the `MODELS` entries whose key resolves, as bare names,
+the default first (`registry.default_model`, which `mirobody doctor --probe`
+tests too). A chat request picks one with `provider`.
 
 ## Replacing the agent
 

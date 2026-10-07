@@ -24,12 +24,12 @@ from collections.abc import AsyncGenerator
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
 
-from .registry import llm_client, llm_client_names
+from .registry import default_model, llm_client, llm_client_names
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.config.llm import chat_default, chat_entries
+from mirobody.utils.config.llm import chat_entries
 
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error
@@ -62,15 +62,6 @@ def _latest_question(messages: list) -> str:
     return ""
 
 
-def _default_provider() -> str:
-    """The model to chat with when the caller names none: the first
-    `MODELS` entry (config order, utility-only entries excluded) whose key is
-    present: the order of that table is the contract. With no key present,
-    the first entry, so the error a chat then raises names a real entry and
-    its missing key."""
-    return chat_default() or next(iter(chat_entries()), "")
-
-
 class MirobodyAgent:
 
     def __init__(
@@ -95,7 +86,9 @@ class MirobodyAgent:
         # The persona name the prompt addresses the model by. Configurable so a
         # deployment can brand it; it is not an identifier anywhere else.
         self.agent_name = safe_read_cfg("AGENT_NAME") or "Mirobody"
-        self.default_provider = safe_read_cfg("DEFAULT_MODEL") or _default_provider()
+        # With no entry ready, the first one, so the error a chat then raises
+        # names a real entry and its missing key.
+        self.default_model = default_model() or next(iter(chat_entries()), "")
         # Two layers, not interchangeable (see `_build_agent`). MODEL_CALL_LIMIT
         # is the real budget, counted in model calls and enforced by
         # ModelCallLimitMiddleware, which ends the run gracefully so the model
@@ -114,11 +107,11 @@ class MirobodyAgent:
         if provider:
             agent_llm_client = llm_client(provider)
         else:
-            agent_llm_client = llm_client(self.default_provider)
+            agent_llm_client = llm_client(self.default_model)
 
         # Fallback to default provider if the requested one is not supported
         if not agent_llm_client:
-            default_provider = self.default_provider
+            default_provider = self.default_model
             logger.warning(f"Provider '{original_provider}' not supported, falling back to '{default_provider}'")
             agent_llm_client = llm_client(default_provider)
 
@@ -409,7 +402,7 @@ class MirobodyAgent:
         from mirobody.utils.config.llm import resolve_named
         from mirobody.utils.config.served import sees
 
-        name = provider if provider and llm_client(provider) else self.default_provider
+        name = provider if provider and llm_client(provider) else self.default_model
         spec = resolve_named(name) if name in chat_entries() else None
         return sees(spec) if spec is not None else True
 

@@ -165,21 +165,16 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
 
 
 def _build_clients(klass: type, cfg: Config | None) -> dict[str, Any]:
-    from mirobody.utils.config.llm import model_entries
+    from mirobody.utils.config.llm import chat_entries
 
     loader = getattr(klass, "load_llm_clients", None)
     if not callable(loader) or not cfg:
         return {}
-    # With each entry's `model_env` applied: a model changed on the setup
-    # page is rebuilt here (`reload_llm_clients`) without a restart.
-    providers = model_entries()
-    # `chat: false` entries (utility and embedding models) are not chat
-    # models and must not reach the picker or be built as one.
-    providers = {n: e for n, e in providers.items()
-                 if str((e or {}).get("chat", "")).strip().lower() not in ("false", "0", "no", "off")
-                 and not (e or {}).get("embedding")}
+    # The chat entries `chat_default` and the setup page read, each with its
+    # `model_env` applied: a model changed on the setup page is rebuilt here
+    # (`reload_llm_clients`) without a restart.
     try:
-        return loader(providers) or {}
+        return loader(chat_entries()) or {}
     except Exception as e:
         logger.error("agent LLM clients failed to load: agent_class=%s error_type=%s", klass.__name__, type(e).__name__)
         return {}
@@ -225,44 +220,60 @@ def new_agent(**kwargs) -> AbstractAgent | None:
     return _agent_class(**options)
 
 
-def llm_client(provider: str) -> Any | None:
-    return _llm_clients.get(provider) if provider else None
+def llm_client(name: str) -> Any | None:
+    return _llm_clients.get(name) if name else None
 
 
 def llm_client_names() -> list[str]:
     return list(_llm_clients)
 
 
-def available_models() -> list[str]:
-    """The `/api/models` list: provider names whose key resolves RIGHT NOW.
+def default_model() -> str:
+    """The chat entry a turn uses when the request names none: `DEFAULT_MODEL`
+    when it names a chat entry that is ready (`entry_ready`), else the first
+    ready one in config order (`chat_default`); "" when none is ready.
 
-    Unfiltered, this listed every configured provider (five models on a
-    zero-key deployment) so the picker offered choices that could only fail
-    at chat time. A provider appears only when its client was loaded at
-    startup AND its `api_key` reference resolves non-empty (recomputed per
-    call: removing a key hides its model on the next request; adding one still
-    needs a restart, because the client itself is built at boot).
+    One answer for the agent, `/api/models` and `mirobody doctor --probe`. The
+    agent read `DEFAULT_MODEL` while the picker and the probe read
+    `chat_default()`, so `DEFAULT_MODEL=local` chatted with `local` and
+    preselected, and probed, another entry."""
+    from mirobody.utils.config import safe_read_cfg
+    from mirobody.utils.config.llm import chat_default, chat_entries, entry_ready
+
+    configured = str(safe_read_cfg("DEFAULT_MODEL") or "").strip()
+    entries = chat_entries()
+    if configured in entries and entry_ready(entries[configured]):
+        return configured
+    return chat_default() or ""
+
+
+def available_models() -> list[str]:
+    """The `/api/models` list: the entries whose key resolves RIGHT NOW, the
+    default (`default_model`) first, the rest in config order.
+
+    Unfiltered, this listed every configured entry (five models on a zero-key
+    deployment) so the picker offered choices that could only fail at chat
+    time. An entry appears only when its client was loaded at startup AND it
+    is ready (recomputed per call: removing a key hides its model on the next
+    request; adding one still needs a restart, because the client itself is
+    built at boot).
     """
     if not _llm_clients:
         return []
-    from mirobody.utils.config.llm import entry_ready, model_entries
+    from mirobody.utils.config.llm import chat_entries, entry_ready
 
-    providers = model_entries()
-    names = []
-    for name in providers:
-        if name not in _llm_clients:
-            continue
-        # `entry_ready`, the test `chat_default` and `mirobody doctor` use, and
-        # not a key lookup of its own: with `GEMINI_API_KEY` set and
-        # `GOOGLE_API_KEY` unset this returned [] while the router built a real
-        # client (one key, two answers, twice), and a `local` entry whose
-        # LOCAL_BASE_URL is unset would be offered and fail at chat time.
-        if not entry_ready(providers.get(name)):
-            continue
-        names.append(name)
-    # Config order, not sorted(): `config.llm.yaml` says "in this order; the
-    # FIRST is the default", and `chat_default()` reads it that way. Sorting
-    # here made the picker's first entry disagree with the server's default.
+    entries = chat_entries()
+    # `entry_ready`, the test `chat_default` and `mirobody doctor` use, and
+    # not a key lookup of its own: with `GEMINI_API_KEY` set and
+    # `GOOGLE_API_KEY` unset this returned [] while the router built a real
+    # client (one key, two answers, twice), and a `local` entry whose
+    # LOCAL_BASE_URL is unset would be offered and fail at chat time.
+    names = [name for name, entry in entries.items() if name in _llm_clients and entry_ready(entry)]
+    # The web client preselects the first entry, so the first is the default.
+    default = default_model()
+    if default in names:
+        names.remove(default)
+        names.insert(0, default)
     return names
 
 
