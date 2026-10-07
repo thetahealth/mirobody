@@ -38,13 +38,12 @@ import re
 import unicodedata
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, tzinfo
 from importlib import resources
 from typing import Literal, NamedTuple, Protocol
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mirobody import units
-from .series import day_bounds_ms, stable_hash
+from .series import day_bounds_ms, stable_hash, zone
 
 MS = 1000
 
@@ -804,11 +803,10 @@ GAP_SHIFT_FORWARD = "shift_forward"  # a 02:30 that does not exist becomes 03:30
 GAP_SKIP = "skip"  # ...or the slot has no instant that day
 
 
-def _zone(tz: str) -> ZoneInfo:
-    try:
-        return ZoneInfo(tz)
-    except (ZoneInfoNotFoundError, ValueError) as e:
-        raise ValueError(f"unknown time zone {tz!r}") from e
+def _zone(tz: str) -> tzinfo:
+    """The subject's zone, strictly: a dose placed in UTC because its zone
+    was unreadable is a dose on the wrong day."""
+    return zone(tz, strict=True)
 
 
 def slot_instant(d: date, slot: str, tz: str, *, gap: str = GAP_SHIFT_FORWARD) -> int | None:

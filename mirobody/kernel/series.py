@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import metrics
@@ -95,16 +96,43 @@ class Fact:
 # ---------------------------------------------------------------------------
 
 
-def zone(name: str) -> ZoneInfo:
-    """A ``ZoneInfo`` for ``name``; UTC for an empty or unknown name.
+#: A fixed offset as devices, files and the observation writer spell it:
+#: ``UTC+08:00``, ``GMT-0700``, ``+8``.
+_OFFSET = re.compile(r"^(?:UTC|GMT)?\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$", re.IGNORECASE)
 
-    The fallback is deliberate but the caller should log it: silently
-    landing in UTC shifts every day boundary of that user, which is how a
-    "today's sleep is always empty" report starts.
+
+def offset_name(text: str) -> str | None:
+    """``UTC±HH:MM`` for a fixed offset however it is written, or ``None``
+    when ``text`` is not one. The spelling a stored zone uses."""
+    m = _OFFSET.match((text or "").strip())
+    if m is None:
+        return None
+    return f"UTC{m.group(1)}{int(m.group(2)):02d}:{int(m.group(3) or 0):02d}"
+
+
+def zone(name: str, *, strict: bool = False) -> tzinfo:
+    """The ``tzinfo`` for an IANA name or a ``UTC±HH:MM`` offset; UTC for an
+    empty name. Anything else is UTC, or a ``ValueError`` with ``strict``.
+
+    The one resolver: three disagreed, and a person whose zone was stored as
+    ``UTC+08:00`` had every window placed eight hours off here (read as UTC)
+    while the medications tool raised on it. The fallback is deliberate but
+    the caller should log it: silently landing in UTC shifts every day
+    boundary of that user, which is how a "today's sleep is always empty"
+    report starts.
     """
+    text = (name or "").strip()
+    if not text or text.upper() in ("UTC", "Z", "GMT"):
+        return ZoneInfo("UTC")
     try:
-        return ZoneInfo(name or "UTC")
-    except (ZoneInfoNotFoundError, ValueError):
+        m = _OFFSET.match(text)
+        if m:
+            sign = 1 if m.group(1) == "+" else -1
+            return timezone(sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3) or 0)))
+        return ZoneInfo(text)
+    except (ZoneInfoNotFoundError, ValueError) as e:  # an offset of 24 h or more is a ValueError too
+        if strict:
+            raise ValueError(f"unknown time zone {text!r}") from e
         return ZoneInfo("UTC")
 
 
@@ -546,7 +574,7 @@ def elect(
 __all__ = [
     "AGGREGATION_VERSION", "ARBITRATION_VERSION",
     "AGG_TYPE_MEAN", "AGG_TYPE_MIN", "AGG_TYPE_MAX", "AGG_TYPE_SUM", "AGG_TYPE_LAST", "AGG_TYPE_DURATION", "AGG_TYPE_PROVIDER",
-    "Fact", "zone", "day_bounds_ms", "local_date", "display_day",
+    "Fact", "zone", "offset_name", "day_bounds_ms", "local_date", "display_day",
     "round_meaningful", "union_spans", "merge_intervals", "stable_hash",
     "Projection", "aggregate", "Bucket", "downsample",
     "Segment", "flatten_last_writer_wins",
