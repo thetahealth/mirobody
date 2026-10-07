@@ -1535,8 +1535,9 @@ VIEW_PLAN = "plan"
 VIEW_LOG = "log"
 VIEW_HISTORY = "history"
 VIEWS = (VIEW_PLAN, VIEW_LOG, VIEW_HISTORY)
-#: Rows one answer may carry; the newest come first. A medication list is
-#: short by nature, a dose log is bounded by its window.
+#: Rows one answer may carry, after each view's own order: the dose log and the
+#: history newest first, the plan view active plans first, earliest start first.
+#: A medication list is short by nature, a dose log is bounded by its window.
 MAX_ROWS = 200
 #: The dose log's window when the caller names no dates.
 LOG_DEFAULT_DAYS = 30

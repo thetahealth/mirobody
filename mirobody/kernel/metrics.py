@@ -89,7 +89,7 @@ LEGAL_POLICIES: dict[str, frozenset[str]] = {
 SYSTEM_LOINC = "loinc"
 SYSTEM_DEVICE = "mirobody-device"
 
-#: The two classes ``metrics.tsv`` carries for how a row's value is typed:
+#: The three classes ``metrics.tsv`` carries for how a row's value is typed:
 #: kept from the enum this replaces, because the aggregator and the Apple
 #: upload path branch on them.
 DATA_SUMMARY = "summary"
