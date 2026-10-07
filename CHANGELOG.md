@@ -327,6 +327,13 @@ decisions.
   an arrow or 偏高/偏低 comes off after anything, and `H` after a unit or a
   result word; `L` still only when the printed range says low (`1.5 L` of
   urine is litres). To tell: `1.69 g/L↑` is stored as 1.69 g/L, flag ↑.
+- **A page's print date no longer dates its readings.** A row's own
+  `date_time` was always honoured, and reading a book a page at a time the
+  model put a page's `Printed: 2026-08-23` on two rows, filed a fortnight
+  after the examination (2026-08-07). A row keeps its own date now only when
+  the rows print at least two different ones (a log, a table by day);
+  otherwise every row takes the document's. To tell: that book's readings
+  all sit on 2026-08-07, and a weight log keeps one day per row.
 - **`view=stats` names a reading's own day.** Its `first_date` and
   `last_date` were the UTC date of the instant, so a report filed at local
   midnight in Asia/Shanghai (UTC+8) showed the day before: a ferritin of

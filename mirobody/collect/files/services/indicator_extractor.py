@@ -123,6 +123,19 @@ def _merge_pages(answers: list[dict | None]) -> dict | None:
     return merged
 
 
+def _row_dates_in_a_log_only(indicators: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """`indicators` with each row's own `date_time` kept only when the rows
+    print at least two different ones (a log, a table by day); otherwise every
+    row is filed under the document's date. Measured on the 2026-10-07
+    small-model eval: reading a check-up book a page at a time, the model put
+    a page's `Printed: 2026-08-23` in two rows' `date_time`, and those two
+    readings were filed a fortnight after the examination (2026-08-07)."""
+    dated = {d for d in (parse_date(str(i.get("date_time") or "")) for i in indicators) if d is not None}
+    if len(dated) >= 2:
+        return indicators
+    return [{**i, "date_time": ""} if i.get("date_time") else i for i in indicators]
+
+
 def _latest_row_date(indicators: list[dict[str, Any]]) -> str:
     """The latest date the rows print, as the document's date when it names
     none of its own: a home log has no report date, and filed under the
@@ -254,6 +267,7 @@ class IndicatorExtractor:
             result = llm_ret if isinstance(llm_ret, dict) else json.loads(llm_ret)
             indicators = result.get("indicators", [])
             exam_date = result.get("content_info", {}).get("date_time", "") or _latest_row_date(indicators)
+            indicators = _row_dates_in_a_log_only(indicators)
 
             logger.info(f"[IndicatorExtractor] Parsed {len(indicators)} indicators from text - user_id: {user_id}")
 

@@ -512,7 +512,9 @@ ENABLE_INDICATOR_EXTRACTION: 1  # Set to 1 to enable indicator extraction
 ### Report Date
 
 `content_info.date_time` becomes the `start_time`/`end_time` of every reading
-extracted from the file. When the document shows no date (or one the parser
+extracted from the file. A row keeps a date of its own only when the rows
+print at least two different ones (a log, a table by day): a check-up book
+read a page at a time had a page's print date put on two of its rows. When the document shows no date (or one the parser
 cannot read), the readings are filed under the user's current time — and that
 fallback is **labelled**, not silent: each reading's `comment` JSON and the
 file row carry `date_source`:
