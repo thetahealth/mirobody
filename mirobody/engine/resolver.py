@@ -68,13 +68,29 @@ _TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
 #: for anything it cannot read as a number, an ordinal or a comparator, so this
 #: set is "the value column holds a sentence" rather than a constraint on the
-#: analyte. See `variant_for_reading`.
+#: analyte. See `_value_scales`.
 _NARRATIVE_SCALES = frozenset({"Nar", "Doc"})
 #: The five leukocyte types of a differential, as the axis table spells their
 #: COMPONENT. Their percentage code is the count component over
 #: `/leukocytes`, and nothing else in LOINC pairs that regularly.
 _LEUKOCYTE_TYPES = frozenset({"neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils"})
 _FRACTION_PROPERTIES = frozenset({"NFr", "MFr", "VFr", "AFr", "SFr", "CFr"})
+
+
+def _value_scales(value: str | None) -> frozenset[str]:
+    """The ``SCALE_TYP`` values a reading's value admits; empty when the value
+    places no constraint.
+
+    Free prose in the value column (`见报告`, `clear yellow fluid`) is the
+    ABSENCE of a measurement, not a claim about the analyte's scale: the
+    report wrote a sentence where a result goes. As a constraint it made
+    `尿蛋白` + `见报告` an axis-conflict against its own `PrThr/Ord` code; as
+    evidence it claimed the value had confirmed a scale.
+    """
+    from mirobody.value_scale import scales_for_value
+
+    scales = scales_for_value(value) or frozenset()
+    return frozenset() if scales <= _NARRATIVE_SCALES else scales
 
 
 @dataclass(frozen=True)
@@ -627,7 +643,6 @@ class OfflineResolver:
         if not loinc:
             return UnitVerdict(code=loinc, outcome="no-signal")
         from mirobody.units import normalize_unit, parse_value_unit, unit_families
-        from mirobody.value_scale import scales_for_value
 
         # `20%` and `("20", "%")` are the same reading written two ways, and a
         # stored value routinely carries its unit inline: `th_series_data.value`
@@ -638,14 +653,7 @@ class OfflineResolver:
         printed_unit = (unit or "").strip()
         ucum = normalize_unit(printed_unit) if printed_unit else None
         families = frozenset(unit_families(ucum) or ()) if ucum else frozenset()
-        scales = scales_for_value(value) or frozenset()
-        # Free prose in the value column (`见报告`, `clear yellow fluid`) maps
-        # to (`Nar`, `Doc`). That is the ABSENCE of a measurement, not a claim
-        # about this analyte's scale: the report wrote a sentence where a result
-        # goes. Treating it as a constraint made `尿蛋白` + `见报告` an
-        # axis-conflict against its own correct `PrThr/Ord` code.
-        if scales and scales <= _NARRATIVE_SCALES:
-            scales = frozenset()
+        scales = _value_scales(value)
 
         row = self._row_for_code(loinc)
         axes = ("", "", "")
@@ -851,19 +859,17 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
             rejected_reason=verdict.rejected_reason,
         )
 
-    unit_recognized = None if verdict.outcome == "no-signal" and not verdict.unit_ucum else None
+    unit_recognized: bool | None = None
     if verdict.outcome == "unit-unrecognized":
         unit_recognized = False
     elif verdict.unit_ucum:
         unit_recognized = True
 
     evidence: tuple[str, ...] = ("name",)
-    if verdict.outcome in ("agreed", "switched") and verdict.unit_ucum:
-        evidence += ("property",)
-    if verdict.outcome in ("agreed", "switched") and value:
-        from mirobody.value_scale import scales_for_value
-
-        if scales_for_value(value):
+    if verdict.outcome in ("agreed", "switched"):
+        if verdict.unit_ucum:
+            evidence += ("property",)
+        if _value_scales(value):
             evidence += ("scale",)
 
     if verdict.code == hit.loinc:

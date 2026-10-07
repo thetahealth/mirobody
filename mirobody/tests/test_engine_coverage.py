@@ -880,6 +880,20 @@ def test_free_prose_in_the_value_column_constrains_nothing():
         assert r.resolved
 
 
+def test_a_signed_number_is_a_quantity_and_prose_corroborates_no_scale():
+    """`-2.5`, an everyday base excess, classified as free prose, so a
+    negative result put no SCALE constraint on its reading. And prose in the
+    value column, which constrains nothing, was still reported as `scale`
+    evidence."""
+    from mirobody.engine import resolve_reading
+    from mirobody.value_scale import classify_value, scales_for_value
+
+    assert classify_value("-2.5") == classify_value("+1") == classify_value("<-1") == "qn"
+    assert scales_for_value("-2.5") == scales_for_value("2.5")
+    assert resolve_reading("total cholesterol", "见报告", "mg/dL").evidence == ("name", "property")
+    assert resolve_reading("total cholesterol", "193", "mg/dL").evidence == ("name", "property", "scale")
+
+
 def test_a_category_word_never_lands_on_a_specific_analyte():
     """A report SECTION heading is refused, not answered with whatever code of
     the wrong kind the index reaches: 尿常规 used to answer a specimen

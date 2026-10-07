@@ -59,11 +59,12 @@ _VALUE_ORD_RE = re.compile(
     re.IGNORECASE,
 )
 
-# Numeric, optionally with a comparator and a unit: "20", "20.5", "1.2e-3",
-# "<10", ">100", "20 mg/dL", "5.0×10^6/L". The comparator is for below- and
-# above-limit reports, which are numbers with an edge, not prose.
+# Numeric, optionally signed and with a comparator and a unit: "20", "20.5",
+# "-2.5", "1.2e-3", "<10", ">100", "20 mg/dL", "5.0×10^6/L". The comparator is
+# for below- and above-limit reports, which are numbers with an edge, not
+# prose. A bare "+" or "-" never gets here: the ordinal test runs first.
 _VALUE_QN_RE = re.compile(
-    r"^\s*[<>≤≥]?\s*"
+    r"^\s*[<>≤≥]?\s*[-+]?"
     r"\d+(?:\.\d+)?(?:[eE][+-]?\d+)?"
     r"(?:\s*[×x*]\s*10[\^]?[+-]?\d+)?"
     r"(?:\s*[^\d].*)?$"              # any trailing unit/text
