@@ -157,6 +157,3 @@ class GeneticHandler(BaseFileHandler):
 
         except Exception as e:
              return await self._handle_error(ctx, e, file_key)
-
-    async def _process_content(self, *args, **kwargs):
-        pass # Not used due to override

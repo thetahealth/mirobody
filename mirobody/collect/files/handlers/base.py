@@ -89,8 +89,8 @@ class BaseFileHandler(abc.ABC):
             # 2. Upload or Get URL (Common step, but can be overridden or skipped by subclasses)
             full_url = await self._handle_upload(ctx, unique_filename, language)
 
-            # 3. Core processing (Specific to file type)
-            result_data = await self._process_content(ctx, unique_filename, full_url, language)
+            # 3. The text, stored on the row at once, and the abstract
+            result_data = await self._process_content(ctx, unique_filename, language)
 
             # 4.5. Auto-start background indicator extraction for any handler that returns original_text
             original_text = result_data.get("original_text")
@@ -156,11 +156,7 @@ class BaseFileHandler(abc.ABC):
                 logger.warning(f"File upload failed: {e}")
                 return ""
 
-    async def _extract_original_text(
-        self,
-        ctx: FileProcessingContext,
-        file_type: str,
-    ) -> tuple[str | None, str | None]:
+    async def _extract_original_text(self, ctx: FileProcessingContext) -> tuple[str | None, str | None]:
         """
         Read the upload's bytes and extract original text.
 
@@ -188,7 +184,7 @@ class BaseFileHandler(abc.ABC):
 
             original_text = await self.abstract_extractor.extract_file_original_text(
                 file_content=file_content,
-                file_type=file_type,
+                file_type=self.get_type_name(),
                 filename=ctx.filename,
                 content_type=ctx.content_type,
             )
@@ -226,12 +222,36 @@ class BaseFileHandler(abc.ABC):
             return self.abstract_extractor.fallback_abstract(ctx.filename, self.get_type_name()), ctx.filename
         return file_abstract, file_name
 
-    @abc.abstractmethod
-    async def _process_content(self, ctx: FileProcessingContext, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
-        """
-        Core logic to extract content/indicators.
-        Should return a dict with keys like 'raw', 'indicators', 'llm_ret', etc.
-        """
+    async def _progress(self, ctx: FileProcessingContext, percent: int, key: str, language: str) -> None:
+        if ctx.progress_callback:
+            await ctx.progress_callback(percent, localize(key, language, "file_processor"))
+
+    async def _process_content(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> dict[str, Any]:
+        """The upload's text and its abstract, the same for every kind of
+        document: a PDF, a photo, a workbook, a Word file or a text. The text
+        is written to the row as soon as it is read: a chat attachment's row
+        exists before processing starts, and the agent reads the text there.
+        Indicator extraction starts from `original_text` in `process`."""
+        await self._progress(ctx, 55, "extracting_content", language)
+        original_text, content_hash = await self._extract_original_text(ctx)
+        if original_text:
+            await self._save_original_text_to_db(
+                file_key=unique_filename,
+                original_text=original_text,
+                text_length=len(original_text),
+                content_hash=content_hash or "",
+            )
+        await self._progress(ctx, 70, "extracting_abstract", language)
+        file_abstract, file_name = await self._abstract(ctx, original_text, language)
+        await self._progress(ctx, 90, f"{self.get_type_name()}_processing_success", language)
+        return {
+            "raw": original_text or "",
+            "file_abstract": file_abstract,
+            "file_name": file_name,
+            "original_text": original_text or "",
+            "text_length": len(original_text) if original_text else 0,
+            "content_hash": content_hash or "",
+        }
 
     @abc.abstractmethod
     def get_type_name(self) -> str:
