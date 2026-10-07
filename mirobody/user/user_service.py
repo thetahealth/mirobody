@@ -378,7 +378,7 @@ class UserService:
             if err:
                 # `merge_accounts` logged the failure; `affected` is the
                 # tables it reached before it rolled back.
-                logger.error("account merge refused the binding: losing_id=%s winning_id=%s table_count=%d",
+                logger.error("account merge refused the binding: losing_id=%s winning_id=%s table_count=%d",  # phi: ok ids
                              current_user_id, existing_owner, len(affected))
                 return json_response_with_code(-6, err, request=request)
 
