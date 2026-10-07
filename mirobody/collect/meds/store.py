@@ -541,3 +541,50 @@ async def _overrides_for(target_kind: str, target_id: str) -> list[overlay.Overr
         )
         for r in rows
     ]
+
+
+async def realign_dose_slots() -> int:
+    """Rename each dose event keyed by a slot its plan no longer projects to
+    the name it does; the count renamed.
+
+    Before 1.5.4 an as-needed or unscheduled instruction counted towards slot
+    names, so the daily slot of a plan that also had one was `day#0`; it is
+    `day` now. Slots are projected on every read, so an event still keyed
+    `day#0` answered no slot: its day read as missed, the dose as an extra.
+    Only names with a `#` are read, so after one run this is an empty query.
+    """
+    rows = await execute_query(
+        "SELECT event_id, plan_id, slot_date, slot_name, tz FROM th_dose_event"
+        " WHERE deleted = 0 AND slot_date IS NOT NULL AND slot_name LIKE '%#%'",
+        {},
+        log_sql=False,
+    ) or []
+    if not rows:
+        return 0
+    plans = await execute_query(
+        f"SELECT {_PLAN_COLUMNS} FROM th_medication_plan WHERE plan_id = ANY(:ids) AND deleted = 0",
+        {"ids": sorted({str(r["plan_id"]) for r in rows})},
+        log_sql=False,
+    ) or []
+    by_id = {str(p["plan_id"]): plan_from_row(dict(p)) for p in plans}
+    renamed = 0
+    for row in rows:
+        plan = by_id.get(str(row["plan_id"]))
+        if plan is None:
+            continue
+        day, old = row["slot_date"], str(row["slot_name"])
+        try:
+            projected = {s.slot for s in meds.project_schedule(plan, start=day, end=day, tz=str(row["tz"] or "UTC"))}
+        except ValueError:
+            continue
+        new = old.split("#", 1)[0]
+        # Two instructions at one time still project `08:00#0` and `08:00#1`.
+        if old in projected or new not in projected:
+            continue
+        await execute_query(
+            "UPDATE th_dose_event SET slot_name = :new WHERE event_id = :event_id AND slot_name = :old",
+            {"new": new, "old": old, "event_id": str(row["event_id"])},
+            log_sql=False,
+        )
+        renamed += 1
+    return renamed

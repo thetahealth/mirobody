@@ -202,6 +202,26 @@ async def create_schema(config) -> None:
             logger.info("SQL files initialization completed.")
 
 
+
+async def realign_dose_slots(config) -> None:
+    """Dose events recorded under a slot name their plan no longer projects
+    get the name it does (`collect.meds.store.realign_dose_slots`). Gated
+    like the schema replay; a failure is logged and the boot goes on, as a
+    day that reads as missed is not worth a server that does not start."""
+    if not should_bootstrap(config):
+        return
+    from mirobody.collect.meds.store import realign_dose_slots as realign
+
+    try:
+        renamed_count = await realign()
+    except Exception as e:
+        logger.error("dose slot realignment failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return
+    if renamed_count:
+        logger.info("dose events realigned to their plan's slot names: count=%d", renamed_count)
+
+
 #: Seconds a boot waits for Postgres before it says it cannot reach it.
 POSTGRES_CONNECT_TIMEOUT_S = 10
 

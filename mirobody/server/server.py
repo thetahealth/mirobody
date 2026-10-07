@@ -16,6 +16,7 @@ from .bootstrap import (
     demo_sign_in,
     enforce_production_auth_safety,
     ensure_postgres_reachable,
+    realign_dose_slots,
     seed_demo_data,
     start_schedulers,
 )
@@ -360,6 +361,7 @@ class Server:
 
         await ensure_postgres_reachable(config)
         await create_schema(config)
+        await realign_dose_slots(config)
         await seed_demo_data(config)
 
         #-----------------------------------------------------
