@@ -71,6 +71,29 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetim
         return day_start_utc, day_start_utc + timedelta(hours=24)
 
 
+def _tasks_from_rows(rows: list[dict[str, Any]]) -> list[CalculationTask]:
+    """One task per (grouped trigger row, aggregation rule of its indicator).
+    Each task is the row's own person's: the all-users range query passed its
+    `user_id` argument, `None`, and every task wrote nothing."""
+    tasks: list[CalculationTask] = []
+    for record in rows:
+        user_id, indicator = record.get("user_id"), record.get("indicator")
+        timezone, data_begin_utc = record.get("timezone"), record.get("data_begin_utc")
+        if not (user_id and indicator and timezone and data_begin_utc):
+            continue
+        for rule in get_rules_by_source_indicator(indicator):
+            tasks.append(CalculationTask(
+                user_id=user_id,
+                source_indicator=indicator,
+                target_indicator=rule.target_indicator,
+                aggregation_type=rule.aggregation_type,
+                data_begin_utc=data_begin_utc,
+                timezone=timezone,
+                update_time=record.get("max_update_time"),
+            ))
+    return tasks
+
+
 class SQLAggregator:
     """
     SQL-based aggregator (default implementation)
@@ -151,7 +174,9 @@ class SQLAggregator:
             List of CalculationTask objects
         """
         try:
-            since_time = datetime.fromtimestamp(since_timestamp)
+            # Aware: `update_time` is a timestamptz, and a naive value is read in
+            # the session's zone, so a host clock off UTC skipped or repeated hours.
+            since_time = datetime.fromtimestamp(since_timestamp, tz=UTC)
 
             # One branch per day window the CATALOGUE declares, not per name
             # that happens to contain "sleep": see ../windows.py. `time` is a
@@ -181,40 +206,8 @@ class SQLAggregator:
             }
 
             result = await execute_query(query, params)
-
-            logger.info(f"Fetched {len(result)} grouped series_data records since timestamp {since_timestamp} ({since_time.isoformat()})")
-
-            # Convert to CalculationTask objects
-            tasks = []
-
-            for record in result:
-                user_id = record.get('user_id')
-                indicator = record.get('indicator')
-                timezone = record.get('timezone')
-                data_begin_utc = record.get('data_begin_utc')  # datetime type in UTC
-
-                if not all([user_id, indicator, timezone, data_begin_utc]):
-                    continue
-
-                # Find rules for this indicator
-                rules = get_rules_by_source_indicator(indicator)
-                if not rules:
-                    continue
-
-                # Create tasks for each rule
-                for rule in rules:
-                    task = CalculationTask(
-                        user_id=user_id,
-                        source_indicator=indicator,
-                        target_indicator=rule.target_indicator,
-                        aggregation_type=rule.aggregation_type,
-                        data_begin_utc=data_begin_utc,
-                        timezone=timezone,
-                        update_time=record.get('max_update_time')
-                    )
-                    tasks.append(task)
-
-            return tasks
+            logger.info(f"Fetched {len(result)} grouped series_data records since timestamp {since_timestamp}")
+            return _tasks_from_rows(result)
 
         except Exception as e:
             logger.error(f"Error fetching trigger tasks: {e}")
@@ -389,39 +382,8 @@ class SQLAggregator:
             }
 
             result = await execute_query(query, params)
-
             logger.info(f"Fetched {len(result)} grouped series_data records for {user_id or 'all users'} from {start_date.date()} to {end_date.date()}")
-            
-            # Convert to CalculationTask objects
-            tasks = []
-            
-            for record in result:
-                indicator = record.get('indicator')
-                timezone = record.get('timezone')
-                data_begin_utc = record.get('data_begin_utc')
-                
-                if not all([indicator, timezone, data_begin_utc]):
-                    continue
-                
-                # Find rules for this indicator
-                rules = get_rules_by_source_indicator(indicator)
-                if not rules:
-                    continue
-                
-                # Create tasks for each rule
-                for rule in rules:
-                    task = CalculationTask(
-                        user_id=user_id,
-                        source_indicator=indicator,
-                        target_indicator=rule.target_indicator,
-                        aggregation_type=rule.aggregation_type,
-                        data_begin_utc=data_begin_utc,
-                        timezone=timezone,
-                        update_time=record.get('max_update_time')
-                    )
-                    tasks.append(task)
-            
-            return tasks
+            return _tasks_from_rows(result)
             
         except Exception as e:
             logger.error(f"Error fetching tasks for user {user_id} date range: {e}")
