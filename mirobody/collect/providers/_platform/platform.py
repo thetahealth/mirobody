@@ -17,7 +17,7 @@ from mirobody.collect.ingest import StandardHealthService
 from mirobody.collect.providers._platform.database_service import ProviderDatabaseService
 from mirobody.utils.config import Config
 from .base import BasePullProvider
-from .pull_task import create_pull_task_for_provider
+from .pull_task import ProviderPullTask
 
 logger = logging.getLogger(__name__)
 
@@ -60,15 +60,8 @@ class ProviderPlatform(Platform):
     def register_provider(self, provider: BasePullProvider) -> None:
         super().register_provider(provider)
 
-        if not provider.register_pull_task():
-            logger.info(f"Do not register pull task for provider {provider.info.slug}")
-            return
-
-        try:
-            pull_task = create_pull_task_for_provider(provider)
-            scheduler.register_task(pull_task)
-        except Exception as e:
-            logger.error(f"Failed to register pull task for provider {provider.info.slug}: {str(e)}")
+        if provider.register_pull_task():
+            scheduler.register_task(ProviderPullTask(provider))
 
     def _load_providers_from_directory(self, directory: Path) -> list[BasePullProvider]:
         providers = []
