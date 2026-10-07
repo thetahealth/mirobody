@@ -78,7 +78,7 @@ UCUM_FAMILY: dict[str, str] = {
     "pmol/mL":  "SCnc",
 
     # ── Substance ratio (SRto) ────────────────────────────────────────
-    "mmol/mol": "SRto",   # HbA1c IFCC unit
+    "mmol/mol": "SRto",   # analyte/creatinine ratios; HbA1c (IFCC) is SFr
 
     # ── Substance rate (SRat): 24h excretion etc. ────────────────────
     "mmol/d":         "SRat",
@@ -507,10 +507,15 @@ UCUM_FAMILY: dict[str, str] = {
 AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     # `Ratio` and `DistWidth` are here for the red cell distribution width
     # printed as a coefficient of variation (RDW-CV, 788-0 and 30385-9):
-    # LOINC has filed it under both, and a CBC prints it as `%`.
+    # LOINC has filed it under both, and a CBC prints it as `%`. `VRto`
+    # (FEV1/FVC, 19926-5) and `RelVol` (FEV1 measured/predicted, 20152-5)
+    # declare `%` too. `RelTime` does not go here although 5894-1 (PT
+    # actual/normal) declares `%`: the INR codes share PT's component and
+    # are `RelTime`, so `PT 62 %` would switch to INR 6301-6.
     "%": frozenset({
         "MFr", "NFr", "AFr", "VFr", "SFr", "CFr",
         "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth",
+        "VRto", "RelVol",
     }),
     "mm[Hg]": frozenset({"Pres", "PPres"}),    # BP vs blood-gas pO2/pCO2
     # A report prints `U/mL` for tumour markers and antibodies (CA 19-9, CA
@@ -552,6 +557,15 @@ AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     "ng/g":   frozenset({"MCnt", "MRto"}),
     "ng/mg":  frozenset({"MRto", "MCnt"}),
     "ug/mg":  frozenset({"MRto", "MCnt"}),
+    # The same units on codes LOINC files as a dimensionless `Ratio`: BMI
+    # (39156-5) declares kg/m2, and urine analyte/creatinine ratios declare
+    # mg/mmol (32294-1), umol/g, mmol/g and nmol/mg. The gate must admit a
+    # code's own declared unit.
+    "kg/m2":   frozenset({"MCnc", "Ratio"}),
+    "mg/mmol": frozenset({"MRto", "Ratio"}),
+    "umol/g":  frozenset({"SCnt", "Ratio"}),
+    "mmol/g":  frozenset({"SCnt", "Ratio"}),
+    "nmol/mg": frozenset({"MRto", "Ratio", "SCnt"}),
 }
 
 

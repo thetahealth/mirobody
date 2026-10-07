@@ -868,6 +868,38 @@ def test_the_unit_still_selects_between_two_real_siblings():
     assert "property" in molar.evidence
 
 
+#: Codes the PROPERTY gate refuses one of their own EXAMPLE_UCUM_UNITS. A
+#: ratchet: lower it when a fix lands, never raise it. Most of the rest needs
+#: more than a family entry: `%` admitted for `RelTime` would switch `PT 62 %`
+#: to an INR code, and `/mL` is declared on log counts.
+REFUSED_OWN_UNIT_CEILING = 1067
+
+
+def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
+    """`BMI 24 kg/m2` was refused: LOINC files BMI (39156-5) as a `Ratio`
+    and declares kg/m2 for it, while the family table admitted only `MCnc`
+    for kg/m2. 1,247 codes were refused a unit LOINC declares for them."""
+    from mirobody._bundle import AXIS_PROPERTY, read_member
+    from mirobody.engine import resolve_reading
+    from mirobody.units import normalize_unit, unit_families
+
+    table = (read_member("loinc_units.tsv") or b"").decode("utf-8")
+    assert table, "loinc_units.tsv is missing from the bundle"
+    refused = set()
+    for line in table.splitlines()[1:]:
+        code, _, declared = line.partition("\t")
+        row = resolver._row_for_code(code)
+        if row < 0:
+            continue
+        prop = resolver._axis.field(row, AXIS_PROPERTY)
+        for unit in declared.split(";"):
+            families = unit_families(normalize_unit(unit.strip()))
+            if families and prop not in families:
+                refused.add(code)
+    assert len(refused) <= REFUSED_OWN_UNIT_CEILING, f"{len(refused)} codes refuse a unit they declare"
+    assert resolve_reading("BMI", "24", "kg/m2").loinc == "39156-5"
+
+
 def test_free_prose_in_the_value_column_constrains_nothing():
     """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
     is the ABSENCE of a measurement rather than a claim about scale. Treating it
