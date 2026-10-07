@@ -12,8 +12,9 @@ one integration:
                  `mirobody_` prefix: that prefix is the loader's glob.
 
 `BasePullProvider` is the contract. A subclass implements `create_provider()`,
-`info`, `format_data()`, `pull_from_vendor_api()`, `save_raw_data_to_db()` and
-`is_data_already_processed()`.
+`info`, `format_data()` and `pull_from_vendor_api(credentials, days)`, and
+sets `raw_table` or overrides `save_raw_data_to_db()`; the pull loop, the
+credential back-off and the push are the base class's.
 
 Loading: `ProviderPlatform.load_providers()` scans `mirobody_*/provider_*.py`,
 calls `create_provider(config)` on each and registers what comes back, so a

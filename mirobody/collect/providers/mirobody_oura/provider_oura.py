@@ -1,28 +1,20 @@
-"""
-Oura Provider
+"""Oura: an OAuth 2.0 provider, pulled every hour."""
 
-Oura Ring OAuth2 data provider with authentication and data pulling functionality.
-Supports sleep, activity, readiness, heart rate, SpO2, stress, and more.
-"""
-
-import json
 import logging
 import time
-from datetime import datetime, timedelta, UTC
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import aiohttp
 
 from mirobody.collect.base import ProviderInfo
 from mirobody.collect.core import LinkType, ProviderStatus
-from mirobody.collect.core.push_service import push_service
 from mirobody.collect.ingest import FormatDataInput, StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord
 from mirobody.collect.providers._platform.base import BasePullProvider
 from mirobody.collect.providers._platform.http import VendorError, get_json, get_pages
-from mirobody.collect.providers._platform.oauth2 import OAuth2Client
 from mirobody.collect.providers._platform.normalize import records_from_facts
+from mirobody.collect.providers._platform.oauth2 import OAuth2Client
 from mirobody.kernel import decoders
-from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
 from mirobody.utils.tasks import spawn
 
@@ -30,13 +22,19 @@ logger = logging.getLogger(__name__)
 
 
 class OuraProvider(BasePullProvider):
-    """Oura Provider: Oura Ring OAuth2 Data Integration"""
+    """Oura's API v2, linked with OAuth 2.0."""
 
-    # API constants
     API_BASE_URL = "https://api.ouraring.com"
     AUTH_URL = "https://cloud.ouraring.com/oauth/authorize"
     TOKEN_URL = "https://api.ouraring.com/oauth/token"
     DEFAULT_SCOPES = "personal daily heartrate workout session spo2"
+
+    # Hourly: ten collections per person per run, against a rate limit of
+    # 5,000 requests per five minutes.
+    pull_interval_hours = 1.0
+    backfill_days = 30
+    raw_table = "health_data_oura"
+    request_timeout = 30
 
     #: The collections pulled, keyed by decoder type. Where each document's
     #: time comes from is declared once, in `decoders.oura.STRATEGY`.
@@ -55,49 +53,32 @@ class OuraProvider(BasePullProvider):
         "workout": "/v2/usercollection/workout",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-
-        # OAuth2 client (reusable across all OAuth2 providers)
-        client_id = safe_read_cfg("OURA_CLIENT_ID")
-        client_secret = safe_read_cfg("OURA_CLIENT_SECRET")
-        redirect_url = safe_read_cfg("OURA_REDIRECT_URL")
-
+        self.client_id = safe_read_cfg("OURA_CLIENT_ID")
+        self.client_secret = safe_read_cfg("OURA_CLIENT_SECRET")
         self.oauth = OAuth2Client(
-            client_id=client_id or "",
-            client_secret=client_secret or "",
-            redirect_url=redirect_url or "",
+            client_id=self.client_id or "",
+            client_secret=self.client_secret or "",
+            redirect_url=safe_read_cfg("OURA_REDIRECT_URL") or "",
             auth_url=self.AUTH_URL,
             token_url=self.TOKEN_URL,
             scopes=self.DEFAULT_SCOPES,
         )
 
-        # Pull configuration
-        self.backfill_days = 30
-        self.request_timeout = 30
-
-        if not client_id or not client_secret:
-            logger.error("Oura OAuth credentials not configured. Please set OURA_CLIENT_ID and OURA_CLIENT_SECRET")
-        else:
-            logger.info(f"Oura OAuth configuration validated, client_id:{client_id[:3]}...")
-
     @classmethod
-    def create_provider(cls, config: dict[str, Any]) -> Optional['OuraProvider']:
-        """Factory method: return None if config insufficient"""
-        try:
-            client_id = safe_read_cfg("OURA_CLIENT_ID")
-            client_secret = safe_read_cfg("OURA_CLIENT_SECRET")
-            if not client_id or not client_secret:
-                logger.info("OuraProvider disabled: missing OURA_CLIENT_ID or OURA_CLIENT_SECRET")
-                return None
-            return cls()
-        except Exception as e:
-            logger.warning(f"Failed to create Oura provider: {e}")
+    def create_provider(cls, config: dict[str, Any]) -> "OuraProvider | None":
+        """None unless OURA_CLIENT_ID and OURA_CLIENT_SECRET are set."""
+        provider = super().create_provider(config)
+        if provider is None:
             return None
+        if not provider.client_id or not provider.client_secret:
+            logger.info("Oura not configured (OURA_CLIENT_ID / OURA_CLIENT_SECRET unset); provider off")
+            return None
+        return provider
 
     @property
     def info(self) -> ProviderInfo:
-        """Provider metadata"""
         return ProviderInfo(
             slug="theta_oura",
             name="Oura",
@@ -108,109 +89,38 @@ class OuraProvider(BasePullProvider):
             status=ProviderStatus.AVAILABLE,
         )
 
-    # =========================================================================
-    # OAuth2 Flow: delegates to OAuth2Client
-    # =========================================================================
-
     async def link(self, request: Any) -> dict[str, Any]:
-        """Generate OAuth2 authorization URL"""
-        return await self.oauth.generate_authorization_url(
-            request.user_id, request.options or {}
-        )
+        """The authorization URL the person approves the link at."""
+        return await self.oauth.generate_authorization_url(request.user_id, request.options or {})
 
     async def callback(self, code: str, state: str) -> dict[str, Any]:
-        """Exchange authorization code for tokens and trigger initial pull"""
-        result = await self.oauth.exchange_code_for_tokens(
-            code, state, self.db_service, self.info.slug
-        )
-
-        # Trigger initial data pull (backfill) asynchronously
+        """Exchange the authorization code, store the tokens, start the backfill."""
+        result = await self.oauth.exchange_code_for_tokens(code, state, self.db_service, self.info.slug)
+        self._relinked(result["user_id"])
         spawn(self._pull_and_push_for_user({
             "user_id": result["user_id"],
             "access_token": result["access_token"],
             "refresh_token": result["refresh_token"],
-        }))
-
+            "expires_at": result.get("expires_at"),
+        }, days=self.backfill_days))
         return {
             "provider_slug": self.info.slug,
             "stage": "completed",
             "return_url": result.get("return_url"),
         }
 
-    async def get_valid_access_token(self, user_id: str) -> str | None:
-        """Get valid access token, auto-refresh if expired"""
-        return await self.oauth.get_valid_access_token(
-            user_id, self.info.slug, self.db_service
-        )
-
-    # =========================================================================
-    # Data Pulling
-    # =========================================================================
-
-    def register_pull_task(self) -> bool:
-        return True
-
-    async def _pull_and_push_for_user(self, credentials: dict[str, Any]) -> bool:
-        """Pull data for a single user and push to processing pipeline"""
-        user_id = credentials.get("user_id") or credentials.get("theta_user_id", "")
-        if not user_id:
-            logger.error("No user_id in Oura credentials")
-            return False
-
-        try:
-            # Always go through get_valid_access_token: it consults expires_at
-            # and refreshes on the fly when needed. The previous `if not access_token`
-            # guard only triggered for missing tokens: expired-but-present tokens
-            # silently slipped through and hit Oura with a dead Bearer header.
-            access_token = await self.get_valid_access_token(user_id)
-            if not access_token:
-                logger.error(f"No valid access token for Oura user {user_id}")
-                return False
-
-            refresh_token = credentials.get("refresh_token", "")
-
-            # Determine pull range: backfill on first pull, 1 day otherwise
-            last_pull = credentials.get("last_pull_at")
-            days = self.backfill_days if not last_pull else 1
-
-            raw_data_list = await self.pull_from_vendor_api(access_token, refresh_token, days=days)
-
-            success_count = 0
-            error_count = 0
-
-            for raw_data in raw_data_list:
-                try:
-                    raw_data["theta_user_id"] = user_id
-                    await push_service.push_data(
-                        platform="theta",
-                        provider_slug=self.info.slug,
-                        data=raw_data,
-                    )
-                    success_count += 1
-                except Exception as e:
-                    error_count += 1
-                    logger.error(f"Failed to push Oura data for user {user_id}: {e}")
-
-            logger.info(f"Oura pull complete for user {user_id}: {success_count} success, {error_count} errors")
-            return error_count == 0
-
-        except Exception as e:
-            logger.error(f"Oura pull_and_push failed for user {user_id}: {e}")
-            return False
-
-    async def pull_from_vendor_api(
-        self, access_token: str, refresh_token: str, days: int | None = None
-    ) -> list[dict[str, Any]]:
-        """The last `days` (one when unset) of every collection in `API_ENDPOINTS`.
+    async def pull_from_vendor_api(self, credentials: dict[str, Any], days: int) -> list[dict[str, Any]]:
+        """The last `days` of every collection in `API_ENDPOINTS`.
 
         One package per decoder type: `{"data_type", "data", "timestamp"}`.
         Every collection but personal_info pages with `next_token`, heart rate
         included. A collection that fails is skipped and the rest still
-        arrive; a refused token raises `VendorAuthError` for the pull loop to
-        count.
+        arrive; a refused token raises a `PermissionError` for the pull loop
+        to count.
         """
+        access_token = await self.oauth.get_valid_access_token(credentials, self.info.slug, self.db_service)
         now = datetime.now(UTC)
-        start_date = (now - timedelta(days=days or 1)).strftime("%Y-%m-%d")
+        start_date = (now - timedelta(days=days)).strftime("%Y-%m-%d")
         end_date = now.strftime("%Y-%m-%d")
         headers = {"Authorization": f"Bearer {access_token}"}
         pulled_at = int(time.time() * 1000)
@@ -239,39 +149,6 @@ class OuraProvider(BasePullProvider):
                     packages.append({"data_type": data_type, "data": data, "timestamp": pulled_at})
         return packages
 
-    # =========================================================================
-    # Raw Data Storage
-    # =========================================================================
-
-    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
-        """Save raw Oura data to health_data_oura table"""
-        theta_user_id = self._extract_theta_user_id(raw_data)
-        external_user_id = self._extract_external_user_id(raw_data)
-        msg_id = f"oura_{theta_user_id}_{int(time.time())}"
-
-        query = """
-            INSERT INTO health_data_oura
-            (create_at, update_at, is_del, msg_id, raw_data, theta_user_id, external_user_id)
-            VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, false, :msg_id, :raw_data, :theta_user_id, :external_user_id)
-        """
-        params = {
-            "msg_id": msg_id,
-            "raw_data": json.dumps(raw_data, ensure_ascii=False),
-            "theta_user_id": theta_user_id,
-            "external_user_id": external_user_id,
-        }
-        await execute_query(query, params)
-
-        raw_data["msg_id"] = msg_id
-        return [raw_data]
-
-    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
-        return False
-
-    # =========================================================================
-    # Data Formatting
-    # =========================================================================
-
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Oura documents → standard records, via ``mirobody.kernel.decoders.oura``.
 
@@ -296,7 +173,8 @@ class OuraProvider(BasePullProvider):
             record_id = str(item.get("id") or "") if isinstance(item, dict) else ""
             facts = decoders.decode("oura", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=record_id)
             records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=record_id))
-        logger.info("Formatted %d Oura records from %d %s items", len(records), len(items), data_type)
+        logger.info("Oura formatted: data_type=%s item_count=%d record_count=%d",  # phi: ok decoder type name
+                    data_type, len(items), len(records))
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
             healthData=records,

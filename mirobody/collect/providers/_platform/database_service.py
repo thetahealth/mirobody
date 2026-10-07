@@ -4,7 +4,7 @@ Database service for providers
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from mirobody.collect.core import LinkType
@@ -33,7 +33,7 @@ class ProviderDatabaseService:
         access_token: str | None = None
         access_token_secret: str | None = None
         refresh_token: str | None = None
-        expires_at: int | Any | None = None
+        expires_at: datetime | None = None
         connect_info: dict[str, Any] | None = None  # Additional connection information
 
     def _decrypt_password_aes_gcm(self, encrypted_password: str, user_id: str) -> str | None:
@@ -185,10 +185,9 @@ class ProviderDatabaseService:
             provider_slug: str,
             link_type: LinkType,
             credentials: "ProviderDatabaseService.Credentials",
-    ) -> bool:
+    ) -> None:
         """
-        Unified save for PASSWORD / OAUTH1 / OAUTH2 credentials with strong type check by provider.
-        Backward compatible entry; old wrappers should delegate here.
+        Save one link's credentials, of any link type, replacing the live one.
 
         Logic:
         - Soft-delete the existing active row (if any) AND insert the new row in a
@@ -233,7 +232,6 @@ class ProviderDatabaseService:
             if credentials.expires_at is not None:
                 fields.append("expires_at")
                 values.append(":expires_at")
-                # if int timestamp provided, convert in get_oauth2 save path elsewhere; here accept raw
                 params["expires_at"] = credentials.expires_at
         elif link_type == LinkType.CUSTOMIZED:
             if not credentials.connect_info:
@@ -269,11 +267,22 @@ class ProviderDatabaseService:
         """
 
         await execute_query(query=atomic_query, params=params)
+        logger.info("credentials saved: provider=%s user_id=%s link_type=%s", provider_slug, app_user_id, link_type.value)
 
-        logger.info(f"Successfully saved theta provider for user {app_user_id}, provider {provider_slug}, link_type={link_type}")
-        return True
+    async def mark_reconnect(self, user_id: str, provider_slug: str) -> None:
+        """Flag a link whose credential the vendor refuses. Every credential
+        query asks for `reconnect = 0`, so the pull leaves it alone; the app
+        shows it as needing a reconnect; saving credentials again clears it."""
+        await execute_query(
+            query="""
+            UPDATE health_user_provider
+            SET reconnect = 1, update_at = CURRENT_TIMESTAMP
+            WHERE user_id = :user_id AND provider = :provider AND is_del = FALSE
+            """,
+            params={"user_id": user_id, "provider": provider_slug},
+        )
 
-    async def delete_user_theta_provider(self, user_id: str, provider_slug: str) -> bool:
+    async def delete_user_theta_provider(self, user_id: str, provider_slug: str) -> None:
         query = """
         UPDATE health_user_provider
         SET is_del = TRUE, update_at = CURRENT_TIMESTAMP
@@ -284,9 +293,6 @@ class ProviderDatabaseService:
             query=query,
             params={"user_id": user_id, "provider": provider_slug},
         )
-
-        logger.info(f"Successfully deleted theta provider {provider_slug} for user {user_id}")
-        return True
 
     async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> bool:
         """
@@ -487,8 +493,6 @@ class ProviderDatabaseService:
             logger.error(f"Failed to get user credentials for {provider_slug}: {str(e)}")
             return None
 
-    # _save_oauth_credentials_common removed after unification into save_user_theta_provider
-
     async def save_oauth1_credentials(
             self,
             user_id: str,
@@ -496,14 +500,14 @@ class ProviderDatabaseService:
             access_token: str,
             access_token_secret: str,
             user_name: str | None = None
-    ) -> bool:
-        """Backward-compatible wrapper → unified save_user_theta_provider"""
+    ) -> None:
+        """An OAuth 1.0a token pair; `user_name` keeps the vendor's user id."""
         creds = ProviderDatabaseService.Credentials(
             access_token=access_token,
             access_token_secret=access_token_secret,
             username=user_name,
         )
-        return await self.save_user_theta_provider(user_id, provider_slug, LinkType.OAUTH1, creds)
+        await self.save_user_theta_provider(user_id, provider_slug, LinkType.OAUTH1, creds)
 
     async def save_oauth2_credentials(
             self,
@@ -511,35 +515,22 @@ class ProviderDatabaseService:
             provider_slug: str,
             access_token: str,
             refresh_token: str,
-            expires_at: Any | None = None,
+            expires_at: int | None = None,
             user_name: str | None = None
-    ) -> bool:
-        """
-        Backward-compatible wrapper → unified save_user_theta_provider
-        
-        Args:
-            user_id: User ID
-            provider_slug: Provider slug 
-            access_token: OAuth2 access token
-            refresh_token: OAuth2 refresh token
-            expires_at: Token expiration timestamp
-            user_name: Optional user name (can be used to store patient_id)
+    ) -> None:
+        """An OAuth 2.0 token pair; `expires_at` is epoch seconds.
+
+        Stored as a naive UTC datetime: the column is a TIMESTAMP without a
+        zone, and an aware value would be shifted by the session's TimeZone
+        on the way in. `oauth2._to_epoch_seconds` reads it back as UTC.
         """
         expires_at_value = None
         if expires_at is not None:
-            try:
-                # Use UTC time to match database CURRENT_TIMESTAMP behavior
-                # timestamp without timezone should store UTC time consistently
-                # utcfromtimestamp ensures no local timezone conversion
-                expires_at_value = datetime.utcfromtimestamp(int(expires_at))
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Invalid expires_at timestamp {expires_at}: {str(e)}")
-                expires_at_value = None
-
+            expires_at_value = datetime.fromtimestamp(int(expires_at), UTC).replace(tzinfo=None)
         creds = ProviderDatabaseService.Credentials(
             access_token=access_token,
             refresh_token=refresh_token,
             expires_at=expires_at_value,
             username=user_name,
         )
-        return await self.save_user_theta_provider(user_id, provider_slug, LinkType.OAUTH2, creds)
+        await self.save_user_theta_provider(user_id, provider_slug, LinkType.OAUTH2, creds)

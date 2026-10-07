@@ -1,25 +1,20 @@
-"""
-Garmin Provider
-
-Garmin OAuth data provider with complete authentication and data pulling functionality
-"""
+"""Garmin: an OAuth 1.0a provider that pushes, and is pulled once after a link."""
 
 import asyncio
 import json
 import logging
 import time
-import uuid
 from datetime import datetime, UTC
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import parse_qs, urlencode
 
 from requests_oauthlib import OAuth1Session
 
 from mirobody.collect.base import ProviderInfo
 from mirobody.collect.core import LinkType, ProviderStatus
-from mirobody.collect.core.push_service import push_service
 from mirobody.collect.ingest import FormatDataInput, StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord
 from mirobody.collect.providers._platform.base import BasePullProvider
+from mirobody.collect.providers._platform.http import VendorAuthError
 from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.kernel import decoders
 from mirobody.kernel.ops import is_driver_exception
@@ -58,82 +53,48 @@ def _text(value: Any) -> str:
 
 
 class GarminProvider(BasePullProvider):
-    """Garmin Provider - Garmin OAuth Data Integration"""
+    """Garmin's Health API, linked with OAuth 1.0a.
 
-    def __init__(self):
+    Garmin pushes its summaries to the webhook, so there is no scheduled
+    pull: the one pull is the backfill after a link.
+    """
+
+    backfill_days = 7
+
+    def __init__(self) -> None:
         super().__init__()
-        # Load configuration from safe_read_cfg
         self.client_id = safe_read_cfg("GARMIN_CLIENT_ID")
         self.client_secret = safe_read_cfg("GARMIN_CLIENT_SECRET")
         self.redirect_url = safe_read_cfg("GARMIN_REDIRECT_URL")
-
         self.request_token_url = (
-                safe_read_cfg("GARMIN_TOKEN_URL")
-                or "https://connectapi.garmin.com/oauth-service/oauth/request_token"
+            safe_read_cfg("GARMIN_TOKEN_URL") or "https://connectapi.garmin.com/oauth-service/oauth/request_token"
         )
-        self.auth_url = (
-                safe_read_cfg("GARMIN_AUTH_URL")
-                or "https://connect.garmin.com/oauthConfirm/"
-        )
+        self.auth_url = safe_read_cfg("GARMIN_AUTH_URL") or "https://connect.garmin.com/oauthConfirm/"
         self.access_token_url = (
-                safe_read_cfg("GARMIN_ACCESS_TOKEN_URL")
-                or "https://connectapi.garmin.com/oauth-service/oauth/access_token"
+            safe_read_cfg("GARMIN_ACCESS_TOKEN_URL")
+            or "https://connectapi.garmin.com/oauth-service/oauth/access_token"
         )
-
-        self.api_base_url = (
-                safe_read_cfg("GARMIN_API_BASE_URL")
-                or "https://apis.garmin.com/wellness-api/rest"
-        )
-
+        self.api_base_url = safe_read_cfg("GARMIN_API_BASE_URL") or "https://apis.garmin.com/wellness-api/rest"
         try:
             self.oauth_temp_ttl = int(safe_read_cfg("OAUTH_TEMP_TTL_SECONDS") or 900)
-        except Exception:
+        except (ValueError, TypeError):
             self.oauth_temp_ttl = 900
 
-        # Validate configuration
-        if not self.client_id or not self.client_secret:
-            logger.error("Garmin OAuth credentials not configured. Please set GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET")
-        else:
-            logger.info("Garmin OAuth configuration validated")
-
     @classmethod
-    def create_provider(cls, config: dict[str, Any]) -> Optional['GarminProvider']:
-        """
-        Factory method to create Garmin provider from config
-
-        Required config keys:
-        - GARMIN_CLIENT_ID
-        - GARMIN_CLIENT_SECRET
-
-        Returns:
-            Provider instance if config is valid, None otherwise
-        """
-        try:
-            from mirobody.utils.config import safe_read_cfg
-            client_id = safe_read_cfg("GARMIN_CLIENT_ID")
-            client_secret = safe_read_cfg("GARMIN_CLIENT_SECRET")
-            # The vendor OAuth client_secret was in this line, at INFO, on every
-            # provider init. Logging whether it is configured is the useful
-            # part; the value never was.
-            logger.info(
-                "Garmin provider %s, secret %s",
-                client_id, secret_fingerprint(client_secret),
-            )
-            if not client_id or not client_secret:
-                # Unset credentials are the usual self-hosted state, not a fault:
-                # at WARNING this read as a failure on every boot.
-                logger.info("Garmin not configured (GARMIN_CLIENT_ID / GARMIN_CLIENT_SECRET unset); provider off")
-                return None
-
-            return cls()
-        except Exception as e:
-            logger.warning(f"Failed to create Garmin provider: {e}")
+    def create_provider(cls, config: dict[str, Any]) -> "GarminProvider | None":
+        """None unless GARMIN_CLIENT_ID and GARMIN_CLIENT_SECRET are set."""
+        provider = super().create_provider(config)
+        if provider is None:
             return None
+        if not provider.client_id or not provider.client_secret:
+            # Unset credentials are the usual self-hosted state, not a fault.
+            logger.info("Garmin not configured (GARMIN_CLIENT_ID / GARMIN_CLIENT_SECRET unset); provider off")
+            return None
+        logger.info("Garmin configured: client_id=%s secret=%s",
+                    provider.client_id, secret_fingerprint(provider.client_secret))
+        return provider
 
     def register_pull_task(self) -> bool:
-        """
-        Register pull task for Garmin provider
-        """
         return False
 
     @property
@@ -309,19 +270,45 @@ class GarminProvider(BasePullProvider):
         # Asked with the request token, as this used to be, /user/id answers
         # nothing: the link was stored without Garmin's user id, and every push
         # for the person was then dropped as belonging to nobody.
-        garmin_user_id = await asyncio.to_thread(
-            self._get_user_id, self._oauth_session(access_token, access_token_secret))
+        try:
+            garmin_user_id = await asyncio.to_thread(
+                self._get_user_id, self._oauth_session(access_token, access_token_secret))
+        except VendorAuthError:
+            garmin_user_id = ""
         await self.db_service.save_oauth1_credentials(
             user_id, self.info.slug, access_token, access_token_secret, user_name=garmin_user_id
         )
         logger.info("Garmin linked: user_id=%s", user_id)
 
-        spawn(self._pull_and_push_for_user({
+        self._relinked(user_id)
+        spawn(self._backfill_after_link({
             "user_id": user_id,
+            "username": garmin_user_id,
             "access_token": access_token,
             "access_token_secret": access_token_secret,
         }))
         return {"provider_slug": self.info.slug, "stage": "completed"}
+
+    async def _backfill_after_link(self, credentials: dict[str, Any]) -> None:
+        """The one pull a Garmin link gets, `backfill_days` back.
+
+        It waits first: a token Garmin has just issued is not accepted for a
+        few seconds. If Garmin's user id was not to be had at link time, it is
+        asked for again here and stored, since a push finds its account by it.
+        """
+        await asyncio.sleep(8)
+        if not credentials.get("username"):
+            oauth = self._oauth_session(credentials["access_token"], credentials["access_token_secret"])
+            try:
+                garmin_user_id = await asyncio.to_thread(self._get_user_id, oauth)
+            except VendorAuthError:
+                garmin_user_id = ""
+            if garmin_user_id:
+                await self.db_service.save_oauth1_credentials(
+                    credentials["user_id"], self.info.slug, credentials["access_token"],
+                    credentials["access_token_secret"], user_name=garmin_user_id,
+                )
+        await self._pull_and_push_for_user(credentials, days=self.backfill_days)
 
     def _oauth_session(self, access_token: str, token_secret: str) -> OAuth1Session:
         """A session signing as one linked account."""
@@ -447,123 +434,55 @@ class GarminProvider(BasePullProvider):
             processingInfo={"provider": "theta_garmin", "data_types": types, "msg_id": msg_id, "user_timezone": tz},
         )
 
-    async def pull_from_vendor_api(self, access_token: str, token_secret: str, days: int | None = 1) -> list[dict[str, Any]]:
+    async def pull_from_vendor_api(self, credentials: dict[str, Any], days: int) -> list[dict[str, Any]]:
+        """The last `days` of every summary type in `PULL_PATHS`, a day at a time.
+
+        Garmin answers at most 86,400 seconds of uploads per request. One
+        package per type per day: `{"user_id": Garmin's id, "data_type",
+        "data", "timestamp"}`. OAuth1Session is synchronous `requests`, so
+        each day runs in a worker thread rather than stalling the loop.
         """
-        Pull data from Garmin API using OAuth credentials
+        oauth = self._oauth_session(credentials["access_token"], credentials["access_token_secret"])
+        garmin_user_id = await asyncio.to_thread(self._get_user_id, oauth)
+        end = int(datetime.now(UTC).timestamp())
+        packages: list[dict[str, Any]] = []
+        for day in range(days):
+            day_end = end - day * 86400
+            packages += await asyncio.to_thread(self._pull_day, oauth, garmin_user_id, day_end - 86400, day_end)
+        return packages
 
-        Args:
-            access_token: OAuth access token
-            token_secret: OAuth token secret
-            days: Number of days to pull data for (default: 1 days for initial connection)
-
-        Returns:
-            List of raw data
-        """
-        try:
-            logger.info("Starting Garmin data pull")
-
-            if not access_token or not token_secret:
-                raise ValueError("Access token and token secret are required")
-
-            oauth = self._oauth_session(access_token, token_secret)
-
-            # Get user ID first. Everything below is synchronous `requests`
-            # via OAuth1Session; each unit runs in a worker thread so a
-            # multi-endpoint, multi-day pull does not stall every other
-            # coroutine on this loop for its whole duration, which is what
-            # happened when these were called inline in this `async def`.
-            user_id = await asyncio.to_thread(self._get_user_id, oauth)
-
-            all_data = []
-
-            end_timestamp = int(datetime.now(UTC).timestamp())  # utc, timestamp in seconds
-            start_timestamp = end_timestamp - (days * 24 * 60 * 60)  # N days ago
-
-            logger.info(f"Pulling Garmin data for the last {days} days")
-
-            # Split into 1-day batches if days > 1 due to API limitation (max 86400 seconds)
-            if days > 1:
-                logger.info(f"Splitting {days} days into daily batches due to API limitation")
-                for day_offset in range(days):
-                    batch_end = end_timestamp - (day_offset * 24 * 60 * 60)
-                    batch_start = batch_end - (24 * 60 * 60)
-                    logger.info(f"Pulling batch {day_offset + 1}/{days}: {batch_start} to {batch_end}")
-                    
-                    batch_data = await asyncio.to_thread(
-                        self._pull_data_batch, oauth, user_id, batch_start, batch_end)
-                    all_data.extend(batch_data)
-            else:
-                # Single day request
-                batch_data = await asyncio.to_thread(
-                    self._pull_data_batch, oauth, user_id, start_timestamp, end_timestamp)
-                all_data.extend(batch_data)
-
-            logger.info(f"Completed Garmin data pull: {len(all_data)} data sets retrieved")
-            return all_data
-
-        except Exception as e:
-            logger.error(f"Error in Garmin data pull: {str(e)}")
-            return []
-
-    def _pull_data_batch(self, oauth: OAuth1Session, user_id: str, start_timestamp: int, end_timestamp: int) -> list[dict[str, Any]]:
-        """
-        Pull data for a single time batch (max 24 hours)
-        
-        Args:
-            oauth: OAuth session
-            user_id: Garmin user ID
-            start_timestamp: Start timestamp in seconds
-            end_timestamp: End timestamp in seconds
-            
-        Returns:
-            List of raw data for this batch
-        """
-        batch_data = []
-
+    def _pull_day(self, oauth: OAuth1Session, garmin_user_id: str, start: int, end: int) -> list[dict[str, Any]]:
+        """One upload window of every summary type; a type that fails is skipped."""
+        pulled_at = int(time.time() * SECONDS_TO_MILLISECONDS)
+        packages: list[dict[str, Any]] = []
         for data_type, path in PULL_PATHS.items():
-            url = (f"{self.api_base_url}{path}?uploadStartTimeInSeconds={start_timestamp}"
-                   f"&uploadEndTimeInSeconds={end_timestamp}")
+            url = f"{self.api_base_url}{path}?uploadStartTimeInSeconds={start}&uploadEndTimeInSeconds={end}"
             try:
-                logger.info(f"Pulling {data_type} data from Garmin API")
                 resp = oauth.get(url)
-
-                if resp.status_code == 200:
-                    data = resp.json()
-                    raw_data = {
-                        "user_id": user_id,
-                        "data_type": data_type,
-                        "data": data,
-                        "timestamp": int(time.time() * SECONDS_TO_MILLISECONDS),
-                        "api_url": url
-                    }
-                    batch_data.append(raw_data)
-                    logger.info(f"Successfully pulled {data_type} data: {len(data) if isinstance(data, list) else 1} records")
-                else:
-                    logger.warning(f"Failed to pull {data_type} data: {resp.status_code} - {resp.text}")
-
+                if resp.status_code != 200:
+                    logger.warning("Garmin summary skipped: data_type=%s status_code=%d",  # phi: ok summary type name
+                                   data_type, resp.status_code)
+                    continue
+                data = resp.json()
             except Exception as e:
-                logger.error(f"Error pulling {data_type} data: {str(e)}")
+                logger.warning("Garmin summary skipped: data_type=%s error_type=%s",  # phi: ok summary type name
+                               data_type, type(e).__name__, exc_info=not is_driver_exception(e))
                 continue
-        
-        return batch_data
+            if isinstance(data, list) and data:
+                packages.append({"user_id": garmin_user_id, "data_type": data_type, "data": data,
+                                 "timestamp": pulled_at})
+        return packages
 
     def _get_user_id(self, oauth: OAuth1Session) -> str:
-        """Get Garmin user ID"""
-        try:
-            user_id_url = f"{self.api_base_url}/user/id"
-            resp = oauth.get(user_id_url)
-
-            if resp.status_code == 200:
-                user_data = resp.json()
-                user_id = user_data.get("userId", "")
-                logger.info(f"Retrieved Garmin user ID: {user_id}")
-                return str(user_id)
-            logger.error(f"Failed to get user ID: {resp.status_code} - {resp.text}")
+        """Garmin's id for the account `oauth` signs as, or "" when Garmin
+        does not say. A refused token raises `VendorAuthError`."""
+        resp = oauth.get(f"{self.api_base_url}/user/id")
+        if resp.status_code in (401, 403):
+            raise VendorAuthError(resp.status_code)
+        if resp.status_code != 200:
+            logger.warning("Garmin user id unavailable: status_code=%d", resp.status_code)
             return ""
-
-        except Exception as e:
-            logger.error(f"Error getting user ID: {str(e)}")
-            return ""
+        return str((resp.json() or {}).get("userId") or "")
 
     async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Store a Garmin payload per person; return what `format_data` reads.
@@ -670,76 +589,3 @@ class GarminProvider(BasePullProvider):
         for row in rows or []:
             mapping.setdefault(row["username"], row["user_id"])
         return mapping
-
-    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
-        return False
-
-    async def _pull_and_push_for_user(self, credentials: dict[str, Any]) -> bool:
-        """
-        Override base implementation to pull with OAuth1 credentials and push to platform.
-
-        Args:
-            credentials: Dict containing at least 'user_id'. Access tokens are loaded from DB.
-
-        Returns:
-            Whether successful
-        """
-        try:
-            user_id = credentials.get("user_id")
-            if not user_id:
-                logger.error("[_pull_and_push_for_user] Missing user_id in credentials")
-                return False
-            access_token = credentials.get("access_token")
-            token_secret = credentials.get("access_token_secret")
-            if not access_token or not token_secret:
-                logger.error(f"[_pull_and_push_for_user] Invalid credentials for user {user_id} - missing token or secret")
-                return False
-
-            # Wait a few seconds for newly issued OAuth tokens to become effective on Garmin servers
-            logger.info(f"Waiting for OAuth tokens to become effective for user {user_id}")
-            await asyncio.sleep(8)
-
-            # Pull from vendor API
-            raw_data_list = await self.pull_from_vendor_api(access_token, token_secret, days=7)
-            if not raw_data_list:
-                logger.info(f"No data pulled for user {user_id}")
-                return True
-
-            success_count = 0
-            error_count = 0
-
-            for raw_data in raw_data_list:
-                try:
-                    # The account's id goes under its own key: `user_id` is
-                    # Garmin's, and overwriting it made the batch look like a
-                    # push, which filed every summary under "data".
-                    raw_data["theta_user_id"] = user_id
-
-                    # Optional: allow provider-level dedup gates
-                    if await self.is_data_already_processed(raw_data):
-                        continue
-
-                    msg_id = str(uuid.uuid4())
-                    push_success = await push_service.push_data(
-                        platform="theta",
-                        provider_slug=self.info.slug,
-                        data=raw_data,
-                        msg_id=msg_id,
-                    )
-
-                    if push_success:
-                        success_count += 1
-                    else:
-                        error_count += 1
-                        logger.error(f"Failed to push data for user {user_id} with msg_id {msg_id}")
-                except Exception as e:
-                    error_count += 1
-                    logger.error(f"Error processing data for user {user_id}: {str(e)}")
-                    continue
-
-            logger.info(f"Processed {success_count} records for user {user_id}; errors={error_count}")
-            return error_count == 0
-
-        except Exception as e:
-            logger.error(f"Error in _pull_and_push_for_user: {str(e)}")
-            return False
