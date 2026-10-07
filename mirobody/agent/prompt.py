@@ -17,6 +17,7 @@ from the request: see the function for why that distinction has bitten.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from datetime import datetime
@@ -118,36 +119,55 @@ async def build_system_prompt(
         answer_language=answer_language,
     )
 
-async def report_date_status(attached: list[dict[str, Any]]) -> str:
-    """One line per attachment: its file_key and whether a report date was
-    found: what the prompt's "Report date of an attachment" rule keys on.
+
+async def report_date_status(user_id: str, file_keys: list[str]) -> str:
+    """One line per attachment of `user_id`'s record: its file_key and whether
+    a report date was found: what the prompt's "Report date of an attachment"
+    rule keys on.
+
+    Only `user_id`'s own live files are read, the filter the `/uploads/` mount
+    applies, in one query. A key from the request was read by key alone,
+    once per file, so another account's file put its report date and source
+    into this conversation.
 
     Extraction starts when the chat request lands and the date probe answers
     within seconds, but this note is built at the very start of the turn, so
     the row may not know yet; the model then reads the document itself and
     asks only if the text shows no examination date."""
-    from mirobody.collect import FileDbService
+    from mirobody.utils import execute_query
 
-    lines = []
-    for f in attached:
-        key = f.get("file_key")
-        try:
-            row = await FileDbService.get_file_by_key(key)
-        except Exception:
-            row = None
-        content = (row or {}).get("file_content") or {}
-        source = content.get("date_source")
-        day = str(content.get("report_date") or "")[:10]
-        if source == "extracted":
-            status = f"report date {day} (found on the document)"
-        elif source == "manual":
-            status = f"report date {day} (set by the user)"
-        elif source == "upload_time":
-            status = "no date found — readings are on the upload day until you set one"
-        else:
-            status = "date not determined yet — read the document; if it shows no examination date, ask"
-        lines.append(f"- file_key={key}: {status}")
-    return "Report dates:\n" + "\n".join(lines)
+    try:
+        rows = await execute_query(
+            "SELECT file_key, decrypt_content(file_content) AS file_content FROM th_files"
+            " WHERE user_id = :user_id AND file_key = ANY(:keys) AND is_del = false",
+            params={"user_id": str(user_id), "keys": list(file_keys)},
+        )
+        found = {str(r.get("file_key")): _json_object(r.get("file_content")) for r in rows or []}
+    except Exception as e:
+        logger.warning("report dates unavailable for the attachment note: error_type=%s", type(e).__name__)
+        found = {key: {} for key in file_keys}
+    lines = [f"- file_key={key}: {_date_status(found[key])}" for key in file_keys if key in found]
+    return "Report dates:\n" + "\n".join(lines) if lines else ""
+
+
+def _date_status(content: dict[str, Any]) -> str:
+    source = content.get("date_source")
+    day = str(content.get("report_date") or "")[:10]
+    if source == "extracted":
+        return f"report date {day} (found on the document)"
+    if source == "manual":
+        return f"report date {day} (set by the user)"
+    if source == "upload_time":
+        return "no date found — readings are on the upload day until you set one"
+    return "date not determined yet — read the document; if it shows no examination date, ask"
+
+
+def _json_object(text: Any) -> dict[str, Any]:
+    try:
+        value = json.loads(text) if isinstance(text, str) else text
+    except ValueError:
+        return {}
+    return value if isinstance(value, dict) else {}
 
 
 _IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif"})
@@ -214,9 +234,11 @@ async def attachment_reminder(backend: Any,
     note = (
         "[System note: the user attached file(s) to THIS message. "
         "Read the relevant one(s) with read_file before answering:\n"
-        f"{listing}\n"
-        f"{await report_date_status(attached)}"
+        f"{listing}"
     )
+    dates = await report_date_status(getattr(uploads, "user_id", ""), [str(f["file_key"]) for f in attached])
+    if dates:
+        note += f"\n{dates}"
     # Before it reads anything: a text-only model is handed an image's OCR
     # text, and must not answer as if it had seen the picture.
     if not getattr(uploads, "supports_image", True) and any(

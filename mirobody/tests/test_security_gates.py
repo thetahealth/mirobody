@@ -481,3 +481,25 @@ def test_the_chat_service_replies_with_sentences_not_exception_text(monkeypatch)
     members = asyncio.run(service.ChatService.beneficiary_user_handler.__wrapped__(chat, _request(), "7"))
     for response in (history, members):
         assert _reply(response)["code"] == -1 and "7.31415" not in _reply(response)["msg"]
+
+
+def test_the_attachment_note_reads_report_dates_of_the_records_own_files_only(monkeypatch):
+    import json
+
+    import mirobody.utils as utils
+    from mirobody.agent.prompt import report_date_status
+
+    queries = []
+
+    async def execute_query(sql, params=None, **kwargs):
+        queries.append((sql, params))
+        if "user_id = :user_id" not in sql or params.get("user_id") != "7":
+            return [{"file_key": "k-someone-elses", "file_content": json.dumps({"date_source": "manual",
+                                                                                "report_date": "2020-02-02"})}]
+        return [{"file_key": "k-own", "file_content": json.dumps({"date_source": "extracted",
+                                                                   "report_date": "2026-01-06 00:00:00"})}]
+
+    monkeypatch.setattr(utils, "execute_query", execute_query)
+    note = asyncio.run(report_date_status("7", ["k-own", "k-someone-elses"]))
+    assert len(queries) == 1
+    assert note == "Report dates:\n- file_key=k-own: report date 2026-01-06 (found on the document)"
