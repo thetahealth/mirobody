@@ -164,22 +164,22 @@ def log_report(rows: list[SurfaceStatus], log: logging.Logger) -> None:
         # Bound to a name `phi_lint` recognises.
         key_id = name
         log.warning("config key %s is no longer read (1.4.1): a model belongs to a MODELS entry, and a surface's choice to UTILS_VISION_MODEL / UTILS_TEXT_MODEL in config.llm.yaml", key_id)
+    # Each line stays under PHIFilter's 300 characters, which cut the advice
+    # off mid-sentence; `mirobody doctor` prints the keys each surface reads.
     if len(missing) == len(rows):
         # "and restart" sent Docker users to `docker compose restart`, which
         # keeps the container's old environment: the key they had just added
         # was never read, and this line came back unchanged.
-        reason = (
-            "no LLM API key is set; choose one on the setup page (the server prints its link once "
-            "it listens), or put ONE in .env (see config.llm.yaml), then run "
-            "`docker compose up -d` (a plain `restart` keeps the old environment), "
-            "or start `mirobody serve` again"
+        log.error(
+            "no LLM model on any surface: chat, file parsing and indicator extraction fail on every request. "
+            "Choose one on the setup page (its link is printed once the server listens) or put ONE key in .env, "
+            "then `docker compose up -d` (a plain `restart` keeps the old environment)"
         )
-        log.error("no LLM model on any surface — chat, file parsing and indicator extraction will fail on every request: %s", reason)  # phi: ok a fixed sentence
         return
     for r in missing:
         surface_type = r.surface
-        reason = f"{r.what} — {r.hint}"
-        log.warning("no LLM model for %s: %s", surface_type, reason)  # phi: ok the surface's description and its config hint
+        log.warning("no LLM model for %s: %s; `mirobody doctor` lists the keys it reads",  # phi: ok a SURFACES text
+                    surface_type, r.what)
     for alias, fields in unread_entry_keys().items():
         # `openai-utils` declared `reasoning_effort: none`, nothing read it, and
         # the deployment extracted zero indicators from every report: the
