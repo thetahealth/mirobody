@@ -778,21 +778,20 @@ class Config:
     @staticmethod
     async def init(
         yaml_filenames  : str | list[str] | None = None,
-        dotenv_filenames: str | list[str] = None,
+        dotenv_filenames: str | list[str] | None = None,
         log_extra       : dict | None = None
     ):
-        if log_extra is None:
-            log_extra = {}
         if dotenv_filenames is None:
             dotenv_filenames = [".env"]
         log_extra = dict(log_extra) if log_extra else {}
 
         # `.env` first, because ENV feeds the log fields below and the formatter
-        # has to be built with them already in place.
+        # has to be built with them already in place. ENV tagged nothing while
+        # this also required a caller's `log_extra`, which no caller passes.
         Config.load_dotenv(dotenv_filenames)
 
         env = os.environ.get("ENV", "").strip().lower()
-        if env and log_extra:
+        if env:
             log_extra["env"] = env
 
         from mirobody.utils.log import init_log_console
@@ -816,16 +815,6 @@ class Config:
         logging.getLogger("uvicorn.access").addFilter(
             URLFilter(["/api/health"])
         )
-
-        #-----------------------------------------------------
-
-        # `env` and `load_dotenv` used to run HERE, ~25 lines after
-        # `init_log_console` had already been handed `log_extra`. The `env`
-        # field still reached the log records, but only because JsonFormatter
-        # stores the dict it is given by reference rather than copying it,
-        # so adding a defensive `dict(extra)` to the formatter, an obviously
-        # safe-looking change, would have silently dropped `env` from every log
-        # line in production. Ordering, not aliasing, now makes it work.
 
         #-----------------------------------------------------
         # Which files to look for: each requested `x.yaml` also brings its
