@@ -16,13 +16,11 @@ Two tables:
   this lookup is exact.
 
 * :data:`AMBIGUOUS_UNITS`: units that legitimately span multiple
-  PROPERTYs (the worst offender is ``%``, which appears under
-  MFr/NFr/AFr/VFr/SFr/CFr/LenFr/RelACnc/RelRto: basically every
-  fraction-like PROPERTY in LOINC). The entry value is the full
+  PROPERTYs (the worst offender is ``%``, which appears under nearly
+  every fraction-like PROPERTY in LOINC). The entry value is the full
   ``frozenset`` of possible families. :func:`unit_family` returns the
-  primary (most-common) one from :data:`UCUM_FAMILY` for backward
-  compatibility; callers that want all candidates use
-  :func:`unit_families`.
+  primary one from :data:`UCUM_FAMILY`; callers that want all
+  candidates use :func:`unit_families`.
 
 LOINC has 231 distinct PROPERTY values; only ~30-40 carry real
 (non-annotation) units. Measured against the ``loinc_units.tsv`` the
@@ -411,7 +409,7 @@ UCUM_FAMILY: dict[str, str] = {
     "[yd_us]":  "Len",      # yard
 
     # ── Compound / derived ────────────────────────────────────────────
-    "kg/m2":    "MCnc",   # BMI: treated as concentration family
+    "kg/m2":    "MCnc",   # BMI itself is filed as Ratio: see AMBIGUOUS_UNITS
     "g/m2":     "MCnc",
 
     # ── Pressure (Pres) ───────────────────────────────────────────────
