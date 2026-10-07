@@ -113,13 +113,7 @@ async def get_shared_session(
         return failed("shared chat read", e, "The shared chat could not be loaded.")
 
 
-# The router prefix is already /api/share, so "/share/deactivate" published
-# this as /api/share/share/deactivate: clients call
-# /api/share/deactivate and got a 404.
-# The double path stays as an alias until known deployments confirm nothing
-# adapted to it.
 @router.post("/deactivate", response_model=StandardResponse | ErrorResponse)
-@router.post("/share/deactivate", response_model=StandardResponse | ErrorResponse, include_in_schema=False)
 async def deactivate_share_session(
     request: CreateShareSessionRequest,
     current_user: str = Depends(verify_token)
