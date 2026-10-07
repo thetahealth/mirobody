@@ -20,6 +20,8 @@ from mirobody.collect.files.file_upload_manager import WebSocketFileUploadManage
 from mirobody.server.middlewares import (
     SECURITY_HEADERS,
     JwtMiddleware,
+    ResponseHeadersMiddleware,
+    UnhandledErrorMiddleware,
 )
 from mirobody.user.auth.bearer import lacks_second_factor
 from mirobody.utils.http import safe_return_url
@@ -158,7 +160,7 @@ def test_every_response_carries_the_security_headers():
 
     app = Starlette(
         routes=[Route("/", hello)],
-        middleware=[Middleware(JwtMiddleware, jwt_key="k")],
+        middleware=[Middleware(ResponseHeadersMiddleware), Middleware(JwtMiddleware, jwt_key="k")],
     )
     response = TestClient(app).get("/")
     for name, value in SECURITY_HEADERS.items():
@@ -576,3 +578,119 @@ def test_a_bad_oauth_registration_answers_a_sentence():
     answer = client.post("/oauth/register", json=["7.3 mmol/L"])
     assert answer.status_code == 400
     assert answer.json() == {"error": "registration_failed", "message": "The registration request could not be read."}
+
+
+
+# -- what every response carries, the failures included ------------------------
+
+
+_CORS = [("Access-Control-Allow-Origin", "http://localhost:18080"),
+         ("Access-Control-Allow-Methods", "GET,POST"),
+         ("Access-Control-Allow-Credentials", "true"),
+         ("Server", "mirobody/test")]
+
+
+def _stacked_app(jwt_key: str = ""):
+    """The server's middleware stack around a route that answers and one
+    that raises with a reading in its message, in debug mode."""
+    from fastapi import FastAPI
+
+    from mirobody.server.middleware_stack import build_middlewares
+
+    app = FastAPI(debug=True, middleware=build_middlewares(http_headers=_CORS, jwt_key=jwt_key))
+
+    @app.get("/api/ping")
+    async def ping():
+        return {"ok": True}
+
+    @app.post("/api/ping")
+    async def ping_post():
+        return {"ok": True}
+
+    @app.get("/api/boom")
+    async def boom():
+        raise RuntimeError(_LEAK)
+
+    return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.mark.parametrize("jwt_key", ["", "k" * 32])
+def test_an_unhandled_failure_answers_the_envelope_with_every_header(jwt_key):
+    """A route that raised reached Starlette's own handler: plain text, or the
+    traceback in debug mode, and none of the headers the JWT middleware adds."""
+    answer = _stacked_app(jwt_key).get("/api/boom", headers={"X-Request-Id": "trace-1",
+                                                             "Origin": "http://localhost:18080"})
+    assert answer.status_code == 500 and "mirobody.ai" not in answer.text
+    assert answer.json() == {"code": 500, "msg": "Internal server error.", "data": {}}
+    assert answer.headers["X-Request-Id"] == "trace-1"
+    # A cross-origin client can read it.
+    assert answer.headers["Access-Control-Allow-Origin"] == "http://localhost:18080"
+    for name, value in SECURITY_HEADERS.items():
+        assert answer.headers[name] == value
+
+
+def test_a_preflight_carries_the_headers_and_one_allowed_origin():
+    client = _stacked_app("k" * 32)
+    preflight = client.options("/api/ping", headers={"Origin": "http://localhost:18080",
+                                                     "Access-Control-Request-Method": "POST"})
+    assert preflight.status_code == 200 and preflight.headers["X-Content-Type-Options"] == "nosniff"
+    assert preflight.headers.get_list("X-Request-Id") and len(preflight.headers.get_list("X-Request-Id")) == 1
+    # "GET,POST" was one method named "GET,POST": POST was refused.
+    assert "POST" in preflight.headers["Access-Control-Allow-Methods"]
+    answer = client.get("/api/ping", headers={"Origin": "http://localhost:18080"})
+    assert answer.headers.get_list("Access-Control-Allow-Origin") == ["http://localhost:18080"]
+
+
+def test_the_http_server_leaves_cors_to_the_middleware():
+    """uvicorn added every configured header to every response, CORS's too, so
+    each answer carried `Access-Control-Allow-Origin` twice and a browser
+    refused it."""
+    from mirobody.server.middleware_stack import server_headers
+
+    assert server_headers(_CORS) == [("Server", "mirobody/test")]
+
+
+class _ProductionConfig:
+    def __init__(self, jwt_key: str):
+        self._values = {"JWT_KEY": jwt_key}
+
+    def get_bool(self, key, default=False):
+        return key == "PRODUCTION"
+
+    def get_dict(self, key, default=None):
+        return {}
+
+    def get_str(self, key):
+        return self._values.get(key, "")
+
+    def placeholder_keys(self):
+        return []
+
+
+def test_production_refuses_to_start_without_a_jwt_key():
+    """Without JWT_KEY the stack has no JWT middleware: nobody signs in and
+    the sign-in routes are not rate-limited."""
+    from mirobody.server.bootstrap import enforce_production_auth_safety
+
+    with pytest.raises(RuntimeError, match="JWT_KEY is empty"):
+        enforce_production_auth_safety(_ProductionConfig(""))
+    enforce_production_auth_safety(_ProductionConfig("k" * 64))
+
+
+def test_a_failure_after_the_response_started_sends_nothing_more():
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        raise RuntimeError(_LEAK)
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    scope = {"type": "http", "method": "GET", "path": "/", "headers": [], "query_string": b""}
+    asyncio.run(ResponseHeadersMiddleware(UnhandledErrorMiddleware(app))(scope, receive, send))
+    assert [m["type"] for m in sent] == ["http.response.start"]
+    assert (b"x-content-type-options", b"nosniff") in sent[0]["headers"]

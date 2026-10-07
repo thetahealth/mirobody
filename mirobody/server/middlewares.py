@@ -9,9 +9,12 @@ from collections.abc import Awaitable, Callable
 from psycopg_pool import AsyncConnectionPool
 from mirobody.utils.ephemeral import EphemeralStore
 
-from starlette.responses import Response
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
@@ -67,11 +70,77 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
 }
 
+#-----------------------------------------------------------------------------
 
-def _with_security_headers(response: Response) -> Response:
-    for name, value in SECURITY_HEADERS.items():
-        response.headers.setdefault(name, value)
-    return response
+class ResponseHeadersMiddleware:
+    """The outermost middleware: every HTTP response carries `SECURITY_HEADERS`
+    and the request's `X-Request-Id`.
+
+    Pure ASGI, so it sees what the JWT middleware, which used to add them,
+    never did: a CORS preflight, an unhandled 500, every response of a server
+    without JWT_KEY. The id goes in the scope's state, where the layers below
+    log under it.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        trace_id = _trace_id_from(Headers(scope=scope))
+        scope.setdefault("state", {})["trace_id"] = trace_id
+
+        async def stamped(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in {**SECURITY_HEADERS, TRACE_HEADER: trace_id}.items():
+                    headers.setdefault(name, value)
+            await send(message)
+
+        await self.app(scope, receive, stamped)
+
+
+class UnhandledErrorMiddleware:
+    """A request that raised is logged by the house rule and answered with the
+    envelope's 500.
+
+    It used to reach Starlette's own handler, which answered plain text (the
+    traceback in debug mode) and re-raised for the server to log the
+    traceback: a driver's quotes the SQL and its parameters. Installed inside
+    the CORS middleware, so a cross-origin client can still read the 500.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        started = False
+
+        async def tracked(message: Message) -> None:
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracked)
+        except Exception as e:
+            trace_id = scope.get("state", {}).get("trace_id", "")
+            logger.error("request failed: trace_id=%s error_type=%s", trace_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            # Once the response has started there is nothing left to answer
+            # with: the server closes the connection.
+            if not started:
+                from mirobody.server.envelope import err
+
+                answer = JSONResponse(err(500, "Internal server error.").model_dump(), status_code=500)
+                await answer(scope, receive, send)
 
 #-----------------------------------------------------------------------------
 
@@ -113,11 +182,10 @@ class JwtMiddleware(BaseHTTPMiddleware):
         # Record current time.
         request.state.start_time = time.time()
 
-        # Every request gets one, signed in or not, and it goes back to the
-        # caller: the id is only useful for debugging if the person reporting
-        # a failure can quote it. Before, it was minted only for signed-in
-        # requests and never left the server.
-        trace_id = _trace_id_from(request.headers)
+        # Every request gets one, signed in or not, and `ResponseHeadersMiddleware`
+        # sends it back: the id is only useful for debugging if the person
+        # reporting a failure can quote it.
+        trace_id = getattr(request.state, "trace_id", "") or _trace_id_from(request.headers)
         request.state.trace_id = trace_id
         ctx: dict[str, Any] = {"trace_id": trace_id}
 
@@ -149,9 +217,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
         if (request.state.user_id > 0
                 and not _aal1_reachable(request.method, request.url.path)
                 and await lacks_second_factor(request.state.user_id, claims, self._requires_second_factor)):
-            refused = aal2_required_response()
-            refused.headers[TRACE_HEADER] = trace_id
-            return _with_security_headers(refused)
+            return aal2_required_response()
 
         #-------------------------------------------------
 
@@ -182,9 +248,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
         #-------------------------------------------------
 
-        response = await call_next(request)
-        response.headers[TRACE_HEADER] = trace_id
-        return _with_security_headers(response)
+        return await call_next(request)
 
 #-----------------------------------------------------------------------------
 

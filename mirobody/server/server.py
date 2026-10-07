@@ -19,7 +19,7 @@ from .bootstrap import (
     seed_demo_data,
     start_schedulers,
 )
-from .middleware_stack import build_middlewares
+from .middleware_stack import build_middlewares, server_headers
 from .htdoc import add_htdoc_routes
 
 from mirobody import __version__
@@ -140,7 +140,7 @@ class Server:
         url_paths_for_user_info_updater     : list[str] | None = None,      # ["url_path"]
         url_paths_for_request_rate_limiter  : dict[str, int] | None = None, # {"url_path": requests_per_minute}
 
-        http_headers            : dict[str, str] | None = None,
+        http_headers            : list[tuple[str, str]] | None = None,
 
         **kwargs
     ):
@@ -398,7 +398,7 @@ class Server:
             url_paths_for_request_rate_limiter  = config.get_dict("REQUEST_RATE_LIMITER"),
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
 
-            http_headers    = config.http.headers or {},
+            http_headers    = config.http.headers or [],
 
             tool_dirs       = config.mcp_tool_dirs,
             agent_dirs      = config.agent_dirs,
@@ -420,14 +420,15 @@ class Server:
         # without signing in. A deployment facing real users has no use for
         # them; everywhere else they stay, for the people building on the API.
         from mirobody.server.bootstrap import is_production
-        docs_off = is_production(config)
+        production = is_production(config)
         app = FastAPI(
-            debug       = config.log.level <= logging.DEBUG,
+            # Debug answers an exception with its traceback: never to real users.
+            debug       = config.log.level <= logging.DEBUG and not production,
             routes      = server.get_routes(),
             middleware  = server.get_middlewares(),
-            docs_url    = None if docs_off else "/docs",
-            redoc_url   = None if docs_off else "/redoc",
-            openapi_url = None if docs_off else "/openapi.json",
+            docs_url    = None if production else "/docs",
+            redoc_url   = None if production else "/redoc",
+            openapi_url = None if production else "/openapi.json",
         )
 
         # One handler for care-circle denial, so a route that forgets to catch
@@ -522,7 +523,7 @@ class Server:
                 app         = app,
                 host        = config.http.host,
                 port        = config.http.port,
-                headers     = config.http.headers,
+                headers     = server_headers(config.http.headers),
                 log_level   = config.log.level if config.log.level <= logging.DEBUG else logging.WARNING
             )
         )

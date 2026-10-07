@@ -59,6 +59,8 @@ def enforce_production_auth_safety(config) -> None:
       its removal.
     * any config value still reading the `REPLACE_THIS_VALUE_IN_PRODUCTION`
       placeholder: the sentinel's own name says when it must be gone.
+    * an empty `JWT_KEY`: the server would come up with no JWT middleware, so
+      no request is signed in and the sign-in routes are not rate-limited.
 
     Failing the boot makes the operator fix these deliberately instead of us
     guessing which of them were intentional.
@@ -97,6 +99,13 @@ def enforce_production_auth_safety(config) -> None:
             f"placeholder ({', '.join(placeholders)}). Replace each "
             "REPLACE_THIS_VALUE_IN_PRODUCTION with a real secret, then start "
             "again."
+        )
+
+    if not config.get_str("JWT_KEY"):
+        raise RuntimeError(
+            "PRODUCTION is set but JWT_KEY is empty: no request could sign in and the "
+            "sign-in routes would not be rate-limited. Set JWT_KEY to a long random "
+            "secret (openssl rand -hex 32), then start again."
         )
 
 
