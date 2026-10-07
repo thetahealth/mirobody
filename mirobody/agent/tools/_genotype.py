@@ -1,6 +1,7 @@
 """What the genetics and pharmacogenomics tools read alike: the person's active
-genotype upload, and how an answer cites it. Underscore-prefixed so the tool
-loader never publishes anything in here.
+genotype upload, how an answer cites it, and how a call reads against the
+reference allele. Underscore-prefixed so the tool loader never publishes
+anything in here.
 """
 
 from __future__ import annotations
@@ -46,3 +47,22 @@ def in_clause(prefix: str, values: Sequence[str]) -> tuple[str, dict[str, Any]]:
     """The placeholders of an `IN (...)` list over `values`, and their parameters."""
     params = {f"{prefix}_{i}": value for i, value in enumerate(values)}
     return ", ".join(f":{key}" for key in params), params
+
+
+def zygosity(gt: str | None) -> str | None:
+    """A call read against the reference allele, from its VCF-style `gt`
+    ("0/0", "0|1", "1/1", or "1" for one copy): `homozygous_ref`,
+    `heterozygous`, `homozygous_alt`, `hemizygous_ref` or `hemizygous_alt`.
+    None without a call.
+
+    The stored column says only `homozygous`, and the letters do not say which
+    allele is the reference: a small model read VKORC1 rs9923231 TT, two copies
+    of the variant allele, as "homozygous reference" (2026-10-07)."""
+    if not gt:
+        return None
+    alleles = gt.replace("|", "/").split("/")
+    if len(alleles) == 1:
+        return "hemizygous_ref" if alleles[0] == "0" else "hemizygous_alt"
+    if set(alleles) == {"0"}:
+        return "homozygous_ref"
+    return "homozygous_alt" if len(set(alleles)) == 1 else "heterozygous"

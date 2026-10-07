@@ -10,7 +10,7 @@ from mirobody.kernel import query, tools
 
 from ._authz import refused
 from ._base import RecordTool
-from ._genotype import active_set, fetch_rows, in_clause, source_note
+from ._genotype import active_set, fetch_rows, in_clause, source_note, zygosity
 from ._render import envelope_meta, render_compact
 
 TOOL_NAME = "query_genetic_data"
@@ -210,7 +210,10 @@ class GeneticService(RecordTool):
             sql += f" AND chrom = :chromosome AND {position} BETWEEN :start AND :end"
             params.update(chromosome=request.chromosome, start=request.start, end=request.end)
         sql += f" ORDER BY chrom, {position}, rsid LIMIT :limit"
-        return await fetch_rows(self._execute, sql, params)
+        # `zygosity` is stated against the reference allele (`_genotype.zygosity`),
+        # in place of the stored "homozygous", which does not say which allele.
+        return [{**row, "zygosity": zygosity(row.get("gt"))}
+                for row in await fetch_rows(self._execute, sql, params)]
 
 
 def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]], *,
