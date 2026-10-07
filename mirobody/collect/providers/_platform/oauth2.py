@@ -4,12 +4,12 @@ Reusable OAuth2 client for providers.
 Encapsulates the standard OAuth2 authorization-code flow:
   1. generate_authorization_url  build auth URL, store state in Postgres temporary state
   2. exchange_code_for_tokens    code → tokens, save credentials to DB
-  3. get_valid_access_token      auto-refresh expired tokens
+  3. get_valid_access_token      refresh a token near expiry, flag a refused one
   4. refresh_access_token        refresh_token grant
 
 Providers use this via composition (not inheritance):
     self.oauth = OAuth2Client(client_id=..., ...)
-    await self.oauth.generate_authorization_url(user_id, options, db_service)
+    await self.oauth.generate_authorization_url(user_id, options)
 """
 
 import json
@@ -22,45 +22,31 @@ from urllib.parse import urlencode, parse_qs
 
 import aiohttp
 
-from mirobody.collect.core import LinkType
+from mirobody.collect.providers._platform.http import VendorError
 from mirobody.utils.config import safe_read_cfg, global_config
 from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
 
-def _to_epoch_seconds(value: Any) -> int:
-    """Normalise an `expires_at` value to epoch seconds.
+class RefreshRefused(PermissionError):
+    """The token endpoint refused the refresh token (`invalid_grant`), or there
+    is none to send: only the person linking again brings the account back."""
 
-    The credentials table stores `expires_at` as TIMESTAMP, so the DB driver
-    returns a `datetime`; legacy code paths sometimes still hand us an `int`
-    or a numeric/ISO string. This guarantees we can do `time.time() < x`
-    arithmetic regardless of source. Returns 0 (treat as expired) on any
-    parse failure.
+    def __init__(self) -> None:
+        super().__init__("the refresh token was refused")
+
+
+def _to_epoch_seconds(value: Any) -> int:
+    """`expires_at` as epoch seconds; 0 (treat as expired) when unknown.
+
+    The column is a TIMESTAMP holding UTC, so a row read back is a naive UTC
+    datetime; a callback's freshly exchanged pair carries epoch seconds.
     """
-    if value is None:
-        return 0
-    if isinstance(value, (int, float)):
-        return int(value)
     if isinstance(value, datetime):
-        # Naive datetimes are assumed UTC (matches how we save them).
-        if value.tzinfo is None:
-            value = value.replace(tzinfo=UTC)
-        return int(value.timestamp())
-    if isinstance(value, str):
-        s = value.strip()
-        if not s:
-            return 0
-        try:
-            return int(float(s))
-        except ValueError:
-            try:
-                dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-                if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=UTC)
-                return int(dt.timestamp())
-            except ValueError:
-                return 0
+        return int((value if value.tzinfo else value.replace(tzinfo=UTC)).timestamp())
+    if isinstance(value, int | float):
+        return int(value)
     return 0
 
 
@@ -194,13 +180,12 @@ class OAuth2Client:
                 self.token_url, data=data, headers=headers,
                 timeout=aiohttp.ClientTimeout(total=self.request_timeout)
             ) as resp:
-                raw_text = await resp.text()
                 if resp.status != 200:
-                    raise RuntimeError(f"Token exchange failed ({resp.status}): {raw_text}")
+                    raise VendorError(resp.status)
                 try:
-                    token_json = json.loads(raw_text)
-                except Exception:
-                    raise RuntimeError("Token endpoint returned non-JSON body")
+                    token_json = json.loads(await resp.text())
+                except ValueError:
+                    raise RuntimeError("Token endpoint returned non-JSON body") from None
 
         access_token = token_json.get("access_token")
         refresh_token = token_json.get("refresh_token", "")
@@ -216,14 +201,8 @@ class OAuth2Client:
             except Exception:
                 expires_at = None
 
-        # Save credentials
-        success = await db_service.save_oauth2_credentials(
-            user_id, provider_slug, access_token, refresh_token, expires_at
-        )
-        if not success:
-            raise RuntimeError("Failed to save OAuth2 credentials")
-
-        logger.info(f"OAuth2 tokens saved for provider {provider_slug}, user {user_id}")
+        await db_service.save_oauth2_credentials(user_id, provider_slug, access_token, refresh_token, expires_at)
+        logger.info("OAuth2 linked: provider=%s user_id=%s", provider_slug, user_id)
 
         return {
             "user_id": user_id,
@@ -238,48 +217,43 @@ class OAuth2Client:
     # Token Management
     # ------------------------------------------------------------------
 
-    async def get_valid_access_token(
-        self, user_id: str, provider_slug: str, db_service: Any
-    ) -> str | None:
-        """Get valid access token, auto-refresh if expired (5 min buffer)."""
-        creds = await db_service.get_user_credentials(user_id, provider_slug, LinkType.OAUTH2)
-        if not creds:
-            return None
+    async def get_valid_access_token(self, credentials: dict[str, Any], provider_slug: str, db_service: Any) -> str:
+        """A usable access token for one linked account.
 
-        access_token = creds.get("access_token")
-        refresh_token = creds.get("refresh_token")
-        # `expires_at` may come back as a datetime when the DB column is
-        # TIMESTAMP, which would trip `expires_at - 300` below. Normalise.
-        expires_at = _to_epoch_seconds(creds.get("expires_at"))
-
-        # Check expiry with 5 min buffer
-        if expires_at and time.time() < expires_at - 300:
+        `credentials` is the account as the pull loop holds it: `user_id`,
+        `access_token`, `refresh_token`, `expires_at`. A token more than five
+        minutes from expiry is used as it is; otherwise it is refreshed and the
+        new pair saved. A refused refresh marks the link for reconnecting and
+        raises `RefreshRefused`: the link stays, so the person is asked to
+        reconnect instead of finding the provider gone. Any other failure
+        (a timeout, a 5xx) raises as itself, and the next run tries again.
+        """
+        user_id = str(credentials["user_id"])
+        access_token = credentials.get("access_token")
+        if access_token and time.time() < _to_epoch_seconds(credentials.get("expires_at")) - 300:
             return access_token
-
-        # Refresh token
-        if not refresh_token:
-            logger.warning(f"No refresh token for {provider_slug} user {user_id}, re-auth needed")
-            return None
-
+        refresh_token = credentials.get("refresh_token")
         try:
-            new_tokens = await self.refresh_access_token(refresh_token)
-        except Exception as e:
-            logger.error(f"Token refresh failed for {provider_slug} user {user_id}: {e}")
-            return None
-
-        new_access_token = new_tokens.get("access_token")
-        new_refresh_token = new_tokens.get("refresh_token", refresh_token)
-        new_expires_in = new_tokens.get("expires_in", 86400)
-        new_expires_at = int(time.time()) + int(new_expires_in)
-
+            if not refresh_token:
+                raise RefreshRefused()
+            tokens = await self.refresh_access_token(refresh_token)
+        except RefreshRefused:
+            await db_service.mark_reconnect(user_id, provider_slug)
+            logger.warning("OAuth2 refresh refused, reconnect needed: provider=%s user_id=%s",
+                           provider_slug, user_id)
+            raise
+        new_access_token = tokens.get("access_token")
+        if not new_access_token:
+            raise RuntimeError("Token endpoint answered without an access_token")
+        new_expires_at = int(time.time()) + int(tokens.get("expires_in", 86400))
         await db_service.save_oauth2_credentials(
-            user_id, provider_slug, new_access_token, new_refresh_token, new_expires_at
+            user_id, provider_slug, new_access_token, tokens.get("refresh_token", refresh_token), new_expires_at
         )
-
         return new_access_token
 
     async def refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
-        """Refresh access token using refresh_token grant."""
+        """The refresh_token grant. `invalid_grant` raises `RefreshRefused`;
+        any other refusal raises `VendorError`, without the vendor's body."""
         data = {
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
@@ -292,7 +266,12 @@ class OAuth2Client:
                 self.token_url, data=data,
                 timeout=aiohttp.ClientTimeout(total=self.request_timeout)
             ) as resp:
-                if resp.status != 200:
-                    error_text = await resp.text()
-                    raise RuntimeError(f"Token refresh failed ({resp.status}): {error_text}")
-                return await resp.json()
+                if resp.status == 200:
+                    return await resp.json()
+                try:
+                    body = json.loads(await resp.text())
+                except ValueError:
+                    body = None
+                if isinstance(body, dict) and body.get("error") == "invalid_grant":
+                    raise RefreshRefused()
+                raise VendorError(resp.status)

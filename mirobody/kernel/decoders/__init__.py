@@ -14,12 +14,13 @@ others still had. This package is the second part on its own:
     from mirobody.kernel import decoders
     facts = decoders.decode("garmin", "dailies", item, tz="Asia/Shanghai")
 
-Each decoder module exposes ``DATA_TYPES``, ``decode(data_type, item, tz,
-...) -> list[series.Fact]`` and a ``synthesize`` helper (``synthetic.py``)
-that produces plausible payloads for demos and tests. ``samples/`` holds
-public-documentation-shaped sample payloads with their expected facts; they
-ship in the wheel so a consumer's ``mirobody.testing.FormatTestRunner`` can
-run them against its own decoders, and ``test_decoders.py`` runs them here.
+Each decoder module exposes ``DATA_TYPES`` (the types it decodes something
+from), ``METRICS`` and ``decode(data_type, item, tz, ...) ->
+list[series.Fact]``; ``synthetic.synthesize`` produces plausible payloads
+for demos and tests. ``samples/`` holds public-documentation-shaped sample
+payloads with their expected facts, worked by hand; they ship in the wheel so
+a consumer can run ``mirobody.testing.samples.run_samples`` over them, or
+over its own, against its own decoders.
 
 Adding a vendor: one module here (table + ``decode``), one sample set, one
 entry in ``DECODERS``: the IO half lives with whoever runs it.
@@ -91,5 +92,5 @@ def coverage_matrix() -> dict[str, Coverage]:
 
 __all__ = [
     "DECODERS", "decode", "data_types", "metrics_of", "coverage_of", "coverage_matrix",
-    "garmin", "whoop", "oura", "open_wearables",
+    "apple", "garmin", "whoop", "oura", "open_wearables",
 ]

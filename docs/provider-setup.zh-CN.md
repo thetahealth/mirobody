@@ -12,9 +12,8 @@ provider，照样会在启动日志里说出来，那就说明机制是通的。
 
 这些配置住在 [`config.devices.yaml`](../config.devices.yaml) 里（由 `config.yaml`
 顶部的 `INCLUDE` 列表引进来），不在 `config.yaml` 本身：一套从不接穿戴设备的部署，
-根本不会看到它们。那个文件发布时凭证是空的，各家的 endpoint 默认值已经填好；把你的
-凭证写进去，或者写进你的 `config.{env}.yaml` 覆盖层，后者优先级更高（下面的 YAML 块
-放哪个里都行）。
+根本不会看到它们。那个文件发布时凭证是空的，各家的 endpoint 默认值已经填好。把你的
+凭证写进你的 `config.{env}.yaml` 覆盖层，它的优先级更高（下面的 YAML 块就写在那里）。
 
 **用 Docker 部署时**，镜像里自带这几个文件，改 checkout 里的 `config.devices.yaml` 不会
 生效。把 YAML 块写进 `compose.yaml` 旁边的 `config.localdb.yaml`，再跑一次 `./deploy.sh`：
@@ -86,7 +85,7 @@ WHOOP_REDIRECT_URL:  'https://abc123.ngrok-free.app/api/v1/pulse/theta/theta_who
 
 下面这些都是可选的，默认值就能用，只有要钉到另一套环境时才需要设：
 `WHOOP_AUTH_URL`、`WHOOP_TOKEN_URL`、`WHOOP_API_BASE_URL`、`WHOOP_SCOPES`、
-`WHOOP_REQUEST_TIMEOUT`、`WHOOP_CONCURRENT_REQUESTS`、`WHOOP_MAX_DETAIL_RECORDS`。
+`WHOOP_REQUEST_TIMEOUT`。
 
 ## Garmin
 
@@ -104,9 +103,11 @@ GARMIN_REDIRECT_URL:  'https://abc123.ngrok-free.app/api/v1/pulse/theta/theta_ga
 可选、有默认值的：`GARMIN_AUTH_URL`、`GARMIN_TOKEN_URL`、
 `GARMIN_ACCESS_TOKEN_URL`、`GARMIN_API_BASE_URL`、`OAUTH_TEMP_TTL_SECONDS`。
 
-> 密钥会自动静态加密：任何名字里含 `_SECRET`、`_KEY`、`_TOKEN`、`_PASSWORD` 等等的
-> 键，服务端第一次读它的时候就会用 `.env` 里的 `CONFIG_ENCRYPTION_KEY` 加密。明文只
-> 用粘贴一次，文件会自己改写自己。
+> overlay 里的密钥会自动静态加密：任何名字里含 `_SECRET`、`_KEY`、`_TOKEN`、
+> `_PASSWORD` 等等的键，服务端第一次读它的时候就会用 `.env` 里的
+> `CONFIG_ENCRYPTION_KEY` 加密。明文只用粘贴一次，overlay 会自己改写自己。随包附带
+> 的默认配置（`config.yaml` 和它 INCLUDE 的文件）只读不写，所以贴进
+> `config.devices.yaml` 的密钥会一直是明文。
 
 ---
 
@@ -117,7 +118,7 @@ GARMIN_REDIRECT_URL:  'https://abc123.ngrok-free.app/api/v1/pulse/theta/theta_ga
 `docker compose logs mirobody` 看启动日志：
 
 ```
-Loaded provider from /app/mirobody/collect/providers/mirobody_oura/provider_oura.py
+Loaded provider: provider_class=OuraProvider
   - provider platform loaded 1 providers
 ```
 
@@ -146,11 +147,18 @@ curl -s http://localhost:18060/api/v1/pulse/user/providers -H "Authorization: Be
 
 解绑用 `POST /api/v1/pulse/user/providers/unlink`。
 
-**4. 数据到了。** 要么按 provider 启动时注册的拉取计划来，要么走 webhook：
-`POST /api/v1/pulse/{platform}/{provider}/webhook`，这就是你给厂商填的那个推送地址。
-没设 `COLLECT_WEBHOOK_SECRET` 时 webhook 是关着的（404）；设了之后，给厂商填的地址要带
-`?secret=<值>`，或者在 `X-Webhook-Secret` 头里带上这个值。推送用厂商自己的用户 id
-指明是谁的数据，再通过已关联的账户对上本地用户。
+**4. 数据到了。** Oura 和 WHOOP 靠拉取：绑定之后立刻拉一次（Oura 往回 30 天，
+WHOOP 2 天），之后按计划拉，Oura 每小时一次，WHOOP 每天一次。
+
+Garmin 靠推送，只在绑定之后拉一次，往回 7 天。把
+`POST {your-https-host}/api/v1/pulse/theta/theta_garmin/webhook` 填给 Garmin，作为每种
+summary 的推送地址。没设 `COLLECT_WEBHOOK_SECRET` 时 webhook 是关着的（404）；设了之后，
+给 Garmin 填的地址要带 `?secret=<值>`，或者在 `X-Webhook-Secret` 头里带上这个值。推送用
+Garmin 自己的用户 id 指明是谁的数据，再通过已关联的账户对上本地用户；没人绑定的账户的
+推送会得到一个错误应答。
+
+不支持 WHOOP 和 Oura 的推送：它们的通知只带一条待取记录的 id，这里的绑定也没存它们的
+用户 id，所以它们推来的东西不会存下。
 
 ---
 
@@ -166,16 +174,18 @@ curl -s http://localhost:18060/api/v1/pulse/user/providers -H "Authorization: Be
 **回调返回 "provider not available"。** provider 在启动时就拒绝了，所以平台那边根本
 没有东西注册在这个 slug 下。先修凭证，回调在注册的下游。
 
-**一开始好好的，一小时后不动了。** access token 会过期，靠 `refresh_access_token` 刷
-新；如果当初根本没存下 refresh token，那是厂商那边的授权缺了 offline/refresh 权限。
-配好正确的 scope 之后重新绑一次。
+**一开始好好的，后来不动了。** access token 在过期之前会被刷新。厂商拒绝 refresh
+token 时，或者当初授权缺了 offline 权限、根本没存下 refresh token 时，这个绑定会被标成
+需要重连：应用里显示 "reconnect"，拉取会跳过它，重新绑一次就清掉这个标记。刷新只是超时
+的话，下一次拉取会再试。
 
 ---
 
 ## 自己写一个
 
 provider 的契约就是一个目录：`mirobody_<slug>/provider_<slug>.py`，导出一个
-`BasePullProvider` 的子类，并且 `create_provider(config)` 在没配置时返回 `None`。
+`BasePullProvider` 的子类，`create_provider(config)` 在没配置时返回 `None`，再实现
+`format_data` 和 `pull_from_vendor_api(credentials, days)`。
 [`mirobody_whoop/`](../mirobody/collect/providers/mirobody_whoop/) 是 OAuth2 的参考实
 现；[`mirobody_oura/`](../mirobody/collect/providers/mirobody_oura/) 是同样的形状换了
 一家厂商。完整指南：[provider-guide.md](provider-guide.md)。

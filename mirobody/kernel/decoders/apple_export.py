@@ -8,8 +8,8 @@ database, no server and no extra.
 
 Streaming is not an optimisation. A measured export is 5.5 MB zipped, 109 MB
 open, about 446,670 `Record` elements; a watch worn for years reaches
-hundreds of megabytes. Records are yielded one at a time and each element is
-cleared, so memory does not follow the file.
+hundreds of megabytes. Records are yielded one at a time, and each element is
+cleared and dropped from the root, so memory does not follow the file.
 """
 
 from __future__ import annotations
@@ -33,13 +33,11 @@ _FIELDS = ("value", "unit", "startDate", "endDate", "sourceName", "device")
 
 
 class Counts:
-    """What a run saw, for the caller to report. A skipped record is a fact
-    about the export, not an error: an unknown type is Apple shipping a new
-    identifier, and silence about it would look like the data was imported."""
+    """What a run saw, for the caller to report. Which types decoded to
+    nothing is the caller's to count, since only `apple.decode` knows."""
 
     def __init__(self) -> None:
         self.records = 0
-        self.skipped_types: dict[str, int] = {}
         self.correlations = 0
         self.clinical_files = 0
 
@@ -82,31 +80,33 @@ def iter_items(path: str | Path, counts: Counts | None = None) -> Iterator[tuple
     handle, archive = open_export(path)
     try:
         depth = 0
+        root: ET.Element | None = None
         for event, elem in ET.iterparse(handle, events=("start", "end")):
             if event == "start":
+                if root is None:
+                    root = elem
                 if elem.tag == "Correlation":
                     depth += 1
                 continue
             if elem.tag == "Correlation":
                 depth -= 1
                 seen.correlations += 1
-                elem.clear()
+            elif elem.tag == "ClinicalRecord":
+                seen.clinical_files += 1
+            elif elem.tag == "Record" and not depth:
+                kind = elem.get("type") or ""
+                item = _item(elem)
+                if kind == SLEEP_TYPE:
+                    item["value"] = elem.get("value")
+                seen.records += 1
+                yield kind, item
+            elif elem.tag != "Record":
                 continue
-            if elem.tag != "Record":
-                if elem.tag == "ClinicalRecord":
-                    seen.clinical_files += 1
-                    elem.clear()
-                continue
-            kind = elem.get("type") or ""
-            if depth:
-                elem.clear()
-                continue
-            item = _item(elem)
-            if kind == SLEEP_TYPE:
-                item["value"] = elem.get("value")
-            seen.records += 1
-            yield kind, item
             elem.clear()
+            if root is not None and not depth:
+                # A cleared element is still the root's child: 400,000 empty
+                # Record shells held 32.7 MB until the file ended.
+                root.clear()
     finally:
         handle.close()
         if archive is not None:

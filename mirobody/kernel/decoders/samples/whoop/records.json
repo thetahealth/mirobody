@@ -13,12 +13,13 @@
       },
       "expected": {
         "count": 4,
-        "values": {"activeCalories": 2000, "heartRates": 68, "heartRateMax": 155, "strain": 12.3},
+        "values": {"dailyTotalCalories": 2000, "heartRates": 68, "heartRateMax": 155, "strain": 12.3},
+        "absent": ["activeCalories"],
         "window": [1780286400000, 1780372800000]
       }
     },
     {
-      "data_type": "workouts",
+      "data_type": "workout",
       "tz": "America/New_York",
       "input": {
         "id": "w1", "start": "2026-06-01T10:00:00.000Z", "end": "2026-06-01T11:00:00.000Z", "sport_name": "running",
@@ -44,13 +45,13 @@
       "expected": {"count": 5, "values": {"recoveryScore": 66, "restingHeartRates": 54, "hrvRMSSD": 48.5, "oxygenSaturations": 97.2, "skinTemperature": 33.4}, "start_ms": {"recoveryScore": 1780315200000}}
     },
     {
-      "data_type": "sleeps",
+      "data_type": "sleep",
       "tz": "America/New_York",
       "input": {"id": "s1", "start": "2026-06-01T03:00:00.000Z", "end": "2026-06-01T11:00:00.000Z", "score_state": "PENDING_SCORE", "score": null},
       "expected": {"count": 0}
     },
     {
-      "data_type": "body_measurement",
+      "data_type": "body",
       "tz": "America/New_York",
       "pulled_at_ms": 1780400000000,
       "input": {"height_meter": 1.78, "weight_kilogram": 72.5, "max_heart_rate": 190},

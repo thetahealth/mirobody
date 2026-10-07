@@ -17,7 +17,7 @@ daylight saving, quality gates, medications and the query tools here.
 ## The four things that need care
 
 * **`type` is a name, not a code.** `res/crosswalks/open_wearables.tsv` is the
-  93-row table; 44 rows map, 49 decline WITH A REASON. An unmapped type is
+  93-row table; 49 rows map, 44 decline WITH A REASON. An unmapped type is
   quarantined, never guessed into a neighbouring metric.
 * **`unit` is a label, not a unit.** The engine knows seventeen of their
   twenty-six spellings; the crosswalk carries the rest. The one that bites is
@@ -41,6 +41,7 @@ from __future__ import annotations
 import csv
 import io
 from dataclasses import dataclass
+from datetime import datetime
 from importlib import resources
 
 from mirobody.kernel import metrics
@@ -207,10 +208,15 @@ def _instant_ms(item: dict, tz: str) -> int:
     `now()`: a synthetic time is indistinguishable from a measured one
     afterwards, and one of the platforms this reads from does exactly that.
     """
-    raw = item.get("timestamp") or item.get("recorded_at") or ""
+    raw = str(item.get("timestamp") or item.get("recorded_at") or "")
     offset = str(item.get("zone_offset") or "")
-    if isinstance(raw, str) and offset and len(raw) >= 19 and raw[-1] not in "Zz" and "+" not in raw[10:]:
-        raw = raw + offset
+    if offset and "T" in raw:
+        try:
+            naive = datetime.fromisoformat(raw.replace("Z", "+00:00")).tzinfo is None
+        except ValueError:
+            naive = False
+        if naive:
+            raw += offset
     return parse_ts_smart(raw, tz)
 
 
@@ -267,7 +273,7 @@ def _sleep(item: dict, tz: str, record_id: str, ingested_at_ms: int) -> list[Fac
                 value_num=float(end - start),
                 effective_start_ms=start,
                 effective_end_ms=end,
-                unit="ms",
+                unit=metrics.METRICS[metric].unit_ucum,
                 series_key=key,
                 device_id=str(source.get("device") or ""),
                 source_record_id=record_id or str(item.get("id") or ""),

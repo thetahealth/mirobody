@@ -2,20 +2,25 @@
 
 One table drives it: for each summary type the field that carries the
 record's time, the scalar fields (with the unit conversion each needs),
-the time-series fields (per-sample offsets from the record's start), and the
-derived values a summary implies but does not state. The table is the same
+the nightly fields filed on the summary's calendar day, the time-series
+fields (per-sample offsets from the record's start), and the derived values
+a summary implies but does not state. The table is the same
 shape two repositories had converged on independently; this copy takes the
 corrections each had made and the other had not:
 
 - ``bodyComps`` field names are the API's (``weightInGrams``,
   ``measurementTimeInSeconds``): an earlier table invented names no
   payload has and every scale reading decoded to nothing.
-- ``pulseOx`` monitoring mode (``timeOffsetSpo2Values``) is a series, not
+- ``pulseox`` monitoring mode (``timeOffsetSpo2Values``) is a series, not
   only the on-demand ``singleReadingSpO2``.
 - ``activities`` carry their window (start, start + duration), so a workout
   is a session, not a point.
 - ``sleepLevelsMap`` stages become interval facts under the catalogue's
   sleep-stage names, so a night can be unioned rather than summed.
+
+Each key is the summary type's name as a push carries it (``stressDetails``,
+``pulseox``, ``allDayRespiration``), which is also the name the pull files a
+batch under, so both reach the same row.
 
 Everything is emitted in the catalogue's standard unit for that metric.
 """
@@ -49,8 +54,8 @@ CONFIG: dict[str, dict[str, Any]] = {
             "bmrKilocalories": ("dailyCaloriesBasal", _same),
             "floorsClimbed": ("dailyFloors", _same),
             "activeTimeInSeconds": ("exerciseMinutes", lambda x: x * _S_TO_MIN),
-            "moderateIntensityDurationInSeconds": ("dailyActivityIntensityHigh", lambda x: x * _S_TO_MIN),
-            "vigorousIntensityDurationInSeconds": ("dailyActivityIntensityMedium", lambda x: x * _S_TO_MIN),
+            "moderateIntensityDurationInSeconds": ("dailyActivityIntensityMedium", lambda x: x * _S_TO_MIN),
+            "vigorousIntensityDurationInSeconds": ("dailyActivityIntensityHigh", lambda x: x * _S_TO_MIN),
             "minHeartRateInBeatsPerMinute": ("dailyHeartRateMin", _same),
             "maxHeartRateInBeatsPerMinute": ("dailyHeartRateMax", _same),
             "averageHeartRateInBeatsPerMinute": ("dailyAvgHeartRate", _same),
@@ -78,16 +83,20 @@ CONFIG: dict[str, dict[str, Any]] = {
         },
     },
     "hrv": {
-        "time": "calendarDate",
+        # hrvValues are offsets from the night's start, not from calendarDate.
+        "time": "startTimeInSeconds",
+        "day_fields": {"lastNightAvg": ("dailySleepAvgHrv", _same)},
         "series": {"hrvValues": ("hrvDatas", "dict", None, None, False)},
     },
-    "respiration": {
+    "allDayRespiration": {
         "time": "startTimeInSeconds",
         "series": {"timeOffsetEpochToBreaths": ("respiratoryRates", "dict", None, None, False)},
     },
-    "stress": {
-        "time": "calendarDate",
-        "fields": {"overallStressLevel": ("stressLevel", _same)},
+    "stressDetails": {
+        "time": "startTimeInSeconds",
+        # A negative level is Garmin's marker for a minute it could not
+        # measure (off wrist, moving), not a stress score.
+        "series": {"timeOffsetStressLevelValues": ("stressLevel", "dict", None, None, True)},
     },
     "bodyComps": {
         "time": "measurementTimeInSeconds",
@@ -107,7 +116,7 @@ CONFIG: dict[str, dict[str, Any]] = {
         "time": "calendarDate",
         "fields": {"vo2Max": ("vo2Maxs", _same)},
     },
-    "pulseOx": {
+    "pulseox": {
         "time": "startTimeInSeconds",
         "fields": {"singleReadingSpO2": ("oxygenSaturations", _same)},
         "series": {"timeOffsetSpo2Values": ("oxygenSaturations", "dict", None, None, True)},
@@ -129,14 +138,12 @@ CONFIG: dict[str, dict[str, Any]] = {
         "fields": {
             "averageHeartRateInBeatsPerMinute": ("heartRates", _same),
             "maxHeartRateInBeatsPerMinute": ("heartRateMax", _same),
-            "calories": ("activeCalories", _same),
-            "bmrCalories": ("basalCalories", _same),
+            "activeKilocalories": ("activeCalories", _same),
             "steps": ("steps", _same),
             "distanceInMeters": ("walkingRunningDistances", _same),
             "durationInSeconds": ("workoutDuration", lambda x: x * _S_TO_MIN),
-            "elevationGainInMeters": ("altitudeGain", _same),
+            "totalElevationGainInMeters": ("altitudeGain", _same),
             "averageSpeedInMetersPerSecond": ("speeds", _same),
-            "activityTrainingLoad": ("trainingLoad", _same),
         },
     },
 }
@@ -177,6 +184,7 @@ DERIVED_METRICS: frozenset[str] = frozenset(
 #: Every catalogue metric this decoder can emit, from its own tables.
 METRICS: frozenset[str] = (
     frozenset(metric for cfg in CONFIG.values() for metric, _c in cfg.get("fields", {}).values())
+    | frozenset(metric for cfg in CONFIG.values() for metric, _c in cfg.get("day_fields", {}).values())
     | frozenset(entry[0] for cfg in CONFIG.values() for entry in cfg.get("series", {}).values())
     | frozenset(SLEEP_STAGES.values())
     | DERIVED_METRICS
@@ -222,6 +230,15 @@ def decode(
             emit(metric, value, base, base + int(duration_s * MS))
         else:
             emit(metric, value, base)
+
+    # A nightly figure belongs to the day Garmin files the night under, the
+    # same local day as the sleep summary's, not to the moment the night began.
+    day_fields = cfg.get("day_fields", {})
+    day = parse_ts_smart(str(item.get("calendarDate") or ""), tz) if day_fields else 0
+    for field_name, (metric, conv) in day_fields.items():
+        raw = number(item.get(field_name))
+        if raw is not None and day:
+            emit(metric, float(conv(raw)), day)
 
     for key, (metric, shape, value_field, offset_field, drop_negative) in cfg.get("series", {}).items():
         samples = item.get(key)

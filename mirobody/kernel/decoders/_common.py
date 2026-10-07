@@ -8,7 +8,7 @@ with three rules, tested once.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
 from typing import Any
 
 from mirobody.kernel import metrics
@@ -42,7 +42,7 @@ def parse_ts_smart(text: str | None, tz: str) -> int:
     """A vendor time string → unix ms, or ``0`` when it cannot be parsed
     (never "now": a fabricated time files a reading under the wrong day).
 
-    1. An explicit non-UTC offset is taken as is.
+    1. An explicit offset, ``Z`` included, is taken as is.
     2. A date-only string, or a midnight with no offset, is the user's local
        day start, that is what ``"day": "2026-06-01"`` means.
     3. Anything else is UTC.
@@ -56,13 +56,11 @@ def parse_ts_smart(text: str | None, tz: str) -> int:
             dt = datetime.strptime(text, "%Y-%m-%d")
     except ValueError:
         return 0
-    if dt.tzinfo is not None and dt.utcoffset() and int(dt.utcoffset().total_seconds()) != 0:
+    if dt.tzinfo is not None:
         return int(dt.timestamp() * MS)
-    if dt.hour == 0 and dt.minute == 0 and dt.second == 0:
+    if dt.time() == time():
         return int(dt.replace(tzinfo=zone(tz)).timestamp() * MS)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return int(dt.timestamp() * MS)
+    return int(dt.replace(tzinfo=UTC).timestamp() * MS)
 
 
 def epoch_to_ms(value: Any) -> int:

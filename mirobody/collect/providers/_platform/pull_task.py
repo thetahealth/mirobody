@@ -1,131 +1,33 @@
-"""
-Pull task implementation for providers
-"""
+"""The scheduled pull of one provider."""
 
 import logging
 
-
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.scheduler import PullTask, ScheduleType
 from .base import BasePullProvider
 
 logger = logging.getLogger(__name__)
 
-# Provider execution interval configuration (hours)
-PROVIDER_EXECUTION_INTERVALS = {
-    "theta_renpho": 24.0,  # Renpho: execute once every 24 hours
-    "theta_vital": 6.0,  # Vital: execute once every 6 hours
-    "theta_cgm": 1.0,  # CGM: execute once every 1 hour
-    "theta_whoop": 24.0,  # Whoop: execute once every 24 hours
-    # Oura: pull every 5 min. Rate limit 5000 req/5min, 3 endpoints/user → supports ~1500 users
-    "theta_oura": 5 / 60,
-    "default": 1.0,  # Default: execute once every 1 hour
-}
-
 
 class ProviderPullTask(PullTask):
-    """
-    provider Pull Task
+    """A provider's `pull_and_push`, every `pull_interval_hours`.
 
-    Create corresponding pull task for each provider, supporting:
-    - Configurable execution intervals (different frequencies for different providers)
-    - Distributed locks (prevent duplicate execution in multi-docker instances)
+    The scheduler checks at the top of each hour, so an interval under an
+    hour runs hourly; its lock keeps one run across instances.
     """
 
-    def __init__(
-        self,
-        provider: BasePullProvider,
-        schedule_type: ScheduleType = ScheduleType.HOURLY,
-        custom_execution_interval: float | None = None,
-    ):
-        """
-        Initialize Pull Task
-
-        Args:
-            provider: provider instance
-            schedule_type: Schedule type, defaults to hourly scheduling
-            custom_execution_interval: Custom execution interval (hours), overrides default configuration
-        """
+    def __init__(self, provider: BasePullProvider):
         self.provider = provider
-
-        # Get provider execution interval configuration
-        execution_interval = custom_execution_interval or self._get_execution_interval()
-
         super().__init__(
             provider_slug=provider.info.slug,
-            schedule_type=schedule_type,
-            execution_interval_hours=execution_interval,
+            schedule_type=ScheduleType.HOURLY,
+            execution_interval_hours=provider.pull_interval_hours,
         )
-
-        logger.info(
-            f"Initialized pull task for {self.provider_slug}: "
-            f"execution_interval={execution_interval:.2f}h, "
-            f"schedule_type={schedule_type.value}"
-        )
-
-    def _get_execution_interval(self) -> float:
-        """Get provider execution interval configuration"""
-        return PROVIDER_EXECUTION_INTERVALS.get(self.provider.info.slug, PROVIDER_EXECUTION_INTERVALS["default"])
 
     async def execute(self) -> bool:
-        """
-        Execute pull task
-
-        Returns:
-            Whether execution was successful
-        """
         try:
-            logger.info(
-                f"Starting pull task for provider: {self.provider_slug} "
-                f"(execution_interval: {self.execution_interval_hours}h)"
-            )
-
-            # Call provider's pull_and_push method
-            success = await self.provider.pull_and_push()
-
-            if success:
-                logger.info(f"Pull task completed successfully for provider: {self.provider_slug}")
-            else:
-                logger.error(f"Pull task failed for provider: {self.provider_slug}")
-
-            return success
-
+            return await self.provider.pull_and_push()
         except Exception as e:
-            logger.error(f"Pull task error for provider {self.provider_slug}: {str(e)}")
+            logger.error("provider pull failed: provider=%s error_type=%s", self.provider_slug,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
-
-    def get_provider_config(self) -> dict:
-        """Get provider configuration information"""
-        return {
-            "provider_slug": self.provider_slug,
-            "provider_name": getattr(self.provider.info, "name", "Unknown"),
-            "execution_interval_hours": self.execution_interval_hours,
-            "schedule_type": self.schedule_type.value,
-            "configured_interval": PROVIDER_EXECUTION_INTERVALS.get(self.provider_slug, "default"),
-        }
-
-
-def create_pull_task_for_provider(
-    provider: BasePullProvider,
-    schedule_type: ScheduleType = ScheduleType.HOURLY,
-    custom_execution_interval: float | None = None,
-) -> ProviderPullTask:
-    """
-    Create Pull Task for provider
-
-    Args:
-        provider: Provider instance
-        schedule_type: Schedule type
-        custom_execution_interval: Custom execution interval (hours)
-
-    Returns:
-        Configured Pull Task instance
-    """
-    task = ProviderPullTask(
-        provider=provider,
-        schedule_type=schedule_type,
-        custom_execution_interval=custom_execution_interval,
-    )
-
-    return task
-
-

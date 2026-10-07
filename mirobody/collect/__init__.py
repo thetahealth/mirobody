@@ -61,7 +61,6 @@ _EXPORTS = {
     "StandardPulseMetaInfo": "ingest.models.requests",
     "StandardPulseRecord": "ingest.models.requests",
     "DataFormatter": "providers._platform.normalize",
-    "TimeUtils": "providers._platform.normalize",
     "records_from_facts": "providers._platform.normalize",
     "StandardIndicator": "mirobody.translate.indicators_info",
     "UNIT_CONVERSIONS": "mirobody.translate.canonical_units",
@@ -122,7 +121,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
         StandardPulseMetaInfo,
         StandardPulseRecord,
     )
-    from .providers._platform.normalize import DataFormatter, TimeUtils, records_from_facts
+    from .providers._platform.normalize import DataFormatter, records_from_facts
     from mirobody.translate import StandardIndicator
     from mirobody.translate import UNIT_CONVERSIONS
     from .providers import BasePullProvider, ProviderPlatform

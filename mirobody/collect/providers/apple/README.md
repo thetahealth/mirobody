@@ -1,30 +1,24 @@
 # Apple Health Platform
 
-Processes Apple Health export data, statistics batches, and CDA (Clinical
-Document Architecture) documents.
+Receives Apple Health data a client app already holds: HealthKit records,
+pre-aggregated statistics, and clinical (CDA/FHIR) documents. HealthKit has no
+server API, so nothing here pulls; [docs/apple-health.md](../../../../docs/apple-health.md)
+is the long-form companion, with the request format and the export importer.
 
-> An earlier revision of this file described an event-driven architecture —
-> `event_providers/`, `registry.py`, `HeartRateEventProvider`, per-
-> `HKQuantityTypeIdentifier*` handlers — that does not exist in this codebase
-> and never shipped from it. Extending along that guide produced an immediate
-> `ImportError`. What follows describes the files that are actually here;
-> [docs/apple-health.md](../../../../docs/apple-health.md) is the long-form
-> companion and agrees with this layout.
-
-## What is actually here
+## What is here
 
 ```
 mirobody/collect/providers/apple/
-├── platform.py               # AppleHealthPlatform — registers both providers,
-│                             #   post_data() drives format + store
-├── provider.py               # AppleHealthProvider (health records)
-│                             # CDAProvider (CDA documents; slug "cda")
-├── models.py                 # FlutterHealthTypeEnum, AppleHealthRecord,
-│                             #   MetaInfo, AppleHealthRequest, and
-│                             #   FLUTTER_TO_RECORD_TYPE_MAPPING (type → indicator)
-├── statistics_service.py     # /apple/statistics batches → summary records
+├── platform.py               # AppleHealthPlatform: registers both providers,
+│                             #   post_data() formats, stores, then starts an
+│                             #   incremental aggregation
+├── provider.py               # AppleHealthProvider (health records, slug "apple_health")
+│                             # CDAProvider (clinical documents, slug "cda")
+├── models.py                 # AppleHealthRequest, AppleHealthRecord, MetaInfo,
+│                             #   and the statistics request models
+├── statistics_service.py     # /apple/statistics batches -> summary records
 └── services/
-    └── database_service.py   # provider-link rows for apple_health / cda
+    └── database_service.py   # the LLM-access flag on an apple_health or cda link
 ```
 
 The HTTP surface lives in `mirobody/server/routers/apple_router.py`:
@@ -35,73 +29,55 @@ The HTTP surface lives in `mirobody/server/routers/apple_router.py`:
 | `POST /apple/statistics` | `statistics_service.process_apple_health_statistics` |
 | `POST /apple/cda` | `CDAProvider.format_data` via `platform.post_data("cda", …)` |
 
-All three accept optional gzip bodies (`Content-Encoding: gzip`); the router
-caps decompressed size, because a compressed body is attacker-shaped input.
-
-## Features
-
-- **No authentication dance**: data arrives over the API under the caller's
-  JWT — no OAuth link step. Both providers report `LinkType.NONE`.
-- **Batch processing**: a single upload can carry many record types; inserts
-  are batched (1000 records per batch).
+All three accept gzip bodies (`Content-Encoding: gzip`); the router caps the
+decompressed size, because a compressed body is attacker-shaped input. Data
+arrives under the caller's token, so there is no link step: both providers
+report `LinkType.NONE`.
 
 ## Request format (`POST /apple/health`)
 
 ```json
 {
     "request_id": "unique_request_id",
-    "metaInfo": {
-        "timezone": "Asia/Shanghai"
-    },
+    "metaInfo": {"timezone": "Asia/Shanghai"},
     "healthData": [
         {
-            "uuid": "550e8400-e29b-41d4-a716-446655440000",
-            "type": "HEART_RATE",
-            "dateFrom": 1705284600000,
-            "dateTo": 1705284600000,
-            "value": {"numericValue": 72},
-            "unitSymbol": "bpm",
-            "sourceId": "com.apple.health",
-            "timezone": "Asia/Shanghai"
+            "type": "HKQuantityTypeIdentifierHeartRate",
+            "startDate": 1705284600000,
+            "endDate": 1705284600000,
+            "value": 72,
+            "unit": "count/min",
+            "sourceName": "Apple Watch",
+            "sourceId": "com.apple.health"
         }
     ]
 }
 ```
 
-- Pydantic-validated; `uuid` and `type` are required, `type` must be a
-  `FlutterHealthTypeEnum` value; invalid data returns 400.
-- `type` maps to a standard indicator through
-  `FLUTTER_TO_RECORD_TYPE_MAPPING` in `models.py` — 50+ types across vital
-  signs, activity, body measurements, sleep and nutrition; sleep stages map
-  to the dedicated `StandardIndicator` sleep types.
+`type` is a HealthKit identifier and `unit` is the record's own, as Apple
+writes them. The body is validated whole as `AppleHealthRequest`; a record
+that does not fit `AppleHealthRecord` fails the request with a 400.
 
 ## Data flow
 
-1. The router parses (and, if needed, size-capped-decompresses) the body.
+1. The router decompresses and validates the body.
 2. `platform_manager.get_platform("apple").post_data(provider_slug, …)` looks
-   up the provider — both `apple_health` and `cda` are registered in
-   `AppleHealthPlatform._register_built_in_providers` (the CDA registration
-   was once missing, which made `/apple/cda` permanently answer
-   `{"success": false}`; `test_provider_registration.py` pins it now).
-3. The provider's `format_data` returns `StandardPulseData`.
-4. `VitalHealthService.process_standard_data` stores the records; unit
-   conversion happens on that shared ingest path
-   (see [`mirobody/translate/README.md`](../../../translate/README.md)).
+   up the provider. Both `apple_health` and `cda` are registered in
+   `AppleHealthPlatform._register_built_in_providers`; the CDA registration
+   was once missing, and `/apple/cda` then answered `{"success": false}` to
+   every request.
+3. `AppleHealthProvider.format_data` decodes each record with
+   `mirobody.kernel.decoders.apple`, the table `mirobody import apple` reads
+   too, so both front doors agree on every type, unit and sleep stage. A
+   record of a type the table does not carry is dropped and counted.
+4. `StandardHealthService.process_standard_data` stores the records.
 
-## Extending to a new data type
+`CDAProvider` stores a document's medications as medication plans
+(`meds.MedicationPlan`), never as readings.
 
-There is no handler registry to extend. To accept a new Apple Health type:
+## Adding a data type
 
-1. Add the member to `FlutterHealthTypeEnum` in `models.py`.
-2. Map it in `FLUTTER_TO_RECORD_TYPE_MAPPING` to a `StandardIndicator`
-   (add the indicator to the catalogue first if it is new — see
-   `../standardize/indicators_info.py`).
-3. If the value shape is unusual, teach
-   `AppleHealthProvider._extract_value` about it in `provider.py`.
-
-## Important notes
-
-- Timestamps arrive as millisecond epochs plus an explicit timezone;
-  everything is converted to standard `StandardPulseData` on the way in.
-- ZoneInfo objects are cached per timezone string — the hot path avoids
-  re-parsing on every record.
+Add the HealthKit identifier to `QUANTITY` (or `CATEGORY`) in
+`mirobody/kernel/decoders/apple.py`, pointing at a catalogue metric, and a
+case to `mirobody/kernel/decoders/samples/apple/` worked out by hand. Nothing
+in this directory changes.

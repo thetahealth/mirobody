@@ -166,7 +166,7 @@ DAILY_WEIGHT	dailyWeight	Daily Weight	Body Composition	kg	kg	summary	provider_da
 DAILY_SLEEP_EFFICIENCY	dailySleepEfficiency	Daily Sleep Efficiency	Sleep Metrics	%	%	summary	provider_daily	provider_value			00:00				Daily sleep efficiency summary	1.4.0
 DAILY_SLEEP_DURATION	dailySleepDuration	Daily Sleep Duration	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	103213-5	confident	00:00				Daily total time in bed	1.4.0
 DAILY_TOTAL_SLEEP_TIME	dailyTotalSleepTime	Daily Total Sleep Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	93832-4	confident	00:00				Daily total sleep time	1.4.0
-DAILY_DEEP_SLEEP	dailyDeepSleep	Daily Deep Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	93831-6	confident	00:00				Daily langchain sleep duration	1.4.0
+DAILY_DEEP_SLEEP	dailyDeepSleep	Daily Deep Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	93831-6	confident	00:00				Daily deep sleep duration	1.4.0
 DAILY_LIGHT_SLEEP	dailyLightSleep	Daily Light Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	93830-8	confident	00:00				Daily light sleep duration	1.4.0
 DAILY_REM_SLEEP	dailyRemSleep	Daily REM Sleep	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	93829-0	confident	00:00				Daily REM sleep duration	1.4.0
 DAILY_AWAKE_TIME	dailyAwakeTime	Daily Awake Time	Sleep Metrics	ms	ms	summary	provider_daily	provider_value	103210-1	unverified	00:00				Daily awake time during sleep	1.4.0

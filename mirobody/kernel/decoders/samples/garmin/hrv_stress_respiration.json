@@ -1,0 +1,57 @@
+{
+  "test_id": "garmin_hrv_stress_respiration",
+  "description": "The three summary types a push names stressDetails, allDayRespiration and hrv, under those names. Series offsets count from startTimeInSeconds, so a night's HRV samples sit after 07:00 local, not after midnight; lastNightAvg is the night's figure and lands on the calendarDate's local midnight. Garmin's negative stress levels are unmeasured minutes and are dropped. Synthetic values.",
+  "vendor": "garmin",
+  "cases": [
+    {
+      "data_type": "hrv",
+      "tz": "Asia/Shanghai",
+      "input": {
+        "summaryId": "x-hrv-1",
+        "calendarDate": "2026-06-01",
+        "startTimeInSeconds": 1780268400,
+        "durationInSeconds": 25200,
+        "lastNightAvg": 44,
+        "hrvValues": {"300": 32, "600": 38}
+      },
+      "expected": {
+        "count": 3,
+        "values": {"dailySleepAvgHrv": 44},
+        "series": {"hrvDatas": [32, 38]},
+        "start_ms": {"dailySleepAvgHrv": 1780243200000, "hrvDatas[0]": 1780268700000, "hrvDatas[1]": 1780269000000}
+      }
+    },
+    {
+      "data_type": "stressDetails",
+      "tz": "Asia/Shanghai",
+      "input": {
+        "summaryId": "x-stress-1",
+        "calendarDate": "2026-06-01",
+        "startTimeInSeconds": 1780243200,
+        "durationInSeconds": 86400,
+        "timeOffsetStressLevelValues": {"0": 25, "180": -1, "360": 40, "540": -2},
+        "timeOffsetBodyBatteryValues": {"0": 60}
+      },
+      "expected": {
+        "count": 2,
+        "series": {"stressLevel": [25, 40]},
+        "start_ms": {"stressLevel[1]": 1780243560000}
+      }
+    },
+    {
+      "data_type": "allDayRespiration",
+      "tz": "Asia/Shanghai",
+      "input": {
+        "summaryId": "x-resp-1",
+        "startTimeInSeconds": 1780243200,
+        "durationInSeconds": 900,
+        "timeOffsetEpochToBreaths": {"0": 14.5, "60": 15.0}
+      },
+      "expected": {
+        "count": 2,
+        "series": {"respiratoryRates": [14.5, 15.0]},
+        "start_ms": {"respiratoryRates[1]": 1780243260000}
+      }
+    }
+  ]
+}
