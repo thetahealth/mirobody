@@ -149,18 +149,56 @@ ensure_secret JWT_KEY
 # What the first-run page asks for before it changes where health data goes.
 ensure_secret SETUP_TOKEN
 
+# The `local` (NVIDIA GPU) and `local-cpu` profiles serve every model from a
+# llama.cpp container beside the stack. Compose reads this shell's
+# COMPOSE_PROFILES before the one in .env, and so does this.
+profiles="${COMPOSE_PROFILES:-$(setting COMPOSE_PROFILES)}"
+local_models=false
+case ",${profiles// /}," in
+    *,local,* | *,local-cpu,*) local_models=true ;;
+esac
+
 # A model key, a local model server or a model name given on the command line
 # (`OPENROUTER_API_KEY=... ./deploy.sh`, `LOCAL_BASE_URL=... LOCAL_MODEL=...
 # ./deploy.sh`) goes into .env, the one file the containers read, so a first
 # run needs no second step. The names are the ones config.llm.yaml reads
 # (`api_key`, `base_url`, `model_env`), and a value already in .env is left as
-# it is.
-while IFS= read -r name; do
-    [[ -z "$name" ]] && continue
-    if [[ -n "${!name:-}" ]] && ! has_setting "$name"; then
-        add_setting "$name" "${!name}"
+# it is. A key exported in a shell profile is adopted too, which is why each
+# adoption says where data goes and the local profiles adopt no key: one from
+# ~/.bashrc sent every question to its vendor after local had been chosen.
+while read -r kind name; do
+    if has_setting "$name"; then
+        if [[ "$kind" == api_key && "$local_models" == true && -n "$(setting "$name")" ]]; then
+            printf '%s in .env sends questions and documents to its vendor ahead of the local models. Delete that line to keep every model on this machine.\n' "$name"
+        fi
+        continue
     fi
-done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
+    [[ -z "${!name:-}" ]] && continue
+    case "$kind" in
+        api_key)
+            if [[ "$local_models" == true ]]; then
+                printf 'Not using %s from your shell: with COMPOSE_PROFILES=%s every model runs on this machine.\n' "$name" "$profiles"
+                continue
+            fi
+            printf 'Using %s from your shell: questions and documents go to that vendor. Unset it to keep every model on this machine.\n' "$name"
+            ;;
+        base_url)
+            printf 'Using %s from your shell: questions and documents go to the server it names.\n' "$name"
+            ;;
+        model_env)
+            printf 'Using %s from your shell: it picks a model, not where data goes.\n' "$name"
+            ;;
+    esac
+    add_setting "$name" "${!name}"
+done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\1 \2/p' config.llm.yaml | sort -u)
+
+# The app reaches either llama.cpp service as compose's `llama`, so the local
+# models need no choice on the setup page.
+if [[ "$local_models" == true ]]; then
+    for name in LOCAL_BASE_URL LOCAL_OCR_BASE_URL; do
+        has_setting "$name" || add_setting "$name" http://llama:8080/v1
+    done
+fi
 
 # The model service started with the stack (`COMPOSE_PROFILES=local-cpu
 # ./deploy.sh` with no GPU, `local` on an NVIDIA GPU) stays on for every later
@@ -245,14 +283,23 @@ case "$model_setup" in
         ;;
     needed)
         printf '\nChoose a model: open %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
-        printf 'and paste one API key, or run every model on this machine with llama.cpp.\n'
-        printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+        if [[ "$local_models" != true ]]; then
+            printf 'and paste one API key, or run every model on this machine with llama.cpp.\n'
+            printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+        fi
         ;;
     *)
         printf '\nOpen %s\n' "$url"
         printf 'The app did not say whether it has a model yet; docker compose logs mirobody says why.\n' >&2
         ;;
 esac
+if [[ "$local_models" == true ]]; then
+    case ",${profiles// /}," in
+        *,local-cpu,*) llama_service=llama_cpu ;;
+        *) llama_service=llama ;;
+    esac
+    printf 'The models run on this machine, in llama.cpp; the first question waits for their download (docker compose logs -f %s).\n' "$llama_service"
+fi
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
 fi
