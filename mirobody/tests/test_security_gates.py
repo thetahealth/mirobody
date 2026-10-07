@@ -445,8 +445,8 @@ def test_the_completion_page_cannot_be_closed_from_inside(monkeypatch):
 
 
 def _passkeys(monkeypatch, *, enrolled: bool):
-    """A WebAuthn service for an account with MFA on, which has registered a
-    passkey when `enrolled`; and a token minted with `aal`."""
+    """A client of a WebAuthn service for an account with MFA on, which has
+    registered a passkey when `enrolled`; a token minted with `aal`; the service."""
     from mirobody.user import user as user_module
     from mirobody.user.auth.jwt import JwtTokenValidator
     from mirobody.user.auth.webauthn import WebAuthnService
@@ -471,25 +471,25 @@ def _passkeys(monkeypatch, *, enrolled: bool):
             "7", "you@mirobody.ai", gen_claims_func=lambda _u, _e: {"aal": aal}))
         return access
 
-    return TestClient(Starlette(routes=service.routes)), token
+    return TestClient(Starlette(routes=service.routes)), token, service
 
 
 @pytest.mark.parametrize("route", ["/auth/webauthn/register/options", "/auth/webauthn/register/verify"])
 def test_a_second_passkey_takes_the_first(monkeypatch, route):
     """The AAL1 token sign-in hands an MFA account enrolled a passkey of the
     caller's choosing, and registration answered with an AAL2 token."""
-    client, token = _passkeys(monkeypatch, enrolled=True)
+    client, token, _ = _passkeys(monkeypatch, enrolled=True)
     answer = client.post(route, json={}, headers={"Authorization": f"Bearer {token(1)}"})
     assert answer.status_code == 403
     assert answer.json()["detail"]["code"] == "ERROR_AAL2_REQUIRED"
 
 
 def test_the_first_passkey_and_an_aal2_session_still_enrol(monkeypatch):
-    client, token = _passkeys(monkeypatch, enrolled=False)
+    client, token, _ = _passkeys(monkeypatch, enrolled=False)
     first = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(1)}"})
     assert first.status_code == 200 and first.json()["data"]["challenge"]
 
-    client, token = _passkeys(monkeypatch, enrolled=True)
+    client, token, _ = _passkeys(monkeypatch, enrolled=True)
     another = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(2)}"})
     assert another.status_code == 200 and another.json()["data"]["excludeCredentials"]
 
@@ -534,3 +534,45 @@ def test_an_unreadable_apple_upload_is_refused_without_quoting_it(body):
     client, _ = _router_app("apple_router")
     answer = client.post("/apple/health", content=body, headers={"Content-Type": "application/json"})
     assert answer.status_code == 400 and "7.3" not in answer.text
+
+
+def test_a_failed_sign_in_step_answers_a_sentence_not_the_exception(monkeypatch):
+    from mirobody.user.auth.jwt import JwtTokenValidator
+    from mirobody.user.user_service import UserService
+
+    service = UserService(token_validator=JwtTokenValidator("k" * 32), routes=[])
+    monkeypatch.setattr(service._email_validator, "send", _raises())
+    client = TestClient(Starlette(routes=service.routes))
+    answer = client.post("/email/login", json={"email": "you@mirobody.ai"}).json()
+    assert answer["code"] == -3 and "lookup failed" not in answer["msg"]
+    # The parser's message played the body back; a malformed one gets a sentence.
+    answer = client.post("/password/login", content="7.3 mmol/L").json()
+    assert answer == {"code": -1, "msg": "The request body must be a JSON object.", "data": {}}
+
+
+def test_a_passkey_that_does_not_verify_answers_a_sentence(monkeypatch):
+    from mirobody.user.auth import webauthn
+
+    client, token, service = _passkeys(monkeypatch, enrolled=False)
+
+    async def challenge(key):
+        return b"challenge"
+
+    def verify(**kw):
+        raise RuntimeError(_LEAK)
+
+    monkeypatch.setattr(service, "_get_and_delete_challenge", challenge)
+    monkeypatch.setattr(webauthn, "verify_registration_response", verify)
+    answer = client.post("/auth/webauthn/register/verify", json={"credential": {}},
+                         headers={"Authorization": f"Bearer {token(1)}"}).json()
+    assert answer["code"] == -3 and "mirobody.ai" not in answer["msg"]
+
+
+def test_a_bad_oauth_registration_answers_a_sentence():
+    from mirobody.user.auth.jwt import JwtTokenValidator
+    from mirobody.user.auth.oauth_service import OAuthService
+
+    client = TestClient(Starlette(routes=OAuthService(JwtTokenValidator("k" * 32), routes=[]).routes))
+    answer = client.post("/oauth/register", json=["7.3 mmol/L"])
+    assert answer.status_code == 400
+    assert answer.json() == {"error": "registration_failed", "message": "The registration request could not be read."}

@@ -27,6 +27,7 @@ from webauthn.helpers.structs import (
 from .bearer import aal2_required_response, bearer_subject, lacks_second_factor
 from .jwt import AbstractTokenValidator
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import json_response_with_code, json_response, get_jwt_token, Request, Response, Route
 
 from mirobody.user.user import get_user
@@ -43,6 +44,10 @@ AAL2_SESSION_IDLE_TIMEOUT = 30 * 60       # 30 minutes
 AAL2_SESSION_MAX_LIFETIME = 12 * 60 * 60  # 12 hours
 AAL2_REAUTH_MAX_AGE      = 24 * 60 * 60  # Max age for expired token re-auth
 _SECOND_FACTOR_TTL       = 30.0          # seconds `requires_second_factor` is remembered
+
+#: What a passkey ceremony that does not verify answers. The library's own
+#: message is not a sentence for the person holding the device.
+_NOT_VERIFIED = "The passkey could not be verified. Try again."
 
 
 def _aal2_claims(session_start: int | None = None) -> dict:
@@ -124,7 +129,7 @@ class WebAuthnService:
         self.routes.append(Route(f"{uri_prefix}/auth/session/reauth/options", endpoint=self.session_reauth_options_handler, methods=["POST", "OPTIONS"]))
         self.routes.append(Route(f"{uri_prefix}/auth/session/reauth/verify", endpoint=self.session_reauth_verify_handler, methods=["POST", "OPTIONS"]))
 
-        logger.info(f"WebAuthn enabled: rp_id={self._rp_id}, origin={self._origin}")
+        logger.info("WebAuthn enabled: rp_id=%s origin=%s", self._rp_id, self._origin)  # phi: ok configuration
 
     #-------------------------------------------------------------------------
     # Database operations
@@ -162,7 +167,8 @@ class WebAuthnService:
         transports: list[str] | None = None,
         aaguid: str | None = None,
     ) -> str | None:
-        """Save a new WebAuthn credential. Returns error string or None."""
+        """Save a new WebAuthn credential. Returns a sentence for the caller on
+        failure, None on success."""
         if not self._db_pool:
             return "No database connection"
 
@@ -175,8 +181,9 @@ class WebAuthnService:
                     (user_id, credential_id, public_key, sign_count, transports, aaguid)
                 )
         except Exception as e:
-            logger.error(f"Failed to save WebAuthn credential: {e}")
-            return str(e)
+            logger.error("passkey save failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return "The passkey could not be saved. Try again."
 
         return None
 
@@ -194,7 +201,8 @@ class WebAuthnService:
                     (new_sign_count, credential_id)
                 )
         except Exception as e:
-            logger.error(f"Failed to update sign count: {e}")
+            logger.error("passkey sign count update failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
     #-------------------------------------------------------------------------
     # Challenge storage (ephemeral state)
@@ -255,8 +263,9 @@ class WebAuthnService:
         try:
             parsed = json.loads(data)
             return parsed["user_id"], parsed["email"], None
-        except Exception as e:
-            return 0, "", str(e)
+        except (ValueError, TypeError, KeyError) as e:
+            logger.error("MFA ticket unreadable: error_type=%s", type(e).__name__)
+            return 0, "", "Invalid or expired MFA ticket"
 
     #-------------------------------------------------------------------------
     # MFA check (called by UserService after first-factor auth)
@@ -268,7 +277,8 @@ class WebAuthnService:
             row = await get_user(user_id=user_id)
             return bool(row and row["mfa_enabled"])
         except Exception as e:
-            logger.warning(f"Failed to check mfa_enabled for user {user_id}: {e}")
+            logger.error("MFA setting lookup failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return False
 
     async def requires_second_factor(self, user_id: int) -> bool:
@@ -415,8 +425,9 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logger.error(f"WebAuthn registration verification failed: {e}")
-            return json_response_with_code(-3, str(e), request=request)
+            logger.error("passkey registration not verified: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-3, _NOT_VERIFIED, request=request)
 
         # Extract transports from the original request (not from verification result).
         transports = None
@@ -583,8 +594,9 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logger.error(f"WebAuthn authentication verification failed: {e}")
-            return json_response_with_code(-5, str(e), request=request)
+            logger.error("passkey authentication not verified: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-5, _NOT_VERIFIED, request=request)
 
         # Update sign count.
         await self.update_sign_count(
@@ -715,8 +727,9 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logger.error(f"WebAuthn upgrade verification failed: {e}")
-            return json_response_with_code(-5, str(e), request=request)
+            logger.error("passkey upgrade not verified: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-5, _NOT_VERIFIED, request=request)
 
         await self.update_sign_count(
             matched_cred["credential_id"],
@@ -923,8 +936,9 @@ class WebAuthnService:
                 require_user_verification=True,
             )
         except Exception as e:
-            logger.error(f"WebAuthn session re-auth verification failed: {e}")
-            return json_response_with_code(-5, str(e), request=request)
+            logger.error("passkey session re-auth not verified: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-5, _NOT_VERIFIED, request=request)
 
         await self.update_sign_count(
             matched_cred["credential_id"],

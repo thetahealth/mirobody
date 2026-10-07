@@ -32,6 +32,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from psycopg_pool import AsyncConnectionPool
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.db import execute_query
 
 logger = logging.getLogger(__name__)
@@ -115,9 +116,9 @@ async def update_user_name(
     user_id : int,
     name    : str,
 ) -> str | None:
-    """Update health_app_user.name for the given user. Returns error string
-    on failure, None on success. Caller is responsible for trimming / length
-    validation."""
+    """Update health_app_user.name for the given user. Returns a sentence for
+    the caller on failure, None on success. Caller is responsible for
+    trimming / length validation."""
     if user_id <= 0:
         return "Invalid user ID."
 
@@ -138,8 +139,9 @@ async def update_user_name(
                 )
                 await conn.commit()
     except Exception as e:
-        logger.error(str(e), extra={"user_id": user_id})
-        return str(e)
+        logger.error("name update failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return "The name could not be saved. Try again."
 
     return None
 
@@ -148,7 +150,9 @@ async def update_user_name(
 async def del_user(
     db_pool : AsyncConnectionPool,
     user_id : int
-) -> str:
+) -> str | None:
+    """Close the account. Returns a sentence for the caller on failure, None
+    on success."""
     if user_id <= 0:
         return "Invalid user ID."
 
@@ -172,7 +176,9 @@ async def del_user(
 
             await conn.commit()
     except Exception as e:
-        return str(e)
+        logger.error("account deletion failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return "The account could not be deleted. Try again."
 
     _active.pop(user_id, None)
     _closed.add(user_id)
@@ -312,9 +318,9 @@ async def get_user_info(
             return UserInfo(row["name"], row["lang"], row["tz"]), None
 
     except Exception as e:
-        logger.error(str(e), extra={"id": user_id})
-
-        return None, str(e)
+        logger.error("account lookup failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return None, "Lookup failed."
 
     return None, "Not found."
 
