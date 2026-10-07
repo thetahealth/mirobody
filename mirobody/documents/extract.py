@@ -23,6 +23,7 @@ this kind" returns ``""``.
 from __future__ import annotations
 
 import asyncio
+import codecs
 import ctypes
 import hashlib
 import html
@@ -54,8 +55,9 @@ MAX_OCR_IMAGE_EDGE_PX = 2200
 XLSX_ROW_BUDGET = 5000
 #: Characters of a text file kept.
 TEXT_CHAR_CAP = 100_000
-#: Encodings a health document is actually saved in, in the order to try.
-TEXT_ENCODINGS = ("utf-8-sig", "gbk", "gb2312", "latin-1")  # utf-8-sig reads plain UTF-8 too, and drops a BOM
+#: Encodings a health document is actually saved in, in the order to try:
+#: utf-8-sig reads plain UTF-8 too and drops a BOM; GBK holds every GB2312 file.
+TEXT_ENCODINGS = ("utf-8-sig", "gbk")
 
 
 class TextCache(Protocol):
@@ -563,19 +565,26 @@ async def office_text(data: bytes, which: str) -> str:
 
 # --- text ----------------------------------------------------------------------------
 
-def decode_text(data: bytes, *, cap: int = TEXT_CHAR_CAP) -> str:
-    """Text through the encodings a report is actually saved in; a stubborn
-    file is decoded with replacement rather than refused; long files are cut
-    with a note saying so."""
-    text = None
+def _decoded(data: bytes) -> str:
+    """`data` as text: UTF-16 when its byte-order mark says so (Excel's
+    "Unicode text" export), else the first of `TEXT_ENCODINGS` that reads
+    it, else latin-1, which reads any bytes. latin-1 used to be tried before
+    the mark was looked at, so a UTF-16 export came back as `ÿþH\\x00e\\x00`."""
+    if data.startswith((codecs.BOM_UTF16_LE, codecs.BOM_UTF16_BE)):
+        return data.decode("utf-16", errors="replace")
     for encoding in TEXT_ENCODINGS:
         try:
-            text = data.decode(encoding)
-            break
+            return data.decode(encoding)
         except UnicodeDecodeError:
             continue
-    if text is None:
-        text = data.decode("utf-8", errors="replace")
+    return data.decode("latin-1")
+
+
+def decode_text(data: bytes, *, cap: int = TEXT_CHAR_CAP) -> str:
+    """Text through the encodings a report is actually saved in; a stubborn
+    file is decoded rather than refused; long files are cut with a note
+    saying so."""
+    text = _decoded(data)
     if len(text) > cap:
         text = text[:cap] + f"\n\n... (truncated, total {len(data)} bytes)"
     return text.strip()
