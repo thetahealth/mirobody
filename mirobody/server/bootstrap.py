@@ -29,6 +29,8 @@ import logging
 import os
 import secrets
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 _SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schema")
@@ -157,9 +159,9 @@ async def create_schema(config) -> None:
         # half-written schema.
         if is_production(config):
             raise
-        logger.warning(  # phi: ok a host, a port and a connection error, not a record
-            f"schema bootstrap skipped: Postgres at {pg_config.host}:{pg_config.port} is unreachable ({e}). "
-            "Start it, or set BOOTSTRAP_SCHEMA=false to stop trying."
+        logger.warning(  # phi: ok a host and a port from config
+            f"schema bootstrap skipped: Postgres at {pg_config.host}:{pg_config.port} is unreachable "
+            f"({type(e).__name__}). Start it, or set BOOTSTRAP_SCHEMA=false to stop trying."
         )
         return
 
@@ -171,7 +173,8 @@ async def create_schema(config) -> None:
                         await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema};")
                         logger.info(f"Schema {schema} has been created.")
                     except Exception as e:
-                        logger.error(str(e), exc_info=True)
+                        logger.error("schema creation failed: error_type=%s", type(e).__name__,
+                                     exc_info=not is_driver_exception(e))
 
             # The DDL ships INSIDE the package: `mirobody serve` creating its own
             # tables is a capability, so it has to travel with the wheel. It is
@@ -194,7 +197,8 @@ async def create_schema(config) -> None:
                     await conn.commit()
                     logger.info(f"SQL file {filename} executed successfully.")
                 except Exception as e:
-                    logger.error(str(e), exc_info=True, extra={"sql_filename": filename})
+                    logger.error("SQL file failed: file=%s error_type=%s",  # phi: ok a shipped DDL file name
+                                 filename, type(e).__name__, exc_info=not is_driver_exception(e))
                     await conn.rollback()
 
             logger.info("SQL files initialization completed.")
@@ -294,7 +298,7 @@ async def seed_demo_data(config) -> None:
     try:
         await seed(members)
     except Exception as e:
-        logger.error("demo seed failed: %s", e, exc_info=True)
+        logger.error("demo seed failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
 
 
 async def start_schedulers() -> None:

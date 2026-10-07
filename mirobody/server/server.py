@@ -354,8 +354,8 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
-        # Fail fast, before any socket is bound: a production ENV that still
-        # carries demo login codes must not come up at all.
+        # Fail fast, before any socket is bound: a deployment that declares
+        # PRODUCTION and still carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
 
         await ensure_postgres_reachable(config)
@@ -439,14 +439,16 @@ class Server:
         # health record.
         from fastapi.responses import JSONResponse
 
+        from mirobody.server.envelope import err
         from mirobody.user.care_circle import CareCircleDenied
+        from mirobody.utils.http import loggable_path
 
         @app.exception_handler(CareCircleDenied)
         async def _care_circle_denied(request, exc: CareCircleDenied):
-            logger.warning("care-circle denial reached the app handler: %s %s — %s",
-                            request.method, request.url.path, exc)
-            return JSONResponse(status_code=403,
-                                content={"code": -403, "msg": str(exc), "data": {}})
+            logger.warning("care-circle denial reached the app handler: method=%s path=%s",  # phi: ok a route
+                           request.method, loggable_path(request.url.path))
+            # The denial's message is one of `care_circle`'s fixed sentences.
+            return JSONResponse(status_code=403, content=err(403, str(exc)).model_dump())
 
         # Store global resources in app.state for access by all routers
         app.state.ephemeral = ephemeral
