@@ -1,10 +1,10 @@
 """What KIND of result is this, and therefore which LOINC scales can produce it.
 
-Half of what a lab report prints is not a number. Of the shipped LOINC axis,
-40,681 rows are ``Qn`` and **38,687 are not**: 25,156 ``Ord``, 7,859 ``Nom``,
-4,258 ``SemiQn``, 1,414 ``OrdQn``. 尿蛋白 阴性, 便隐血 ++, 血型 O, HBsAg
-non-reactive are all real readings whose correct code is not quantitative, so a
-resolver that only knows how to constrain numbers is blind to half the corpus.
+Much of what a lab report prints is not a number, and over two-fifths of the
+shipped LOINC axis is not ``Qn`` (mostly ``Ord``, then ``Nom``, ``SemiQn`` and
+``OrdQn``). 尿蛋白 阴性, 便隐血 ++, 血型 O, HBsAg non-reactive are all real
+readings whose correct code is not quantitative, so a resolver that only knows
+how to constrain numbers is blind to much of the corpus.
 
 ``SCALE_TYP`` is the axis that answers it, and an observed value tells you which
 class it must belong to:
@@ -23,11 +23,9 @@ It is the OPPOSITE constraint: a `阴性` reading must not be answered with a
 ``Qn`` mass-concentration code any more than a `5.6 mmol/L` reading may be
 answered with an ``Ord`` presence code.
 
-**This module exists to be shared, not to be new.** The tables and the
-classifier were written for a semantic pipeline that needed a 677k-row corpus
-matrix nobody could install; 1.5.0 deleted it. They were extracted here first,
-which is why they outlived it: the lexical resolver reads the same vocabulary
-the pipeline did, rather than a second, drifting copy.
+One vocabulary for two readers: the resolver constrains a code's SCALE with
+it (`engine.resolver`) and `translate.parse` classifies a value's kind with it,
+so the two cannot disagree about what `阴性` or `-2.5` is.
 """
 
 from __future__ import annotations
@@ -36,7 +34,6 @@ import re
 
 __all__ = [
     "GATE_SCALES",
-    "SCALE_COMPAT",
     "VALUE_NOM_TOKENS",
     "classify_value",
     "scales_for_value",
@@ -93,22 +90,6 @@ VALUE_NOM_TOKENS: frozenset[str] = frozenset({
     "положительный", "отрицательный",
 })
 
-#: scale class -> the SCALE_TYP values that can legitimately produce it, most
-#: canonical first. Only the ones actively biased toward are listed; ``Multi``,
-#: ``Set`` and ``""`` never qualify.
-SCALE_COMPAT: dict[str, tuple[str, ...]] = {
-    "qn": ("Qn", "SemiQn", "OrdQn"),
-    "ord": ("Ord", "OrdQn", "SemiQn"),
-    # Semi-quantitative: titer / grade assays. SemiQn first (the canonical
-    # match), OrdQn next (ordinal with a quantitative anchor), then Qn: an
-    # over-specified Mass/vol still beats Ord, which carries no magnitude at
-    # all.
-    "semiqn": ("SemiQn", "OrdQn", "Qn", "Ord"),
-    "nom": ("Nom",),
-    "nar": ("Nar", "Doc"),
-}
-
-
 def classify_value(value: str | None) -> str | None:
     """An observed value -> its scale class, or None when there is nothing to go on.
 
@@ -130,18 +111,15 @@ def classify_value(value: str | None) -> str | None:
     return "nar"
 
 
-#: scale class -> the SCALE_TYP values that may ADMIT it. A hard filter, unlike
-#: :data:`SCALE_COMPAT`, which only ranks preferences for a reranker that can
-#: fall back to cosine; here being narrow is wrong, not conservative.
-#: ``nom`` is what forces two tables. LOINC is not consistent about scaling a
-#: positive/negative result: a urine dipstick is ``Ord`` and has no ``Nom``
-#: variant at all, so a Nom-only filter admits nothing and the gate starves,
-#: while a few interpretations are ``Nom``
-#: (``Choriogonadotropin [Interpretation]``). A consumer accepts both.
+#: scale class -> the SCALE_TYP values that may ADMIT it: a hard filter, so
+#: being narrow here is wrong, not conservative. ``nom`` shows why. LOINC is not
+#: consistent about scaling a positive/negative result: a urine dipstick is
+#: ``Ord`` and has no ``Nom`` variant at all, so a Nom-only filter admits
+#: nothing and the gate starves, while a few interpretations are ``Nom``
+#: (``Choriogonadotropin [Interpretation]``). The gate accepts both.
 GATE_SCALES: dict[str, tuple[str, ...]] = {
     "qn": ("Qn", "SemiQn", "OrdQn"),
     "ord": ("Ord", "OrdQn", "SemiQn"),
-    "semiqn": ("SemiQn", "OrdQn", "Qn", "Ord"),
     "nom": ("Nom", "Ord", "OrdQn"),
     "nar": ("Nar", "Doc"),
 }

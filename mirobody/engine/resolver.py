@@ -222,7 +222,7 @@ class OfflineResolver:
         )
 
     @staticmethod
-    def _table(blobs: dict, blob_member: str, index_member: str, *, raw: bool = False):
+    def _table(blobs: dict[str, bytes], blob_member: str, index_member: str) -> tuple[StringTable, dict[str, np.ndarray]]:
         """Load one blob member plus its offset/order arrays.
 
         The blob is a plain tar member and arrives as `bytes` in one
@@ -244,8 +244,6 @@ class OfflineResolver:
             )
         with np.load(io.BytesIO(index)) as z:
             arrays = {k: z[k] for k in z.files}
-        if raw:
-            return blob, arrays
         # Two members, two names for the same thing: the corpus-name index
         # calls it `off`, the alias index `keys_off` (it also carries the CSR
         # arrays, which the caller keeps).

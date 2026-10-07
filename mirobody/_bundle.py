@@ -55,10 +55,6 @@ BUNDLE_PATH = os.path.join(RES_DIR, "loinc", BUNDLE_BASENAME)
 VERSION_MEMBER = "VERSION"
 
 
-def bundle_path() -> str:
-    return BUNDLE_PATH
-
-
 def read_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
     """Return the bytes of a member in the LOINC bundle, or None if missing.
 
