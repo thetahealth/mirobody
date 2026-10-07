@@ -33,7 +33,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
-from . import detect
+from . import detect, render
 
 logger = logging.getLogger(__name__)
 
@@ -431,7 +431,7 @@ def downscale_image(data: bytes, mime: str, *, max_bytes: int = MAX_OCR_IMAGE_BY
         from PIL import Image
 
         with Image.open(io.BytesIO(data)) as image:
-            image = image.convert("RGB")
+            image = render.flatten(image)
             edge = max(image.size)
             if edge > max_edge:
                 scale = max_edge / edge
