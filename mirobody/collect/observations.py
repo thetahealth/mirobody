@@ -951,6 +951,48 @@ def _retired_where(source_ref: str | None, name_contains: str | None, everything
     return "TRUE" if everything else ""
 
 
+# The losing account's chains whose first row has an identity the winning
+# account already holds (the same report uploaded to both), every later row of
+# each chain included. Dropping the first row alone broke the `amends`
+# reference of its correction and aborted the whole merge.
+_MERGE_DROP_HELD = """
+WITH RECURSIVE held(id) AS (
+    SELECT l.id FROM th_observation l
+     WHERE l.user_id = %(losing)s AND l.amends IS NULL
+       AND EXISTS (
+         SELECT 1 FROM th_observation w
+          WHERE w.user_id = %(winning)s AND w.amends IS NULL
+            AND w.name_key = l.name_key
+            AND w.observed_start = l.observed_start AND w.observed_end = l.observed_end
+            AND w.source_ref = l.source_ref
+            AND COALESCE(w.source_record_id, '') = COALESCE(l.source_record_id, '')
+            AND COALESCE(w.member_of, 0) = COALESCE(l.member_of, 0))
+  UNION
+    SELECT o.id FROM held h JOIN th_observation o ON o.amends = h.id
+)
+DELETE FROM th_observation WHERE id IN (SELECT id FROM held)
+"""
+
+
+async def merge_accounts(cur: Any, losing_user_id: str, winning_user_id: str) -> int:
+    """Give the winning account every observation of the losing one, on the
+    caller's psycopg cursor: an account merge is one transaction over many
+    tables (`user/account_merge.py`), so this runs inside it.
+
+    A chain of the same reading on both accounts keeps the winner's: the
+    loser's chain goes whole, its corrections included. The rest moves over.
+    The loser's day authority is deleted rather than moved, so it never names
+    a row the winner's election did not choose. Returns the rows deleted and
+    moved."""
+    params = {"losing": str(losing_user_id), "winning": str(winning_user_id)}
+    await cur.execute(_MERGE_DROP_HELD, params)
+    total = cur.rowcount or 0
+    await cur.execute("UPDATE th_observation SET user_id = %(winning)s WHERE user_id = %(losing)s", params)
+    total += cur.rowcount or 0
+    await cur.execute("DELETE FROM th_day_authority WHERE user_id = %(losing)s", params)
+    return total + (cur.rowcount or 0)
+
+
 # --- recoding: the same frozen rows under a newer vocabulary or rule -------
 
 _SELECT_FOR_RECODE = """
@@ -1308,6 +1350,7 @@ __all__ = [
     "legacy_draft",
     "legacy_present",
     "legacy_provenance",
+    "merge_accounts",
     "prepare",
     "recode",
     "redate",
