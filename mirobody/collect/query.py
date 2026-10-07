@@ -515,7 +515,11 @@ class PostgresHealthQuery:
         return [_stats_row(r) for r in rows]
 
     async def latest(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
-        """The most recent value per series INSIDE the window."""
+        """The most recent value per series INSIDE the window: the newest
+        local day first, and that day's elected reading where it has one.
+        Election only ranks readings of the same day; ranked first across
+        days, an elected value from last month beat an unelected one from
+        today, which `stats()` called the last."""
         from mirobody.utils import execute_query
 
         names = await self._resolve(subject_id, sel, window)
@@ -534,7 +538,7 @@ class PostgresHealthQuery:
               FROM v_observation o
             {_FILE_JOIN}
              WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
-             ORDER BY o.series_id, o.elected DESC, o.observed_start DESC, o.id DESC
+             ORDER BY o.series_id, o.local_date DESC, o.elected DESC, o.observed_start DESC, o.id DESC
             """,
             params,
             log_sql=False,
