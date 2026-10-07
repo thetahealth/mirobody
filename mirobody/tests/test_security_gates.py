@@ -694,3 +694,17 @@ def test_a_failure_after_the_response_started_sends_nothing_more():
     asyncio.run(ResponseHeadersMiddleware(UnhandledErrorMiddleware(app))(scope, receive, send))
     assert [m["type"] for m in sent] == ["http.response.start"]
     assert (b"x-content-type-options", b"nosniff") in sent[0]["headers"]
+
+
+def test_the_setup_state_is_no_unlimited_token_oracle(monkeypatch):
+    """`GET /api/setup` says whether the token it was given is right, and
+    counted wrong ones without ever refusing: unlimited guesses, and a list
+    per client that only grew."""
+    client, setup = _setup_app(monkeypatch, ready=True)
+    for _ in range(12):
+        client.get("/api/setup", headers={"X-Setup-Token": "wrong"})
+    assert client.get("/api/setup", headers={"X-Setup-Token": "wrong"}).json()["code"] == 429
+    assert all(len(times) <= setup._MAX_FAILURES for times in setup._failures.values())
+    # The right token still answers, and without one the page still loads.
+    assert client.get("/api/setup", headers={"X-Setup-Token": "right-token"}).json()["data"]["trusted"] is True
+    assert client.get("/api/setup").json()["code"] == 0

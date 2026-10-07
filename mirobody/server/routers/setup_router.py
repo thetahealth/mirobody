@@ -77,10 +77,11 @@ def _trusted(request: Request, token: str) -> bool:
 def _refused(client: str) -> bool:
     """Ten wrong tokens in ten minutes from one address. Asked only after a
     wrong one: behind a proxy every client shares an address, and the owner's
-    right token must still work while a guesser is being refused."""
+    right token must still work while a guesser is being refused. Only the
+    last ten are kept: they are all the answer needs."""
     now = time.monotonic()
     recent = [t for t in _failures.get(client, []) if now - t < _FAILURE_WINDOW_SEC]
-    _failures[client] = recent
+    _failures[client] = recent[-_MAX_FAILURES:]
     return len(recent) >= _MAX_FAILURES
 
 
@@ -243,6 +244,10 @@ async def setup_state(request: Request, x_setup_token: str = Header(default=""))
     from mirobody.utils.config.llm import KEYS_URL, chat_default
 
     trusted = bool(x_setup_token) and _trusted(request, x_setup_token)
+    # `trusted` is in the answer, so this route checks a token as the POST
+    # does and is limited the same way.
+    if x_setup_token and not trusted and _refused(_client(request)):
+        return err(429, "Too many wrong setup tokens. Wait ten minutes.")
     fixed = settings.set_in_environment() if trusted else frozenset()
     providers = []
     for name, url in KEYS_URL.items():
