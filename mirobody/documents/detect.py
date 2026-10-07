@@ -192,11 +192,6 @@ def kind(filename: str | None, content_type: str | None = None, data: bytes | No
     return None
 
 
-def is_document(filename: str | None, content_type: str | None = None) -> bool:
-    """Whether this is a document, readable or not. See `DOCUMENT_SUFFIXES`."""
-    return _ext(filename) in DOCUMENT_SUFFIXES
-
-
 def is_extractable(filename: str | None, content_type: str | None = None) -> bool:
     """Whether this file is turned into text by a parser or OCR (so it should
     end up with extracted text): everything but plain text and the unknown."""

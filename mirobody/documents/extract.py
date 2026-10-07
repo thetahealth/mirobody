@@ -12,8 +12,9 @@ Two things are the caller's:
   page or a photo, with the caller's prompt and its own "no text" convention
   (return ``""``). Only the pages the text layer cannot read reach it.
 * ``cache``: content-addressed (SHA-256 of the bytes) so the same file is
-  never OCR'd twice. `MemoryTextCache` is the default; a deployment that
-  already stores extracted text keys it by hash and passes its own.
+  never OCR'd twice. Without one nothing is cached; `MemoryTextCache` is a
+  bounded in-process one, and a deployment that already stores extracted text
+  keys it by hash and passes its own.
 
 Extractor errors PROPAGATE. Whether a failed extraction is "no text, carry on"
 or a 422 is the caller's policy, not this module's; only "nothing here reads
@@ -346,13 +347,6 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
         return texts, to_ocr, layered
     finally:
         doc.close()
-
-
-def pdf_text_layer(data: bytes) -> str:
-    """Sync: the embedded text layer only, every page, ``--- page N ---`` joined.
-    Free and instant for born-digital PDFs; ``""`` for a scan."""
-    texts, _, _ = _pdf_pages(data, min_page_text=1, dpi=RENDER_DPI)
-    return "\n\n".join(f"--- page {i + 1} ---\n{t}" for i, t in enumerate(texts) if t)
 
 
 async def pdf_text(
