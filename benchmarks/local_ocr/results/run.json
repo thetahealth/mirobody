@@ -1,0 +1,192 @@
+{
+ "printed": {
+  "corpus": {
+   "generator": "mirobody-gen",
+   "command": "mirobody-gen build --seed 7 --people 6 --render",
+   "seed": 7,
+   "people": 6,
+   "files_jsonl_sha256": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+   "mirobody_gen_commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+   "note": "built 2026-10-06 16:36 with clean_pdfs.py at that commit; byte-identical (all 70 files and files.jsonl) to the coordinator's own build of the same seed"
+  },
+  "models": {
+   "glm-ocr-q8": {
+    "repo": "ggml-org/GLM-OCR-GGUF",
+    "files": {
+     "model_file": {
+      "name": "GLM-OCR-Q8_0.gguf",
+      "bytes": 950433408,
+      "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+     },
+     "mmproj_file": {
+      "name": "mmproj-GLM-OCR-Q8_0.gguf",
+      "bytes": 484403648,
+      "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+     }
+    },
+    "run_at": "2026-10-06T21:33:43+08:00",
+    "command": "benchmarks/local_ocr/run.py --model glm-ocr-q8 --corpus <scratch>/ocrbench/corpus --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10",
+    "scored_with": {
+     "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+     "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
+     "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
+     "mirobody_dirty": null,
+     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "python": "3.12.7"
+    }
+   },
+   "paddleocr-vl-1.6": {
+    "repo": "PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+    "files": {
+     "model_file": {
+      "name": "PaddleOCR-VL-1.6-GGUF.gguf",
+      "bytes": 935769056,
+      "sha256": "f3ae46ec885050acf4b3d31944431e1fd90d50664fb09126af4a3c050ba14ee8"
+     },
+     "mmproj_file": {
+      "name": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+      "bytes": 881770560,
+      "sha256": "204d757d7610d9b3faab10d506d69e5b244e32bf765e2bab2d0167e65e0a058a"
+     },
+     "template_file": {
+      "name": "chat_template.jinja",
+      "bytes": 1831,
+      "sha256": "1369e43952c7a84e834be95732d65111e96cbefe30aa32a4826eca344f5ef939"
+     }
+    },
+    "run_at": "2026-10-06T23:42:07+08:00",
+    "command": "benchmarks/local_ocr/run.py --model paddleocr-vl-1.6 --corpus <scratch>/ocrbench/corpus --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10",
+    "scored_with": {
+     "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+     "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
+     "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
+     "mirobody_dirty": null,
+     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "python": "3.12.7"
+    }
+   },
+   "mineru2.5-pro-q8": {
+    "repo": "jinzhenj/MinerU2.5-Pro-2605-1.2B-GGUF",
+    "files": {
+     "model_file": {
+      "name": "MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+      "bytes": 531066496,
+      "sha256": "3f3523429c880d675c0330cb3de78240452bc40a961d037e24f91ab8488f03e7"
+     },
+     "mmproj_file": {
+      "name": "mmproj-MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+      "bytes": 709409600,
+      "sha256": "b6c08ab50352677f7396af45ee60682f353f55488e26911d8154bfc37514d3f8"
+     }
+    },
+    "run_at": "2026-10-07T00:03:03+08:00",
+    "command": "benchmarks/local_ocr/run.py --model mineru2.5-pro-q8 --corpus <scratch>/ocrbench/corpus --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10",
+    "scored_with": {
+     "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+     "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
+     "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
+     "mirobody_dirty": null,
+     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "python": "3.12.7"
+    }
+   }
+  },
+  "sample": "sample.json"
+ },
+ "handwriting": {
+  "corpus": {
+   "generator": "mirobody-gen",
+   "branch": "feat/handwriting",
+   "mirobody_gen_commit": "b4a8c50559c9a033dfa45e1f7278f1d56f41cc7d",
+   "worktree_dirty_at_post": false,
+   "command": "mirobody-gen build --seed 42 --people 18 --render --handwriting",
+   "seed": 42,
+   "people": 18,
+   "files_jsonl_sha256": "14bc3ed88179ba6d0b473c815609e5f2d6d704188ea2519b1ca9cd472b738057",
+   "note": "handwritten pages only; clean/<doc_id>.pdf is each page's transcript as a text layer (handwriting.transcript), so run.py's page_truth reads it as it reads a printed page. tier = handwriting tier (H1 neat, H2 running, H3 hard cursive); capture = the scan or photo scene."
+  },
+  "sample": "handwriting_sample.json",
+  "models": {
+   "glm-ocr-q8": {
+    "repo": "ggml-org/GLM-OCR-GGUF",
+    "files": {
+     "model_file": {
+      "name": "GLM-OCR-Q8_0.gguf",
+      "bytes": 950433408,
+      "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+     },
+     "mmproj_file": {
+      "name": "mmproj-GLM-OCR-Q8_0.gguf",
+      "bytes": 484403648,
+      "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+     }
+    },
+    "run_at": "2026-10-07T01:17:07+08:00",
+    "command": "benchmarks/local_ocr/run.py --model glm-ocr-q8 --corpus <scratch>/handwriting/corpus --sample <scratch>/handwriting/corpus/handwriting_sample.json --set handwriting --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10",
+    "scored_with": {
+     "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+     "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
+     "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
+     "mirobody_dirty": null,
+     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "python": "3.12.7"
+    }
+   },
+   "paddleocr-vl-1.6": {
+    "repo": "PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+    "files": {
+     "model_file": {
+      "name": "PaddleOCR-VL-1.6-GGUF.gguf",
+      "bytes": 935769056,
+      "sha256": "f3ae46ec885050acf4b3d31944431e1fd90d50664fb09126af4a3c050ba14ee8"
+     },
+     "mmproj_file": {
+      "name": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+      "bytes": 881770560,
+      "sha256": "204d757d7610d9b3faab10d506d69e5b244e32bf765e2bab2d0167e65e0a058a"
+     },
+     "template_file": {
+      "name": "chat_template.jinja",
+      "bytes": 1831,
+      "sha256": "1369e43952c7a84e834be95732d65111e96cbefe30aa32a4826eca344f5ef939"
+     }
+    },
+    "run_at": "2026-10-07T01:28:04+08:00",
+    "command": "benchmarks/local_ocr/run.py --model paddleocr-vl-1.6 --corpus <scratch>/handwriting/corpus --sample <scratch>/handwriting/corpus/handwriting_sample.json --set handwriting --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10",
+    "scored_with": {
+     "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+     "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
+     "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
+     "mirobody_dirty": null,
+     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "python": "3.12.7"
+    }
+   },
+   "mineru2.5-pro-q8": {
+    "repo": "jinzhenj/MinerU2.5-Pro-2605-1.2B-GGUF",
+    "files": {
+     "model_file": {
+      "name": "MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+      "bytes": 531066496,
+      "sha256": "3f3523429c880d675c0330cb3de78240452bc40a961d037e24f91ab8488f03e7"
+     },
+     "mmproj_file": {
+      "name": "mmproj-MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+      "bytes": 709409600,
+      "sha256": "b6c08ab50352677f7396af45ee60682f353f55488e26911d8154bfc37514d3f8"
+     }
+    },
+    "run_at": "2026-10-07T01:34:55+08:00",
+    "command": "benchmarks/local_ocr/run.py --model mineru2.5-pro-q8 --corpus <scratch>/handwriting/corpus --sample <scratch>/handwriting/corpus/handwriting_sample.json --set handwriting --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10",
+    "scored_with": {
+     "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+     "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
+     "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
+     "mirobody_dirty": null,
+     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "python": "3.12.7"
+    }
+   }
+  }
+ }
+}

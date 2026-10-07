@@ -1,0 +1,42 @@
+{
+ "id": "p006_2024-10-25_e09a#p1",
+ "tier": "T0",
+ "image_sha256": "ff296e89b04cc767b460da37a7c39c14123667f350df0c08b65d0a53bc11d3c0",
+ "image_size": [
+  1186,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>Items<fcel>In Range<fcel>Out of Range<fcel>REFERENCE INTERVAL<nl>\n<fcel>TSH<fcel>2.242<ecel><fcel>0.270-4.200&mIU/L<nl>\n<fcel>FT3<fcel>4.30<ecel><fcel>3.10-6.80&pmol/L<nl>\n<fcel>FT4<fcel>16.03<ecel><fcel>12.00-22.00&pmol/L<nl>\n<fcel>TT3<fcel>2.81<ecel><fcel>1.30-3.10&nmol/L<nl>\n<fcel>TT4<fcel>116.0<ecel><fcel>66.0-181.0&nmol/L<nl>\n<fcel>TPOAb<ecel><fcel>35.1<fcel><34.0&IU/mL<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 14.81,
+   "usage": {
+    "completion_tokens": 168,
+    "prompt_tokens": 2335,
+    "total_tokens": 2503,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2320,
+    "prompt_ms": 13285.465,
+    "prompt_per_token_ms": 5.726493534482759,
+    "prompt_per_second": 174.62693251609937,
+    "predicted_n": 168,
+    "predicted_ms": 1471.667,
+    "predicted_per_token_ms": 8.812377245508982,
+    "predicted_per_second": 113.47675798940931
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1636.2,
+  "phys_footprint_mib": 1272.7,
+  "phys_footprint_peak_mib": 1274.1
+ }
+}

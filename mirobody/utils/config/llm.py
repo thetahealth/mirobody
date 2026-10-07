@@ -45,6 +45,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -98,6 +99,9 @@ UTILITY_FAMILIES = ("openai", "openrouter", "anthropic")
 ROUTE_KEYS: dict[str, str] = {
     "vision": "UTILS_VISION_MODEL",
     "text": "UTILS_TEXT_MODEL",
+    # Optional: a document-OCR model (GLM-OCR) that takes over reading report
+    # images and pages from the vision entry. Unset, the vision entry reads them.
+    "ocr": "UTILS_OCR_MODEL",
 }
 
 #: Vertex locations served from a MULTI-REGIONAL endpoint, whose hostname is
@@ -151,34 +155,65 @@ class NoProviderError(ValueError):
 #-----------------------------------------------------------------------------
 # Keys.
 
-def read_api_key(env_name: str) -> str:
+#: How a name is read: `safe_read_cfg` (the environment, then the config
+#: files), unless a caller asks about another state, as the setup page does
+#: about the one a save would leave, without touching `os.environ`.
+Lookup = Callable[[str], str]
+
+
+def _read(name: str, lookup: Lookup | None) -> str:
+    from . import safe_read_cfg
+
+    return ((lookup or safe_read_cfg)(name) or "").strip()
+
+
+def read_api_key(env_name: str, lookup: Lookup | None = None) -> str:
     """The value of `env_name`, or of any name that means the same key.
 
     THE admission function: every surface that decides "is this entry usable"
     goes through here (through `safe_read_cfg`, which tests control), so the
     surfaces cannot disagree about what counts as a key being present.
     """
-    from . import safe_read_cfg
-
     for name in (env_name, *KEY_ALIASES.get(env_name, ())):
-        value = (safe_read_cfg(name, "") or "").strip()
-        if value:
+        if value := _read(name, lookup):
             return value
     return ""
 
 
-def base_url_override(api_key_env: str) -> str:
+def is_endpoint_name(value: str) -> bool:
+    """Whether an entry's `base_url` is a NAME to look up (`LOCAL_BASE_URL`)
+    rather than a URL. The agent's client builder already read it that way."""
+    return bool(value) and "://" not in value
+
+
+def endpoint_value(name: str, lookup: Lookup | None = None) -> str:
+    """The URL a `base_url` NAME holds (environment first), or ""."""
+    return _read(name, lookup)
+
+
+def entry_ready(entry: dict[str, Any] | None, lookup: Lookup | None = None) -> bool:
+    """Whether an entry's key and endpoint are both there: the one test the
+    chat picker, its default and `mirobody doctor` share. An entry whose
+    `base_url` names an unset variable is off: that is how the shipped
+    `local` entries stay out of the way until `LOCAL_BASE_URL` is set."""
+    entry = entry or {}
+    ref = str(entry.get("api_key") or "").strip()
+    if ref and not read_api_key(ref, lookup):
+        return False
+    base = str(entry.get("base_url") or "").strip()
+    return not is_endpoint_name(base) or bool(endpoint_value(base, lookup) or base_url_override(ref, lookup))
+
+
+def base_url_override(api_key_env: str, lookup: Lookup | None = None) -> str:
     """`<PREFIX>_BASE_URL` for the key named `api_key_env` (OPENROUTER_API_KEY
     → OPENROUTER_BASE_URL), or "". The one redirect rule, applied to every
     entry that reads the key: chat, vision, text (#52)."""
-    from . import safe_read_cfg
-
     if not api_key_env.endswith("_API_KEY"):
         return ""
     prefix = api_key_env[: -len("_API_KEY")]
     names = [prefix] + [a[: -len("_API_KEY")] for a in KEY_ALIASES.get(api_key_env, ()) if a.endswith("_API_KEY")]
     for name in names:
-        if value := (safe_read_cfg(f"{name}_BASE_URL", "") or "").strip():
+        if value := _read(f"{name}_BASE_URL", lookup):
             return value
     return ""
 
@@ -201,6 +236,10 @@ class RouteSpec:
     reasoning_effort: str | None = None    # sent only when the entry declares it
     extra_body: dict[str, Any] = field(default_factory=dict)
     temperature: float | None = None
+    base_url_env: str = ""         # the NAME `base_url` was given as; "" = a literal URL
+    ocr_prompts: dict[str, str] = field(default_factory=dict)   # OCR entries: {"text": ..., "tables": ...}
+    timeout: float | None = None      # seconds per request; None = the SDK's 600
+    max_retries: int | None = None    # None = the SDK's 2
 
     @property
     def takes_json_object(self) -> bool:
@@ -214,6 +253,8 @@ class RouteSpec:
 
     @property
     def routable(self) -> bool:
+        if self.base_url_env and not self.base_url:
+            return False
         return bool(self.model) and (not self.api_key_env or bool(self.key))
 
     @property
@@ -265,7 +306,10 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         return None
     api_key_env = str(entry.get("api_key") or "").strip()
     base_url = str(entry.get("base_url") or "").strip()
-    if not base_url and api_key_env:
+    base_url_env = ""
+    if is_endpoint_name(base_url):
+        base_url_env, base_url = base_url, endpoint_value(base_url)
+    elif not base_url and api_key_env:
         for _name, (key, url) in KNOWN_ENDPOINTS.items():
             if key == api_key_env:
                 base_url = url
@@ -279,6 +323,10 @@ def _spec_from_mapping(alias: str, entry: dict[str, Any]) -> RouteSpec | None:
         reasoning_effort=(str(entry["reasoning_effort"]).strip() or None) if entry.get("reasoning_effort") else None,
         extra_body=dict(entry.get("extra_body") or {}),
         temperature=float(temperature) if isinstance(temperature, (int, float)) else None,
+        base_url_env=base_url_env,
+        ocr_prompts={str(k): str(v) for k, v in (entry.get("ocr_prompts") or {}).items()},
+        timeout=float(entry["timeout"]) if isinstance(entry.get("timeout"), (int, float)) else None,
+        max_retries=int(entry["max_retries"]) if isinstance(entry.get("max_retries"), int) else None,
     )
 
 
@@ -306,19 +354,21 @@ def _spec_from_string(value: str, entries: dict[str, dict]) -> RouteSpec | None:
 
 #: Entry keys something actually reads. `RouteSpec` is a whitelist: a key it
 #: does not name is dropped on the floor, silently, which is how `openai-utils`
-#: came to declare `reasoning_effort: none` (REQUIRED there: without it
-#: gpt-5.6-terra keeps reasoning on and then refuses the extraction callers'
-#: `temperature: 0`) and have it read by nobody. `unread_entry_keys` turns that
-#: into a line at boot instead of zero indicators over a successful upload.
+#: came to declare `reasoning_effort: none` (REQUIRED there: without it an
+#: OpenAI reasoning model keeps reasoning on and then refuses the extraction
+#: callers' `temperature: 0`, measured on gpt-5.6-terra and stated for GPT-6
+#: Luna by OpenAI's GPT-6 guide) and have it read by nobody.
+#: `unread_entry_keys` turns that into a line at boot instead of zero
+#: indicators over a successful upload.
 KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     # read here, into a RouteSpec
-    "llm_type", "api_key", "base_url", "model", "temperature",
+    "llm_type", "api_key", "base_url", "model", "model_env", "temperature",
     "supports_image", "supports_pdf", "response_format", "reasoning_effort",
-    "extra_body", "chat",
+    "extra_body", "chat", "ocr_prompts", "timeout", "max_retries",
     # read by the agent's client builder (`agent/models/clients.py`)
     "profile", "thinking_style", "auth_type", "prompt_cache", "response_with_tools",
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",
-    "streaming", "stream_usage", "model_kwargs", "output_config",
+    "streaming", "stream_usage", "model_kwargs", "output_config", "stream_chunk_timeout",
 })
 
 
@@ -332,14 +382,31 @@ def unread_entry_keys() -> dict[str, list[str]]:
     return out
 
 
-def model_entries() -> dict[str, dict[str, Any]]:
-    """The `MODELS` table as configured ({} with no Config loaded)."""
+def model_entries(lookup: Lookup | None = None) -> dict[str, dict[str, Any]]:
+    """The `MODELS` table ({} with no Config loaded), each entry's `model`
+    replaced by its `model_env` variable when that is set. Read per call: the
+    setup page changes the variable without a restart, and every reader (the
+    chat clients, the utility routes, the doctor) has to see the same model."""
     from .config import global_config
 
     cfg = global_config()
     if cfg is None:
         return {}
-    return dict((cfg.get_agent_settings() or {}).get("providers") or {})
+    entries = {}
+    for name, entry in ((cfg.get_agent_settings() or {}).get("providers") or {}).items():
+        ref = str((entry or {}).get("model_env") or "").strip()
+        model = _read(ref, lookup) if ref else ""
+        entries[name] = {**entry, "model": model} if model else entry
+    return entries
+
+
+def model_env_names() -> frozenset[str]:
+    """Every variable a `MODELS` entry lets replace its model (`model_env`)."""
+    from .config import global_config
+
+    cfg = global_config()
+    providers = ((cfg.get_agent_settings() or {}).get("providers") or {}) if cfg else {}
+    return frozenset(str(e.get("model_env")).strip() for e in providers.values() if (e or {}).get("model_env"))
 
 
 def route_value(surface: str) -> Any:
@@ -395,7 +462,17 @@ def route_candidates(surface: str) -> list[RouteSpec | str]:
 
 
 def _fits(surface: str, spec: RouteSpec) -> bool:
-    return not (surface == "vision" and spec.supports_image is False)
+    """Whether `surface` may use `spec`. An image surface asks the server
+    behind a configured address what it serves (`served.sees`): the entry's
+    `supports_image` describes the model it was written for, not the one
+    running now."""
+    if surface not in ("ocr", "vision"):
+        return True
+    from mirobody.utils.config.served import sees
+
+    if surface == "ocr" and not spec.ocr_prompts:
+        return False
+    return sees(spec)
 
 
 def resolve_route(surface: str) -> RouteSpec | None:
@@ -430,46 +507,56 @@ def no_provider_message(surface: str) -> str:
             f"No {surface} model available: {key} is not set. In config.llm.yaml, set it to a "
             f"MODELS entry (or a list of them), or to provider/model."
         )
-    names, needed, skipped = [], [], []
+    names, keys, urls, skipped = [], [], [], []
     for c in candidates:
         if isinstance(c, str):
             names.append(f"{c} (not a MODELS entry)")
             continue
-        names.append(f"{c.alias} ({c.api_key_env or 'no key'})")
+        names.append(f"{c.alias} ({c.api_key_env or c.base_url_env or 'no key'})")
         if c.api_key_env and not c.key:
-            needed.append(c.api_key_env)
+            keys.append(c.api_key_env)
+        elif c.base_url_env and not c.base_url:
+            urls.append(c.base_url_env)
         elif not _fits(surface, c):
-            skipped.append(f"{c.alias} declares supports_image: false")
-    seen: list[str] = []
-    for k in needed:
-        if k not in seen:
-            seen.append(k)
-    where = ", ".join(f"{k} ({KEYS_URL[k]})" if k in KEYS_URL else k for k in seen)
+            if surface == "ocr" and not c.ocr_prompts:
+                skipped.append(f"{c.alias} declares no ocr_prompts")
+            elif c.supports_image is False:
+                skipped.append(f"{c.alias} declares supports_image: false")
+            else:
+                # Set, and still not used: "none of these keys is set" sent a
+                # local deployment looking for a key it does not need.
+                skipped.append(f"{c.alias} runs {c.model}, which its server says cannot read images")
+    keys, urls = list(dict.fromkeys(keys)), list(dict.fromkeys(urls))
+    where = ", ".join(f"{k} ({KEYS_URL[k]})" if k in KEYS_URL else k for k in keys)
+    if urls:
+        where += (", or " if where else "") + " / ".join(urls) + " (the URL of your own model server)"
     text = f"No {surface} model available: {key} lists {', '.join(names)}"
-    if seen:
-        text += f"; none of these keys is set. Put ONE in .env: {where}."
+    if skipped:
+        text += f"; {'; '.join(skipped)}"
+    if keys or urls:
+        text += f"; {'the others need' if skipped else 'none of these keys is set'} a key. Put ONE in .env: {where}."
     elif skipped:
-        text += f"; {'; '.join(skipped)} — set {key} to an entry whose model reads images."
+        text += f" — set {key} to an entry whose model reads images."
     else:
         text += "."
+    if surface == "vision" and resolve_route("ocr") is not None:
+        text += " Report photos and scanned pages are read by the OCR entry instead (UTILS_OCR_MODEL)."
     return text
 
 
-def chat_entries() -> dict[str, dict[str, Any]]:
+def chat_entries(lookup: Lookup | None = None) -> dict[str, dict[str, Any]]:
     """`MODELS` minus the utility-only entries (`chat: false`), in order."""
     return {
-        name: entry for name, entry in model_entries().items()
+        name: entry for name, entry in model_entries(lookup).items()
         if _flag((entry or {}).get("chat")) is not False
     }
 
 
-def chat_default() -> str | None:
+def chat_default(lookup: Lookup | None = None) -> str | None:
     """The chat picker's default: the first `MODELS` entry (config order,
-    utility-only entries excluded) whose key is present, or that names no
-    key (ambient auth). None when none is."""
-    for name, entry in chat_entries().items():
-        ref = str((entry or {}).get("api_key") or "").strip()
-        if not ref or read_api_key(ref):
+    utility-only entries excluded) that `entry_ready` admits. None when none is."""
+    for name, entry in chat_entries(lookup).items():
+        if entry_ready(entry, lookup):
             return name
     return None
 

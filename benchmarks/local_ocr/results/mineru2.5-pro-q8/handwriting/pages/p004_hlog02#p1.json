@@ -1,0 +1,67 @@
+{
+ "id": "p004_hlog02#p1",
+ "tier": "H1",
+ "image_sha256": "9f8b69aaed92072e8ab0d5b0883b8d5bed0b99e33dd0e9e54221191e27b3c571",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nMorning weight\nSeptember 2021\nDate Weight (kg) Notes\n25.9 58.1\n27.9 58.3\n29.9 58.0\n30.9 57.3\n1.10 58.2\n2.10 58.1\n3.10 57.7 before breakfast<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.56,
+   "usage": {
+    "completion_tokens": 106,
+    "prompt_tokens": 2170,
+    "total_tokens": 2276,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11680.427,
+    "prompt_per_token_ms": 5.420151740139211,
+    "prompt_per_second": 184.49667978747695,
+    "predicted_n": 106,
+    "predicted_ms": 835.666,
+    "predicted_per_token_ms": 7.95872380952381,
+    "predicted_per_second": 125.648285319733
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<ecel><fcel>Morning weightSeptember 2021Date Weight (kg) Notes25.9 58.127.9 58.329.9 58.030.9 57.31.10 58.22.10 58.13.10 57.7 before breakfast<nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.41,
+   "usage": {
+    "completion_tokens": 160,
+    "prompt_tokens": 2170,
+    "total_tokens": 2330,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 17.753,
+    "prompt_per_token_ms": 2.219125,
+    "prompt_per_second": 450.62806286261474,
+    "predicted_n": 160,
+    "predicted_ms": 1347.703,
+    "predicted_per_token_ms": 8.476119496855345,
+    "predicted_per_second": 117.97851603802914
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1671.4,
+  "phys_footprint_mib": 1186.9,
+  "phys_footprint_peak_mib": 1187.7
+ }
+}

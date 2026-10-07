@@ -1,0 +1,62 @@
+{
+ "model": "paddleocr-vl-1.6",
+ "spec": {
+  "name": "PaddleOCR-VL-1.6 0.9B",
+  "repo": "PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+  "model_file": "PaddleOCR-VL-1.6-GGUF.gguf",
+  "mmproj_file": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+  "template_file": "chat_template.jinja",
+  "quant": "the repo's only build (unquantized), projector likewise",
+  "upstream": "PaddlePaddle/PaddleOCR-VL-1.6",
+  "license": "Apache-2.0",
+  "llama_cpp": "upstream since PR #18825 (2026-02-19); the repo ships its chat template beside the GGUF",
+  "passes": {
+   "text": "OCR:",
+   "tables": "Table Recognition:"
+  },
+  "sampling": {
+   "temperature": 0
+  },
+  "convert": "otsl",
+  "why": "asked for by the product owner; Apache-2.0, same size as GLM-OCR; 1.6 is a drop-in successor of 1.5 (same architecture, per its card), so 1.5 is not run separately"
+ },
+ "files": {
+  "model_file": {
+   "name": "PaddleOCR-VL-1.6-GGUF.gguf",
+   "bytes": 935769056,
+   "sha256": "f3ae46ec885050acf4b3d31944431e1fd90d50664fb09126af4a3c050ba14ee8"
+  },
+  "mmproj_file": {
+   "name": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+   "bytes": 881770560,
+   "sha256": "204d757d7610d9b3faab10d506d69e5b244e32bf765e2bab2d0167e65e0a058a"
+  },
+  "template_file": {
+   "name": "chat_template.jinja",
+   "bytes": 1831,
+   "sha256": "1369e43952c7a84e834be95732d65111e96cbefe30aa32a4826eca344f5ef939"
+  }
+ },
+ "server": {
+  "ctx": 16384,
+  "slots": 1,
+  "cache_ram": 0,
+  "max_tokens": 8192
+ },
+ "load_seconds": 2.0,
+ "memory_idle": {
+  "rss_mib": 2136.9,
+  "phys_footprint_mib": 1264.2,
+  "phys_footprint_peak_mib": 1264.3
+ },
+ "memory_final": {
+  "rss_mib": 2220.6,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ },
+ "memory_max_rss_mib": 2274.1,
+ "memory_max_footprint_mib": 1388.9,
+ "run_at": "2026-10-07T01:28:04+08:00",
+ "pages_run": 28,
+ "command": "benchmarks/local_ocr/run.py --model paddleocr-vl-1.6 --corpus <scratch>/handwriting/corpus --sample <scratch>/handwriting/corpus/handwriting_sample.json --set handwriting --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10"
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p005_2026-03-05_e07a#p1",
+ "tier": "T4",
+ "image_sha256": "c03afa0c9213143b0f11fd2e4294e8f74b4cbe1e4fdc173a0ac46fa1e06214ef",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "湄晗市第五人民医院\n临床检验报告\n\n姓名：向伟博    性别：女    年龄：35岁\n病历号：8107884696 标本号：553581460 科室：内科\n标本类型：静脉血\n\n接收时间：2026-03-05\n\n检查项目 测定值                  正常值\n\nWBC    4.88 10E9/L                 3.50-9.50\nRBC    4.77 10E12/L                 3.80-5.10\nHGB    125g/l                   115-150\nHCT    40.2%                    35.0-45.0\nMCV    fl                     82.0-100.0\nMCH    26.2pg                  27.0-34.0\nMCHC    311g/l                   316-354\nRDW-CV    12.5%                    11.5-14.5\nPLT    174 10E9/L                 125-350\nMPV    11.5fl                   7.6-13.2\nPDW    13.2fl                   9.0-17.0\nPCT    0.189%                    0.108-0.282\nNEUT%    46.3%                  40.0-75.0\nLYMPH%    44.8%                  20.0-50.0\nMONO%    4.6%                    3.0-10.0\nEO%    3.0%                   0.4-8.0\nBASO%    1.3%                    0.0-1.0\nNEUT#    2.26 10E9/L                 1.80-6.30\nLYMPH#    2.19 10E9/L                 1.10-3.20\nMONO#    0.22 10E9/L                  0.10-0.60\nEO#    0.15 10E9/L                   0.02-0.52\nBASO#    0.06 10E9/L                   0.00-0.06\n\n建议：标本溶血、脂血可能影响部分项目结果。\n\n检查者：陶清    检验者：马雪桂\n\n本报告仅对所检标本负责，如有疑问请三日内咨询。<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 16.97,
+   "usage": {
+    "completion_tokens": 646,
+    "prompt_tokens": 2170,
+    "total_tokens": 2816,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11682.686,
+    "prompt_per_token_ms": 5.4212,
+    "prompt_per_second": 184.46100494355494,
+    "predicted_n": 646,
+    "predicted_ms": 5218.653,
+    "predicted_per_token_ms": 8.09093488372093,
+    "predicted_per_second": 123.59511161213439
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>检查项目<fcel>测定值<fcel>正常值<nl>\n<fcel>WBC<fcel>4.88 10E9/L<fcel>3.50-9.50<nl>\n<fcel>RBC<fcel>4.77 10E12/L<fcel>3.80-5.10<nl>\n<fcel>HGB<fcel>125g/l<fcel>115-150<nl>\n<fcel>HCT<fcel>40.2%<fcel>35.0-45.0<nl>\n<fcel>MCV<fcel>fl<fcel>82.0-100.0<nl>\n<fcel>MCH<fcel>26.2pg<fcel>27.0-34.0<nl>\n<fcel>MCHC<fcel>311g/l<fcel>316-354<nl>\n<fcel>RDW-CV<fcel>12.5%<fcel>11.5-14.5<nl>\n<fcel>PLT<fcel>174 10E9/L<fcel>125-350<nl>\n<fcel>MPV<fcel>11.5fl<fcel>7.6-13.2<nl>\n<fcel>PDW<fcel>13.2fl<fcel>9.0-17.0<nl>\n<fcel>PCT<fcel>0.189%<fcel>0.108-0.282<nl>\n<fcel>NEUT%<fcel>46.3%<fcel>40.0-75.0<nl>\n<fcel>LYMPH%<fcel>44.8%<fcel>20.0-50.0<nl>\n<fcel>MONO%<fcel>4.6%<fcel>3.0-10.0<nl>\n<fcel>EO%<fcel>3.0%<fcel>0.4-8.0<nl>\n<fcel>BASO%<fcel>1.3%<fcel>0.0-1.0<nl>\n<fcel>NEUT#<fcel>2.26 10E9/L<fcel>1.80-6.30<nl>\n<fcel>LYMPH#<fcel>2.19 10E9/L<fcel>1.10-3.20<nl>\n<fcel>MONO#<fcel>0.22 10E9/L<fcel>0.10-0.60<nl>\n<fcel>EO#<fcel>0.15 10E9/L<fcel>0.02-0.52<nl>\n<fcel>BASO#<fcel>0.06 10E9/L<fcel>0.00-0.06<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 4.24,
+   "usage": {
+    "completion_tokens": 513,
+    "prompt_tokens": 2170,
+    "total_tokens": 2683,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 15.922,
+    "prompt_per_token_ms": 1.99025,
+    "prompt_per_second": 502.4494410249968,
+    "predicted_n": 513,
+    "predicted_ms": 4157.488,
+    "predicted_per_token_ms": 8.12009375,
+    "predicted_per_second": 123.15128750822612
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1623.4,
+  "phys_footprint_mib": 1195.1,
+  "phys_footprint_peak_mib": 1198.0
+ }
+}

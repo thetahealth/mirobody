@@ -1,0 +1,67 @@
+{
+ "id": "p013_2023-04-25_e07hn#p1",
+ "tier": "H2",
+ "image_sha256": "2d45be09e78958e4662c5b4a5c7f411ee2e6fdcb9ea57f4c5e0bb39f2ac21a2b",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\nClinic notes\nDate: 25 Apr 2023\n\nF/U Hypothyroidism\nNo complaints.\nTemp 36.5 HR 86 RR 17 BP 109/80 mmHg\nSpO2 100% Weight 49.0kg\nChest clear. Heart sounds normal.\nImp: Hypothyroidism\nPlan: bloods next visit, continue current meds,\ncheck sugars at home\nYYYY<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.21,
+   "usage": {
+    "completion_tokens": 119,
+    "prompt_tokens": 2115,
+    "total_tokens": 2234,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2100,
+    "prompt_ms": 11168.47,
+    "prompt_per_token_ms": 5.318319047619047,
+    "prompt_per_second": 188.02933615795183,
+    "predicted_n": 119,
+    "predicted_ms": 987.153,
+    "predicted_per_token_ms": 8.365703389830509,
+    "predicted_per_second": 119.53567481433981
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<nl>\n<fcel>Clinic notes<nl>\n<fcel>Date: 25 Apr 2023<nl>\n<fcel>F/U Hypothyroidism<nl>\n<fcel>No complaints.<nl>\n<fcel>Temp 36.5 HR 86 RR 17 BP 109/80 mmHg<nl>\n<fcel>SpO2 100% Weight 49.0kg<nl>\n<fcel>Chest clear. Heart sounds normal.<nl>\n<fcel>Imp: Hypothyroidism<nl>\n<fcel>Plan: bloods next visit, continue current meds,<nl>\n<fcel>check sugars at home<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.25,
+   "usage": {
+    "completion_tokens": 142,
+    "prompt_tokens": 2115,
+    "total_tokens": 2257,
+    "prompt_tokens_details": {
+     "cached_tokens": 2107
+    }
+   },
+   "timings": {
+    "cache_n": 2107,
+    "prompt_n": 8,
+    "prompt_ms": 20.952,
+    "prompt_per_token_ms": 2.619,
+    "prompt_per_second": 381.8251240931653,
+    "predicted_n": 142,
+    "predicted_ms": 1172.138,
+    "predicted_per_token_ms": 8.313035460992907,
+    "predicted_per_second": 120.29300304230391
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1748.9,
+  "phys_footprint_mib": 1260.8,
+  "phys_footprint_peak_mib": 1261.9
+ }
+}

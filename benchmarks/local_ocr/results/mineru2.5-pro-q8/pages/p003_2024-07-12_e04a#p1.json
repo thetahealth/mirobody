@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-07-12_e04a#p1",
+ "tier": "T6",
+ "image_sha256": "74849c9de11b1e1dc5ac3443c0c8b111dd4f73d5e61fe6b76d31e4128d28c66e",
+ "image_size": [
+  1440,
+  1103
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "检查名称\t代号\t检验结果\t单位\t正常值\t异常\n超敏促甲状腺激素\tTSH\t2.197\tmIU/L\t0.270~4.200\t正常\n游离T3\tFT3\t3.74\tpmol/L\t3.10~6.80\t正常\n游离T4\tFT4\t18.03\tpmol/L\t12.00~22.00\t正常\n接收时间\t2024年07月\n总T3\tTT3\t2.28\tnmol/L\t1.30~3.10\t正常\n总T4\tTT4\t113.6\tnmol/L\t66.0~181.0\t正常\n抗TPO抗体\tTPOAb\t9.1\tIU/mL\t<34.0\t正常\n\n审核者：潘健悦\n\n本报告仅对所检标本负责，如有疑问请于三日内咨询。<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.2,
+   "usage": {
+    "completion_tokens": 223,
+    "prompt_tokens": 2014,
+    "total_tokens": 2237,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 1999,
+    "prompt_ms": 10355.687,
+    "prompt_per_token_ms": 5.180433716858429,
+    "prompt_per_second": 193.03403048006376,
+    "predicted_n": 223,
+    "predicted_ms": 1794.624,
+    "predicted_per_token_ms": 8.083891891891891,
+    "predicted_per_second": 123.70279233978816
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>检查名称<fcel>代号<fcel>检验结果<fcel>单位<fcel>正常值<fcel>异常<nl>\n<fcel>超敏促甲状腺激素<fcel>TSH<fcel>2.197<fcel>mIU/L<fcel>0.270~4.200<fcel>正常<nl>\n<fcel>游离T3<fcel>FT3<fcel>3.74<fcel>pmol/L<fcel>3.10~6.80<fcel>正常<nl>\n<fcel>游离T4<fcel>FT4<fcel>18.03<fcel>pmol/L<fcel>12.00~22.00<fcel>正常<nl>\n<fcel>接收时间<fcel>2024年07月<lcel><lcel><lcel><lcel><nl>\n<fcel>总T3<fcel>TT3<fcel>2.28<fcel>nmol/L<fcel>1.30~3.10<fcel>正常<nl>\n<fcel>总T4<fcel>TT4<fcel>113.6<fcel>nmol/L<fcel>66.0~181.0<fcel>正常<nl>\n<fcel>抗TPO抗体<fcel>TPOAb<fcel>9.1<fcel>IU/mL<fcel><34.0<fcel>正常<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.87,
+   "usage": {
+    "completion_tokens": 225,
+    "prompt_tokens": 2014,
+    "total_tokens": 2239,
+    "prompt_tokens_details": {
+     "cached_tokens": 2006
+    }
+   },
+   "timings": {
+    "cache_n": 2006,
+    "prompt_n": 8,
+    "prompt_ms": 19.806,
+    "prompt_per_token_ms": 2.47575,
+    "prompt_per_second": 403.918004645057,
+    "predicted_n": 225,
+    "predicted_ms": 1805.978,
+    "predicted_per_token_ms": 8.062401785714286,
+    "predicted_per_second": 124.03251866855521
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1641.9,
+  "phys_footprint_mib": 1196.9,
+  "phys_footprint_peak_mib": 1198.0
+ }
+}

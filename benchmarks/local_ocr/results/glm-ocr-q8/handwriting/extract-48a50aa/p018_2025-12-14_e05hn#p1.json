@@ -1,0 +1,59 @@
+{
+ "id": "p018_2025-12-14_e05hn#p1",
+ "llm": true,
+ "seconds": 7.66,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Temperature",
+   "value": "36.4",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Feels well",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "85",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "115/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "BMI",
+   "value": "17",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Lata 96%",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Weight change",
+   "value": "+2.8kg",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-14"
+  }
+ ],
+ "date_time": "2025-12-14"
+}

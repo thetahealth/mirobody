@@ -146,19 +146,28 @@ ensure_secret PG_ENCRYPTION_KEY
 ensure_secret CONFIG_ENCRYPTION_KEY
 ensure_secret LOG_ENCRYPTION_KEY
 ensure_secret JWT_KEY
+# What the first-run page asks for before it changes where health data goes.
+ensure_secret SETUP_TOKEN
 
-# A model key given on the command line (`OPENROUTER_API_KEY=... ./deploy.sh`)
-# goes into .env, the one file the containers read, so a first run needs no
-# second step. The names are the ones config.llm.yaml reads, and a key already
-# in .env is left as it is.
-model_keys=()
-while IFS= read -r key_name; do
-    [[ -z "$key_name" ]] && continue
-    if [[ -n "${!key_name:-}" ]] && ! has_setting "$key_name"; then
-        add_setting "$key_name" "${!key_name}"
+# A model key, a local model server or a model name given on the command line
+# (`OPENROUTER_API_KEY=... ./deploy.sh`, `LOCAL_BASE_URL=... LOCAL_MODEL=...
+# ./deploy.sh`) goes into .env, the one file the containers read, so a first
+# run needs no second step. The names are the ones config.llm.yaml reads
+# (`api_key`, `base_url`, `model_env`), and a value already in .env is left as
+# it is.
+while IFS= read -r name; do
+    [[ -z "$name" ]] && continue
+    if [[ -n "${!name:-}" ]] && ! has_setting "$name"; then
+        add_setting "$name" "${!name}"
     fi
-    has_setting "$key_name" && model_keys+=("$key_name")
-done < <(sed -n 's/^[[:space:]]*api_key:[[:space:]]*\([A-Z0-9_]*\).*/\1/p' config.llm.yaml | sort -u)
+done < <(sed -nE 's/^[[:space:]]*(api_key|base_url|model_env):[[:space:]]*([A-Z][A-Z0-9_]*)[[:space:]]*(#.*)?$/\2/p' config.llm.yaml | sort -u)
+
+# The model service started with the stack (`COMPOSE_PROFILES=local-cpu
+# ./deploy.sh` with no GPU, `local` on an NVIDIA GPU) stays on for every later
+# `docker compose up -d`, which reads .env and not this shell.
+if [[ -n "${COMPOSE_PROFILES:-}" ]] && ! has_setting COMPOSE_PROFILES; then
+    add_setting COMPOSE_PROFILES "$COMPOSE_PROFILES"
+fi
 
 # Ask the daemon, which is what pulls: the shell's proxy settings are not the
 # daemon's, and hub.docker.com (the website) is not registry-1.docker.io. The
@@ -225,12 +234,25 @@ for old in "${project_name}_mirobody_redis" "${project_name}_mirobody_site_packa
 done
 
 port="${MIROBODY_HOST_PORT:-$(setting MIROBODY_HOST_PORT)}"
-printf '\nOpen http://localhost:%s\n' "${port:-18060}"
+url="http://localhost:${port:-18060}"
+# A key or server in .env, or a choice saved from the setup page earlier: only
+# the app knows which, so it is asked rather than .env counted.
+model_setup="$(curl -fsS "${url}/mirobody.json" 2>/dev/null \
+    | sed -n 's/.*"__MODEL_SETUP__": *"\([a-z]*\)".*/\1/p' || true)"
+case "$model_setup" in
+    ready)
+        printf '\nOpen %s\n' "$url"
+        ;;
+    needed)
+        printf '\nChoose a model: open %s/setup?token=%s\n' "$url" "$(setting SETUP_TOKEN)"
+        printf 'and paste one API key, or run every model on this machine with llama.cpp.\n'
+        printf 'Or give it here instead, e.g.  OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
+        ;;
+    *)
+        printf '\nOpen %s\n' "$url"
+        printf 'The app did not say whether it has a model yet; docker compose logs mirobody says why.\n' >&2
+        ;;
+esac
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
-fi
-if [[ ${#model_keys[@]} -eq 0 ]]; then
-    printf 'No model key yet. Run this again with one, e.g.\n'
-    printf '    OPENROUTER_API_KEY=sk-or-... ./deploy.sh\n'
-    printf 'or put it in .env and run: docker compose up -d   (restart does not read .env)\n'
 fi

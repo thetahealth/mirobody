@@ -1,0 +1,67 @@
+{
+ "id": "p006_hlog02#p1",
+ "tier": "H1",
+ "image_sha256": "32f470c388d3bedc36dac926c07f6abaed05b07de6180fbf79c7985f66a6e6e0",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nWeigh-ins\nNovember 2025\n\nDate Weight (kg) Notes\nNov 14 67.0\nNov 15 66.5\nNov 16 66.6 travelling\nNov 17 66.9\nNov 18 66.9\nNov 19 66.9\nNov 20 67.1<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.61,
+   "usage": {
+    "completion_tokens": 106,
+    "prompt_tokens": 2170,
+    "total_tokens": 2276,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11674.79,
+    "prompt_per_token_ms": 5.4175359628770305,
+    "prompt_per_second": 184.58576128564195,
+    "predicted_n": 106,
+    "predicted_ms": 890.613,
+    "predicted_per_token_ms": 8.482028571428572,
+    "predicted_per_second": 117.89632533996246
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><nl>\n<ecel><fcel>Weigh-insNovember 2025<lcel><nl>\n<ecel><fcel>Date<fcel>Weight (kg) Notes<nl>\n<ecel><fcel>Nov 14<fcel>67.0<nl>\n<ecel><fcel>Nov 15<fcel>66.5<nl>\n<ecel><fcel>Nov 16<fcel>66.6 travelling<nl>\n<ecel><fcel>Nov 17<fcel>66.9<nl>\n<ecel><fcel>Nov 18<fcel>66.9<nl>\n<ecel><fcel>Nov 19<fcel>66.9<nl>\n<ecel><fcel>Nov 20<fcel>67.1<nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.64,
+   "usage": {
+    "completion_tokens": 194,
+    "prompt_tokens": 2170,
+    "total_tokens": 2364,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 14.238,
+    "prompt_per_token_ms": 1.77975,
+    "prompt_per_second": 561.8766680713584,
+    "predicted_n": 194,
+    "predicted_ms": 1575.04,
+    "predicted_per_token_ms": 8.16082901554404,
+    "predicted_per_second": 122.53657049979684
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1674.0,
+  "phys_footprint_mib": 1188.7,
+  "phys_footprint_peak_mib": 1190.1
+ }
+}

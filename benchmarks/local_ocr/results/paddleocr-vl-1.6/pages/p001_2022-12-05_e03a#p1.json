@@ -1,0 +1,67 @@
+{
+ "id": "p001_2022-12-05_e03a#p1",
+ "tier": "T3",
+ "image_sha256": "66561b8d3bf41217e066f442aa4e63ecb06ea2c26ca5779e05210c62f663a4ff",
+ "image_size": [
+  1085,
+  1535
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n蘅芷社区卫生服务中心\n\n检验报告单\n\n姓名：黎宇海 性别：男 年龄：37岁\n病历号：7967175651 标本号：483833645 科室：门诊\n\n采样日期：20221205 报告日期：20221205\n\n序 检测项目\n1 促甲状腺激素\n2 游离三碘甲状腺原氨酸\n3 游离甲状腺素\n4 总三碘甲状腺原氨酸\n5 总甲状腺素\n6 甲状腺过氧化物酶抗体\n\n简称 报告结果\nTSH 2.873 (0.270 - 4.200)&mlU/L\nFT3 3.88 (3.10 - 6.80)&pmol/L\nFT4 15.27 (12.00 - 22.00)&pmol/L\nTT3 1.63 (1.30 - 3.10)&nmol/L\nTT4 114.5 (66.0 - 181.0)&nmol/L\nTPOAb 10.1 ≤34.0&IU/mL\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 7.74,
+   "usage": {
+    "completion_tokens": 316,
+    "prompt_tokens": 1273,
+    "total_tokens": 1589,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 1273,
+    "prompt_ms": 5752.542,
+    "prompt_per_token_ms": 4.518886095836606,
+    "prompt_per_second": 221.2934733896771,
+    "predicted_n": 316,
+    "predicted_ms": 1933.429,
+    "predicted_per_token_ms": 6.137869841269842,
+    "predicted_per_second": 162.92297260463144
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>姓名：黎宇海<fcel>性别：男<fcel>年龄：37岁<nl><fcel>病历号：7967175651<fcel>标本号：483833645<fcel>科室：门诊<nl><fcel>采样日期：20221205<fcel>报告日期：20221205<lcel><nl><fcel>序<fcel>检测项目<fcel>简称<fcel>报告结果<nl><fcel>1<fcel>促甲状腺激素<fcel>TSH<fcel>2.873 (0.270 - 4.200)&\\(mIU/L\\)<nl><fcel>2<fcel>游离三碘甲状腺原氨酸<fcel>FT3<fcel>3.88 (3.10 - 6.80)&\\(pmol/L\\)<nl><fcel>3<fcel>游离甲状腺素<fcel>FT4<fcel>15.27 (12.00 - 22.00)&\\(pmol/L\\)<nl><fcel>4<fcel>总三碘甲状腺原氨酸<fcel>TT3<fcel>1.63 (1.30 - 3.10)&\\(nmol/L\\)<nl><fcel>5<fcel>总甲状腺素<fcel>TT4<fcel>114.5 (66.0 - 181.0)&\\(nmol/L\\)<nl><fcel>6<fcel>甲状腺过氧化物酶抗体<fcel>TPOAb<fcel>10.1 \\(\\le 34.0\\)&\\(IU/mL\\)<nl>",
+   "finish_reason": "stop",
+   "seconds": 1.97,
+   "usage": {
+    "completion_tokens": 305,
+    "prompt_tokens": 1273,
+    "total_tokens": 1578,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 19.229,
+    "prompt_per_token_ms": 2.747,
+    "prompt_per_second": 364.0334910811795,
+    "predicted_n": 305,
+    "predicted_ms": 1886.78,
+    "predicted_per_token_ms": 6.206513157894737,
+    "predicted_per_second": 161.12106339901845
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2202.7,
+  "phys_footprint_mib": 1307.6,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

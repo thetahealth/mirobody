@@ -1,0 +1,2554 @@
+{
+ "qa1-p002@bench.mirobody.local": {
+  "person": "p002",
+  "user_id": "28",
+  "tz": "UTC",
+  "lang": "en",
+  "steps": {
+   "settings": "2026-10-06T16:36:08+08:00",
+   "devices": {
+    "batches": 12,
+    "ingested": 5548,
+    "standardized": 5548,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "file_key": "uploads/20261006_083623_50403fc6.pdf",
+     "status": "done",
+     "seconds": 33.2,
+     "filed_s": 25.8,
+     "error": "",
+     "indicators_count": 0,
+     "report_date": "2026-08-07 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-07_Health_Report_Ming_Tan.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 37,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T16:36:54+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa1-p002@bench.mirobody.local",
+   "readings": 5548,
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "rows": 78,
+     "found": 0,
+     "unit_ok": 0,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [],
+     "by_extractor": {},
+     "missing": [
+      "Height 161.7",
+      "Body weight 57.0",
+      "Body mass index(BMI) 21.8",
+      "Blood Pressure 123/78",
+      "Heart rate(HR) 69",
+      "White blood cell count(WBC) 9.04",
+      "Red blood cell count(RBC) 4.60",
+      "Hemoglobin(HGB) 138",
+      "Hematocrit(HCT) 42.8",
+      "Mean corpuscular volume(MCV) 93.0",
+      "Mean corpuscular hemoglobin(MCH) 30.0",
+      "Mean corpuscular hemoglobin concentration(MCHC) 323",
+      "Red cell distribution width(RDW-CV) 14.0",
+      "Platelet count(PLT) 177",
+      "Mean platelet volume(MPV) 11.1",
+      "Platelet distribution width(PDW) 12.2",
+      "Plateletcrit(PCT) 0.189",
+      "Neutrophil percentage(NEUT%) 55.1",
+      "Lymphocyte percentage(LYMPH%) 31.3",
+      "Monocyte percentage(MONO%) 5.9",
+      "Eosinophil percentage(EO%) 7.3",
+      "Basophil percentage(BASO%) 0.4",
+      "Neutrophil count(NEUT#) 4.98",
+      "Lymphocyte count(LYMPH#) 2.83",
+      "Monocyte count(MONO#) 0.53",
+      "Eosinophil count(EO#) 0.66",
+      "Basophil count(BASO#) 0.04",
+      "Alanine aminotransferase(ALT) 19",
+      "Aspartate aminotransferase(AST) 13",
+      "Alkaline phosphatase(ALP) 54",
+      "Gamma-glutamyl transferase(GGT) 16",
+      "Total protein(TP) 74.1",
+      "Albumin(ALB) 42.3",
+      "Globulin(GLB) 31.8",
+      "Total bilirubin(TBIL) 14.1",
+      "Direct bilirubin(DBIL) 2.7",
+      "Indirect bilirubin(IBIL) 11.4",
+      "Total bile acid(TBA) 3.5",
+      "Urea(BUN) 3.79",
+      "Creatinine(CREA) 51",
+      "Uric acid(UA) 236",
+      "Potassium(K) 4.09",
+      "Sodium(Na) 142.2",
+      "Chloride(Cl) 110.7",
+      "Calcium(Ca) 2.23",
+      "Total cholesterol(TC) 3.89",
+      "Triglycerides(TG) 0.89",
+      "HDL cholesterol(HDL-C) 1.81",
+      "LDL cholesterol(LDL-C) 1.68",
+      "Apolipoprotein A1(ApoA1) 1.69",
+      "Apolipoprotein B(ApoB) 0.58",
+      "Fasting plasma glucose(FPG) 4.45",
+      "Glycated hemoglobin(HbA1c) 4.5",
+      "Thyroid stimulating hormone(TSH) 2.421",
+      "Free triiodothyronine(FT3) 6.32",
+      "Free thyroxine(FT4) 19.02",
+      "Urine specific gravity(SG) 1.021",
+      "Urine pH(pH) 5.4",
+      "Urine protein(PRO) Negative",
+      "Urine glucose(GLU) Negative",
+      "Urine occult blood(BLD) Negative",
+      "Urine ketone(KET) Negative",
+      "Nitrite(NIT) Negative",
+      "Urine RBC (microscopy)(U-RBC) 0.6",
+      "Urine WBC (microscopy)(U-WBC) 1.1",
+      "High-sensitivity CRP(hs-CRP) 0.73",
+      "Hepatitis B surface antigen(HBsAg) Negative",
+      "Hepatitis B surface antibody(HBsAb) Positive",
+      "Hepatitis B e antigen(HBeAg) Negative",
+      "Hepatitis B e antibody(HBeAb) Negative",
+      "Hepatitis B core antibody(HBcAb) Positive",
+      "Alpha-fetoprotein(AFP) 2.70",
+      "Carcinoembryonic antigen(CEA) 1.78",
+      "Cancer antigen 125(CA125) 12.5",
+      "PR interval(PR) 146",
+      "QRS duration(QRS) 80",
+      "QTc interval(QTc) 354",
+      "QRS axis 31"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ },
+ "qa1-p003@bench.mirobody.local": {
+  "person": "p003",
+  "user_id": "30",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "steps": {
+   "settings": "2026-10-06T16:36:54+08:00",
+   "devices": {
+    "batches": 4,
+    "ingested": 1895,
+    "standardized": 1895,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261006_083700_c88553f8.txt",
+    "status": "done",
+    "seconds": 7.1,
+    "filed_s": 7.1,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p003_23andme.txt",
+    "active_set": {
+     "id": 2,
+     "status": "active",
+     "format_id": "23andme_genotype",
+     "vendor": "23andMe",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 169,
+     "n_called": 160,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-06T08:37:00.444042+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "file_key": "uploads/20261006_083707_bb6f3a58.pdf",
+     "status": "done",
+     "seconds": 7.2,
+     "filed_s": 5.1,
+     "error": "",
+     "indicators_count": 2,
+     "report_date": "2024-04-10 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2024-04-10_检验报告单_闫柏超.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "file_key": "uploads/20261006_083714_1cbee9a7.pdf",
+     "status": "done",
+     "seconds": 12.4,
+     "filed_s": 5.1,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2025-04-05 09:11:41",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-04-05_血糖检验报告单.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "file_key": "uploads/20261006_083727_a8975440.pdf",
+     "status": "done",
+     "seconds": 24.7,
+     "filed_s": 17.4,
+     "error": "",
+     "indicators_count": 0,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_门诊病历_糖尿病_手麻.pdf",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261006_083727_a8975440.pdf",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 0,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "file_key": "uploads/20261006_083751_cecc78ee.jpg",
+     "status": "done",
+     "seconds": 17.5,
+     "filed_s": 15.4,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_检验报告_闫柏超_心内科.jpg",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261006_083751_cecc78ee.jpg",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p003/p003_2026-08-16_e11a.pdf": {
+     "file_key": "uploads/20261006_083809_4457df55.pdf",
+     "status": "done",
+     "seconds": 147.6,
+     "filed_s": 124.8,
+     "error": "",
+     "indicators_count": 43,
+     "report_date": "2026-08-16 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-16_体检报告_闫柏超.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 33,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T16:40:35+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa1-p003@bench.mirobody.local",
+   "readings": 1947,
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "rows": 2,
+     "found": 2,
+     "unit_ok": 2,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [
+      "2024-04-10"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 2
+     },
+     "missing": []
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [
+      "2025-04-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 3
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "rows": 5,
+     "found": 0,
+     "unit_ok": 0,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [],
+     "by_extractor": {},
+     "missing": [
+      "T 36.6",
+      "P 67",
+      "R 16",
+      "体重 84.9",
+      "BP 111/65"
+     ]
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 0,
+     "extra": 1,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-08-16_e11a.pdf": {
+     "rows": 78,
+     "found": 29,
+     "unit_ok": 1,
+     "range_ok": 2,
+     "extra": 14,
+     "dates_stored": [
+      "2026-08-16"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 43
+     },
+     "missing": [
+      "血压 112/64",
+      "丙氨酸氨基转移酶（ALT） 29",
+      "天门冬氨酸氨基转移酶（AST） 24",
+      "碱性磷酸酶（ALP） 78",
+      "γ-谷氨酰基转移酶（GGT） 24",
+      "总蛋白（TP） 71.6",
+      "白蛋白（ALB） 49.9",
+      "球蛋白（GLB） 21.7",
+      "总胆红素（TBIL） 16.6",
+      "直接胆红素（DBIL） 3.6",
+      "间接胆红素（IBIL） 13.0",
+      "总胆汁酸（TBA） 3.6",
+      "尿素（BUN） 4.80",
+      "肌酐（CREA） 86",
+      "尿酸（UA） 329",
+      "钾（K） 4.49",
+      "钠（Na） 146.2",
+      "氯（Cl） 104.4",
+      "钙（Ca） 2.22",
+      "总胆固醇（TC） 4.30",
+      "甘油三酯（TG） 1.04",
+      "高密度脂蛋白胆固醇（HDL-C） 2.20",
+      "低密度脂蛋白胆固醇（LDL-C） 1.63",
+      "载脂蛋白A1（ApoA1） 1.28",
+      "载脂蛋白B（ApoB） 0.79",
+      "空腹血糖（FPG） 4.82",
+      "糖化血红蛋白（HbA1c） 6.4",
+      "尿比重（SG） 0.941",
+      "尿酸碱度（pH） 6.8",
+      "尿蛋白（PRO） 阴性",
+      "尿葡萄糖（GLU） 阴性",
+      "尿潜血（BLD） 阴性",
+      "尿酮体（KET） 阴性",
+      "亚硝酸盐（NIT） 阴性",
+      "镜检红细胞（U-RBC） 0.7",
+      "镜检白细胞（U-WBC） 1.1",
+      "超敏C反应蛋白（hs-CRP） 0.32",
+      "乙肝表面抗原（HBsAg） 阴性",
+      "乙肝表面抗体（HBsAb） 阴性",
+      "乙肝e抗原（HBeAg） 阴性",
+      "乙肝e抗体（HBeAb） 阴性",
+      "乙肝核心抗体（HBcAb） 阴性",
+      "甲胎蛋白（AFP） 2.45",
+      "癌胚抗原（CEA） 1.80",
+      "前列腺特异性抗原（PSA） 0.76",
+      "PR间期（PR） 162",
+      "QRS时限（QRS） 81",
+      "QTc间期（QTc） 373",
+      "QRS电轴 28"
+     ]
+    }
+   },
+   "facts_missing": [
+    {
+     "case": "p003-hba1c-series",
+     "fact": "2026-08-16 6.4%",
+     "file": "files/p003/p003_2026-08-16_e11a.pdf"
+    },
+    {
+     "case": "p003-fpg-range",
+     "fact": "2026-08-16 4.82",
+     "file": "files/p003/p003_2026-08-16_e11a.pdf"
+    }
+   ],
+   "genotype": {
+    "id": 2,
+    "status": "active",
+    "format_id": "23andme_genotype",
+    "vendor": "23andMe",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 169,
+    "n_called": 160,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-06T08:37:00.444042+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa1-p004@bench.mirobody.local": {
+  "person": "p004",
+  "user_id": "33",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "steps": {
+   "settings": "2026-10-06T16:40:35+08:00",
+   "devices": {
+    "batches": 1,
+    "ingested": 172,
+    "standardized": 172,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261006_084037_9db9e556.txt",
+    "status": "done",
+    "seconds": 6.2,
+    "filed_s": 6.2,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p004_wegene.txt",
+    "active_set": {
+     "id": 3,
+     "status": "active",
+     "format_id": "wegene_genotype",
+     "vendor": "WeGene",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 266,
+     "n_called": 252,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-06T08:40:38.070667+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {},
+   "journal": {
+    "written": 14,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T16:40:44+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa1-p004@bench.mirobody.local",
+   "readings": 172,
+   "documents": {},
+   "facts_missing": [],
+   "genotype": {
+    "id": 3,
+    "status": "active",
+    "format_id": "wegene_genotype",
+    "vendor": "WeGene",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 266,
+    "n_called": 252,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-06T08:40:38.070667+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa1-p005@bench.mirobody.local": {
+  "person": "p005",
+  "user_id": "34",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "steps": {
+   "settings": "2026-10-06T16:40:44+08:00",
+   "devices": {
+    "batches": 2,
+    "ingested": 669,
+    "standardized": 669,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "file_key": "uploads/20261006_084049_3ca8d7fc.pdf",
+     "status": "done",
+     "seconds": 116.8,
+     "filed_s": 93.4,
+     "error": "",
+     "indicators_count": 42,
+     "report_date": "2025-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-08-28_体检报告_向伟博.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "file_key": "uploads/20261006_084245_540dfdef.pdf",
+     "status": "done",
+     "seconds": 20.2,
+     "filed_s": 18.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-03-05 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-05_贫血检测报告_摘要.txt",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "file_key": "uploads/20261006_084306_d9ca8756.xlsx",
+     "status": "done",
+     "seconds": 18.7,
+     "filed_s": 11.0,
+     "error": "",
+     "indicators_count": 22,
+     "report_date": "2026-07-03 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果_report.xlsx",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "file_key": "uploads/20261006_084324_3b189d9a.xlsx",
+     "status": "done",
+     "seconds": 12.4,
+     "filed_s": 5.1,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-07-04 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-07-04 00:00:00",
+      "source": "extracted",
+      "to": "2026-07-03",
+      "result": {
+       "file_key": "uploads/20261006_084324_3b189d9a.xlsx",
+       "report_date": "2026-07-03 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "file_key": "uploads/20261006_084337_a827c948.pdf",
+     "status": "done",
+     "seconds": 180.7,
+     "filed_s": 74.7,
+     "error": "",
+     "indicators_count": 91,
+     "report_date": "2026-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-28_体检报告_摘要.ext",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 41,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T16:46:36+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa1-p005@bench.mirobody.local",
+   "readings": 832,
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "rows": 52,
+     "found": 27,
+     "unit_ok": 2,
+     "range_ok": 3,
+     "extra": 15,
+     "dates_stored": [
+      "2025-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 42
+     },
+     "missing": [
+      "ABO血型（ABO） O",
+      "Rh(D)血型（Rh） 阳性",
+      "丙氨酸氨基转移酶（ALT） 13",
+      "天门冬氨酸氨基转移酶（AST） 25",
+      "γ-谷氨酰基转移酶（GGT） 53",
+      "总胆红素（TBIL） 8.2",
+      "直接胆红素（DBIL） 1.6",
+      "间接胆红素（IBIL） 6.6",
+      "尿素（BUN） 5.45",
+      "肌酐（CREA） 61",
+      "尿酸（UA） 237",
+      "空腹血糖（FPG） 5.12",
+      "尿比重（SG） 1.047",
+      "尿酸碱度（pH） 6.3",
+      "尿蛋白（PRO） 阴性",
+      "尿葡萄糖（GLU） 阴性",
+      "尿潜血（BLD） 阴性",
+      "尿酮体（KET） 阴性",
+      "亚硝酸盐（NIT） 阴性",
+      "镜检红细胞（U-RBC） 0.6",
+      "镜检白细胞（U-WBC） 1.2",
+      "PR间期（PR） 145",
+      "QRS时限（QRS） 88",
+      "QTc间期（QTc） 368",
+      "QRS电轴 28"
+     ]
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "rows": 22,
+     "found": 22,
+     "unit_ok": 22,
+     "range_ok": 22,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 22
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "rows": 55,
+     "found": 54,
+     "unit_ok": 46,
+     "range_ok": 41,
+     "extra": 37,
+     "dates_stored": [
+      "2026-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 91
+     },
+     "missing": [
+      "QRS电轴 26"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ },
+ "qa2-p002@bench.mirobody.local": {
+  "person": "p002",
+  "user_id": "40",
+  "tz": "UTC",
+  "lang": "en",
+  "steps": {
+   "settings": "2026-10-06T16:48:27+08:00",
+   "devices": {
+    "batches": 12,
+    "ingested": 5548,
+    "standardized": 5548,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "file_key": "uploads/20261006_084841_97323b3f.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 0,
+     "report_date": "2026-08-07 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-07_Health_Screening_Report_English.pdf",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 37,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T17:07:45+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa2-p002@bench.mirobody.local",
+   "readings": 5548,
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "rows": 78,
+     "found": 0,
+     "unit_ok": 0,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [],
+     "by_extractor": {},
+     "missing": [
+      "Height 161.7",
+      "Body weight 57.0",
+      "Body mass index(BMI) 21.8",
+      "Blood Pressure 123/78",
+      "Heart rate(HR) 69",
+      "White blood cell count(WBC) 9.04",
+      "Red blood cell count(RBC) 4.60",
+      "Hemoglobin(HGB) 138",
+      "Hematocrit(HCT) 42.8",
+      "Mean corpuscular volume(MCV) 93.0",
+      "Mean corpuscular hemoglobin(MCH) 30.0",
+      "Mean corpuscular hemoglobin concentration(MCHC) 323",
+      "Red cell distribution width(RDW-CV) 14.0",
+      "Platelet count(PLT) 177",
+      "Mean platelet volume(MPV) 11.1",
+      "Platelet distribution width(PDW) 12.2",
+      "Plateletcrit(PCT) 0.189",
+      "Neutrophil percentage(NEUT%) 55.1",
+      "Lymphocyte percentage(LYMPH%) 31.3",
+      "Monocyte percentage(MONO%) 5.9",
+      "Eosinophil percentage(EO%) 7.3",
+      "Basophil percentage(BASO%) 0.4",
+      "Neutrophil count(NEUT#) 4.98",
+      "Lymphocyte count(LYMPH#) 2.83",
+      "Monocyte count(MONO#) 0.53",
+      "Eosinophil count(EO#) 0.66",
+      "Basophil count(BASO#) 0.04",
+      "Alanine aminotransferase(ALT) 19",
+      "Aspartate aminotransferase(AST) 13",
+      "Alkaline phosphatase(ALP) 54",
+      "Gamma-glutamyl transferase(GGT) 16",
+      "Total protein(TP) 74.1",
+      "Albumin(ALB) 42.3",
+      "Globulin(GLB) 31.8",
+      "Total bilirubin(TBIL) 14.1",
+      "Direct bilirubin(DBIL) 2.7",
+      "Indirect bilirubin(IBIL) 11.4",
+      "Total bile acid(TBA) 3.5",
+      "Urea(BUN) 3.79",
+      "Creatinine(CREA) 51",
+      "Uric acid(UA) 236",
+      "Potassium(K) 4.09",
+      "Sodium(Na) 142.2",
+      "Chloride(Cl) 110.7",
+      "Calcium(Ca) 2.23",
+      "Total cholesterol(TC) 3.89",
+      "Triglycerides(TG) 0.89",
+      "HDL cholesterol(HDL-C) 1.81",
+      "LDL cholesterol(LDL-C) 1.68",
+      "Apolipoprotein A1(ApoA1) 1.69",
+      "Apolipoprotein B(ApoB) 0.58",
+      "Fasting plasma glucose(FPG) 4.45",
+      "Glycated hemoglobin(HbA1c) 4.5",
+      "Thyroid stimulating hormone(TSH) 2.421",
+      "Free triiodothyronine(FT3) 6.32",
+      "Free thyroxine(FT4) 19.02",
+      "Urine specific gravity(SG) 1.021",
+      "Urine pH(pH) 5.4",
+      "Urine protein(PRO) Negative",
+      "Urine glucose(GLU) Negative",
+      "Urine occult blood(BLD) Negative",
+      "Urine ketone(KET) Negative",
+      "Nitrite(NIT) Negative",
+      "Urine RBC (microscopy)(U-RBC) 0.6",
+      "Urine WBC (microscopy)(U-WBC) 1.1",
+      "High-sensitivity CRP(hs-CRP) 0.73",
+      "Hepatitis B surface antigen(HBsAg) Negative",
+      "Hepatitis B surface antibody(HBsAb) Positive",
+      "Hepatitis B e antigen(HBeAg) Negative",
+      "Hepatitis B e antibody(HBeAb) Negative",
+      "Hepatitis B core antibody(HBcAb) Positive",
+      "Alpha-fetoprotein(AFP) 2.70",
+      "Carcinoembryonic antigen(CEA) 1.78",
+      "Cancer antigen 125(CA125) 12.5",
+      "PR interval(PR) 146",
+      "QRS duration(QRS) 80",
+      "QTc interval(QTc) 354",
+      "QRS axis 31"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ },
+ "qa2-p003@bench.mirobody.local": {
+  "person": "p003",
+  "user_id": "72",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "steps": {
+   "settings": "2026-10-06T17:07:45+08:00",
+   "devices": {
+    "batches": 4,
+    "ingested": 1895,
+    "standardized": 1895,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261006_090750_1469bbf0.txt",
+    "status": "done",
+    "seconds": 7.1,
+    "filed_s": 7.1,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p003_23andme.txt",
+    "active_set": {
+     "id": 4,
+     "status": "active",
+     "format_id": "23andme_genotype",
+     "vendor": "23andMe",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 169,
+     "n_called": 160,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-06T09:07:50.617270+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "file_key": "uploads/20261006_090757_dd476ee8.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 5.1,
+     "error": "",
+     "indicators_count": 2,
+     "report_date": "2024-04-10 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2024-04-10_检验报告单_闫柏超.pdf",
+     "agent_model": "minicpm5-2b",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "file_key": "uploads/20261006_090905_7b8d29d9.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 7.0,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2025-04-05 09:11:41",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-04-05_血糖检验报告单.pdf",
+     "agent_model": "minicpm5-2b",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "file_key": "uploads/20261006_091014_a314560e.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 0,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_门诊病历_糖尿病_手麻.pdf",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261006_091014_a314560e.pdf",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 0,
+       "skipped": 0
+      }
+     },
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "file_key": "uploads/20261006_091121_dbff702c.jpg",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_检验报告_闫柏超_心内科.jpg",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261006_091121_dbff702c.jpg",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     },
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    }
+   },
+   "journal": {
+    "written": 33,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T17:12:27+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa2-p003@bench.mirobody.local",
+   "readings": 1904,
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "rows": 2,
+     "found": 2,
+     "unit_ok": 2,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [
+      "2024-04-10"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 2
+     },
+     "missing": []
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [
+      "2025-04-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 3
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "rows": 5,
+     "found": 0,
+     "unit_ok": 0,
+     "range_ok": 0,
+     "extra": 0,
+     "dates_stored": [],
+     "by_extractor": {},
+     "missing": [
+      "T 36.6",
+      "P 67",
+      "R 16",
+      "体重 84.9",
+      "BP 111/65"
+     ]
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 0,
+     "extra": 1,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    }
+   },
+   "facts_missing": [],
+   "genotype": {
+    "id": 4,
+    "status": "active",
+    "format_id": "23andme_genotype",
+    "vendor": "23andMe",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 169,
+    "n_called": 160,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-06T09:07:50.617270+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa2-p004@bench.mirobody.local": {
+  "person": "p004",
+  "user_id": "73",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "steps": {
+   "settings": "2026-10-06T17:12:27+08:00",
+   "devices": {
+    "batches": 1,
+    "ingested": 172,
+    "standardized": 172,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261006_091229_6996d89b.txt",
+    "status": "done",
+    "seconds": 5.0,
+    "filed_s": 5.0,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p004_wegene.txt",
+    "active_set": {
+     "id": 5,
+     "status": "active",
+     "format_id": "wegene_genotype",
+     "vendor": "WeGene",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 266,
+     "n_called": 252,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-06T09:12:29.358182+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {},
+   "journal": {
+    "written": 14,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T17:12:33+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa2-p004@bench.mirobody.local",
+   "readings": 172,
+   "documents": {},
+   "facts_missing": [],
+   "genotype": {
+    "id": 5,
+    "status": "active",
+    "format_id": "wegene_genotype",
+    "vendor": "WeGene",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 266,
+    "n_called": 252,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-06T09:12:29.358182+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa2-p005@bench.mirobody.local": {
+  "person": "p005",
+  "user_id": "74",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "steps": {
+   "settings": "2026-10-06T17:12:33+08:00",
+   "devices": {
+    "batches": 2,
+    "ingested": 669,
+    "standardized": 669,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "file_key": "uploads/20261006_091234_549a055f.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 10.3,
+     "error": "",
+     "indicators_count": 42,
+     "report_date": "2025-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-08-28_体检报告_向伟博.pdf",
+     "agent_model": "minicpm5-2b",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "file_key": "uploads/20261006_091347_bd438256.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-03-05 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-05_贫血检测报告_摘要.txt",
+     "agent_model": "minicpm5-2b",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "file_key": "uploads/20261006_091454_21e3d994.xlsx",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 7.1,
+     "error": "",
+     "indicators_count": 22,
+     "report_date": "2026-07-03 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果_report.xlsx",
+     "agent_model": "minicpm5-2b",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "file_key": "uploads/20261006_091603_8c0904b8.xlsx",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-07-04 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-07-04 00:00:00",
+      "source": "extracted",
+      "to": "2026-07-03",
+      "result": {
+       "file_key": "uploads/20261006_091603_8c0904b8.xlsx",
+       "report_date": "2026-07-03 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     },
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "file_key": "uploads/20261006_091710_f351e99e.pdf",
+     "status": "done",
+     "seconds": null,
+     "filed_s": 10.2,
+     "error": "",
+     "indicators_count": 94,
+     "report_date": "2026-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-28_体检报告_摘要.ext",
+     "agent_model": "minicpm5-2b",
+     "note": "time not measured: after the Docker VM's disk was recovered (2026-10-06 ~17:00) the app's log could not be read with --since, so the loader took the end as 60 s after filing; indicators_count re-read from the files API once every extraction had finished"
+    }
+   },
+   "journal": {
+    "written": 41,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-06T17:18:21+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa2-p005@bench.mirobody.local",
+   "readings": 832,
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "rows": 52,
+     "found": 27,
+     "unit_ok": 2,
+     "range_ok": 3,
+     "extra": 15,
+     "dates_stored": [
+      "2025-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 42
+     },
+     "missing": [
+      "ABO血型（ABO） O",
+      "Rh(D)血型（Rh） 阳性",
+      "丙氨酸氨基转移酶（ALT） 13",
+      "天门冬氨酸氨基转移酶（AST） 25",
+      "γ-谷氨酰基转移酶（GGT） 53",
+      "总胆红素（TBIL） 8.2",
+      "直接胆红素（DBIL） 1.6",
+      "间接胆红素（IBIL） 6.6",
+      "尿素（BUN） 5.45",
+      "肌酐（CREA） 61",
+      "尿酸（UA） 237",
+      "空腹血糖（FPG） 5.12",
+      "尿比重（SG） 1.047",
+      "尿酸碱度（pH） 6.3",
+      "尿蛋白（PRO） 阴性",
+      "尿葡萄糖（GLU） 阴性",
+      "尿潜血（BLD） 阴性",
+      "尿酮体（KET） 阴性",
+      "亚硝酸盐（NIT） 阴性",
+      "镜检红细胞（U-RBC） 0.6",
+      "镜检白细胞（U-WBC） 1.2",
+      "PR间期（PR） 145",
+      "QRS时限（QRS） 88",
+      "QTc间期（QTc） 368",
+      "QRS电轴 28"
+     ]
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "rows": 22,
+     "found": 22,
+     "unit_ok": 22,
+     "range_ok": 22,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 22
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "rows": 55,
+     "found": 49,
+     "unit_ok": 41,
+     "range_ok": 36,
+     "extra": 42,
+     "dates_stored": [
+      "2026-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 91
+     },
+     "missing": [
+      "白细胞计数（WBC） 4.81",
+      "尿比重（SG） 1.049",
+      "PR间期（PR） 161",
+      "QRS时限（QRS） 100",
+      "QTc间期（QTc） 388",
+      "QRS电轴 26"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ },
+ "ocr-warm": {
+  "files/p005/p005_2026-03-05_e07b.pdf": {
+   "file_key": "uploads/20261006_094506_bd48f656.pdf",
+   "status": "done",
+   "seconds": 7.3,
+   "filed_s": 5.0,
+   "error": "",
+   "indicators_count": 4,
+   "report_date": "2026-03-05 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2026-03-05_贫血检测报告_摘要.txt",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2023-11-12_e01a.pdf": {
+   "file_key": "uploads/20261006_094514_18e8af91.pdf",
+   "status": "done",
+   "seconds": 35.4,
+   "filed_s": 22.7,
+   "error": "",
+   "indicators_count": 6,
+   "report_date": "2023-11-12 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2023-11-12_检验报告_摘要.txt",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p006/p006_2024-10-25_e09a.pdf": {
+   "file_key": "uploads/20261006_094549_63673348.pdf",
+   "status": "done",
+   "seconds": 29.4,
+   "filed_s": 15.6,
+   "error": "",
+   "indicators_count": 6,
+   "report_date": "2024-10-25 12:58:10",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2024-10-25_Lab_Report_Quillcombe_Medical_Centre.pdf",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2024-05-10_e04a.csv": {
+   "file_key": "uploads/20261006_094618_34130757.csv",
+   "status": "done",
+   "seconds": 22.8,
+   "filed_s": 5.1,
+   "error": "",
+   "indicators_count": 6,
+   "report_date": "2024-05-10 00:00:00",
+   "date_source": "extracted",
+   "scene": "csv",
+   "title": "2024-05-10_血脂检验报告单.csv",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2026-04-30_e11b.xlsx": {
+   "file_key": "uploads/20261006_094641_6a10fe1a.xlsx",
+   "status": "done",
+   "seconds": 17.7,
+   "filed_s": 5.1,
+   "error": "",
+   "indicators_count": 6,
+   "report_date": "2026-05-01 00:00:00",
+   "date_source": "extracted",
+   "scene": "excel",
+   "title": "2026-04-30_检验报告_摘要.xlsx",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p003/p003_2025-04-05_e07a.pdf": {
+   "file_key": "uploads/20261006_094659_c1ee5d96.pdf",
+   "status": "done",
+   "seconds": 12.4,
+   "filed_s": 5.1,
+   "error": "",
+   "indicators_count": 3,
+   "report_date": "2025-04-05 09:11:41",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2025-04-05_血糖检验报告单.pdf",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2025-11-01_e09a.jpg": {
+   "file_key": "uploads/20261006_094711_a454b340.jpg",
+   "status": "done",
+   "seconds": 38.5,
+   "filed_s": 20.7,
+   "error": "",
+   "indicators_count": 6,
+   "report_date": "2025-11-02 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2025-11-01_检验报告_贺瑶欣.jpg",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p003/p003_2024-10-07_e06b.jpg": {
+   "file_key": "uploads/20261006_094750_21acca39.jpg",
+   "status": "done",
+   "seconds": 23.2,
+   "filed_s": 21.0,
+   "error": "",
+   "indicators_count": 2,
+   "report_date": "2024-10-08 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2024-10-07_检验报告单_闫柏超.jpg",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p006/p006_2026-04-18_e13a.png": {
+   "file_key": "uploads/20261006_094813_7a130c42.png",
+   "status": "done",
+   "seconds": 33.3,
+   "filed_s": 15.5,
+   "error": "",
+   "indicators_count": 6,
+   "report_date": "2026-10-06 09:48:41",
+   "date_source": "upload_time",
+   "scene": "report",
+   "title": "2026-04-18_Thyroid_Report_Daniel_Lau.png",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p002/p002_2026-08-07_e04a.pdf": {
+   "file_key": "uploads/20261006_094846_7247100f.pdf",
+   "status": "done",
+   "seconds": 45.3,
+   "filed_s": 12.4,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2026-08-07 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2026-08-07_Health_Screening_Report_Chinese.pdf",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p003/p003_2026-03-31_e10a.pdf": {
+   "file_key": "uploads/20261006_094932_ca0880f6.pdf",
+   "status": "done",
+   "seconds": 17.7,
+   "filed_s": 5.1,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2026-04-01 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2026-03-31_门诊病历_糖尿病_手麻.pdf",
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p005/p005_log01.jpg": {
+   "file_key": "uploads/20261006_094950_91b8840b.jpg",
+   "status": "done",
+   "seconds": 22.8,
+   "filed_s": 20.6,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2025-12-14 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2025-12-02_体重记录_向伟博.jpg",
+   "agent_model": "minicpm5-2b"
+  }
+ },
+ "qa3-p002@bench.mirobody.local": {
+  "person": "p002",
+  "user_id": "148",
+  "tz": "UTC",
+  "lang": "en",
+  "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T00:50:51+08:00",
+   "devices": {
+    "batches": 12,
+    "ingested": 5548,
+    "standardized": 5548,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "file_key": "uploads/20261007_023100_b5cd2e28.pdf",
+     "status": "done",
+     "seconds": 257.6,
+     "filed_s": 10.3,
+     "error": "",
+     "indicators_count": 134,
+     "report_date": "2026-08-07 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-07_Health_Report_Ming_Tan.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 37,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T10:35:18+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa3-p002@bench.mirobody.local",
+   "readings": 5655,
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "rows": 78,
+     "found": 78,
+     "unit_ok": 78,
+     "range_ok": 75,
+     "extra": 29,
+     "dates_stored": [
+      "2026-08-07",
+      "2026-08-23"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 107
+     },
+     "missing": []
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  },
+  "replaced": [
+   {
+    "file_key": "uploads/20261006_165104_574402e4.pdf",
+    "status": "done",
+    "seconds": 252.3,
+    "filed_s": 15.7,
+    "error": "",
+    "indicators_count": 110,
+    "report_date": "2026-08-07 00:00:00",
+    "date_source": "extracted",
+    "scene": "report",
+    "title": "2026-08-07_Health_Screening_Report_English.pdf",
+    "agent_model": "minicpm5-2b",
+    "file": "files/p002/p002_2026-08-07_e04a.pdf",
+    "replaced_at": "2026-10-07T10:31:00+08:00",
+    "readings_gone_s": 5.5
+   }
+  ]
+ },
+ "qa3-p003@bench.mirobody.local": {
+  "person": "p003",
+  "user_id": "149",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T00:55:17+08:00",
+   "devices": {
+    "batches": 4,
+    "ingested": 1895,
+    "standardized": 1895,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261006_165520_8ec43c47.txt",
+    "status": "done",
+    "seconds": 5.1,
+    "filed_s": 5.0,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p003_23andme.txt",
+    "active_set": {
+     "id": 6,
+     "status": "active",
+     "format_id": "23andme_genotype",
+     "vendor": "23andMe",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 169,
+     "n_called": 160,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-06T16:55:20.914398+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "file_key": "uploads/20261006_165525_fba58868.pdf",
+     "status": "done",
+     "seconds": 7.1,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 2,
+     "report_date": "2024-04-10 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2024-04-10_检验报告单_闫柏超.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "file_key": "uploads/20261006_165533_68ac7698.pdf",
+     "status": "done",
+     "seconds": 17.3,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2025-04-05 09:11:41",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-04-05_血糖检验报告单.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "file_key": "uploads/20261006_165550_81c111a5.pdf",
+     "status": "done",
+     "seconds": 37.7,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 9,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_门诊病历_糖尿病_手麻.pdf",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261006_165550_81c111a5.pdf",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 9,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "file_key": "uploads/20261006_165628_34af6cdd.jpg",
+     "status": "done",
+     "seconds": 7.1,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_检验报告_闫柏超_心内科.jpg",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261006_165628_34af6cdd.jpg",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 3,
+       "skipped": 0
+      }
+     }
+    }
+   },
+   "journal": {
+    "written": 33,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T10:35:18+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa3-p003@bench.mirobody.local",
+   "readings": 1912,
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "rows": 2,
+     "found": 2,
+     "unit_ok": 2,
+     "range_ok": 2,
+     "extra": 0,
+     "dates_stored": [
+      "2024-04-10"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 2
+     },
+     "missing": []
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 3,
+     "extra": 0,
+     "dates_stored": [
+      "2025-04-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 3
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "rows": 5,
+     "found": 5,
+     "unit_ok": 5,
+     "range_ok": 5,
+     "extra": 4,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "llm:file-parser@indicators-v1": 9
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 3,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 3
+     },
+     "missing": []
+    }
+   },
+   "facts_missing": [],
+   "genotype": {
+    "id": 6,
+    "status": "active",
+    "format_id": "23andme_genotype",
+    "vendor": "23andMe",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 169,
+    "n_called": 160,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-06T16:55:20.914398+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa3-p004@bench.mirobody.local": {
+  "person": "p004",
+  "user_id": "150",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T00:56:35+08:00",
+   "devices": {
+    "batches": 1,
+    "ingested": 172,
+    "standardized": 172,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261006_165636_97b0cea9.txt",
+    "status": "done",
+    "seconds": 5.0,
+    "filed_s": 5.0,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p004_wegene.txt",
+    "active_set": {
+     "id": 7,
+     "status": "active",
+     "format_id": "wegene_genotype",
+     "vendor": "WeGene",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 266,
+     "n_called": 252,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-06T16:56:36.396533+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {},
+   "journal": {
+    "written": 14,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T10:35:18+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa3-p004@bench.mirobody.local",
+   "readings": 172,
+   "documents": {},
+   "facts_missing": [],
+   "genotype": {
+    "id": 7,
+    "status": "active",
+    "format_id": "wegene_genotype",
+    "vendor": "WeGene",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 266,
+    "n_called": 252,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-06T16:56:36.396533+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa3-p005@bench.mirobody.local": {
+  "person": "p005",
+  "user_id": "151",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T00:56:41+08:00",
+   "devices": {
+    "batches": 2,
+    "ingested": 669,
+    "standardized": 669,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "file_key": "uploads/20261006_165643_fd49767d.pdf",
+     "status": "done",
+     "seconds": 653.4,
+     "filed_s": 10.2,
+     "error": "",
+     "indicators_count": 83,
+     "report_date": "2025-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-08-28_体检报告_向伟博.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "file_key": "uploads/20261006_170736_eb2c3862.pdf",
+     "status": "done",
+     "seconds": 7.1,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-03-05 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-05_贫血检测报告_摘要.txt",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "file_key": "uploads/20261006_170743_f06bfcef.xlsx",
+     "status": "done",
+     "seconds": 7.1,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 22,
+     "report_date": "2026-07-03 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果_report.xlsx",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "file_key": "uploads/20261006_170750_8d285461.xlsx",
+     "status": "done",
+     "seconds": 12.2,
+     "filed_s": 10.1,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-07-04 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-07-04 00:00:00",
+      "source": "extracted",
+      "to": "2026-07-03",
+      "result": {
+       "file_key": "uploads/20261006_170750_8d285461.xlsx",
+       "report_date": "2026-07-03 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "file_key": "uploads/20261007_023524_2c8f9c4b.pdf",
+     "status": "done",
+     "seconds": 182.9,
+     "filed_s": 15.3,
+     "error": "",
+     "indicators_count": 98,
+     "report_date": "2026-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-28_体检报告_摘要.ext",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 41,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T10:38:27+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa3-p005@bench.mirobody.local",
+   "readings": 849,
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "rows": 52,
+     "found": 51,
+     "unit_ok": 51,
+     "range_ok": 50,
+     "extra": 20,
+     "dates_stored": [
+      "2025-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 71
+     },
+     "missing": [
+      "QRS电轴 28"
+     ]
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "rows": 22,
+     "found": 22,
+     "unit_ok": 22,
+     "range_ok": 22,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 22
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "rows": 55,
+     "found": 51,
+     "unit_ok": 51,
+     "range_ok": 46,
+     "extra": 28,
+     "dates_stored": [
+      "2026-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 79
+     },
+     "missing": [
+      "白细胞计数（WBC） 4.81",
+      "PR间期（PR） 161",
+      "QRS时限（QRS） 100",
+      "QTc间期（QTc） 388"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  },
+  "replaced": [
+   {
+    "file_key": "uploads/20261006_170803_dc2df194.pdf",
+    "status": "done",
+    "seconds": 192.5,
+    "filed_s": 15.2,
+    "error": "",
+    "indicators_count": 98,
+    "report_date": "2026-08-28 00:00:00",
+    "date_source": "extracted",
+    "scene": "report",
+    "title": "2026-08-28_体检报告_摘要.ext",
+    "agent_model": "minicpm5-2b",
+    "file": "files/p005/p005_2026-08-28_e09a.pdf",
+    "replaced_at": "2026-10-07T10:35:24+08:00",
+    "readings_gone_s": 5.3
+   }
+  ]
+ },
+ "qa4-p002@bench.mirobody.local": {
+  "person": "p002",
+  "user_id": "196",
+  "tz": "UTC",
+  "lang": "en",
+  "mirobody_commit": "958fae53987f5fcfbd5bd5058213ce35ab3f6be3",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T12:41:23+08:00",
+   "devices": {
+    "batches": 12,
+    "ingested": 5548,
+    "standardized": 5548,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "file_key": "uploads/20261007_044133_6e8849de.pdf",
+     "status": "done",
+     "seconds": 162.0,
+     "filed_s": 10.3,
+     "error": "",
+     "indicators_count": 113,
+     "report_date": "2026-08-07 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-07_Health_Report.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 37,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T12:44:16+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa4-p002@bench.mirobody.local",
+   "readings": 5633,
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "rows": 78,
+     "found": 77,
+     "unit_ok": 77,
+     "range_ok": 77,
+     "extra": 8,
+     "dates_stored": [
+      "2026-08-07"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 85
+     },
+     "missing": [
+      "Basophil count(BASO#) 0.04"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ },
+ "qa4-p003@bench.mirobody.local": {
+  "person": "p003",
+  "user_id": "197",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "958fae53987f5fcfbd5bd5058213ce35ab3f6be3",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T12:44:16+08:00",
+   "devices": {
+    "batches": 4,
+    "ingested": 1895,
+    "standardized": 1895,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261007_044420_8783ce8d.txt",
+    "status": "done",
+    "seconds": 5.1,
+    "filed_s": 5.1,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p003_23andme.txt",
+    "active_set": {
+     "id": 8,
+     "status": "active",
+     "format_id": "23andme_genotype",
+     "vendor": "23andMe",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 169,
+     "n_called": 160,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-07T04:44:20.574192+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "file_key": "uploads/20261007_044425_11fdca09.pdf",
+     "status": "done",
+     "seconds": 7.2,
+     "filed_s": 5.1,
+     "error": "",
+     "indicators_count": 2,
+     "report_date": "2024-04-10 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2024-04-10_检验报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "file_key": "uploads/20261007_044432_fdcc6725.pdf",
+     "status": "done",
+     "seconds": 17.5,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2025-04-05 09:11:41",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-04-05_血糖检验报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "file_key": "uploads/20261007_044450_2369dd2e.pdf",
+     "status": "done",
+     "seconds": 27.6,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 9,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_门诊病历.pdf",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261007_044450_2369dd2e.pdf",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 9,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "file_key": "uploads/20261007_044517_e26999ee.jpg",
+     "status": "done",
+     "seconds": 7.2,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_检验报告_闫柏超.jpg",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261007_044517_e26999ee.jpg",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 3,
+       "skipped": 0
+      }
+     }
+    }
+   },
+   "journal": {
+    "written": 33,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T12:45:25+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa4-p003@bench.mirobody.local",
+   "readings": 1912,
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "rows": 2,
+     "found": 2,
+     "unit_ok": 2,
+     "range_ok": 2,
+     "extra": 0,
+     "dates_stored": [
+      "2024-04-10"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 2
+     },
+     "missing": []
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 3,
+     "extra": 0,
+     "dates_stored": [
+      "2025-04-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 3
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "rows": 5,
+     "found": 5,
+     "unit_ok": 5,
+     "range_ok": 5,
+     "extra": 4,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "llm:file-parser@indicators-v1": 9
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 3,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 3
+     },
+     "missing": []
+    }
+   },
+   "facts_missing": [],
+   "genotype": {
+    "id": 8,
+    "status": "active",
+    "format_id": "23andme_genotype",
+    "vendor": "23andMe",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 169,
+    "n_called": 160,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-07T04:44:20.574192+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa4-p004@bench.mirobody.local": {
+  "person": "p004",
+  "user_id": "198",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "958fae53987f5fcfbd5bd5058213ce35ab3f6be3",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T12:45:25+08:00",
+   "devices": {
+    "batches": 1,
+    "ingested": 172,
+    "standardized": 172,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261007_044526_f7d4be5e.txt",
+    "status": "done",
+    "seconds": 5.0,
+    "filed_s": 5.0,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p004_wegene.txt",
+    "active_set": {
+     "id": 9,
+     "status": "active",
+     "format_id": "wegene_genotype",
+     "vendor": "WeGene",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 266,
+     "n_called": 252,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-07T04:45:26.271682+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {},
+   "journal": {
+    "written": 14,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T12:45:31+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa4-p004@bench.mirobody.local",
+   "readings": 172,
+   "documents": {},
+   "facts_missing": [],
+   "genotype": {
+    "id": 9,
+    "status": "active",
+    "format_id": "wegene_genotype",
+    "vendor": "WeGene",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 266,
+    "n_called": 252,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-07T04:45:26.271682+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa4-p005@bench.mirobody.local": {
+  "person": "p005",
+  "user_id": "199",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "958fae53987f5fcfbd5bd5058213ce35ab3f6be3",
+  "mirobody_dirty": false,
+  "steps": {
+   "settings": "2026-10-07T12:45:31+08:00",
+   "devices": {
+    "batches": 2,
+    "ingested": 669,
+    "standardized": 669,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "file_key": "uploads/20261007_044533_d3d02106.pdf",
+     "status": "done",
+     "seconds": 99.8,
+     "filed_s": 10.3,
+     "error": "",
+     "indicators_count": 75,
+     "report_date": "2025-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-08-28_体检报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "file_key": "uploads/20261007_044713_833954ec.pdf",
+     "status": "done",
+     "seconds": 7.2,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-03-05 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-05_贫血检测报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "file_key": "uploads/20261007_044720_8c01f0aa.xlsx",
+     "status": "done",
+     "seconds": 7.1,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 22,
+     "report_date": "2026-07-03 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "file_key": "uploads/20261007_044727_7b1424da.xlsx",
+     "status": "done",
+     "seconds": 7.2,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-07-04 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-07-04 00:00:00",
+      "source": "extracted",
+      "to": "2026-07-03",
+      "result": {
+       "file_key": "uploads/20261007_044727_7b1424da.xlsx",
+       "report_date": "2026-07-03 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "file_key": "uploads/20261007_044734_4af75ce2.pdf",
+     "status": "done",
+     "seconds": 260.5,
+     "filed_s": 15.3,
+     "error": "",
+     "indicators_count": 106,
+     "report_date": "2026-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-28_体检报告.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 41,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-07T12:51:55+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa4-p005@bench.mirobody.local",
+   "readings": 844,
+   "documents": {
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "rows": 52,
+     "found": 49,
+     "unit_ok": 49,
+     "range_ok": 45,
+     "extra": 21,
+     "dates_stored": [
+      "2025-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 70
+     },
+     "missing": [
+      "ABO血型（ABO） O",
+      "Rh(D)血型（Rh） 阳性",
+      "QRS电轴 28"
+     ]
+    },
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "rows": 22,
+     "found": 22,
+     "unit_ok": 22,
+     "range_ok": 22,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 22
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "rows": 55,
+     "found": 53,
+     "unit_ok": 53,
+     "range_ok": 48,
+     "extra": 22,
+     "dates_stored": [
+      "2026-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 75
+     },
+     "missing": [
+      "QRS时限（QRS） 100",
+      "QTc间期（QTc） 388"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ }
+}

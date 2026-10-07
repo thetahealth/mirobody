@@ -1,0 +1,120 @@
+{
+ "size": "ref-gemini-3.8-flash-rules",
+ "reference": "gemini-3.8-flash-rules",
+ "agent": "google/gemini-3.8-flash",
+ "models": {
+  "chat_model": "google/gemini-3.8-flash",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "google/gemini-3.8-flash",
+     "default": "google/gemini-3.8-flash",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "google/gemini-3.8-flash",
+     "default": "google/gemini-3.8-flash",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "google/gemini-3.8-flash",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "google/gemini-3.8-flash",
+    "supports_image": false,
+    "extra_body": {
+     "reasoning": {
+      "effort": "low",
+      "exclude": true
+     },
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Google",
+    "model": "google/gemini-3.8-flash",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Google",
+    "model": "google/gemini-3.8-flash",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-07T13:35:24+08:00",
+ "parts": [
+  "extraction"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "extraction"
+   ],
+   "started": "2026-10-07T13:35:55+08:00",
+   "resources": {
+    "disk_free_gb": 8.6,
+    "memory_free_pct": 65,
+    "swap_used_mb": 12771.31
+   },
+   "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+   "mirobody_dirty": false,
+   "loaded": [],
+   "memory": null,
+   "finished": "2026-10-07T13:39:53+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 329.178531441,
+     "extraction": 329.266733901
+    },
+    "parts": {
+     "extraction": 0.088202
+    },
+    "total": 0.088202
+   }
+  }
+ ],
+ "background_tasks_drained_s": 10.4,
+ "finished": "2026-10-07T13:39:53+08:00"
+}

@@ -11,6 +11,8 @@ import logging
 from datetime import datetime
 from typing import Any
 
+from mirobody.collect.files.services.table_indicators import status_of
+
 logger = logging.getLogger(__name__)
 
 
@@ -156,14 +158,17 @@ class ContentFormatter:
                 content_lines.append("|-----------|-------|-----------------|------|--------|")
 
                 # Indicator data rows
+                indicator_status: list[str] = []
                 for indicator in indicators:
                     name = indicator.get("original_indicator", "").strip()
                     value = indicator.get("value", "").strip()
                     reference = indicator.get("reference_range", "").strip()
                     unit = indicator.get("unit", "").strip()
 
-                    # Determine abnormal status
-                    status = indicator.get("status", "").strip()
+                    # The printed flag, else this row against its printed
+                    # range: a table rule stores only what the report flagged.
+                    status = indicator.get("status", "").strip() or status_of(value, reference)
+                    indicator_status.append(status)
 
                     # Handle empty values
                     name = name if name else "-"
@@ -177,9 +182,7 @@ class ContentFormatter:
 
                 # Statistics
                 total_count = len(indicators)
-                abnormal_count = sum(
-                    1 for indicator in indicators if indicator.get("status", "").lower() in ["high", "low"]
-                )
+                abnormal_count = sum(1 for status in indicator_status if status.lower() in ["high", "low"])
                 normal_count = total_count - abnormal_count
 
                 content_lines.append("### 📈 Statistics Overview")

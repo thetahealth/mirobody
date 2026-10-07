@@ -1,0 +1,67 @@
+{
+ "id": "p014_2026-08-21_e09hf#p1",
+ "tier": "H1",
+ "image_sha256": "affa7194398bf33468503b86b7f709afbe22737a6ea0f6b51d459eeed8cacbb1",
+ "image_size": [
+  1186,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nFernvale Health Screening Centre\n\nGeneral examination record\n\nName: Linda Porter  Sex: Female  Age: 72 Y  MRN: 2522771577\nLab No.: 232006988  Specimen: Serum  Requested by: Emily Lambert\n\nPrinted: 2026-09-07 12:06  ReportTime: 2026-08-21 12:06\n\nTEST VALUE UNIT Normal Value\nHeight 172.6 cm\nBody weight 77.5 kg\nBody mass index 26.0 kg/m² (18.5-23.9)\nBlood Pressure 109/74 mmHg (90-139/60-89)\nHeart rate 67/min (60-100)\nFasting plasma glucose 5.42 mmol/L (3.90-6.10)\nGlycated hemoglobin 5.1 % (4.0-6.0)\nFasting insulin 10.38 µIU/mL (2.60-24.90)\nC-peptide 3.51 ng/mL (1.10-4.40)",
+   "finish_reason": "stop",
+   "seconds": 10.26,
+   "usage": {
+    "completion_tokens": 304,
+    "prompt_tokens": 2321,
+    "total_tokens": 2625,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2316,
+    "prompt_ms": 8125.579,
+    "prompt_per_token_ms": 3.5084537996545766,
+    "prompt_per_second": 285.02584246611843,
+    "predicted_n": 304,
+    "predicted_ms": 2052.999,
+    "predicted_per_token_ms": 6.775574257425742,
+    "predicted_per_second": 147.58896619043654
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>TEST</th><th>VALUE</th><th>Unit</th><th>Normal Value</th></tr></thead><tbody><tr><td>Height</td><td>172.6</td><td>cm</td><td></td></tr><tr><td>Body weight</td><td>77.5</td><td>kg</td><td></td></tr><tr><td>Body mass index</td><td>26.0</td><td>kg/m²</td><td>(18.5-23.9)</td></tr><tr><td>Blood Pressure</td><td>109/74</td><td>mmHg</td><td>90-139/60-89</td></tr><tr><td>Heart rate</td><td>67</td><td>/min</td><td>(60-100)</td></tr><tr><td>Fasting plasma glucose</td><td>5.42</td><td>mmol/L</td><td>(3.90-6.10)</td></tr><tr><td>Glycated hemoglobin</td><td>5.1</td><td>%</td><td>(4.0-6.0)</td></tr><tr><td>Fasting insulin</td><td>10.38</td><td>μIU/mL</td><td>(2.60-24.90)</td></tr><tr><td>C-peptide</td><td>3.51</td><td>ng/mL</td><td>(1.10-4.40)</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.89,
+   "usage": {
+    "completion_tokens": 408,
+    "prompt_tokens": 2321,
+    "total_tokens": 2729,
+    "prompt_tokens_details": {
+     "cached_tokens": 2316
+    }
+   },
+   "timings": {
+    "cache_n": 2316,
+    "prompt_n": 5,
+    "prompt_ms": 22.646,
+    "prompt_per_token_ms": 4.5292,
+    "prompt_per_second": 220.78954340722422,
+    "predicted_n": 408,
+    "predicted_ms": 2780.36,
+    "predicted_per_token_ms": 6.831351351351351,
+    "predicted_per_second": 146.38392150656748
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2211.8,
+  "phys_footprint_mib": 1800.7,
+  "phys_footprint_peak_mib": 1880.0
+ }
+}

@@ -1,0 +1,80 @@
+{
+ "id": "p012_2024-11-06_e05hn#p1",
+ "llm": true,
+ "seconds": 11.62,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Temp",
+   "value": "48.6",
+   "reference_range": "",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Body temperature reading",
+   "date_time": "2024-06-11"
+  },
+  {
+   "original_indicator": "Temp",
+   "value": "36.6",
+   "reference_range": "",
+   "unit": "°F",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Body temperature reading",
+   "date_time": "2024-06-11"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "86",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Heart rate reading",
+   "date_time": "2024-06-11"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "132",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Systolic blood pressure",
+   "date_time": "2024-06-11"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "62",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Diastolic blood pressure",
+   "date_time": "2024-06-11"
+  },
+  {
+   "original_indicator": "Sato",
+   "value": "95%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Saturated fat percentage",
+   "date_time": "2024-06-11"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "60.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Body weight",
+   "date_time": "2024-06-11"
+  }
+ ],
+ "date_time": "2024-06-11",
+ "content_type": "medical_report"
+}

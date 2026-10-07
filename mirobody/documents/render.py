@@ -114,3 +114,16 @@ def pdf_pages_as_images(
         return out
     finally:
         doc.close()
+
+
+def text_image(text: str, *, size: int = 48) -> bytes:
+    """A PNG of one line of black text on white: a known image for probing a vision model."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    font = ImageFont.load_default(size=size)
+    width = int(ImageDraw.Draw(Image.new("RGB", (1, 1))).textlength(text, font=font)) + 40
+    image = Image.new("RGB", (width, size * 2 + 20), "white")
+    ImageDraw.Draw(image).text((20, size // 2), text, fill="black", font=font)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return buf.getvalue()

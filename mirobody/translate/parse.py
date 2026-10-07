@@ -39,7 +39,10 @@ _COMPARATORS = {"<": "<", "<=": "<=", "≤": "<=", ">": ">", ">=": ">=", "≥": 
 _SCALE_TO_KIND = {"qn": KIND_QUANTITY, "ord": KIND_ORDINAL, "nom": KIND_NOMINAL, "nar": KIND_NARRATIVE}
 
 _NUM = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
-_RANGE = re.compile(rf"^\s*({_NUM})\s*(?:-|~|～|－|–|—|to|至)\s*({_NUM})")
+#: A doubled dash is one separator: check-up books print "120--200", and with a
+#: single dash the second number was read as negative, so "35.0--45.0" was
+#: stored as -45.0..35.0 (benchmarks/local_ocr, 2026-10-06).
+_RANGE = re.compile(rf"^\s*({_NUM})\s*(?:--|－－|-|~|～|－|–|—|to|至)\s*({_NUM})")
 _BOUND = re.compile(rf"^\s*([<>≤≥]=?)\s*({_NUM})")
 #: The comparator and number a value cell opens with; what follows is the
 #: printed unit, or prose. Text that opens with a divisor, a power or a
@@ -120,8 +123,8 @@ def parse_value(value_text: str, unit_text: str = "") -> Parsed:
 
 def parse_range(ref_text: str) -> tuple[float | None, float | None]:
     """`(low, high)` read off a printed reference range, either bound `None`
-    when the text does not state it. "4.0-10.0", "4.0～10.0 ×10⁹/L", "<5.0",
-    "≥ 60", "40 to 60". Prose ("阴性", "see report") gives `(None, None)`."""
+    when the text does not state it. "4.0-10.0", "120--200", "4.0～10.0 ×10⁹/L",
+    "<5.0", "≥ 60", "40 to 60". Prose ("阴性", "see report") gives `(None, None)`."""
     text = (ref_text or "").strip()
     if not text:
         return None, None

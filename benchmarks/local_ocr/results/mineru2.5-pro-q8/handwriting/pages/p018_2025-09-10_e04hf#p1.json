@@ -1,0 +1,67 @@
+{
+ "id": "p018_2025-09-10_e04hf#p1",
+ "tier": "H3",
+ "image_sha256": "8737b17815ff9e1498de2f585baa9b5d5afe8d756ae895ba94e969709b03d58c",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "TEST\tValue\tUNIT\tRef.\nHeight\t145.8\tcm\t\nBody weight\t42.8[kg\t\nBody mass index\t20.1[kg/m²\t18.5-23.9\nSystolic blood pressure\t124\tmmHg\t90-139\nDiastolic blood pressure\t69\tmmHg\t60-89\nHeart rate\t80/min\t60-100\nFasting plasma glucose\t5.58\tmmol/L\t3.90-6.10<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.77,
+   "usage": {
+    "completion_tokens": 127,
+    "prompt_tokens": 2170,
+    "total_tokens": 2297,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11675.133,
+    "prompt_per_token_ms": 5.417695127610209,
+    "prompt_per_second": 184.5803383995711,
+    "predicted_n": 127,
+    "predicted_ms": 1036.255,
+    "predicted_per_token_ms": 8.224246031746032,
+    "predicted_per_second": 121.59169316432731
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>TEST<fcel>Value<fcel>UNIT<fcel>Ref.<nl>\n<fcel>Height<fcel>145.8<fcel>cm<ecel><nl>\n<fcel>Body weight<fcel>42.8<fcel>kg<ecel><nl>\n<fcel>Body mass index<fcel>20.1<fcel>kg/m2<fcel>18.5-23.9<nl>\n<fcel>Systolic blood pressure<fcel>124<fcel>mmHg<fcel>90-139<nl>\n<fcel>Diastolic blood pressure<fcel>69<fcel>mmHg<fcel>60-89<nl>\n<fcel>Heart rate<fcel>80<fcel>/min<fcel>60-100<nl>\n<fcel>Fasting plasma glucose<fcel>5.58<fcel>mmol/L<fcel>3.90-6.10<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.3,
+   "usage": {
+    "completion_tokens": 150,
+    "prompt_tokens": 2170,
+    "total_tokens": 2320,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 13.645,
+    "prompt_per_token_ms": 1.705625,
+    "prompt_per_second": 586.2953462806889,
+    "predicted_n": 150,
+    "predicted_ms": 1225.559,
+    "predicted_per_token_ms": 8.225228187919463,
+    "predicted_per_second": 121.57717417113334
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1635.2,
+  "phys_footprint_mib": 1140.5,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

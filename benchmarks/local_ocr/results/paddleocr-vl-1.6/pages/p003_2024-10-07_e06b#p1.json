@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-10-07_e06b#p1",
+ "tier": "T4",
+ "image_sha256": "167baf1db368a41058148bda0086527f2f154b2e3afe4cbbf23e719619572507",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHIC SAMPLE — GENERATED DATA NOT A REAL PATIENT RECORD\n\n芷沅市中心医院\n\n检验报告单\n\n姓名：闫柏超 性别：男 年龄：53岁\n门诊号：5617297173 标本号：699751232 科室：门诊\n标本类型：全血\n\n报告日期：2024-10-08 13:12:31 采样时间：2024-10-07 08:12:31 收样日期：2024-10-07 09:53:31\n\n检查项目\nFFG\nHbA1c\n\n测定值\n4.67\n5.5\n\n参考\n3.90-6.10\n4.0-6.0\n\n检查者：韦峰睿 检验者：孙瑶\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 7.13,
+   "usage": {
+    "completion_tokens": 224,
+    "prompt_tokens": 1273,
+    "total_tokens": 1497,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5710.886,
+    "prompt_per_token_ms": 4.503853312302839,
+    "prompt_per_second": 222.03209799670313,
+    "predicted_n": 224,
+    "predicted_ms": 1380.841,
+    "predicted_per_token_ms": 6.192112107623318,
+    "predicted_per_second": 161.49578409099965
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>姓名：闫柏超<fcel>性别：男<fcel>年龄：53岁<nl><fcel>门诊号：5617297173<fcel>标本号：699751232<fcel>科室：门诊<nl><fcel>标本类型：全血<lcel><lcel><nl><fcel>报告日期：2024-10-08 13:12:31 采样时间：2024-10-07 08:12:31 收样日期：2024-10-07 09:53:31<lcel><lcel><nl><fcel>检查项目<fcel>测定值<fcel>参考<nl><fcel>FPG<fcel>4.67<fcel>3.90-6.10<nl><fcel>HbA1c<fcel>5.5<fcel>4.0-6.0<nl><fcel>检查者：韦峰睿<fcel>检验者：孙瑶<ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.27,
+   "usage": {
+    "completion_tokens": 192,
+    "prompt_tokens": 1273,
+    "total_tokens": 1465,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.77,
+    "prompt_per_token_ms": 1.6814285714285713,
+    "prompt_per_second": 594.732370433305,
+    "predicted_n": 192,
+    "predicted_ms": 1217.831,
+    "predicted_per_token_ms": 6.3760785340314134,
+    "predicted_per_second": 156.8362112641245
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2209.1,
+  "phys_footprint_mib": 1330.5,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

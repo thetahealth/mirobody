@@ -36,6 +36,28 @@ logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
+def _model_setup() -> dict[str, str]:
+    """`needed` sends the web client to its first-run page: no chat model is
+    usable yet. Read per request, because the page changes it."""
+    from mirobody.utils.config.llm import chat_default
+
+    return {"__MODEL_SETUP__": "needed" if chat_default() is None else "ready"}
+
+
+def _print_setup_link(port: int) -> None:
+    """While no model is set up, the first-run link with its token: `docker
+    run` alone has no deploy.sh to print it. Printed, not logged, so it reads
+    plainly in `docker logs`, and only then: once a model is set up, changing
+    it takes a signed-in session too, and a token repeated at every boot would
+    sit in every log shipper for good."""
+    from mirobody.server.routers.setup_router import setup_token
+    from mirobody.utils.config.llm import chat_default
+
+    if chat_default() is None:
+        print(f"Mirobody: no model is set up yet. Open http://localhost:{port}/setup?token={setup_token()}"
+              " (use the port you published).", flush=True)
+
+
 def _is_mounted(app, router) -> bool:
     """Whether any route of `router` resolves in `app`. Asked through
     `url_path_for`, not by scanning `app.routes`: FastAPI 0.141 keeps an
@@ -266,7 +288,7 @@ class Server:
         self._routes.append(
             Route(
                 "/mirobody.json",
-                endpoint=lambda x: JSONResponse(content=self._webpage_config),
+                endpoint=lambda x: JSONResponse(content={**self._webpage_config, **_model_setup()}),
                 methods=["GET", "HEAD"]
             )
         )
@@ -341,11 +363,6 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
-        # Which LLM surfaces have a provider, before the first request finds
-        # out. A zero-key server used to boot in silence (#68).
-        from mirobody.utils.config.doctor import log_report, provider_report
-        log_report(provider_report(config), logger)
-
         # Fail fast, before any socket is bound: a production ENV that still
         # carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
@@ -361,6 +378,18 @@ class Server:
         pg_pool = await config.get_postgresql().get_async_pool()
         ephemeral = config.get_ephemeral()
         await ephemeral.cleanup()
+
+        # A key or local address saved from the first-run page, applied before
+        # the agent builds its model clients (`.env` still wins).
+        from mirobody.utils.config import settings
+        await settings.apply()
+
+        # Which LLM surfaces have a provider, before the first request finds
+        # out: a zero-key server used to boot in silence (#68). After the
+        # saved settings, or a deployment set up in the browser logs "no LLM
+        # API key is set" at every boot while its model works.
+        from mirobody.utils.config.doctor import log_report, provider_report
+        log_report(provider_report(config), logger)
 
         server = Server(
             server_name     = config.http.name,
@@ -455,6 +484,7 @@ class Server:
             genomics_router,
             medication_router,
             data_export_router,
+            setup_router,
         )
         app.include_router(pulse_public_router)
         # apple_router is ALSO nested inside pulse_public_router (routers/__init__),
@@ -479,6 +509,7 @@ class Server:
         app.include_router(genomics_router)
         app.include_router(medication_router)
         app.include_router(data_export_router)
+        app.include_router(setup_router)
 
         for router in fastapi_routers:
             app.include_router(router)
@@ -493,6 +524,7 @@ class Server:
         # Start asgi server.
 
         config.print_predefined_codes()
+        _print_setup_link(config.http.port)
 
         import uvicorn
         asgi_server = uvicorn.Server(

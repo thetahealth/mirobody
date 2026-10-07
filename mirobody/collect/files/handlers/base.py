@@ -6,6 +6,7 @@ import abc
 import asyncio
 import hashlib
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -19,10 +20,31 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.utils.file_types import with_extension
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 
 logger = logging.getLogger(__name__)
+
+#: What the text-side abstract asks for. Closed (`additionalProperties: false`)
+#: like every json_schema the product sends: OpenAI answers HTTP 400 to an open
+#: nested object (measured through OpenRouter, 2026-10-06). This flat one was
+#: accepted open; closed, a nested field added later cannot bring the 400 back.
+ABSTRACT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "file_name": {
+            "type": "string",
+            "description": "Generated filename with extension"
+        },
+        "file_abstract": {
+            "type": "string",
+            "description": "Brief summary of file content (max 150 chars)"
+        }
+    },
+    "required": ["file_name", "file_abstract"]
+}
 
 # Import services type hints (avoid circular imports if possible, or use Any)
 # In a real scenario, we might use Protocol or specific imports if avoiding circular deps.
@@ -243,23 +265,7 @@ class BaseFileHandler(abc.ABC):
         """
         try:
             from mirobody.utils.llm import async_get_structured_output
-            
-            # Define response schema
-            response_schema = {
-                "type": "object",
-                "properties": {
-                    "file_name": {
-                        "type": "string",
-                        "description": "Generated filename with extension"
-                    },
-                    "file_abstract": {
-                        "type": "string",
-                        "description": "Brief summary of file content (max 150 chars)"
-                    }
-                },
-                "required": ["file_name", "file_abstract"]
-            }
-            
+
             # `language` reaches this prompt because it used to be an unused
             # parameter, and "use the same language as the content" was one
             # bullet in a list the model ignored. An English lab report came
@@ -268,7 +274,7 @@ class BaseFileHandler(abc.ABC):
             # French, for the same English document. Two runs, two wrong
             # languages, so it was not one bad sample.
             prompt = f"""Based on the document content below, generate:
-1. file_name: A descriptive filename in format: Date_Content_Description.extension
+1. file_name: A descriptive filename in format: Date_Content_Description, with no extension
    - Include date if found (YYYY-MM-DD format)
    - Keep it concise (15-40 chars excluding extension)
    - LANGUAGE: write it in the language the DOCUMENT ITSELF uses. An English
@@ -291,14 +297,14 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             
             result = await async_get_structured_output(
                 messages=messages,
-                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": response_schema}},
+                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": ABSTRACT_SCHEMA}},
                 temperature=0.1,
                 max_tokens=32000
             )
             
             if result and isinstance(result, dict):
                 file_abstract = result.get("file_abstract", "")[:200]
-                file_name = result.get("file_name", "") or filename
+                file_name = with_extension(str(result.get("file_name") or ""), os.path.splitext(filename or "")[1]) or filename
                 logger.info(f"Abstract from text, abstract_len={len(file_abstract)}")
                 return file_abstract, file_name
             

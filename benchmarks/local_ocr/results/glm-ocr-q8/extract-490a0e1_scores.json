@@ -1,0 +1,1552 @@
+{
+ "p001_2022-12-05_e03a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 16.74,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 12,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 6,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "促甲状腺激素 TSH",
+    "item_value": "2.873 (0.270 - 4.200)&mIU/L",
+    "item_unit": "&mIU/L",
+    "item_range": "0.270 - 4.200"
+   },
+   {
+    "item_name": "游离三碘甲状腺原氨酸 FT3",
+    "item_value": "3.88 (3.10 - 6.80)&pmol/L",
+    "item_unit": "&pmol/L",
+    "item_range": "3.10 - 6.80"
+   },
+   {
+    "item_name": "游离甲状腺素 FT4",
+    "item_value": "15.27 (12.00 - 22.00)&pmol/L",
+    "item_unit": "&pmol/L",
+    "item_range": "12.00 - 22.00"
+   },
+   {
+    "item_name": "总三碘甲状腺原氨酸 TT3",
+    "item_value": "1.63 (1.30 - 3.10)&nmol/L",
+    "item_unit": "&nmol/L",
+    "item_range": "1.30 - 3.10"
+   },
+   {
+    "item_name": "总甲状腺素 TT4",
+    "item_value": "114.5 (66.0 - 181.0)&nmol/L",
+    "item_unit": "&nmol/L",
+    "item_range": "66.0 - 181.0"
+   },
+   {
+    "item_name": "甲状腺过氧化物酶抗体 TPOAb",
+    "item_value": "10.1 ≤34.0&IU/mL",
+    "item_unit": "&IU/mL",
+    "item_range": "≤34.0"
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p004_2024-07-17_e05a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 2.52,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2024-11-06_e06a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 8.11,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2025-11-01_e09a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 12.38,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2026-05-15_e07a#p1": {
+  "tier": "T4",
+  "llm": true,
+  "seconds": 6.87,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-10-07_e06b#p1": {
+  "tier": "T4",
+  "llm": false,
+  "seconds": 0.0,
+  "error": null,
+  "truth_rows": 2,
+  "stored": 2,
+  "matched": 2,
+  "value_ok": 2,
+  "value_ok_flag_forgiven": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_2026-03-05_e07a#p1": {
+  "tier": "T4",
+  "llm": true,
+  "seconds": 3.14,
+  "error": null,
+  "truth_rows": 21,
+  "stored": 21,
+  "matched": 21,
+  "value_ok": 21,
+  "value_ok_flag_forgiven": 21,
+  "unit_ok": 21,
+  "range_ok": 21,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2025-04-23_e10b#p1": {
+  "tier": "T4",
+  "llm": true,
+  "seconds": 2.91,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-04-18_e03a#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 6.82,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-07-12_e04a#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 5.1,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 8,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 1,
+  "elsewhere": 0,
+  "repeats": 1,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "接收时间",
+    "item_value": "2024年07月",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": [
+   {
+    "item_name": "抗TPO抗体 TPOAb",
+    "item_value": "9.1",
+    "item_unit": "IU/mL",
+    "item_range": "<34.0"
+   }
+  ]
+ },
+ "p006_2026-04-18_e13a#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 3.59,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_log01#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 17.55,
+  "error": null,
+  "truth_rows": 12,
+  "stored": 12,
+  "matched": 12,
+  "value_ok": 12,
+  "value_ok_flag_forgiven": 12,
+  "unit_ok": 12,
+  "range_ok": 12,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_log01#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 52.36,
+  "error": null,
+  "truth_rows": 45,
+  "stored": 43,
+  "matched": 43,
+  "value_ok": 43,
+  "value_ok_flag_forgiven": 43,
+  "unit_ok": 43,
+  "range_ok": 43,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2023-11-27_e04a#p5": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 17.68,
+  "error": null,
+  "truth_rows": 34,
+  "stored": 36,
+  "matched": 34,
+  "value_ok": 34,
+  "value_ok_flag_forgiven": 34,
+  "unit_ok": 34,
+  "range_ok": 34,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 2,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "血型",
+    "item_value": "ABO血型(ABO) O",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Rh(D)血型(Rh)",
+    "item_value": "Rh(D)血型(Rh) 阳性",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p002_2023-08-08_e01a#p5": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 52.67,
+  "error": null,
+  "truth_rows": 30,
+  "stored": 30,
+  "matched": 30,
+  "value_ok": 30,
+  "value_ok_flag_forgiven": 30,
+  "unit_ok": 28,
+  "range_ok": 30,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Basophil percentage(BASO%)",
+     "item_value": "0.4",
+     "item_unit": "%",
+     "item_range": "0.0--1.0"
+    },
+    "stored": {
+     "item_name": "Basophil percentage(BASO%)",
+     "item_value": "0.4",
+     "item_unit": "",
+     "item_range": "0.0--1.0"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Globulin(GLB)",
+     "item_value": "32.8",
+     "item_unit": "",
+     "item_range": "20.0--40.0"
+    },
+    "stored": {
+     "item_name": "Globulin(GLB)",
+     "item_value": "32.8",
+     "item_unit": "g/L",
+     "item_range": "20.0--40.0"
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2023-09-11_e04a#p8": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 5.25,
+  "error": null,
+  "truth_rows": 20,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2024-02-15_e02a#p5": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 18.2,
+  "error": null,
+  "truth_rows": 32,
+  "stored": 33,
+  "matched": 32,
+  "value_ok": 32,
+  "value_ok_flag_forgiven": 32,
+  "unit_ok": 32,
+  "range_ok": 32,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 1,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "DOB值",
+    "item_value": "3.1‰",
+    "item_unit": "",
+    "item_range": "<4.0‰"
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p003_2024-08-16_e05a#p3": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 3.74,
+  "error": null,
+  "truth_rows": 0,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_2025-11-05_e06b#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 12.09,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "丙氨酸氨基转移酶（ALT）",
+     "item_value": "11",
+     "item_unit": "U/l",
+     "item_range": "7~40"
+    },
+    "stored": {
+     "item_name": "丙氨酸氨基转移酶（ALT）",
+     "item_value": "11",
+     "item_unit": "",
+     "item_range": "7~40&U/1"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "天门冬氨酸氨基转移酶（AST）",
+     "item_value": "19",
+     "item_unit": "U/l",
+     "item_range": "13~35"
+    },
+    "stored": {
+     "item_name": "天门冬氨酸氨基转移酶（AST）",
+     "item_value": "19",
+     "item_unit": "",
+     "item_range": "13~35&U/1"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "碱性磷酸酶（ALP）",
+     "item_value": "87",
+     "item_unit": "U/l",
+     "item_range": "35~100"
+    },
+    "stored": {
+     "item_name": "碱性磷酸酶（ALP）",
+     "item_value": "87",
+     "item_unit": "",
+     "item_range": "35~100&U/1"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "γ-谷氨酰基转移酶（GGT）",
+     "item_value": "62",
+     "item_unit": "U/l",
+     "item_range": "7~45"
+    },
+    "stored": {
+     "item_name": "γ-谷氨酰基转移酶（GGT）",
+     "item_value": "62",
+     "item_unit": "",
+     "item_range": "7~45&U/1"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总蛋白（TP）",
+     "item_value": "77.6",
+     "item_unit": "g/l",
+     "item_range": "65.0~85.0"
+    },
+    "stored": {
+     "item_name": "总蛋白（TP）",
+     "item_value": "77.6",
+     "item_unit": "",
+     "item_range": "65.0~85.0&g/1"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "白蛋白（ALB）",
+     "item_value": "48.5",
+     "item_unit": "g/l",
+     "item_range": "40.0~55.0"
+    },
+    "stored": {
+     "item_name": "白蛋白（ALB）",
+     "item_value": "48.5",
+     "item_unit": "",
+     "item_range": "40.0~55.0&g/1"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2026-03-31_e10a#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 14.18,
+  "error": null,
+  "truth_rows": 5,
+  "stored": 9,
+  "matched": 5,
+  "value_ok": 5,
+  "value_ok_flag_forgiven": 5,
+  "unit_ok": 5,
+  "range_ok": 5,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 4,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "SpO2",
+    "item_value": "97",
+    "item_unit": "%",
+    "item_range": ""
+   },
+   {
+    "item_name": "FPG",
+    "item_value": "4.76",
+    "item_unit": "mmol/L",
+    "item_range": ""
+   },
+   {
+    "item_name": "HbA1c",
+    "item_value": "6.1",
+    "item_unit": "%",
+    "item_range": ""
+   },
+   {
+    "item_name": "GA",
+    "item_value": "13.4",
+    "item_unit": "%",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p003_2025-10-02_e09b#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 5.72,
+  "error": null,
+  "truth_rows": 2,
+  "stored": 2,
+  "matched": 2,
+  "value_ok": 2,
+  "value_ok_flag_forgiven": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2023-05-04_e03b#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 12.12,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2025-11-26_e06a#p6": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 45.08,
+  "error": null,
+  "truth_rows": 34,
+  "stored": 32,
+  "matched": 32,
+  "value_ok": 32,
+  "value_ok_flag_forgiven": 32,
+  "unit_ok": 32,
+  "range_ok": 30,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "纤维蛋白原（FIB）",
+     "item_value": "4.43",
+     "item_unit": "g/L",
+     "item_range": "2.00 - 4.00"
+    },
+    "stored": {
+     "item_name": "纤维蛋白原（FIB）",
+     "item_value": "4.43",
+     "item_unit": "g/L",
+     "item_range": "偏高 2.00 - 4.00"
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "前白蛋白（PA）",
+     "item_value": "583",
+     "item_unit": "mg/L",
+     "item_range": "200 - 400"
+    },
+    "stored": {
+     "item_name": "前白蛋白（PA）",
+     "item_value": "583",
+     "item_unit": "mg/L",
+     "item_range": "偏高 200 - 400"
+    },
+    "wrong": [
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p002_2024-08-07_e02a#p5": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 61.72,
+  "error": null,
+  "truth_rows": 36,
+  "stored": 36,
+  "matched": 36,
+  "value_ok": 36,
+  "value_ok_flag_forgiven": 36,
+  "unit_ok": 30,
+  "range_ok": 36,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Platelet count(PLT)",
+     "item_value": "179",
+     "item_unit": "10^9/L",
+     "item_range": "125--350"
+    },
+    "stored": {
+     "item_name": "Platelet count(PLT)",
+     "item_value": "179",
+     "item_unit": "",
+     "item_range": "125--350"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Neutrophil count(NEUT#)",
+     "item_value": "4.45",
+     "item_unit": "10^9/L",
+     "item_range": "1.80--6.30"
+    },
+    "stored": {
+     "item_name": "Neutrophil count(NEUT#)",
+     "item_value": "4.45",
+     "item_unit": "",
+     "item_range": "1.80--6.30"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Lymphocyte count(LYMPH#)",
+     "item_value": "2.80",
+     "item_unit": "10^9/L",
+     "item_range": "1.10--3.20"
+    },
+    "stored": {
+     "item_name": "Lymphocyte count(LYMPH#)",
+     "item_value": "2.80",
+     "item_unit": "",
+     "item_range": "1.10--3.20"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Monocyte count(MONO#)",
+     "item_value": "0.35",
+     "item_unit": "10^9/L",
+     "item_range": "0.10--0.60"
+    },
+    "stored": {
+     "item_name": "Monocyte count(MONO#)",
+     "item_value": "0.35",
+     "item_unit": "",
+     "item_range": "0.10--0.60"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Eosinophil count(EO#)",
+     "item_value": "0.66",
+     "item_unit": "10^9/L",
+     "item_range": "0.02--0.52"
+    },
+    "stored": {
+     "item_name": "Eosinophil count(EO#)",
+     "item_value": "0.66",
+     "item_unit": "",
+     "item_range": "0.02--0.52"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Basophil count(BASO#)",
+     "item_value": "0.05",
+     "item_unit": "10^9/L",
+     "item_range": "0.00--0.06"
+    },
+    "stored": {
+     "item_name": "Basophil count(BASO#)",
+     "item_value": "0.05",
+     "item_unit": "",
+     "item_range": "0.00--0.06"
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2021-11-27_e01a#p3": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 20.63,
+  "error": null,
+  "truth_rows": 0,
+  "stored": 16,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 16,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "外眼",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "结膜",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "眼压",
+    "item_value": "16/14 mmHg",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "耳鼻喉科",
+    "item_value": "外耳道 右侧外耳道耵聍",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "鼓膜",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "听力",
+    "item_value": "粗测正常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "鼻腔",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "咽部",
+    "item_value": "咽部黏膜慢性充血，咽后壁淋巴滤泡增生",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "扁桃体",
+    "item_value": "无肿大",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "口腔科",
+    "item_value": "唇颊腭 未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "牙齿",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "牙龈",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "牙周",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "心电图",
+    "item_value": "窦性心律 正常心电图",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "胸部X线摄影（正位）",
+    "item_value": "两肺纹理清晰，未见明显实质性病变。心影大小形态未见异常。双侧膈面光整，肋膈角锐利。",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "腹部超声（肝、胆、胰、脾、双肾）",
+    "item_value": "肝脏：肝脏形态大小正常，包膜光滑，实质回声均匀，肝内管道显示清晰，门静脉内径正常。胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p006_2024-10-25_e09a#p1": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 11.66,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "TSH",
+     "item_value": "2.242",
+     "item_unit": "mIU/L",
+     "item_range": "0.270-4.200"
+    },
+    "stored": {
+     "item_name": "TSH",
+     "item_value": "2.242",
+     "item_unit": "&mIU/L",
+     "item_range": "0.270-4.200&mIU/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "FT3",
+     "item_value": "4.30",
+     "item_unit": "pmol/L",
+     "item_range": "3.10-6.80"
+    },
+    "stored": {
+     "item_name": "FT3",
+     "item_value": "4.30",
+     "item_unit": "&pmol/L",
+     "item_range": "3.10-6.80&pmol/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "FT4",
+     "item_value": "16.03",
+     "item_unit": "pmol/L",
+     "item_range": "12.00-22.00"
+    },
+    "stored": {
+     "item_name": "FT4",
+     "item_value": "16.03",
+     "item_unit": "&pmol/L",
+     "item_range": "12.00-22.00&pmol/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "TT3",
+     "item_value": "2.81",
+     "item_unit": "nmol/L",
+     "item_range": "1.30-3.10"
+    },
+    "stored": {
+     "item_name": "TT3",
+     "item_value": "2.81",
+     "item_unit": "&nmol/L",
+     "item_range": "1.30-3.10&nmol/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "TT4",
+     "item_value": "116.0",
+     "item_unit": "nmol/L",
+     "item_range": "66.0-181.0"
+    },
+    "stored": {
+     "item_name": "TT4",
+     "item_value": "116.0",
+     "item_unit": "&nmol/L",
+     "item_range": "66.0-181.0&nmol/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "TPOAb",
+     "item_value": "35.1",
+     "item_unit": "IU/mL",
+     "item_range": "<34.0"
+    },
+    "stored": {
+     "item_name": "TPOAb",
+     "item_value": "35.1",
+     "item_unit": "&IU/mL",
+     "item_range": "<34.0&IU/mL"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_2025-11-05_e06a#p2": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 35.73,
+  "error": null,
+  "truth_rows": 21,
+  "stored": 21,
+  "matched": 21,
+  "value_ok": 21,
+  "value_ok_flag_forgiven": 21,
+  "unit_ok": 1,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "平均红细胞血红蛋白量（MCH）",
+     "item_value": "27.3",
+     "item_unit": "pg",
+     "item_range": "27.0~34.0"
+    },
+    "stored": {
+     "item_name": "平均红细胞血红蛋白量（MCH）",
+     "item_value": "27.3",
+     "item_unit": "",
+     "item_range": "27.0~34.0&pg"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "平均红细胞血红蛋白浓度（MCHC）",
+     "item_value": "323",
+     "item_unit": "g/l",
+     "item_range": "316~354"
+    },
+    "stored": {
+     "item_name": "平均红细胞血红蛋白浓度（MCHC）",
+     "item_value": "323",
+     "item_unit": "g/L",
+     "item_range": "316~354&g/l"
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "红细胞分布宽度（RDW-CV）",
+     "item_value": "13.6",
+     "item_unit": "%",
+     "item_range": "11.5~14.5"
+    },
+    "stored": {
+     "item_name": "红细胞分布宽度（RDW-CV）",
+     "item_value": "13.6",
+     "item_unit": "",
+     "item_range": "11.5~14.5&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "血小板總數（PLT）",
+     "item_value": "199",
+     "item_unit": "x10^9/L",
+     "item_range": "125~350"
+    },
+    "stored": {
+     "item_name": "血小板总数（PLT）",
+     "item_value": "199",
+     "item_unit": "",
+     "item_range": "125~350&x10^9/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "平均血小板体积（MPV）",
+     "item_value": "11.2",
+     "item_unit": "fl",
+     "item_range": "7.6~13.2"
+    },
+    "stored": {
+     "item_name": "平均血小板体积（MPV）",
+     "item_value": "11.2",
+     "item_unit": "",
+     "item_range": "7.6~13.2&fl"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "血小板分布宽度（PDW）",
+     "item_value": "14.6",
+     "item_unit": "fl",
+     "item_range": "9.0~17.0"
+    },
+    "stored": {
+     "item_name": "血小板分布宽度（PDW）",
+     "item_value": "14.6",
+     "item_unit": "",
+     "item_range": "9.0~17.0&fl"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "血小板压积（PCT）",
+     "item_value": "0.204",
+     "item_unit": "%",
+     "item_range": "0.108~0.282"
+    },
+    "stored": {
+     "item_name": "血小板压积（PCT）",
+     "item_value": "0.204",
+     "item_unit": "",
+     "item_range": "0.108~0.282&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "中性粒细胞百分比（NEUT%）",
+     "item_value": "49.6",
+     "item_unit": "%",
+     "item_range": "40.0~75.0"
+    },
+    "stored": {
+     "item_name": "中性粒细胞百分比（NEUT%）",
+     "item_value": "49.6",
+     "item_unit": "",
+     "item_range": "40.0~75.0&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "淋巴细胞百分比（LYMPH%）",
+     "item_value": "38.8",
+     "item_unit": "%",
+     "item_range": "20.0~50.0"
+    },
+    "stored": {
+     "item_name": "淋巴细胞百分比（LYMPH%）",
+     "item_value": "38.8",
+     "item_unit": "",
+     "item_range": "20.0~50.0&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "单核细胞百分比（MONO%）",
+     "item_value": "5.3",
+     "item_unit": "%",
+     "item_range": "3.0~10.0"
+    },
+    "stored": {
+     "item_name": "单核细胞百分比（MONO%）",
+     "item_value": "5.3",
+     "item_unit": "",
+     "item_range": "3.0~10.0&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "嗜酸性粒细胞百分比（EO%）",
+     "item_value": "5.1",
+     "item_unit": "%",
+     "item_range": "0.4~8.0"
+    },
+    "stored": {
+     "item_name": "嗜酸性粒细胞百分比（EO%）",
+     "item_value": "5.1",
+     "item_unit": "",
+     "item_range": "0.4~8.0&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "嗜碱性粒细胞百分比（BASO%）",
+     "item_value": "1.1",
+     "item_unit": "%",
+     "item_range": "0.0~1.0"
+    },
+    "stored": {
+     "item_name": "嗜碱性粒细胞百分比（BASO%）",
+     "item_value": "1.1",
+     "item_unit": "",
+     "item_range": "0.0~1.0&%"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "中性粒细胞绝对值（NEUT#）",
+     "item_value": "2.62",
+     "item_unit": "x10^9/L",
+     "item_range": "1.80~6.30"
+    },
+    "stored": {
+     "item_name": "中性粒细胞绝对值（NEUT#）",
+     "item_value": "2.62",
+     "item_unit": "",
+     "item_range": "1.80~6.30&x10^9/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "淋巴细胞绝对值（LYMPH#）",
+     "item_value": "2.05",
+     "item_unit": "x10^9/L",
+     "item_range": "1.10~3.20"
+    },
+    "stored": {
+     "item_name": "淋巴细胞绝对值（LYMPH#）",
+     "item_value": "2.05",
+     "item_unit": "",
+     "item_range": "1.10~3.20&x10^9/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "单核细胞绝对值（MONO#）",
+     "item_value": "0.28",
+     "item_unit": "x10^9/L",
+     "item_range": "0.10~0.60"
+    },
+    "stored": {
+     "item_name": "单核细胞绝对值（MONO#）",
+     "item_value": "0.28",
+     "item_unit": "",
+     "item_range": "0.10~0.60&x10^9/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "嗜酸性粒细胞绝对值（EO#）",
+     "item_value": "0.27",
+     "item_unit": "x10^9/L",
+     "item_range": "0.02~0.52"
+    },
+    "stored": {
+     "item_name": "嗜酸性粒细胞绝对值（EO#）",
+     "item_value": "0.27",
+     "item_unit": "",
+     "item_range": "0.02~0.52&x10^9/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "嗜碱性粒细胞绝对值（BASO#）",
+     "item_value": "0.06",
+     "item_unit": "x10^9/L",
+     "item_range": "0.00~0.06"
+    },
+    "stored": {
+     "item_name": "嗜碱性粒细胞绝对值（BASO#）",
+     "item_value": "0.06",
+     "item_unit": "",
+     "item_range": "0.00~0.06&x10^9/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "铁蛋白（FER）",
+     "item_value": "30.6",
+     "item_unit": "ng/mL",
+     "item_range": "13.0~150.0"
+    },
+    "stored": {
+     "item_name": "铁蛋白（FER）",
+     "item_value": "30.6",
+     "item_unit": "",
+     "item_range": "13.0~150.0&ng/mL"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "血清铁（Fe）",
+     "item_value": "10.7",
+     "item_unit": "μmol/l",
+     "item_range": "9.0~30.4"
+    },
+    "stored": {
+     "item_name": "血清铁（Fe）",
+     "item_value": "10.7",
+     "item_unit": "",
+     "item_range": "9.0~30.4&μmol/l"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "维生素B12（VB12）",
+     "item_value": "291",
+     "item_unit": "pmol/L",
+     "item_range": "145~569"
+    },
+    "stored": {
+     "item_name": "维生素B12（VB12）",
+     "item_value": "291",
+     "item_unit": "",
+     "item_range": "145~569&pmol/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "叶酸（FA）",
+     "item_value": "22.4",
+     "item_unit": "nmol/L",
+     "item_range": "7.0~46.4"
+    },
+    "stored": {
+     "item_name": "叶酸（FA）",
+     "item_value": "22.4",
+     "item_unit": "",
+     "item_range": "7.0~46.4&nmol/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2023-11-12_e01a#p1": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 8.16,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ }
+}

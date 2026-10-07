@@ -163,3 +163,147 @@ def test_every_response_carries_the_security_headers():
     response = TestClient(app).get("/")
     for name, value in SECURITY_HEADERS.items():
         assert response.headers.get(name) == value
+
+
+# -- the first-run page: who may change where health data goes -----------------
+#
+# Reviewed on 2026-10-06 (1.5.4): the token printed at every boot and stayed
+# enough on its own forever; the key check swapped the whole process's
+# os.environ for up to 90 s; ten wrong tokens behind one proxy address locked
+# the owner's right token out; a non-ASCII token was a 500.
+
+
+def _setup_module():
+    # `mirobody.server.routers.setup_router` is also the name the package
+    # exports the APIRouter under, which shadows the module on attribute access.
+    import importlib
+
+    return importlib.import_module("mirobody.server.routers.setup_router")
+
+
+def _setup_app(monkeypatch, *, ready: bool, user_id: int = 0):
+    from fastapi import FastAPI
+
+    from mirobody.utils.config import llm
+
+    setup = _setup_module()
+
+    monkeypatch.setattr(setup, "_token", "right-token")
+    monkeypatch.setattr(setup, "_failures", {})
+    monkeypatch.setattr(llm, "chat_default", lambda lookup=None: "claude-sonnet" if ready else None)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def signed_in(request, call_next):
+        request.state.user_id = user_id
+        return await call_next(request)
+
+    app.include_router(setup.router)
+    return TestClient(app), setup
+
+
+def test_a_wrong_or_odd_setup_token_is_refused_not_a_500(monkeypatch):
+    client, _ = _setup_app(monkeypatch, ready=False)
+    for token in ("", "wrong", "wrông"):
+        # A header arrives as latin-1 bytes; the server sees "wrông".
+        headers = {"X-Setup-Token": token.encode("latin-1")} if token else {}
+        assert client.post("/api/setup", json={"mode": "local"}, headers=headers).json()["code"] == 403
+
+
+def test_the_right_setup_token_still_works_after_ten_wrong_ones(monkeypatch):
+    client, setup = _setup_app(monkeypatch, ready=True, user_id=7)
+    for _ in range(12):
+        client.post("/api/setup", json={"mode": "local"}, headers={"X-Setup-Token": "wrong"})
+    assert client.post("/api/setup", json={"mode": "local"}, headers={"X-Setup-Token": "wrong"}).json()["code"] == 429
+
+    async def saved(choice):
+        return {"code": 0, "msg": "ok", "data": {}}
+
+    monkeypatch.setattr(setup, "_save", saved)
+    assert client.post("/api/setup", json={"mode": "local"}, headers={"X-Setup-Token": "right-token"}).json()["code"] == 0
+
+
+def test_once_a_model_is_set_up_the_token_alone_changes_nothing(monkeypatch):
+    client, setup = _setup_app(monkeypatch, ready=True, user_id=0)
+    called = []
+
+    async def saved(choice):
+        called.append(choice)
+        return {"code": 0, "msg": "ok", "data": {}}
+
+    monkeypatch.setattr(setup, "_save", saved)
+    answer = client.post("/api/setup", json={"mode": "local", "base_url": "https://elsewhere.example/v1"},
+                         headers={"X-Setup-Token": "right-token"}).json()
+    assert answer["code"] == 401 and not called
+
+
+def test_the_first_choice_takes_the_token_alone(monkeypatch):
+    client, setup = _setup_app(monkeypatch, ready=False, user_id=0)
+
+    async def saved(choice):
+        return {"code": 0, "msg": "ok", "data": {}}
+
+    monkeypatch.setattr(setup, "_save", saved)
+    assert client.post("/api/setup", json={"mode": "local"}, headers={"X-Setup-Token": "right-token"}).json()["code"] == 0
+
+
+class _ModelsConfig:
+    """Just the MODELS table, for the setup checks below."""
+
+    def __init__(self, providers):
+        self._providers = providers
+
+    def get_agent_settings(self):
+        return {"providers": self._providers}
+
+
+def _key_check(monkeypatch, choice_fields):
+    import os
+
+    from mirobody.agent import probe, registry
+    from mirobody.utils.config import config, settings
+
+    setup = _setup_module()
+    providers = {
+        "claude-sonnet": {"llm_type": "openai", "api_key": "OPENROUTER_API_KEY", "model": "vendor/model-a",
+                          "model_env": "OPENROUTER_CHAT_MODEL"},
+        "openrouter-utils": {"llm_type": "openai", "api_key": "OPENROUTER_API_KEY", "model": "vendor/utils-a",
+                             "model_env": "OPENROUTER_UTILS_MODEL", "chat": False},
+    }
+    monkeypatch.setattr(config, "global_config", lambda: _ModelsConfig(providers))
+    for name in ("OPENROUTER_API_KEY", "OPENROUTER_CHAT_MODEL", "OPENROUTER_UTILS_MODEL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(settings, "set_in_environment", lambda: frozenset())
+    seen = {}
+
+    async def chat(name, resolve=None, entry=None):
+        seen["environ"] = os.environ.get("OPENROUTER_API_KEY")
+        seen["resolved"] = resolve("OPENROUTER_API_KEY")
+        seen["model"] = (entry or {}).get("model")
+        return True, "ok"
+
+    async def save(values):
+        seen["saved"] = {k: v for k, v in values.items() if v}
+
+    monkeypatch.setattr(probe, "_chat", chat)
+    monkeypatch.setattr(settings, "save", save)
+    monkeypatch.setattr(registry, "reload_llm_clients", lambda: None)
+    answer = asyncio.run(setup._save(setup.SetupChoice(mode="key", name="OPENROUTER_API_KEY",
+                                                        value="sk-or-candidate", **choice_fields)))
+    return answer, seen
+
+
+def test_a_key_is_checked_without_touching_the_process_environment(monkeypatch):
+    answer, seen = _key_check(monkeypatch, {})
+    assert answer.code == 0
+    assert seen == {"environ": None, "resolved": "sk-or-candidate", "model": "vendor/model-a",
+                    "saved": {"OPENROUTER_API_KEY": "sk-or-candidate"}}
+
+
+def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
+    answer, seen = _key_check(monkeypatch, {"model": "vendor/model-b", "utils_model": "vendor/utils-a"})
+    assert answer.code == 0
+    # The utility model typed is the configured one: nothing to keep for it.
+    assert seen["model"] == "vendor/model-b"
+    assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
+    assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400

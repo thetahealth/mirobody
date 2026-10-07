@@ -1,0 +1,37 @@
+{
+ "id": "p003_2024-10-07_e06b#p1",
+ "llm": true,
+ "seconds": 5.35,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "FPG",
+   "value": "4.67",
+   "unit": "",
+   "reference_range": "3.90-6.10",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "HbA1c",
+   "value": "5.5",
+   "unit": "",
+   "reference_range": "4.0-6.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "FFG",
+   "value": "4.67",
+   "reference_range": "3.90-6.10",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-08 13:12:31"
+  }
+ ],
+ "date_time": "2024-10-07 08:12:31"
+}

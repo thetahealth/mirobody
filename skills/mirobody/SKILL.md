@@ -1,6 +1,6 @@
 ---
 name: mirobody
-description: Self-host Mirobody, the open-source health data engine, and use it from an agent. Use when the user wants to run a personal or family health record on their own machine, bring lab reports and wearables (Apple Health, Garmin, Oura, WHOOP) into one place an AI can read, expose their health data to Claude Code, Codex, Cursor, Claude Desktop or another agent over MCP, or operate a stack that is already running (model key, upgrade, backup, ports). Docker is the only requirement; one model API key runs every surface.
+description: Self-host Mirobody, the open-source health data engine, and use it from an agent. Use when the user wants to run a personal or family health record on their own machine, bring lab reports and wearables (Apple Health, Garmin, Oura, WHOOP) into one place an AI can read, expose their health data to Claude Code, Codex, Cursor, Claude Desktop or another agent over MCP, or operate a stack that is already running (model key, upgrade, backup, ports). Docker is the only requirement; one model API key runs every surface, or no key with every model on the same machine on llama.cpp.
 license: Apache-2.0
 metadata:
   author: thetahealth
@@ -13,8 +13,11 @@ Mirobody reads a person's health data from any source (lab PDFs, report
 photos, spreadsheets, device exports, genotype files, a typed sentence),
 settles every value onto one standard code, and answers questions over that
 record with each number traced to the file it came from. It runs in Docker on
-the user's machine, on a model key they choose. Nothing leaves the machine
-except calls to that model and to a wearable vendor once one is linked.
+the user's machine, on a model key they choose, or with every model on that
+machine through llama.cpp (`llama-server`), its local model runtime. With a
+key, questions and documents go to that vendor; with the local models they
+stay on the machine. Either way the record stays in the user's own Postgres,
+and a wearable vendor is called only once one is linked.
 
 This skill gets a stack running and connects an agent to it. The sibling
 `translate-health-data` skill covers the library without Docker: it turns raw
@@ -23,8 +26,12 @@ files into coded rows and explains a report only from resolved evidence.
 ## Agent contract
 
 - **The model key comes from the user.** Ask for it, or for which provider they
-  use. Never invent one, never print one back, never paste it into a chat
-  reply. Write it into `.env` and nowhere else.
+  use, or whether they want every model on this machine instead (llama.cpp:
+  the default small pair needs 16 GB of memory and no GPU, and on a CPU alone
+  a first answer takes 2–3 minutes; the large size needs about 20 GB;
+  `docs/local-models.md`). Never invent a key, never
+  print one back, never paste it into a chat reply. Write it into `.env` and
+  nowhere else, or leave it to the first-run page `./deploy.sh` links.
 - **Ask before anything that deletes data**: `docker compose down -v`,
   `docker volume rm`, removing the checkout. `docker compose down` without
   `-v` keeps the database and uploads, and needs no confirmation.

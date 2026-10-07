@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-04-18_e03a#p1",
+ "tier": "T6",
+ "image_sha256": "523b15db7c9bb51ea3e5eca1c4ac76c83babcb3c1c4acd385c87c2f6b9020000",
+ "image_size": [
+  1240,
+  875
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "检查项目 结果 参考区间\n甲胎蛋白 2.45 <7.00-ng/mL\n癌胚抗原 1.88 <5.00-ng/mL\n前列腺特异性抗原 0.78 <4.00-ng/mL\n本报告仅对所检标本负责，如有疑问请于三日内咨询。<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 6.44,
+   "usage": {
+    "completion_tokens": 79,
+    "prompt_tokens": 1389,
+    "total_tokens": 1468,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 1374,
+    "prompt_ms": 5763.899,
+    "prompt_per_token_ms": 4.194977438136827,
+    "prompt_per_second": 238.38030472081482,
+    "predicted_n": 79,
+    "predicted_ms": 628.435,
+    "predicted_per_token_ms": 8.056858974358974,
+    "predicted_per_second": 124.11784830571182
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>检查项目<fcel>结果<fcel>参考区间<nl>\n<fcel>甲胎蛋白<fcel>2.45<fcel><7.00&ng/mL<nl>\n<fcel>癌胚抗原<fcel>1.88<fcel><5.00&ng/mL<nl>\n<fcel>前列腺特异性抗原<fcel>0.78<fcel><4.00&ng/mL<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 0.63,
+   "usage": {
+    "completion_tokens": 74,
+    "prompt_tokens": 1389,
+    "total_tokens": 1463,
+    "prompt_tokens_details": {
+     "cached_tokens": 1381
+    }
+   },
+   "timings": {
+    "cache_n": 1381,
+    "prompt_n": 8,
+    "prompt_ms": 11.696,
+    "prompt_per_token_ms": 1.462,
+    "prompt_per_second": 683.9945280437756,
+    "predicted_n": 74,
+    "predicted_ms": 578.489,
+    "predicted_per_token_ms": 7.924506849315069,
+    "predicted_per_second": 126.19081780293143
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1631.7,
+  "phys_footprint_mib": 1196.9,
+  "phys_footprint_peak_mib": 1198.0
+ }
+}

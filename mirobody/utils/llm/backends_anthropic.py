@@ -219,8 +219,9 @@ def _image_message(base64_jpeg: str, prompt: str) -> list[dict]:
     ]}]
 
 
-async def _one_image(spec: RouteSpec, base64_jpeg: str, prompt: str, schema: dict | None, json_mode: bool) -> str:
-    params = _request_params(spec, {})
+async def _one_image(spec: RouteSpec, base64_jpeg: str, prompt: str, schema: dict | None, json_mode: bool,
+                     max_tokens: int | None = None) -> str:
+    params = _request_params(spec, {"max_tokens": max_tokens} if max_tokens else {})
     if json_mode and schema:
         from anthropic import transform_schema
 
@@ -235,6 +236,7 @@ async def file_extract(
     prompt: str,
     response_schema: Any | None = None,
     json_mode: bool = True,
+    max_tokens: int | None = None,
 ) -> str:
     """An image or PDF read by a Claude model. Raises with the entry named on
     failure: the contract `backends_openai` established for #68."""
@@ -261,7 +263,7 @@ async def file_extract(
             async def one_page(page: dict) -> dict:
                 async with semaphore:
                     try:
-                        text = await _one_image(spec, page["base64_image"], final_prompt, schema, json_mode)
+                        text = await _one_image(spec, page["base64_image"], final_prompt, schema, json_mode, max_tokens)
                         return {"page": page["page_num"], "content": text}
                     except Exception as e:
                         page_number = page["page_num"]
@@ -283,7 +285,7 @@ async def file_extract(
         logger.info(f"Processing image with {provider_name} ({model_name}): {file_path}, json_mode={json_mode}")  # phi: ok a server-side temp path, not content
         base64_jpeg, stats = _read_and_optimize_image(str(file_path))
         logger.info(f"Image optimization: {stats}")  # phi: ok byte sizes and pixel dimensions only
-        result = await _one_image(spec, base64_jpeg, final_prompt, schema, json_mode)
+        result = await _one_image(spec, base64_jpeg, final_prompt, schema, json_mode, max_tokens)
         if not result.strip():
             raise RuntimeError(
                 f"{provider_name} ({model_name}) returned no text for the image — a model that cannot "

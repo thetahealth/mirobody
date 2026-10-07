@@ -1,0 +1,67 @@
+{
+ "id": "p003_2025-10-02_e09b#p1",
+ "tier": "T2",
+ "image_sha256": "53637e38cde9b9454126b56023b6665638b93ed51e1de02d31e7d9d3a49f39a2",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "Synthetic sample — generated data, not a real patient record\n\nTarnhollow Medical Centre\nLaboratory Report\n\nName: Kevin Chan      Sex: Male          Age: 54 Y\nMRN: 6112891301       Lab No.: 638026211   Specimen: Serum\nRequested by: Daniel Chambers\n\nReportTime: 2025-10-02 12:13:26   Printed: 2025-10-03 11:13:26\n\nNo. Test Item                             Value     REFERENCE\n1 Fasting plasma glucose                        5.45mmol/L    3.90 - 6.10\n2 Glycated hemoglobin                        6.0%      4.0 - 6.0\n\nPerformed By: Owen Lambert   Verified By: Ella Chambers\n\nThis report relates only to the specimen received.<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.48,
+   "usage": {
+    "completion_tokens": 209,
+    "prompt_tokens": 2170,
+    "total_tokens": 2379,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11683.165,
+    "prompt_per_token_ms": 5.421422273781903,
+    "prompt_per_second": 184.45344219652807,
+    "predicted_n": 209,
+    "predicted_ms": 1750.483,
+    "predicted_per_token_ms": 8.415783653846153,
+    "predicted_per_second": 118.82434733727777
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>No.<fcel>Test Item<fcel>Value<fcel>REFERENCE<nl>\n<fcel>1<fcel>Fasting plasma glucose<fcel>5.45mmol/L<fcel>3.90 - 6.10<nl>\n<fcel>2<fcel>Glycated hemoglobin<fcel>6.0%<fcel>4.0 - 6.0<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 0.6,
+   "usage": {
+    "completion_tokens": 66,
+    "prompt_tokens": 2170,
+    "total_tokens": 2236,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 12.935,
+    "prompt_per_token_ms": 1.616875,
+    "prompt_per_second": 618.4770003865481,
+    "predicted_n": 66,
+    "predicted_ms": 537.282,
+    "predicted_per_token_ms": 8.265876923076924,
+    "predicted_per_second": 120.97929951124362
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1661.4,
+  "phys_footprint_mib": 1204.7,
+  "phys_footprint_peak_mib": 1206.1
+ }
+}

@@ -1,0 +1,69 @@
+{
+ "id": "p005_2025-11-05_e06b#p1",
+ "llm": true,
+ "seconds": 11.97,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "丙氨酸氨基转移酶（ALT）",
+   "value": "11",
+   "reference_range": "7~40&U/1",
+   "unit": "&U/1",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-06 13:05:49"
+  },
+  {
+   "original_indicator": "天门冬氨酸氨基转移酶（AST）",
+   "value": "19",
+   "reference_range": "13~35&U/1",
+   "unit": "&U/1",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-06 13:05:49"
+  },
+  {
+   "original_indicator": "碱性磷酸酶（ALP）",
+   "value": "87",
+   "reference_range": "35~100&U/1",
+   "unit": "&U/1",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-06 13:05:49"
+  },
+  {
+   "original_indicator": "γ-谷氨酰基转移酶（GGT）",
+   "value": "62↑",
+   "reference_range": "7~45&U/1",
+   "unit": "&U/1",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2025-11-06 13:05:49"
+  },
+  {
+   "original_indicator": "总蛋白（TP）",
+   "value": "77.6",
+   "reference_range": "65.0~85.0&g/1",
+   "unit": "&g/1",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-06 13:05:49"
+  },
+  {
+   "original_indicator": "白蛋白（ALB）",
+   "value": "48.5",
+   "reference_range": "40.0~55.0&g/1",
+   "unit": "&g/1",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-06 13:05:49"
+  }
+ ],
+ "date_time": "2025-11-06 13:05:49"
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p003_2026-03-31_e10a#p1",
+ "tier": "T2",
+ "image_sha256": "5e8dfcd485500b0134258fedb37d247f6fc3443395c4090dea03a624e69bb97a",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA. NOT A REAL PATIENT RECORD\n\n芷沅市中心医院\n门诊病历\n\n姓名：闫柏超 性别：男 年龄：54岁\n门诊号：5617297173\n\n报告日期：2026-04-01\n\n主诉：反复手麻2月余\n现病史：2月余来手麻，休息后可缓解，今来复诊。规律服用二甲双胍，未自行停药。\n既往史：2型糖尿病病史2年，口服二甲双胍治疗。\n体格检查：T36.6°C P67次/分 R16次/分 BP111/65mmHg 体重84.9kg\n辅助检查：SpO2 97%；FPG 4.76mmol/L；HbA1c 6.1%↑；GA 13.4%（详见检验报告单）\n诊断：2型糖尿病\n处理：1. 继续目前治疗；2. 复查血糖；3. 低盐低脂饮食，规律作息；4. 3个月后复诊。\n\n医师：许文\n\n第1页/共1页\n\n检验专用章",
+   "finish_reason": "stop",
+   "seconds": 7.65,
+   "usage": {
+    "completion_tokens": 285,
+    "prompt_tokens": 1273,
+    "total_tokens": 1558,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5707.828,
+    "prompt_per_token_ms": 4.501441640378549,
+    "prompt_per_second": 222.1510529048878,
+    "predicted_n": 285,
+    "predicted_ms": 1904.624,
+    "predicted_per_token_ms": 6.706422535211268,
+    "predicted_per_second": 149.11079562160302
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><fcel>芷沅市中心医院<lcel><nl><fcel>门诊病历<lcel><nl><fcel>姓名：闫柏超<fcel>性别：男 年龄：54岁<nl><fcel>门诊号：5617297173<ecel><nl><fcel>报告日期：2026-04-01<ecel><nl><fcel>主诉：反复手麻2月余\\n现病史：2月余来手麻，休息后可缓解，今来复诊。规律服用二甲双胍，未自行停药。\\n既往史：2型糖尿病病史2年，口服二甲双胍治疗。\\n体格检查：T 36.6°C P 67次/分 R 16次/分 BP 111/65mmHg 体重 84.9kg\\n辅助检查：SpO2 97%；FPG 4.76mmol/L；HbA1c 6.1%†；GA 13.4%（详见检验报告单）\\n诊断：2型糖尿病\\n处理：1. 继续目前治疗；2. 复查血糖；3. 低盐低脂饮食，规律作息；4. 3个月后复诊。<lcel><nl><fcel>医师：许文<ecel><nl><fcel>第1页/共1页<lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 2.08,
+   "usage": {
+    "completion_tokens": 302,
+    "prompt_tokens": 1273,
+    "total_tokens": 1575,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 17.608,
+    "prompt_per_token_ms": 2.5154285714285716,
+    "prompt_per_second": 397.54656974102676,
+    "predicted_n": 302,
+    "predicted_ms": 2018.482,
+    "predicted_per_token_ms": 6.705920265780731,
+    "predicted_per_second": 149.12196393131077
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2211.7,
+  "phys_footprint_mib": 1329.1,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

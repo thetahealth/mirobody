@@ -1,0 +1,63 @@
+{
+ "id": "p006_2023-05-04_e03b#p1",
+ "llm": false,
+ "seconds": 0.02,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "促甲状腺激素(TSH)",
+   "value": "3.901",
+   "unit": "mIU/L",
+   "reference_range": "0.270-4.200",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "游离三碘甲状腺原氨酸(FT3)",
+   "value": "4.00",
+   "unit": "pmol/L",
+   "reference_range": "3.10-6.80",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "游离甲状腺素(FT4)",
+   "value": "12.86",
+   "unit": "pmol/L",
+   "reference_range": "12.00-22.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总三碘甲状腺原氨酸(TT3)",
+   "value": "2.45",
+   "unit": "nmol/L",
+   "reference_range": "1.30-3.10",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总甲状腺素(TT4)",
+   "value": "106.7",
+   "unit": "nmol/L",
+   "reference_range": "66.0-181.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "甲状腺过氧化物酶抗体(TPOAb)",
+   "value": "38.4",
+   "unit": "IU/mL",
+   "reference_range": "≤34.0",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": ""
+  }
+ ],
+ "date_time": ""
+}

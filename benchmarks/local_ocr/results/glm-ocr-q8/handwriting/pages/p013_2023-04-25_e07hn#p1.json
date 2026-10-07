@@ -1,0 +1,67 @@
+{
+ "id": "p013_2023-04-25_e07hn#p1",
+ "tier": "H2",
+ "image_sha256": "2d45be09e78958e4662c5b4a5c7f411ee2e6fdcb9ea57f4c5e0bb39f2ac21a2b",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nClinic notes\n\nDate: 25 Apr 2023\n\nF/U Hypothyroidism\nNo complaints.\nTemp 36.5 HR 86 RR 17 BP 109/80 mmHg\nSpO2 100% Weight 49.0kg\nChest clear. Heart sounds normal.\nImp: Hypothyroidism\nPlan: bloods next visit, continue current meds,\ncheck sugars at home",
+   "finish_reason": "stop",
+   "seconds": 14.37,
+   "usage": {
+    "completion_tokens": 104,
+    "prompt_tokens": 2101,
+    "total_tokens": 2205,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2096,
+    "prompt_ms": 12712.402,
+    "prompt_per_token_ms": 6.065077290076336,
+    "prompt_per_second": 164.87836051754815,
+    "predicted_n": 104,
+    "predicted_ms": 1572.176,
+    "predicted_per_token_ms": 15.263844660194174,
+    "predicted_per_second": 65.51429356509705
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td>Date: 25 Apr 2023</td></tr><tr><td>F/U Hypothyroidism\nNo complaints.\nTemp 36.5 HR 86 RR 17 BP 109/80 mmHg\nSpO2 100% Weight 49.0kg\nChest clear. Heart sounds normal.\nImp: Hypothyroidism\nPlan: bloods next visit, continue current meds,\ncheck sugars at home</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 1.93,
+   "usage": {
+    "completion_tokens": 120,
+    "prompt_tokens": 2101,
+    "total_tokens": 2221,
+    "prompt_tokens_details": {
+     "cached_tokens": 2096
+    }
+   },
+   "timings": {
+    "cache_n": 2096,
+    "prompt_n": 5,
+    "prompt_ms": 29.286,
+    "prompt_per_token_ms": 5.857200000000001,
+    "prompt_per_second": 170.73004165813015,
+    "predicted_n": 120,
+    "predicted_ms": 1829.46,
+    "predicted_per_token_ms": 15.373613445378151,
+    "predicted_per_second": 65.04651645840849
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2265.5,
+  "phys_footprint_mib": 1730.6,
+  "phys_footprint_peak_mib": 1880.0
+ }
+}

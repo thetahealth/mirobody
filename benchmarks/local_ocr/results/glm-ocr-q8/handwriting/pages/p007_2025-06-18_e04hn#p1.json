@@ -1,0 +1,67 @@
+{
+ "id": "p007_2025-06-18_e04hn#p1",
+ "tier": "H2",
+ "image_sha256": "9b9f77f342a8b1dd315d9a57bc00e8763ccd6c3c1653f51bf14f9d96165663c4",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：全科\n日期：2025.6.18\n\n复诊\n一般情况可\nT: 36.5° CP: 82 R13次/分 BP: 126/74mmHg\nSPO2 100% wt 78.6kg\n双下肢无水肿，腹软无压痛\n诊断：2型糖尿病\n处理：监测血糖，不适随诊",
+   "finish_reason": "stop",
+   "seconds": 7.95,
+   "usage": {
+    "completion_tokens": 127,
+    "prompt_tokens": 2156,
+    "total_tokens": 2283,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7056.866,
+    "prompt_per_token_ms": 3.280737331473733,
+    "prompt_per_second": 304.8095287624846,
+    "predicted_n": 127,
+    "predicted_ms": 836.113,
+    "predicted_per_token_ms": 6.635817460317461,
+    "predicted_per_second": 150.6973339728003
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td colspan=\"2\">门诊病历</td></tr><tr><td>科别：全科</td><td>日期：2025.6.18</td></tr><tr><td colspan=\"2\">复诊</td></tr><tr><td colspan=\"2\">一般情况可</td></tr><tr><td colspan=\"2\">T:36.5°CP:82R13次/分BP:126/74mmHg</td></tr><tr><td colspan=\"2\">SPO2100%wt78.6kg</td></tr><tr><td colspan=\"2\">双下肢无水肿，腹软无压痛</td></tr><tr><td colspan=\"2\">诊断：2型糖尿病</td></tr><tr><td colspan=\"2\">处理：监测血糖，不适随诊</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 1.42,
+   "usage": {
+    "completion_tokens": 203,
+    "prompt_tokens": 2156,
+    "total_tokens": 2359,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 14.289,
+    "prompt_per_token_ms": 2.8578,
+    "prompt_per_second": 349.91951851074253,
+    "predicted_n": 203,
+    "predicted_ms": 1344.788,
+    "predicted_per_token_ms": 6.657366336633664,
+    "predicted_per_second": 150.20954975802877
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2503.5,
+  "phys_footprint_mib": 1829.1,
+  "phys_footprint_peak_mib": 1830.7
+ }
+}

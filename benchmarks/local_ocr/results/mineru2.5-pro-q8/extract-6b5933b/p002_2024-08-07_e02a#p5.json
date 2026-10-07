@@ -1,0 +1,369 @@
+{
+ "id": "p002_2024-08-07_e02a#p5",
+ "llm": true,
+ "seconds": 58.54,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Hematocrit(HCT)",
+   "value": "42.4",
+   "reference_range": "35.0--45.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Mean corpuscular volume(MCV)",
+   "value": "93.3",
+   "reference_range": "82.0--100.0",
+   "unit": "fl",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Mean corpuscular hemoglobin(MCH)",
+   "value": "29.5",
+   "reference_range": "27.0--34.0",
+   "unit": "pg",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Mean corpuscular hemoglobin concentration(MCHC)",
+   "value": "316",
+   "reference_range": "316--354",
+   "unit": "g/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Red cell distribution width(RDW-CV)",
+   "value": "13.6",
+   "reference_range": "11.5--14.5",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Platelet count(PLT)",
+   "value": "179",
+   "reference_range": "125--350",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Mean platelet volume(MPV)",
+   "value": "12.6",
+   "reference_range": "7.6--13.2",
+   "unit": "fl",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Platelet distribution width(PDW)",
+   "value": "13.3",
+   "reference_range": "9.0--17.0",
+   "unit": "fl",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Plateletcrit(PCT)",
+   "value": "0.194",
+   "reference_range": "0.108--0.282",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Neutrophil percentage(NEUT%)",
+   "value": "53.6",
+   "reference_range": "40.0--75.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Lymphocyte percentage(LYMPH%)",
+   "value": "33.7",
+   "reference_range": "20.0--50.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Monocyte percentage(MONO%)",
+   "value": "4.2",
+   "reference_range": "3.0--10.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Eosinophil percentage(EO%)",
+   "value": "7.9",
+   "reference_range": "0.4--8.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Basophil percentage(BASO%)",
+   "value": "0.6",
+   "reference_range": "0.0--1.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Neutrophil count(NEUT#)",
+   "value": "4.45",
+   "reference_range": "1.80--6.30",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Lymphocyte count(LYMPH#)",
+   "value": "2.80",
+   "reference_range": "1.10--3.20",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Monocyte count(MONO#)",
+   "value": "0.35",
+   "reference_range": "0.10--0.60",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Eosinophil count(EO#)",
+   "value": "0.66",
+   "reference_range": "0.02--0.52",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Basophil count(BASO#)",
+   "value": "0.05",
+   "reference_range": "0.00--0.06",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Alanine aminotransferase(ALT)",
+   "value": "24",
+   "reference_range": "7--40",
+   "unit": "U/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Aspartate aminotransferase(AST)",
+   "value": "13",
+   "reference_range": "13--35",
+   "unit": "U/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Alkaline phosphatase(ALP)",
+   "value": "51",
+   "reference_range": "35--100",
+   "unit": "U/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Gamma-glutamyl transferase(GGT)",
+   "value": "17",
+   "reference_range": "7--45",
+   "unit": "U/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total protein(TP)",
+   "value": "81.8",
+   "reference_range": "65.0--85.0",
+   "unit": "g/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Albumin(ALB)",
+   "value": "47.1",
+   "reference_range": "40.0--55.0",
+   "unit": "g/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Globulin(GLB)",
+   "value": "34.7",
+   "reference_range": "20.0--40.0",
+   "unit": "g/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total bilirubin(TBIL)",
+   "value": "10.3",
+   "reference_range": "0.0--21.0",
+   "unit": "μmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Direct bilirubin(DBIL)",
+   "value": "1.9",
+   "reference_range": "<8.0",
+   "unit": "μmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Indirect bilirubin(IBIL)",
+   "value": "8.4",
+   "reference_range": "0.0--18.0",
+   "unit": "μmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total bile acid(TBA)",
+   "value": "3.8",
+   "reference_range": "<10.0",
+   "unit": "μmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Urea(BUN)",
+   "value": "3.90",
+   "reference_range": "2.60--7.50",
+   "unit": "mmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Creatinine(CREA)",
+   "value": "53",
+   "reference_range": "41--73",
+   "unit": "μmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Uric acid(UA)",
+   "value": "199",
+   "reference_range": "155--357",
+   "unit": "μmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Potassium(K)",
+   "value": "4.44",
+   "reference_range": "3.50--5.30",
+   "unit": "mmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Sodium(Na)",
+   "value": "135.2",
+   "reference_range": "137.0--147.0",
+   "unit": "mmol/l",
+   "detection_method": "laboratory",
+   "status": "low",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Chloride(Cl)",
+   "value": "102.7",
+   "reference_range": "99.0--110.0",
+   "unit": "mmol/l",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  }
+ ],
+ "date_time": "2024-10-30 00:00:00"
+}

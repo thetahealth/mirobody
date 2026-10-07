@@ -1,0 +1,129 @@
+{
+ "id": "p005_log01#p1",
+ "llm": true,
+ "seconds": 16.75,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体重",
+   "value": "51.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-02 07:43"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.2",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-03 07:44"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-04 07:46"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "52.2",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-05 08:53"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.2",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-06 07:21"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "52.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-08 07:37"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.1",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-09 07:58"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.7",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-10 07:57"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-11 06:42"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.4",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-12 08:17"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.5",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-13 06:20"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "51.7",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-12-14 07:51"
+  }
+ ],
+ "date_time": "2025-12-14 07:51"
+}

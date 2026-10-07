@@ -1,0 +1,250 @@
+{
+ "id": "p008_hlog02#p1",
+ "llm": true,
+ "seconds": 43.79,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "空腹",
+   "value": "8.5",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "5.8",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "午餐后",
+   "value": "7.3",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "6.1",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "6.6",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "午餐后",
+   "value": "7.1",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "6.3",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "5.7",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "5.6",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "7.1",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "6.8",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "备注",
+   "value": "加餐",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "午餐后",
+   "value": "6.8",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "2.0",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "备注",
+   "value": "6.0",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "午餐后",
+   "value": "6.2",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "7.7",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "6.3",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "5.6",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "午餐后",
+   "value": "9.0",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "8.3",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "早餐后",
+   "value": "6.4",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "晚餐后",
+   "value": "7.9",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  },
+  {
+   "original_indicator": "备注",
+   "value": "聚餐",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08 08:00:00"
+  }
+ ],
+ "date_time": "2024-08",
+ "content_type": "medical_report"
+}

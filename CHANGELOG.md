@@ -1,5 +1,23 @@
 ## Unreleased
 
+### Upgrade notes
+
+- **The reading tables 1.5.0 replaced are dropped.** `th_series_dim`,
+  `fhir_indicators` and `standard_indicators_device` never held a reading and
+  go at the first boot. `th_series_data` (renamed `th_series_data_retired_15`
+  in 1.5.0), which held every reading before 1.5.0, goes only once every row
+  in it is proven moved: `mirobody migrate-observations` marks a row moved
+  when a row with the same fingerprint is in the observation model, and the
+  table is dropped, by that command or at the next boot, when no other row is
+  left. Rows the person deleted go with it. Upgrading from 1.4.x, or from
+  1.5.0–1.5.3 if the table is still there: after the first boot, run
+  `docker compose exec mirobody mirobody migrate-observations` until it
+  reports the table dropped; it says which rows keep it and what to do. If
+  you ran it on 1.5.0–1.5.3 and have erased readings since, run it with
+  `--verify-only` first: nothing recorded those erasures, so a plain run would
+  write them back. That run writes nothing, marks what is already moved and
+  counts the rest.
+
 ### Added
 
 - **`skills/`: two skills for someone else's agent.** `npx skills add
@@ -13,6 +31,113 @@
   re-runs every code, subcommand, Compose service and number the prose
   quotes, and pins six category terms that must stay deliberately unresolved.
   The module ships in the wheel and sdist as inspectable release evidence.
+- **The first start asks for a model in the browser.** With no key in
+  `.env` the stack still starts, and `./deploy.sh` prints a link to `/setup`:
+  paste one vendor key, kept only after a real request through it works, or
+  choose 100% on this machine. The choice is stored encrypted, applies without
+  a restart and never overrides `.env` (nor a key `.env` holds under another
+  name, `GEMINI_API_KEY` for `GOOGLE_API_KEY`). Saving takes the
+  `SETUP_TOKEN` `deploy.sh` writes, and once a model is set up, a signed-in
+  session too: the server prints the link only while none is. A key is
+  checked with one real request before it is kept, without changing what
+  other requests read meanwhile. Settings › Model returns to the page.
+- **A model name is yours to change.** Model names change faster than
+  releases. The setup page shows the model beside each key and on the local
+  server, and takes another (a local server's are listed to pick from); a
+  vendor model is checked with one real request first. In `.env` the same is
+  one line, the variable each `config.llm.yaml` entry names as its
+  `model_env` (`OPENROUTER_CHAT_MODEL`, `LOCAL_MODEL`, `LOCAL_OCR_MODEL`, …),
+  and `deploy.sh` copies it from the command line like a key.
+- **Every model can run on the same machine.** `LOCAL_BASE_URL` and
+  `LOCAL_OCR_BASE_URL` point the `local` entries at any OpenAI-compatible
+  server. The shipped preset runs on llama.cpp's `llama-server`: GLM-OCR-0.9B
+  reads documents, and one of two sizes answers, picked on the setup page by
+  what each downloads and needs. Small, MiniCPM5-2B, the default: 3.0 GB with
+  the reader, 5.7 GB of memory at most, 29 s a median answer on a 16 GB M1
+  Pro, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
+  all 140 printed rows of 12 documents stored with their units and ranges as
+  printed, and 22 of 31 journal entries written. Large, Qwen3.8-27B:
+  14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of 16 earlier test
+  questions with no number the record lacks, about two minutes an answer, 27
+  of 27 demo readings. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
+  the 1B answered 2 of the 24 questions with every expected fact, and the 9B
+  did not fit beside the stack on 16 GB. `docker compose --profile local`
+  (NVIDIA) or `--profile local-cpu` runs the server next to the app. With no
+  GPU it is minutes, not seconds: in llama.cpp's CPU image on 4 vCPUs (colima,
+  2026-10-07) MiniCPM5-2B read prompts at about 50 tokens a second and wrote
+  at about 18, a 6.8k-token prompt was answered in 137 s, GLM-OCR read a
+  photographed page in about 17 s, the two models held about 6.0 GiB (so
+  Docker needs at least 8 GB), and the tool-call probe passed. Each model
+  server keeps at most 1 GiB of prompt cache, the reader none: llama.cpp's
+  default is 8 GiB per model, and two small models filled a 16 GB Mac's disk
+  with swap. Both slots of a model share one KV pool (`kv-unified`), so one
+  long question can use the whole context: split, a 32k model answered in a
+  16k slot and two evaluation questions ended in `ContextOverflowError`, at
+  the same memory. A local reply stops at 6,144 tokens (the `local` entry's
+  `max_tokens`): nothing below the context bounded it, and on the evaluation
+  MiniCPM5-2B wrote on after two questions' tool results until the 600 s
+  timeout; a chart answer with its reasoning is about 2k tokens. The
+  evaluation, its seed and how to rerun it are in `benchmarks/local_models/`;
+  `docs/local-models.md` is the guide. The models download from Hugging Face
+  the first time; `HF_ENDPOINT` in `.env` points the `llama` service at a
+  mirror.
+- **A guide to choosing a model, and the two evaluations behind it.** No page
+  compared the local sizes with hosted models on the same cases, or said what
+  each costs and who reads the health data with it, and the hosted models had
+  last been run on September's eight questions. `docs/model-choice.md`, in
+  English and Chinese, puts the small size (MiniCPM5-2B) beside five cloud
+  models, DeepSeek V4.1 Flash, Claude Sonnet 5.5, Claude Opus 5.5, Gemini 3.8
+  Flash and GPT-6 Luna, on the same 24 questions, 12 documents and 15 journal
+  sentences, asked through the product's API of a synthetic record
+  (mirobody-gen, seed 7) and graded by Claude Code against a published rubric,
+  with the large size's earlier measurements beside them; GPT-6.1 Sol was run
+  and dropped (Changed, the cloud models). It says what leaves the machine in
+  each mode, including GLM-OCR on the machine with a cloud model answering;
+  how to keep OpenRouter to zero-data-retention hosts, one host per model;
+  what an answer and a hundred documents cost; and it previews the Mirobody
+  model 1.6.0 will ship. Sonnet 5.5, Opus 5.5 and Gemini 3.8 Flash tie at
+  247 of 248 on the questions, so the guide separates them by price and
+  speed, not by one 24-question set; with the table rules in front of every
+  model (c396b4f) four of the references, reading the 12 documents again,
+  got 37% less document text in the indicator call and stored fewer readings
+  that are on no printed row (about 48 to 26–28; Gemini 47 to 41), a measure
+  of the wider header
+  vocabulary rather than of the rules being switched on, since the earlier
+  runs kept a local OCR route. `benchmarks/local_models/` and
+  `benchmarks/local_ocr/` are the two evaluations, with cases, results, every
+  grade's reason and the commands to rerun them. The OCR one is why GLM-OCR
+  stays the reader: 283 of 303 printed rows stored right, 302 without the
+  generator's banner, and none the page does not print (PaddleOCR-VL-1.6 278
+  and 12, MinerU2.5 279 and 3). PaddleOCR-VL is the preset's option, switched
+  as `docs/local-models.md` says: the `local-ocr` entry's `model` and its
+  `ocr_prompts` together. `docs/local-models-roadmap.md` keeps the earlier
+  measurements and marks which of its harness steps 1.5.4 took. To tell: the
+  README's "Which model" line links the guide, and `docs/README.md` and
+  `benchmarks/README.md` list all three.
+- **A table is read by its header, without a model**, in every setup: a
+  born-digital PDF's tables off its text layer, a scan's from the local OCR
+  model's tables pass, a CSV's and a sheet's as they are. With a vendor key
+  the vendor's model now extracts readings only from what the rules left; it
+  still writes the file's title and summary from the first 3,000 characters of
+  the document's text (`file_abstract_extractor`), so the rows are not kept
+  from it. Rows under a header the rules know (项目名称 / 结果 / 参考值 /
+  单位, Analyte / Result / Unit, a CSV's first line), including two panels
+  side by side, are stored as printed and labelled `rules:table@v1`, with only
+  the flag the report printed. A row is read only when it looks like a reading
+  (a number, `1+` or 阴性 beside a unit and a range); patient details are
+  skipped; a value the page's other copy (the text layer, or the OCR's text
+  pass) does not confirm, a table of one row per day, and any text outside the
+  tables that holds a number or a finding go to the text model.
+- **`mirobody doctor --probe` sends one real request per surface** (a tool
+  call, a schema-bound answer, an image, the OCR passes) and checks that each
+  local server runs the model its entry names. `doctor` reads the setup
+  page's choice as the server does, so a deployment set up in the browser is
+  not reported as having no model.
+- **`POST /files/upload?file=true` files what it stores.** Without the flag
+  the route only stores the file, the first step of a chat attachment that
+  the turn then files, and its message now says so instead of "uploaded
+  successfully". With it, the files land in the record and extraction
+  starts, as a Data-page upload does.
 
 ### Security
 
@@ -71,18 +196,81 @@ decisions.
 
 ### Changed
 
+- **A born-digital PDF's tables are read off its text layer, without a
+  model.** The table rules read only HTML tables, and a text layer writes a
+  row as one line of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so a
+  downloaded report (the commonest kind) reached them only through an OCR
+  model's tables pass over the rendered page, and without one the extraction
+  model read all of it. A text page now also carries the tables its
+  characters' positions lay out (`documents/extract.py`, `_layer_tables`),
+  whichever model reads the rest: cells split at wide gaps, a cell wrapped
+  onto a second line joined, columns by where cells overlap, a table going on
+  at the top of the next page under the same columns, a title line over a
+  table and a running footer left out. With a document-OCR model, only a text
+  page with no such table is rendered for its tables pass. On the seed-7
+  corpus's 16 text-layer PDFs (979 printed rows, benchmarks/local_ocr's
+  checks) the rules read 0 rows before and 920 now, 919 with the printed unit
+  and 918 with the printed range, and no row that is not printed; on the six
+  such pages the OCR benchmark ran GLM-OCR on, as many as its tables pass or
+  more (34 against 7 on one). What the rules read also leaves the model's text
+  more often: a row of word results (`Negative`), a zero-padded lab code
+  (`02`), a `#` column and the layer's one-line copy of a header no longer
+  keep a read row in it; text handed to the model for those 16 documents went
+  from 76,072 to 45,739 characters. To tell: the log line `pdf: …
+  layer_table_page_count=N`.
+
+- **The cloud models are the ones vendors ship now.** `config.llm.yaml` still
+  named September's: Claude Sonnet 5 and GPT-5.6 Terra. `claude-sonnet`
+  (OpenRouter) now runs `anthropic/claude-sonnet-5.5` and `claude` (Anthropic)
+  `claude-sonnet-5-5`; `openai` runs `gpt-6-sol` and `openai-utils`
+  `gpt-6-luna`, both at `reasoning_effort: none`, the only effort at which
+  GPT-6 takes a function tool on Chat Completions or a `temperature`. The
+  `gpt` entry, on OpenRouter, runs `openai/gpt-6-luna` (it ran GPT-5.6 Terra):
+  on the evaluation in `benchmarks/local_models/` it graded 237 of 248 and was
+  the cheapest model measured ($0.0009 an answer), never rate-limited. GPT-6.1
+  Sol was tried for it and dropped: even pinned to Azure, OpenRouter kept it
+  rate-limited upstream (9 of 24 questions needed up to four retry rounds and
+  one never got through; 50 of 140 document rows were never stored), at about
+  20 times Luna's price. Nor is it the `openai` entry: OpenAI serves its tool
+  calls only on the Responses API, and the agent speaks Chat Completions.
+  `openrouter-utils` asks Gemini 3.8 Flash for `low` reasoning, not `minimal`,
+  which Google documents as an error on that model; `claude-sonnet` and `gpt`
+  send no `temperature`: Sonnet 5.5 answers 400 to a non-default one, and
+  OpenAI's GPT-6 guide says to remove it. Still each vendor's newest, so
+  unchanged: `qwen3.8-flash`, `gemini-3.8-flash`, `deepseek-flash` (DeepSeek
+  V4.1 Flash), `claude-haiku-4-5-20251001`. A model set through an entry's
+  `model_env` variable is kept. To tell: `mirobody doctor` names the new ids.
+  Measured 2026-10-06 through the product's own calls (a tool call and a
+  second round with its result, a schema-bound answer, an image, and the demo
+  photo read and its nine readings extracted): every OpenRouter and DashScope
+  entry passes. The OpenAI, Anthropic, Google and DeepSeek direct entries were
+  checked against each vendor's documentation, not called.
+- **The README starts with the first-run page, and says what leaves the
+  machine in each mode.** `./deploy.sh` alone is the first command; a GIF
+  (English and Chinese) shows the page, a table compares a model key, 100% on
+  this machine and the library alone with what each needs, and "Privacy"
+  became a per-mode table that names the model download, the image registry
+  and its mirror, and what encryption at rest does not cover yet. The README,
+  the quickstart, `docs/local-models.md`, the Docker Hub copy and the
+  `mirobody` skill name llama.cpp as the local model runtime: the README's
+  first paragraph and its mode table say that llama.cpp's `llama-server`
+  serves the local models and Mirobody runs none itself. The table gives the
+  default size (MiniCPM5-2B with GLM-OCR: 16 GB of memory, no GPU, 3.0 GB to
+  download, minutes a first answer on a CPU alone) before the large one
+  (Qwen3.8-27B, about 20 GB).
 - **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
   MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
   2026-10-01, and none of their cards linked here, nor did either README link
   them, the ESL-Bench paper or `thetahealth/mirobody-eval`. Both editions'
   "Numbers you can check" tables now carry one row for them.
-- **Two commands to a running stack.** `deploy.sh` writes a model key given
-  in its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
+- **Two commands to a running stack.** `deploy.sh` writes a model key given in
+  its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
   under the variable names `config.llm.yaml` reads, so a first run needs no
-  second step; a key added later still goes in `.env`, then
-  `docker compose up -d`. The README (both editions), the skills and the
-  Docker Hub copy say so, and name the source tarball as the way in without
-  Git. To tell: after that one command, `mirobody doctor` names a provider.
+  second step; a key added later goes in through Settings › Model, or in
+  `.env` followed by `docker compose up -d`. The README (both editions), the
+  skills and the Docker Hub copy say so, and name the source tarball as the
+  way in without Git. To tell: after that one command, `mirobody doctor` names
+  a provider.
 - **The sign-in page offers the demo account while it is seeded.** Only
   `deploy.sh`'s last line and the README said `you@mirobody.ai` / `111111`.
   `/mirobody.json` carries `__DEMO_SIGN_IN__` under the seed's own three
@@ -128,19 +316,20 @@ decisions.
   Data › Records and shows it become a complaint, two readings and a
   medication, with "no fever" kept out (`docs/images/journal-demo.gif` and its
   zh-CN twin).
-- **Docs say what the tree does.** AGENTS.md and CONTRIBUTING.md count 232
-  tests in three shipped modules (they said 147 in two); `pyproject.toml`'s
-  note on extras names the three runtime extras; `demo/README.md` stops
-  quoting 1.4.4 and 1.5.0; the README no longer says the docs site is
-  rendered from `docs/`, which its MCP page is not.
-- **The README starts with the Docker path.** Both editions open with the
-  three commands that bring the stack up (`git clone`, `./deploy.sh`, one key
-  in `.env` then `docker compose up -d`) and what a running deployment does;
-  the library, the ICPC-3 axis and the genetics tools follow, each with a
-  runnable example, and the figures link the public suites under
-  `benchmarks/`. The docs site links point at the pages that exist rather
-  than at redirects, and `docs/`, CONTRIBUTING and the workflow README name
-  the benchmarks. `benchmarks/README.md` is new.
+- **Docs say what the tree does.** AGENTS.md, CONTRIBUTING.md and
+  `docs/testing.md` count 268 tests in four shipped modules, 255 passing and
+  13 strict xfails (they said 147 in two); `pyproject.toml`'s note on extras
+  names the three runtime extras; `demo/README.md` stops quoting 1.4.4 and
+  1.5.0; the README no longer says the docs site is rendered from `docs/`,
+  which its MCP page is not.
+- **The README leads with the running stack, then the library.** Both editions
+  open with the commands that bring the stack up (`git clone`, `./deploy.sh`,
+  then the first-run page above) and what a running deployment does; the
+  library, the ICPC-3 axis and the genetics tools follow, each with a runnable
+  example, and the figures link the public suites under `benchmarks/`. The
+  docs site links point at the pages that exist rather than at redirects, and
+  `docs/`, CONTRIBUTING and the workflow README name the benchmarks.
+  `benchmarks/README.md` is new.
 - **A release publishes its Docker image.** The GitHub Release is created by
   the workflow's own token, and GitHub starts no workflow from such an event,
   so `docker-hub.yml`'s `release: published` trigger never fired; the 1.5.3
@@ -152,9 +341,405 @@ decisions.
   publishes the short and full repository description from
   `docs/docker-hub-description.md`; a manual dispatch can rebuild a repaired
   source ref under an existing version tag without moving the release tag.
+- **Readings carry the printed range and a flag.** Readings and latest
+  values from `query_health_indicators` now include `ref`, the range as
+  printed (empty when none was), and `flag`: the report's own when a table
+  rule read the row, the extracting model's high/low/normal against that
+  range otherwise. Without the range a model judged a value against one it
+  remembered.
+- **`th_series` is gone.** The per-person catalogue was rewritten on every
+  write and read by nothing: `catalog()` groups `v_observation` directly,
+  150 ms over one person's 149,000 readings. Writes no longer pay for it, and
+  the table is dropped at boot.
+
+- **Settings no longer report switches that do not exist.** `GET
+  /api/user/settings` answered `privacy` (`dataSharing`, `aiAnalysis`,
+  `analyticsTracking`) and `notifications` (`email`, `push`, `weeklyReport`, …)
+  as `true` for every account, and `PUT` accepted and dropped them: nothing
+  shares, tracks or notifies. Both groups are gone from the answer; a client
+  that still sends them is not refused.
 
 ### Fixed
 
+- **A partial `read_file` says the document goes on.** deepagents'
+  `read_file` passes a 100-line limit by default, and the window it got back
+  just ended, mid-document, under a header that gave no total (`@@ lines
+  101-200 @@`): small-v3 read a 7-page check-up book's lines 1-100, then
+  101-200, and answered that it had no physician summary, which is on page 7
+  (benchmarks/local_models, 2026-10-07). A window that stops short of the end
+  now ends with `[lines 101–200 of 700 shown; the document continues: call
+  read_file with offset=200 to read on]`, under `@@ lines 101-200 of 700 |
+  next offset 200 @@`. The final window gets no such line (its header now
+  gives the total), a read at the backend's own default is the whole document
+  as before, and a negative offset reads from line 1, as deepagents already
+  told the model it did (the backend had sliced from the end). To tell: read
+  a long document with `read_file` and no limit; the result ends with that
+  line until the last window.
+- **A blood pressure printed as one pair in a table is read by the rules.**
+  `translate.parse_value("123/78")` is narrative by design, so the table rules
+  left `Blood Pressure | 123/78 | mmHg | 90-139/60-89` to the model, and 3 of
+  4 cloud models (DeepSeek V4.1 Flash, Claude Sonnet 5.5, GPT-6 Luna) stored
+  no blood pressure from a 7-page check-up book; DeepSeek also missed a clinic
+  note's `BP 111/65` (benchmarks/local_models, 2026-10-07). A row named 血压,
+  血壓, Blood Pressure, BP or B.P. whose value is a pair is now two readings,
+  named as the journal names a pair it splits (收缩压 / 舒张压 under a Chinese
+  name, else Systolic / Diastolic blood pressure; they code to 8480-6 and
+  8462-4), with the printed unit or mmHg, a paired range split
+  (`90-139/60-89`) or any other range on both, and the printed flag on both.
+  The row counts as read, so it alone no longer sends the document to the
+  model. To tell: a file with such a row stores both pressures labelled
+  `rules:table@v1`. A pair outside a table, or under any other name (`20/40`,
+  `1/80`), is still the model's to read.
+- **One printed reading is stored once, whichever page it was read on.** The
+  merge compared a model row only with the table rules' rows, and the
+  dedup only name, value and date as written, so a check-up book read a page
+  at a time stored its summary page's `Apolipoprotein A1 1.69 g/L↑` beside the
+  table's `Apolipoprotein A1(ApoA1) 1.69`, and the same for ApoB and HBcAb
+  (benchmarks/local_models small-v2, 2026-10-07). Rows with one value
+  (`value_key`: the number less its flag, unit and copied range), one analyte
+  (one name, the name less its bracketed abbreviation or that abbreviation
+  alone, or one series by the vocabulary) and one date are now one row, and
+  the row that carries the printed range and unit is the one kept; a name a
+  misread character apart still counts only between the OCR's two passes.
+  `EO#` and `EO%` with one value stay two. A row whose value is a unit and
+  nothing else (`HGB | L`, `CREA | mmol/L`; 22 of them for that book, each a
+  `unit:conflict` series in the catalogue) is not stored. Replayed on
+  small-v2's stored rows for that book: 106 rows → 84, rows that are not
+  printed rows 28 → 6 (findings the corpus does not list), printed ranges
+  75 → 78 of 78 with the layer's tables. To tell: a book with a summary page
+  stores one apolipoprotein A1 reading, with its range.
+- **A flag printed after a unit or a word leaves the value.** A flag was split
+  off only right after a number or a unit glued to it, so `1.69 g/L↑` and
+  `0.58 g/L↓` were stored with the unit and arrow in the value and no number,
+  and `阳性 偏高`, `Positive H` and `++ H` with the flag in a word result. Now
+  an arrow or 偏高/偏低 comes off after anything, and `H` after a unit or a
+  result word; `L` still only when the printed range says low (`1.5 L` of
+  urine is litres). To tell: `1.69 g/L↑` is stored as 1.69 g/L, flag ↑.
+- **A page's print date no longer dates its readings.** A row's own
+  `date_time` was always honoured, and reading a book a page at a time the
+  model put a page's `Printed: 2026-08-23` on two rows, filed a fortnight
+  after the examination (2026-08-07). A row keeps its own date now only when
+  the rows print at least two different ones (a log, a table by day);
+  otherwise every row takes the document's. To tell: that book's readings
+  all sit on 2026-08-07, and a weight log keeps one day per row.
+- **A file named by the model keeps the upload's extension.** The model was
+  asked for `Date_Content_Description.extension` and wrote what it liked:
+  MiniCPM5-2B named a re-read PDF `2026-08-28_体检报告_摘要.ext` and another
+  `…_摘要.txt`, and GPT-6 Luna and GPT-6.1 Sol took the name for a second file
+  and tried to open it. The model now gives the name only, and the upload's
+  own extension is put on it (`utils/file_types.with_extension`), on both
+  naming paths. To tell: an uploaded PDF's generated name ends in `.pdf`.
+- **A cut readings answer says so before its rows.** The cut was one note
+  among several after the table, and MiniCPM5-2B, handed the newest 92 days
+  of a March-to-August window, answered that March and April had no data;
+  a raw answer cut at 50 rows per indicator said nothing but `truncated`. Both
+  now open with one plain sentence (`meta.cut`): the span shown, that earlier
+  data exists and is not missing, and the calls that show it (a coarser view,
+  `view=stats`, or `end=` the day before). Chat and MCP read the same
+  rendering; the REST envelope carries `cut`. To tell: a year of daily steps
+  asked by day starts "Only part of the data is shown".
+
+- **`view=stats` names a reading's own day.** Its `first_date` and
+  `last_date` were the UTC date of the instant, so a report filed at local
+  midnight in Asia/Shanghai (UTC+8) showed the day before: a ferritin of
+  5 March came back as 4 March, and a model repeated it
+  (benchmarks/local_models). They are now the stored local day, as the
+  catalogue's are. To check: `scripts/e2e_health_data.py` asserts that stats
+  and the catalogue name the same last day.
+- **What the table rules leave of a report is still read as a report.**
+  Since the text model is handed only what the rules did not read, a page's
+  leftover could look like nothing medical on its own: MiniCPM5-2B answered
+  `non_health_related` and stored none of it, six haematology rows on one
+  page and 26 on another, where a "SAMPLE" banner was most of what remained
+  (benchmarks/local_ocr). The request now says the text is the rest of a
+  medical report, and the prompt says a printed notice (a watermark,
+  "SAMPLE", "COPY", "仅供参考", a disclaimer) does not make a document
+  non-health content. To check: a report stamped "仅供参考" with readings
+  outside its tables keeps them.
+- **A model that loops on a page stops sooner and keeps the rows it read.**
+  An extraction request allowed 32,000 tokens; MiniCPM5-2B looped on a
+  handwritten blood-pressure log for 13 minutes, 30,067 tokens, until its
+  context was full, and the cut answer was thrown away with every row it had
+  read (benchmarks/local_ocr). A request is now bounded by its text (2,048
+  tokens plus 4 per character, at most 32,000), and an answer cut off at
+  that bound keeps every value that closed before the cut; the repeats a
+  loop wrote are dropped as duplicates. An answer that ends normally but
+  does not parse is still a failed call. To check: the log says "hit
+  max_tokens; kept its complete part" instead of a JSON error.
+- **The thyroid panel resolves as its slips print it.** `TT4` answered
+  3024-7, FREE thyroxine, so a total T4 of 114.5 nmol/L would be stored as
+  free T4, and `总甲状腺素(TT4)` was refused as naming two analytes; `TRAb`
+  answered 63363-6, the antibody in blood from a fetus; and `TT3`, `超敏促甲状腺
+  激素`, `抗TPO抗体`, `抗TG抗体`, `促甲状腺素受体抗体` and the English antibody names
+  resolved to nothing. Seventeen rows in `resolver_overrides.tsv` point each
+  at a key the index answers correctly (found reading the OCR benchmark's
+  corpus). `Tg` (thyroglobulin) still answers triglycerides: keys are
+  case-blind and TG is the far commoner reading. Readings already stored keep
+  their code until `mirobody recode`. To tell: `mirobody resolve TT4` prints
+  3026-2; resolver coverage is 317/317.
+- **Any document-OCR model's answer is read: PaddleOCR-VL's and MinerU's
+  tables too.** Each OCR pass reached the readers as the model wrote it.
+  PaddleOCR-VL-1.6 and MinerU2.5 answer `Table Recognition:` in OTSL
+  (`<fcel>…<nl>`), which nothing parsed: on the OCR benchmark's 26 pages
+  (benchmarks/local_ocr, 303 printed rows) the table rules read none of
+  PaddleOCR's rows, where its text held 300. PaddleOCR also writes units and
+  flags as LaTeX (`\(\mu mol/L\)`, `6.49\(\uparrow\)`), which the unit engine
+  and the value parser do not read, and its text pass repeated `未见异常` on an
+  ECG page until the benchmark's 8,192-token cap; the product sent no cap, so
+  a loop ran to the end of the model's context. Every answer is now cleaned
+  once in `documents/ocr.py` (`clean_answer`): OTSL becomes an HTML table with
+  its spans, LaTeX the characters it typesets (`μmol/L`, `×10^9/L`, `↑`), and
+  a line or phrase repeated 64 times in a row one copy, with a warning that
+  carries only counts. An OCR model's pass is capped at 8,192 tokens, five
+  times the longest answer measured (`unified_file_extract(max_tokens=)`, sent
+  under the name the endpoint takes, on the Anthropic backend too). GLM-OCR's
+  answers hold none of this and are unchanged. To tell: with PaddleOCR-VL as
+  `local-ocr`, a scanned report's stored text holds `<table>` and `μmol/L`,
+  not `<fcel>` or `\mu`. `docker/local-models.ini` gains a `paddleocr-vl`
+  section; the default reader is still `glm-ocr`.
+- **The table rules read an OCR model's grid, not only the printed one.** An
+  OCR model does not return the table a report prints. On the same benchmark
+  PaddleOCR-VL returned a whole page as one grid: a page's first rows (its
+  panel's header on the page before) above the next panel's header, a header
+  split over two rows (`血常规 | 英文名称 | 化验结果 | 参考值`, then `检查项目`),
+  four header words in one cell, and rows whose empty cells moved (`ALT | 23
+  | | U/L | 7~40 | 02 |` under `… | Methodology | Status | Unit | Normal
+  Range | Lab`, read as a unit under `Status` and the lab code `02` as the
+  range). GLM-OCR and MinerU moved empty cells the same way, and all three
+  read a US lab's `In Range | Out of Range` columns as no header. Now cell
+  spans keep their columns; a row whose cells contradict their columns is
+  laid again by content, in order, and read only when one layout fits best;
+  a split header is joined; rows above a table's first header borrow it; a
+  page with no header at all is typed by its cells when one column holds
+  results, one ranges, and the results sit on their ranges' scale (two
+  result columns, this result and the last, still go to the model); a result
+  cell that holds its range and unit (`2.873 (0.270 - 4.200)&mIU/L`) is split;
+  `Out of Range` is the result column a row's empty `In Range` points to; a
+  `±` between a range and a unit is a misread `&`; and `采样日期`, `检查日期`
+  and their kin are paperwork. A range under the unit header beside an empty
+  range cell, which the previous entry left to the model, is now read in its
+  place. Rules-only, all three models, with no row stored that is not a
+  printed reading: GLM-OCR 162 → 204 rows (unit and range right 156 → 198),
+  PaddleOCR-VL 0 → 276 (149 with the benchmark's own OTSL conversion; unit
+  and range right 106 → 262), MinerU 0 → 196 (139); table rows left unread
+  69 / 185 / 84 → 26 / 52 / 26; pages read with no model 1 / 0 / 2 → 10 /
+  10 / 10. To tell: a check-up page printed `Test Item | Measurement |
+  Methodology | Status | Unit | Normal Range | Lab` stores ALT with U/L and
+  7–40, labelled `rules:table@v1`.
+- **The text model is handed what the rules did not read, not a copy of
+  it.** A row the rules read left the model's text only when every number in
+  it was a read value under its own name, and an OCR's text pass prints each
+  row again with what that test misses: a lab code on every row (`02`), the
+  row number, the abbreviation in the name's place (`WBC 6.27 3.50-9.50`), a
+  column on its own (`5.73↑`), a previous result. On the benchmark those
+  copies were most of the text the 2B model got on pages the rules had read
+  whole, so it read them again, and its readings of them are where the end-
+  to-end errors came from. A line that only repeats a row the rules read, a
+  code or row-number column, a previous-result column, a patient-details row
+  and a table left with only its header now stay out of the model's text; a
+  line holding anything else (`血糖 4.57 mmol/L` beside a read `尿素 4.57`)
+  stays in. Text left for the model: GLM-OCR 15,747 → 5,542 characters,
+  PaddleOCR-VL 22,053 → 5,374, MinerU 17,686 → 9,105; every printed row the
+  rules leave that was in the model's text before is in it still. To tell: a
+  page whose rows the rules read logs `indicators read off tables, no model`.
+- **One printed row read by the rules and by the model is stored once.** The
+  merge dropped a model row only under the rule row's name or a name a
+  misread character apart, so the small-model eval stored `血红蛋白（HGB） 153`
+  (rules) and `血红蛋白 153` (model). `same_reading` now also folds two names
+  the vocabulary files under one series (`translate.code` on the name alone:
+  `血红蛋白`, `血红蛋白（HGB）`, `HGB`, `Hemoglobin`), and compares values less
+  a flag and less a range the model copied with them. Two analytes with one
+  value (`EO#` and `EO%`, both 0.6) stay two readings. Replayed on the OCR
+  benchmark's stored model answers, printed rows stored twice: GLM-OCR 7 → 2,
+  PaddleOCR-VL 3 → 1, MinerU 9 → 1; what is left is not one analyte by the
+  vocabulary (`TT4` resolves to free thyroxine, `抗TPO抗体` to nothing, and one
+  model row named `间接胆红素` plain `胆红素`). To tell: a report with
+  `血红蛋白（HGB） 153` in a table stores one hemoglobin reading.
+- **A document with no date is not filed under the prompt's example date.**
+  The extraction prompt's worked example said `"date_time": "2024-10-30
+  00:00:00"`, and MiniCPM5-2B copied it onto documents that print no date of
+  their own: on the evaluation's record (benchmarks/local_models, qa3) a few
+  readings were filed under 30 October 2024. The example now describes the
+  field instead of giving a date, so a copied value does not parse and the
+  file goes under the upload time with the Data page's "which date?". The
+  journal's worked examples state two times too; a `when` equal to one of
+  them is ignored the same way. To check: no `YYYY-MM-DD` appears in the
+  extraction prompt; an undated report asks which date it is.
+- **A range printed `120--200` is 120 to 200, and `6.49↑` keeps its
+  number.** Two readings came out wrong whatever model read the page, found
+  by the OCR benchmark (benchmarks/local_ocr):
+  - the range reader took the second dash of a doubled dash as a minus sign,
+    so `35.0--45.0`, the way check-up books print a range, was stored as
+    -45.0 to 35.0; a doubled dash is now one separator (`-3--3` stays -3 to
+    3);
+  - a value the model returned with the report's flag still on it (`6.49↑`,
+    `5.6 H`) was stored as text with no number, so it never charted and
+    never compared with its range: every one of GLM-OCR's 16 value errors
+    end to end. The model path now moves a printed flag out of the value
+    the way the table rules do, `L` read as litres unless the range says
+    low, and keeps the printed flag over the model's `status`.
+  To check: `mirobody.translate.parse_range("35.0--45.0")` is `(35.0, 45.0)`;
+  a report whose result column prints `6.49↑` stores 6.49 with the flag ↑.
+- **Long reports, clinic notes and home logs give their readings.** Three
+  shapes of document came back with none:
+  - a multi-page report sent to a small model in one request: MiniCPM5-2B
+    read the 7-page check-up book of the evaluation (78 printed rows) as
+    its header and `"indicators": []`. Text over 3,000 characters with page
+    headers is now read a page at a time, two pages at once, and the pages'
+    rows are joined: 78 of 78 on the same book;
+  - an outpatient note with its vitals in the text (T 36.6℃, BP 111/65, 体重
+    84.9kg): the prompt allowed only examination reports and device data.
+    Clinical notes and self-measurement logs are now health content, and the
+    values they state are readings: 10 rows from that note;
+  - a log of twelve morning weights: the extraction had one date per
+    document, so twelve weights could only be twelve readings of one day,
+    and two equal weights were deduplicated into one. A row now carries the
+    date it prints (`date_time`), the reading is filed under it, the same
+    value on two mornings is two readings, and a log with no date of its own
+    takes its latest row's: 12 rows on 12 mornings.
+  Measured with the product's own request on MiniCPM5-2B
+  (benchmarks/local_models, seed 7). To check: upload a photo of a weight
+  log; the Data page lists one reading per row, each on its own day.
+- **A keyword finds a reading whatever its unit and however it is spelled.**
+  On the 1.5.4 local-model evaluation, `query_health_indicators(keywords=
+  ["triglycerides"])` left out a triglyceride printed as `甘油三酯（TG）` in
+  mmol/L, whichever model asked. Two tiers missed it. The lexical one compared
+  the word with its plural `s` against `Triglyceride [Moles/volume] …`, and
+  "triglyceride" found it. The code one compared codes: the word resolves to
+  2571-8 (mass) and the reading was coded 14927-8 (moles). Words are now
+  plural-folded on both sides (`lexical.fold_plural`: `-s`, `-ies`, `-sses`,
+  by suffix), and the code tier matches the series the code names
+  (`translate.series_of`), which holds mass and moles, with or without a
+  method, together. "creatinines", "ferritins", "weights" and "LDLs" missed
+  the same way and now find their readings. To tell: with a triglyceride
+  stored in mmol/L, `keywords=["triglycerides"]` and `["TG"]` both return it.
+- **`FER` is ferritin, and `haemoglobin` is hemoglobin.** A lab slip's `FER
+  42.3 ng/mL` was coded 2498-4, Iron: LOINC's French translations name iron
+  `Fer`, and the index folds case. A ferritin question then saw July's
+  reading and not March's; DeepSeek V4.1 Flash found March only by searching
+  the report text. The British `haemoglobin` answered 4548-4, Hemoglobin A1c,
+  as `血红蛋白` once did. Both now answer what their spelled-out names answer
+  (20567-4 and 718-7), through two rows in `resolver_overrides.tsv`; a French
+  report's bare `Fer` now answers ferritin too. Readings already stored keep
+  their code until `mirobody recode` runs. To tell: `mirobody resolve FER`
+  prints a Ferritin code; resolver coverage is 317/317.
+- **The table rules read the headers most reports print.** Their vocabulary
+  lacked `检测结果`, `化验结果`, `报告结果`, `本次结果`, `数值`, `测量值`, `检查名称`,
+  `测定项目`, `Test Item`, `Tests`, `Items`, `Measured`, `REF.RANGE`,
+  `参考值(范围)`, `正常参考值` and every Traditional header, and took `Measurement`
+  for the name column. On the local-model evaluation's corpus (seed 7) the
+  rules read 21 of its 70 documents; the other lab tables went to the text
+  model, which a 2B model reads less exactly. Those words are now in
+  the vocabulary; headers, patient labels and date labels are compared with
+  Traditional folded to Simplified; `Measurement` is the result column beside
+  a name word and the name column without one; and a name or value column is
+  kept only when the cells under it agree, so a header word over the wrong
+  cells reads nothing. Flag columns headed `标记`, `提示信息`, `判断`, `Status`
+  or `Abnormal` keep their printed flag, a flag after a glued unit
+  (`50.5% H`) comes off the value, a unit after `&` is the unit even when it
+  starts with a digit (`125-350&10^9/L`), and four row kinds the wider reach
+  met are not stored: the report's `异常项目数`, the patient's `Name` inside
+  the table, `未做`, and a range under the unit header. Same corpus: 57 of 70
+  documents read (Traditional 4 of 4, English 9 of 10), 2,186 rows with units
+  1,696 of 1,697 and ranges 2,118 of 2,118, no row stored that is not a
+  printed reading, and the readings read before unchanged but two flags the
+  `标记` column now keeps. To tell: upload a slip headed `检查名称 | 化验结果 |
+  参考值(范围)`; its readings are labelled `rules:table@v1`.
+- **The table rules keep a table's unit and range, and store no signer line.**
+  On the local-model evaluation (benchmarks/local_models, seed 7), the rules
+  read `单位(Unit)`, `正常范围值`, a slip's bare `参考`, a blank header over the
+  ranges and ranges printed under `结果提示` as no column, so a book's readings
+  were stored with no unit and no range: hemoglobin 140 was `needs-input,
+  unit:missing` and uncoded, and a query by its code missed it. A photo's OCR
+  put the signer line `检查者：…` inside the result table and it was stored as
+  a reading: the patient and paperwork labels matched only a cell that held
+  the label alone, and the name after it passed as a result word. Those
+  headers are now in the vocabulary; a column under a blank header, or under a
+  flag word, is typed by its cells (ranges, or units); a unit printed after
+  the range (`<7.00&ng/mL`) is the unit; a label is recognized with its value
+  in the same cell; and a word with a colon, a unit alone in the value cell
+  (`MCV | fl`) and a panel's `是否异常 | 是` go to the model instead. On the
+  21 corpus documents the rules read, rebuilt from the generator's own HTML:
+  units 54 → 883 of 883 printed, ranges 54 → 1,005 of 1,005, rows stored that
+  are not printed readings 18 → 0, readings coded 573 → 807; the same 21
+  documents are read, with the same dates. To tell: upload a report whose
+  header is `检测项目 | 测定值 | | 单位(Unit)`; hemoglobin is stored with g/L
+  and its range, and coded 718-7.
+- **OpenAI models can read uploads and the journal.** With GPT-6 Luna,
+  GPT-6 Sol, GPT-6.1 Sol or GPT-5.6 Terra as the utility model (through
+  OpenRouter, 2026-10-06), indicator extraction and the journal's sentence
+  reader got HTTP 400 on every call: OpenAI's json_schema refuses an object
+  that is not closed with `additionalProperties: false` or that leaves a
+  property out of `required`, so no upload was read and no sentence was
+  journaled. Gemini and DeepSeek accept such schemas, which is how it went
+  unnoticed. Every json_schema Mirobody sends is now closed and lists every
+  property; a field a document does not show comes back as an empty string,
+  which every reader already treats as absent. GPT-6 Luna, GPT-6 Sol and
+  GPT-5.6 Terra then read all five rows of the demo lipid CSV; Gemini 3.8
+  Flash and DeepSeek V4.1 Flash still pass. The unused
+  `PROMPT_EXTRACT_INDICATORS` constant is gone. To check: set
+  `OPENROUTER_UTILS_MODEL=openai/gpt-6-luna` and upload
+  `demo/upload/you_lipid_panel_2026-08.csv`; five readings are filed.
+- **Asking for a view before naming an indicator gets the catalogue, not a
+  refusal.** `query_health_indicators(view="latest")` with no `keywords` or
+  `indicators` was refused ("the catalogue has one shape"). Small local
+  models open that way: MiniCPM5-2B 3 times and MiniCPM5-1B 7 times in the
+  2026-10-06 evaluation, then they repeated the refused call until the harness
+  stopped it, 6 times, each a model turn. Now any view with nothing selected
+  answers with the catalogue and a note that the view was not applied and
+  which call to make next, over MCP and in chat alike. To check:
+  `query_health_indicators(view="latest")` lists what the person has, with
+  `view=latest was not applied` in its notes.
+- **A day view over a whole record no longer floods the model's context.**
+  `view="day"` with no dates returned every day on file: MiniCPM5-2B got
+  13,930 and then 33,657 characters, and paged the second from a file until
+  its context overflowed. Minute to month views now keep the newest 92 points
+  per indicator (`query.BUCKET_CAP`, the longest three months), cut in SQL,
+  marked `truncated`, with a note naming the dates that came back and the
+  coarser view that covers more. A year of the demo's daily steps renders in
+  3,622 characters instead of 12,346. Day, week and month answers also say
+  that each day counts once (its elected value, else its last reading), so a
+  month's `avg` that differs from `view="stats"` over the same month has a
+  stated reason. To check: `query_health_indicators(keywords=["steps"],
+  view="day")` on the demo account answers 92 rows marked `truncated`,
+  ending on the last day on file.
+- **A chart with a stray brace is drawn, or says it could not be.** The
+  answer's charts are JSON the model writes by hand in a ```` ```vis-chart ````
+  block. One `}` too many (MiniCPM5-2B on a steps chart, 2026-10-06) and the
+  web client drew nothing, with no sign a chart was missing; nothing on the
+  server checks the block, and it reaches the browser as it streams, so the
+  browser is where it is read. Once the block's closing fence has arrived, the
+  client now mends structural slips (extra or missing closing brackets, a
+  trailing comma, the JSON fenced a second time inside the block) without
+  touching a value, and a block it still cannot draw shows "This chart could
+  not be drawn" with its data one click away. A doubled fence no longer turns
+  the rest of the answer into a code block. `frontend/` carries it
+  (mirobody-web 08df217). To check: an answer containing a vis-chart block whose JSON
+  ends in `}}` draws the chart.
+- **The journal reads a sentence on a small local model.** Under the JSON
+  schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
+  "Been leg cramps for 5 days.", and the evaluation's 15 diary sentences
+  became 1 entry of 31 (benchmarks/local_models, seed 7); every sentence was
+  kept only as a note. Unconstrained, the model found the entries, but it
+  started its answer by echoing the schema. The request now shows two worked
+  answers first (a symptom with a time, a temperature, someone else's cough,
+  a negation, a meal), and MiniCPM5-2B answers each test sentence in 1-4 s
+  in the writer's language. DeepSeek V4.1 Flash went from 6 to 8 of 8 test
+  sentences right on the same change and Gemini 3.8 Flash stayed at 8.
+  Rows carry `llm:journal-sentence@v3`. A measurement whose value does not
+  start with its number (`"收缩压 123"`, the name inside the value) is
+  reported as having no value instead of stored as an uncoded reading. To
+  check: on the local small size, type "Been leg cramps for 5 days." in the
+  journal; it is a symptom, not a note.
+- **A report date printed as 2026年05月01日 is the report's date.** The
+  date reader knew `2026-05-01` and `2026/05/01` only, so a date the model
+  copied as printed (年月日, dots: `2024.05.10`, or eight digits as an app
+  screenshot prints it: `20260418`) counted as no date and the
+  readings went under the upload day, with the Data page asking which date.
+  Small local models copy the printed form; MiniCPM5-2B did on an XLSX lab
+  slip. The warning for a date it still cannot read logs the date's length,
+  not the date. To check: upload a report whose date reads 2024年05月10日;
+  its readings are filed on May 10.
 - **Quoted genotype rows without their header no longer reach a model.**
   MyHeritage and FamilyTreeDNA quote every field (`"rs4477212","1","82154","AA"`).
   The check for header-stripped genotype rows took quotes off only the ends of a
@@ -268,6 +853,41 @@ decisions.
 - **The skills evidence module is present in release artifacts.** Wheels now
   include `mirobody/tests/test_skills.py` while checkout-only test modules stay
   out of the install.
+- **An erased reading stays erased.** Erasing by document, by name or
+  everything removed the readings from the observation model but left their
+  1.4 copies in `th_series_data_retired_15`, and the next `mirobody
+  migrate-observations` wrote them back. The same erase now marks those
+  copies deleted, a moved row is never read again, and merging two accounts
+  moves the losing account's unmigrated rows to the one that stays.
+- **A reply with no answer text no longer ends the turn empty.** The agent
+  asks once more when a reply has neither text nor a tool call; when the
+  second is empty too, the turn ends with the "no answer" line and
+  `finish_reason=empty`. The request for the answer is not kept in the
+  conversation.
+- **A model that runs out of calls stops gracefully.** The recursion limit was
+  six times the model-call budget for a six-node loop, so any further hook
+  turned the budget's graceful stop into `GraphRecursionError` (a model
+  repeating one refused call hit it at call 48). Unset, it is now read off
+  the built graph; `RECURSION_LIMIT` still overrides.
+- **A local model server gets no OpenAI key.** An entry with a `base_url`
+  and no `api_key` fell back to `OPENAI_API_KEY`: without one the agent
+  loaded no model, and with one it sent that key to the local server.
+- **A model that cannot see is not sent images.** A text-only local model
+  (MiniCPM5-2B) failed the turn on an attached photo ("image input is not
+  supported"). Whether a local model can see is now asked of its server
+  (llama.cpp `/props`, without loading anything; Ollama `/api/show`); one that
+  cannot gets the photo's OCR text, told that it is only printed text, so a
+  meal photo gets "describe it" instead of a guess. An image already in the
+  conversation, from before a switch to such a model, is replaced by a line
+  saying one was there.
+- **The chat's model menu names the model.** A local deployment showed
+  `local` where it runs `minicpm5-2b`; `/api/models?labels=1` gives each
+  entry's model, and the bare list is unchanged for other clients.
+- **Answers come in the question's language.** The prompt names it when the
+  question is mostly in it (Chinese, Traditional Chinese, Japanese, Korean,
+  Russian; test names such as LDL or HbA1c do not count); a local model
+  answered Chinese questions in English. One Chinese term in an English
+  question leaves the answer in English.
 
 ## 1.5.3
 

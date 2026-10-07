@@ -1,0 +1,90 @@
+{
+ "id": "p007_2024-12-20_e02hn#p1",
+ "llm": true,
+ "seconds": 12.34,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体温",
+   "value": "36.5",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "脉率",
+   "value": "75",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "呼吸",
+   "value": "15",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "血压",
+   "value": "31/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Elevated",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "131",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "80",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "血氧饱和度",
+   "value": "100%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "79.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2024-12-20"
+  }
+ ],
+ "date_time": "2024-12-20",
+ "content_type": "medical_report"
+}

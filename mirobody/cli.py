@@ -220,11 +220,32 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
     from mirobody.utils.config import Config
     from mirobody.utils.config.doctor import format_report, provider_report
 
-    asyncio.run(Config.init(yaml_filenames=args.configs))
+    async def configure() -> None:
+        await Config.init(yaml_filenames=args.configs)
+        # The setup page's choice, as the server applies it at boot: a
+        # deployment set up in the browser has no key in .env, and this
+        # reported "no model" for it. Without a database it says nothing,
+        # and does not wait the driver's 75 s to say it.
+        try:
+            from mirobody.utils.config import settings
+
+            await asyncio.wait_for(settings.apply(), timeout=5)
+        except Exception:
+            pass
+
+    asyncio.run(configure())
     rows = provider_report()
     print(format_report(rows))
     if not any(r.provider for r in rows):
         sys.exit(1)
+    if args.probe:
+        _require_extra("doctor --probe", "app", "langchain_openai", "the agent stack")
+        from mirobody.agent.probe import format_probes, probe_surfaces
+
+        results = asyncio.run(probe_surfaces())
+        print(format_probes(results))
+        if not all(r.passed for r in results):
+            sys.exit(1)
 
 
 def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
@@ -243,24 +264,50 @@ def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
 
 
 def _cmd_migrate_observations(args: argparse.Namespace) -> None:
-    """Move the retired `th_series_data` history into the observation model.
-    Idempotent and bounded; see `collect/migrate_observations.py`."""
+    """Move the retired `th_series_data` history into the observation model,
+    and drop it once every row is proven moved. Bounded and safe to re-run;
+    see `collect/migrate_observations.py`."""
     _require_extra("migrate-observations", "app", "sqlalchemy", "the database layer")
     from mirobody.utils.config import Config
-    from mirobody.collect.migrate_observations import migrate
+    from mirobody.collect.migrate_observations import RETIRED, migrate
 
     asyncio.run(Config.init(yaml_filenames=args.configs))
-    counts = asyncio.run(migrate(batch=args.batch, user_id=args.user or None))
+    counts = asyncio.run(migrate(batch=args.batch, user_id=args.user or None, repair=args.repair,
+                                 write_undecrypted=args.write_undecrypted, verify_only=args.verify_only))
+    if not counts["present"]:
+        print("nothing to migrate: this database has no retired th_series_data")
+        return
     rejected = ", ".join(f"{k}={v}" for k, v in sorted(counts["rejected"].items())) or "none"
     print(
         f"read {counts['read']} rows in {counts['batches']} batch(es): wrote {counts['written']} observations "
-        f"({counts['coded']} coded), skipped {counts['skipped']} already present, rejected {rejected}"
+        f"({counts['coded']} coded), {counts['skipped']} already present, rejected {rejected}"
     )
     if counts["undecrypted"]:
+        kept = "written without them" if args.write_undecrypted else "not migrated"
         print(
-            f"{counts['undecrypted']} comment(s) did not decrypt under this connection's key; their unit, "
-            "reference range and method were read off the value cell alone. Check PG_ENCRYPTION_KEY and re-run."
+            f"{counts['undecrypted']} comment(s) did not decrypt under this connection's key, so their unit, "
+            f"reference range and method are unknown; those rows were {kept}. Check PG_ENCRYPTION_KEY and re-run"
+            + ("." if args.write_undecrypted else "; if that key is lost for good, re-run with --write-undecrypted.")
         )
+    if counts["differs"]:
+        print(
+            f"{counts['differs']} row(s) differ from the reading already stored under the same name, time and "
+            "source (an earlier run wrote it from a comment that did not decrypt, or two old names fold to one)."
+            + ("" if args.repair else " Re-run with --repair to correct the ones nobody has changed since.")
+        )
+    if counts["missing"]:
+        print(
+            f"{counts['missing']} row(s) are not in the observation model and were not written (--verify-only): "
+            "never migrated, or erased after an earlier migration. Run without --verify-only to write them, "
+            f"or drop {RETIRED} yourself if they are readings that were erased."
+        )
+    if counts["dropped"]:
+        print(f"every row is in the observation model; {RETIRED} is dropped")
+    elif counts["left"] is None:
+        print(f"{RETIRED} is kept: this run stopped before the last row (--batch); run it again")
+    else:
+        print(f"{RETIRED} is kept with {counts['left']} row(s) not proven moved. Re-run after fixing the above,"
+              " or drop it yourself if those rows are not worth keeping")
 
 
 def _cmd_migrate_genotypes(args: argparse.Namespace) -> None:
@@ -547,6 +594,7 @@ def main(argv: list[str] | None = None) -> None:
 
     p_doctor = sub.add_parser("doctor", help="show which LLM provider each surface selects with the current config, and what is missing (requires the [app] or [parse] extra)")
     p_doctor.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
+    p_doctor.add_argument("--probe", action="store_true", help="also send one real request per surface (a tool call, a schema-bound answer, an image) and report what the model did")
     p_doctor.set_defaults(func=_cmd_doctor)
 
     p_fetch = sub.add_parser("fetch", help="download a versioned public data asset")
@@ -596,6 +644,12 @@ def main(argv: list[str] | None = None) -> None:
     p_migrate.add_argument("configs", nargs="*", help="extra config YAML files, layered over config.yaml")
     p_migrate.add_argument("--batch", type=int, default=2000, help="rows per batch (default: 2000)")
     p_migrate.add_argument("--user", default="", help="migrate one person only")
+    p_migrate.add_argument("--repair", action="store_true",
+                           help="amend a stored reading that differs from its old row, when nobody has changed it since")
+    p_migrate.add_argument("--verify-only", action="store_true",
+                           help="write nothing: mark the rows already moved and count the rest")
+    p_migrate.add_argument("--write-undecrypted", action="store_true",
+                           help="also write rows whose comment does not decrypt (their unit, range and method are lost)")
     p_migrate.set_defaults(func=_cmd_migrate_observations)
 
     p_genotypes = sub.add_parser(

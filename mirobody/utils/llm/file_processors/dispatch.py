@@ -57,7 +57,8 @@ async def unified_file_extract(
     model: str | None = None,
     config: Any | None = None,
     provider: str | None = None,
-    json_mode: bool | None = None
+    json_mode: bool | None = None,
+    max_tokens: int | None = None,
 ) -> str:
     """
     Read an image or PDF with the vision route's model.
@@ -72,6 +73,9 @@ async def unified_file_extract(
             written into the prompt, the mime type turns json_mode on
         provider: A MODELS entry name or `provider/model` (overrides the route)
         json_mode: Force JSON output (None = infer from `config`)
+        max_tokens: The longest answer to accept (None = the endpoint's
+            default); a document-OCR pass sets it, so a model that loops
+            stops there (`documents.ocr.OCR_MAX_TOKENS`)
 
     Returns:
         Extracted content (JSON string or plain text)
@@ -98,11 +102,13 @@ async def unified_file_extract(
         # endpoint does not serve: see `utils/llm/backends_anthropic`.
         from mirobody.utils.llm.backends_anthropic import file_extract
 
-        return await file_extract(spec, file_path, prompt, response_schema=response_schema, json_mode=json_mode)
+        return await file_extract(spec, file_path, prompt, response_schema=response_schema, json_mode=json_mode,
+                                  max_tokens=max_tokens)
     return await openai_compatible_file_extract(
         local_file_path=file_path,
         prompt=prompt,
         spec=spec,
         response_schema=response_schema,
         json_mode=json_mode,
+        max_tokens=max_tokens,
     )

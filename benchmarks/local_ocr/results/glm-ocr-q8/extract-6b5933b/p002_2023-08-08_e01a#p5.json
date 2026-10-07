@@ -1,0 +1,309 @@
+{
+ "id": "p002_2023-08-08_e01a#p5",
+ "llm": true,
+ "seconds": 52.19,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Basophil percentage(BASO%)",
+   "value": "0.4",
+   "reference_range": "0.0--1.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Neutrophil count(NEUT#)",
+   "value": "4.61",
+   "reference_range": "1.80--6.30",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Lymphocyte count(LYMPH#)",
+   "value": "1.96",
+   "reference_range": "1.10--3.20",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Monocyte count(MONO#)",
+   "value": "0.30",
+   "reference_range": "0.10--0.60",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Eosinophil count(EO#)",
+   "value": "0.62",
+   "reference_range": "0.02--0.52",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Basophil count(BASO#)",
+   "value": "0.03",
+   "reference_range": "0.00--0.06",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Alanine aminotransferase(ALT)",
+   "value": "23",
+   "reference_range": "7--40",
+   "unit": "U/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Aspartate aminotransferase(AST)",
+   "value": "16",
+   "reference_range": "13--35",
+   "unit": "U/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Alkaline phosphatase(ALP)",
+   "value": "55",
+   "reference_range": "35--100",
+   "unit": "U/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Gamma-glutamyl transferase(GGT)",
+   "value": "15",
+   "reference_range": "7--45",
+   "unit": "U/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total protein(TP)",
+   "value": "78.0",
+   "reference_range": "65.0--85.0",
+   "unit": "g/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Albumin(ALB)",
+   "value": "45.2",
+   "reference_range": "40.0--55.0",
+   "unit": "g/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Globulin(GLB)",
+   "value": "32.8",
+   "reference_range": "20.0--40.0",
+   "unit": "g/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total bilirubin(TBIL)",
+   "value": "12.2",
+   "reference_range": "0.0--21.0",
+   "unit": "µmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Direct bilirubin(DBIL)",
+   "value": "2.3",
+   "reference_range": "<8.0",
+   "unit": "µmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Indirect bilirubin(IBIL)",
+   "value": "9.9",
+   "reference_range": "0.0--18.0",
+   "unit": "µmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total bile acid(TBA)",
+   "value": "3.4",
+   "reference_range": "<10.0",
+   "unit": "µmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Urea(BUN)",
+   "value": "4.57",
+   "reference_range": "2.60--7.50",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Creatinine(CREA)",
+   "value": "59",
+   "reference_range": "41--73",
+   "unit": "µmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Uric acid(UA)",
+   "value": "216",
+   "reference_range": "155--357",
+   "unit": "µmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Potassium(K)",
+   "value": "4.26",
+   "reference_range": "3.50--5.30",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Sodium(Na)",
+   "value": "144.6",
+   "reference_range": "137.0--147.0",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Chloride(Cl)",
+   "value": "102.9",
+   "reference_range": "99.0--110.0",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Calcium(Ca)",
+   "value": "2.33",
+   "reference_range": "2.11--2.52",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Total cholesterol(TC)",
+   "value": "3.68",
+   "reference_range": "<5.18",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Triglycerides(TG)",
+   "value": "0.70",
+   "reference_range": "<1.70",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "HDL cholesterol(HDL-C)",
+   "value": "1.70",
+   "reference_range": ">1.04",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "LDL cholesterol(LDL-C)",
+   "value": "1.66",
+   "reference_range": "<3.37",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Apolipoprotein A1(ApoA1)",
+   "value": "1.82",
+   "reference_range": "1.20--1.60",
+   "unit": "g/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "Apolipoprotein B(ApoB)",
+   "value": "0.56",
+   "reference_range": "0.60--1.10",
+   "unit": "g/L",
+   "detection_method": "laboratory",
+   "status": "low",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  }
+ ],
+ "date_time": "2024-10-30 00:00:00"
+}

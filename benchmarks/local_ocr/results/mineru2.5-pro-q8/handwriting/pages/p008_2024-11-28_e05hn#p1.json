@@ -1,0 +1,67 @@
+{
+ "id": "p008_2024-11-28_e05hn#p1",
+ "tier": "H2",
+ "image_sha256": "00538f31b446dfe24d8724aa54c48d0650c69ec90a5a40ac1dba0ceada2f62f0",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE—GENERATED DATA, NOT A REAL PATIENT RECORD\n门诊记录\n科别：金科    日期：2024.11.28\n\n2型糖尿病复诊\n空腹血糖偏高，饮食睡眠可\nT 36.9° CP: 76 R15次/分 BP: 107/83\nsp02 96% wt 64.6 kg\n双肺呼吸音清\n印象：2型糖尿病\n处理：不适随诊，监测血糖<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.21,
+   "usage": {
+    "completion_tokens": 121,
+    "prompt_tokens": 2115,
+    "total_tokens": 2236,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2100,
+    "prompt_ms": 11163.594,
+    "prompt_per_token_ms": 5.315997142857142,
+    "prompt_per_second": 188.1114630288418,
+    "predicted_n": 121,
+    "predicted_ms": 986.235,
+    "predicted_per_token_ms": 8.218625,
+    "predicted_per_second": 121.67485437040868
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE—GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<fcel>门诊记录<lcel><nl>\n<fcel>科别:全科<fcel>日期:2024.11.28<nl>\n<fcel>2型糖尿病复诊<lcel><nl>\n<fcel>空腹血糖偏高,饮食睡眠可<lcel><nl>\n<fcel>T 36.9°C P:76 R 15次/分 BP:107/83<lcel><nl>\n<fcel>sp02 96% wt 64.6 kg<lcel><nl>\n<fcel>双肺呼吸音清<lcel><nl>\n<fcel>印象:2型糖尿病<lcel><nl>\n<fcel>处理:不适随诊,监测血糖<lcel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.62,
+   "usage": {
+    "completion_tokens": 185,
+    "prompt_tokens": 2115,
+    "total_tokens": 2300,
+    "prompt_tokens_details": {
+     "cached_tokens": 2107
+    }
+   },
+   "timings": {
+    "cache_n": 2107,
+    "prompt_n": 8,
+    "prompt_ms": 12.985,
+    "prompt_per_token_ms": 1.623125,
+    "prompt_per_second": 616.0954948016943,
+    "predicted_n": 185,
+    "predicted_ms": 1545.866,
+    "predicted_per_token_ms": 8.401445652173914,
+    "predicted_per_second": 119.02713430530201
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1752.3,
+  "phys_footprint_mib": 1263.3,
+  "phys_footprint_peak_mib": 1264.4
+ }
+}

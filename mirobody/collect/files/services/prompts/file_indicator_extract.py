@@ -31,7 +31,10 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
 - **Personal**: ID cards, certificates, tickets, receipts (non-medical)
 - **Communication**: Chat messages, emails (non-medical), letters
 - **Food/Nutrition**: Food images, nutrition labels, recipes, dietary records (NOT extracted)
-- **Other**: Any content without explicit medical examination reports or medical device data
+- **Other**: Any content with no health measurement, test result or clinical finding in it
+
+A notice printed on a document (a watermark, "SAMPLE", "COPY", "仅供参考", a disclaimer) does not make it
+non-health content: judge it by the measurements and findings it carries.
 
 **For non-health content, immediately return:**
 ```json
@@ -53,6 +56,8 @@ Only continue extraction if content is a **medical examination report**:
 - Pathology reports: Biopsy results, cytology, histopathology
 - Physiological test reports: ECG, EEG, pulmonary function tests, etc.
 - Medical device data: Blood glucose monitors, blood pressure monitors, wearable health devices
+- Clinical notes: outpatient and inpatient records, discharge summaries, consultation notes. Extract every measured value they state (temperature, pulse, blood pressure, weight, a lab value quoted in the text), each as one indicator; the narrative itself is not an indicator
+- Self-measurement logs: home blood pressure, glucose, weight or temperature records, as a table, a list or a photo of a screen or a notebook. Every value in every row is one indicator, with that row's own `date_time`
 
 ---
 
@@ -95,6 +100,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 | detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "wearable" |
 | status | "normal" / "high" / "low" as the report flags it, or by comparing with the reference range |
 | notes | Clinical significance or abnormality explanation in user's language |
+| date_time | The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a log, a table by day); empty string when the row has the document's date |
 
 ### Completeness Requirements:
 1. **Extract EVERY indicator** listed in the report, including normal results
@@ -103,6 +109,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 4. **Preserve precision**: Keep exact numerical values and units as shown in report
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
 6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators (systolic, diastolic), each with its own value
+7. **Rows with their own dates**: In a log or a table by day, each row's values are separate indicators carrying that row's `date_time`; the same name on twelve days is twelve indicators
 
 ---
 
@@ -132,7 +139,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
   "content_info": {{
     "content_type_detail": "Complete Blood Count",
     "content_category": "Laboratory Test",
-    "date_time": "2024-10-30 00:00:00",
+    "date_time": "<the date this document prints, YYYY-MM-DD HH:MM:SS, or empty>",
     "subject_info": {{
       "name": "张三",
       "details": "Male, 31 years"
@@ -141,8 +148,8 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
     "reference_number": ""
   }},
   "indicators": [
-    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高"}},
-    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": ""}}
+    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高", "date_time": ""}},
+    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": "", "date_time": ""}}
   ],
   "additional_info": {{
     "content_summary": "血常规检查",
@@ -185,11 +192,16 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 """
 
 
-# Legacy constant for backward compatibility
-PROMPT_EXTRACT_INDICATORS = get_extract_indicators_prompt()
-
+# Strict-compatible: every object closed with `additionalProperties: false`
+# and every property in `required`. OpenAI's json_schema answers HTTP 400
+# otherwise ("'additionalProperties' is required to be supplied and to be
+# false"): GPT-6 Luna, GPT-6 Sol, GPT-6.1 Sol and GPT-5.6 Terra through
+# OpenRouter, 2026-10-06, so no upload could be read with them. A field the
+# document does not show is an empty string, which every reader already treats
+# as absent (`content_formatter` tests each one for truth).
 RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "language": {
             "type": "string",
@@ -201,6 +213,7 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
         },
         "content_info": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "content_type_detail": {"type": "string", "description": "Specific content type description, returned according to user language settings (e.g., Complete Blood Count, Biochemical Panel, CT, MRI, Ultrasound, etc.)"},
                 "content_category": {
@@ -210,19 +223,30 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                 "date_time": {"type": "string", "description": "Relevant date and time (YYYY-MM-DD HH:MM:SS format). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date. Always use the highest priority date found in the document; empty string when the document shows no date — never invent one."},
                 "subject_info": {
                     "type": "object",
+                    "additionalProperties": False,
                     "properties": {
                         "name": {"type": "string", "description": "Patient name"},
                         "details": {"type": "string", "description": "Patient details (gender, age, etc.)"},
                     },
+                    "required": ["name", "details"],
                 },
                 "source": {"type": "string", "description": "Source information (hospital name, brand name, capture environment, etc.)"},
                 "reference_number": {"type": "string", "description": "Relevant number (examination number, product number, record number, etc.)"},
             },
+            "required": [
+                "content_type_detail",
+                "content_category",
+                "date_time",
+                "subject_info",
+                "source",
+                "reference_number",
+            ],
         },
         "indicators": {
             "type": "array",
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "original_indicator": {
                         "type": "string",
@@ -254,6 +278,10 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                         "type": "string",
                         "description": "Clinical significance or abnormality explanation. Language determined by user language settings.",
                     },
+                    "date_time": {
+                        "type": "string",
+                        "description": "The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a home log, a table by day). Empty string when the row has the document's date.",
+                    },
                 },
                 # Every column the report prints is required, empty string
                 # when the report shows none. Left optional, the model omitted
@@ -266,11 +294,14 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     "reference_range",
                     "detection_method",
                     "status",
+                    "notes",
+                    "date_time",
                 ],
             },
         },
         "additional_info": {
             "type": "object",
+            "additionalProperties": False,
             "properties": {
                 "content_summary": {"type": "string", "description": "Findings summary from the medical report. Language determined by user language settings."},
                 "assessment": {"type": "string", "description": "Impression/diagnosis from the report. Language determined by user language settings."},
@@ -279,62 +310,16 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                 "specialist": {"type": "string", "description": "Reporting doctor name."},
                 "reviewer": {"type": "string", "description": "Reviewing doctor name."},
             },
+            "required": [
+                "content_summary",
+                "assessment",
+                "recommendations",
+                "follow_up",
+                "specialist",
+                "reviewer",
+            ],
         },
     },
-    "required": ["language", "content_type", "content_info", "indicators"],
+    "required": ["language", "content_type", "content_info", "indicators", "additional_info"],
 }
-
-
-SIMPLE_PROMPT_EXTRACT_INDICATORS = """Analyze medical examination reports, extract all test indicator information and generate a file abstract, return in JSON format.
-
-File Abstract Requirements (no more than 200 words):
-- Report type (e.g., Complete Blood Count, CT examination, etc.)
-- Main examination items or body parts
-- Key findings or abnormalities (if any)
-- Overall conclusion (normal/abnormal)
-
-Privacy Protection Requirements (Do NOT extract the following PII):
-- ID number (身份证号)
-- Phone number
-- Detailed address (only keep city/district level if needed)
-- Patient ID / Medical record number
-- Only extract: name, age, gender, and medical-related dates
-
-Extraction Requirements:
-- original_indicator: Original indicator name (original language, ≤100 characters, medical indicators only)
-- value: Indicator value (numerical with unit, descriptive keep original text)
-- reference_range: Reference range
-- status: Abnormal status ("normal"/"high"/"low")  
-- notes: Remarks information
-
-Report Classification: Numerical (Complete Blood Count, etc.), Descriptive (CT/MRI, etc.), Mixed
-
-Return JSON Structure:
-{
-  "file_abstract": "File abstract (within 200 words)",
-  "report_info": {
-    "report_type": "Report type",
-    "report_category": "Numerical/Descriptive/Mixed", 
-    "date_time": "Examination date (YYYY-MM-DD HH:MM:SS). Date Priority: Sample Collection Date > Sample Receipt Date > Report Date; empty when the document shows no date",
-    "patient_info": {"name":"","gender":"","age":""},
-    "hospital": "Hospital name",
-    "exam_number": "Examination number",
-    "patient_id": "Patient ID"
-  },
-  "indicators": [{
-    "original_indicator": "Test indicator name",
-    "value": "Indicator value",
-    "reference_range": "Reference range",
-    "status": "normal/high/low",
-    "notes": "Remarks"
-  }],
-  "additional_info": {
-    "findings_summary": "Findings summary",
-    "impression": "Impression/Diagnosis", 
-    "doctor_advice": "Doctor's advice",
-    "recheck_suggestion": "Recheck suggestion",
-    "reporting_doctor": "Reporting doctor",
-    "reviewing_doctor": "Reviewing doctor"
-  }
-}"""
 

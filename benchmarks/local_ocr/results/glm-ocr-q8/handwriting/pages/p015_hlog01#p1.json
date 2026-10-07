@@ -1,0 +1,67 @@
+{
+ "id": "p015_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "d918bdfe0723cde14e02a292d690898e11a008ae6819b9ab523a47dc4f983d8c",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n每天称体重\n2023年7月\n日期 体重(kg) 备注\n7.17 63.9 早上空腹\n7.20 63.7\n7.24 63.3\n7.28 44.4 64.4 早上空腹\n7.31 63.5\n8.4 63.4\n8.5 63.4 穿睡衣\n8.6 63.9\n8.7 63.8",
+   "finish_reason": "stop",
+   "seconds": 8.11,
+   "usage": {
+    "completion_tokens": 149,
+    "prompt_tokens": 2156,
+    "total_tokens": 2305,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7060.392,
+    "prompt_per_token_ms": 3.2823765690376567,
+    "prompt_per_second": 304.6573051467964,
+    "predicted_n": 149,
+    "predicted_ms": 993.146,
+    "predicted_per_token_ms": 6.710445945945946,
+    "predicted_per_second": 149.0213926250521
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>日期</th><th>体重(kg)</th><th>备注</th></tr></thead><tbody><tr><td>7.17</td><td>63.9</td><td>早上空腹</td></tr><tr><td>7.20</td><td>63.7</td><td></td></tr><tr><td>7.24</td><td>63.3</td><td></td></tr><tr><td>7.28</td><td>44.4 64.4</td><td>早上空腹</td></tr><tr><td>7.31</td><td>63.5</td><td></td></tr><tr><td>8.4</td><td>63.4</td><td></td></tr><tr><td>8.5</td><td>63.4</td><td>穿睡衣</td></tr><tr><td>8.6</td><td>63.9</td><td></td></tr><tr><td>8.7</td><td>63.8</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.04,
+   "usage": {
+    "completion_tokens": 291,
+    "prompt_tokens": 2156,
+    "total_tokens": 2447,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 13.525,
+    "prompt_per_token_ms": 2.705,
+    "prompt_per_second": 369.68576709796673,
+    "predicted_n": 291,
+    "predicted_ms": 1968.305,
+    "predicted_per_token_ms": 6.787258620689656,
+    "predicted_per_second": 147.3348896639494
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2495.7,
+  "phys_footprint_mib": 1819.4,
+  "phys_footprint_peak_mib": 1820.9
+ }
+}

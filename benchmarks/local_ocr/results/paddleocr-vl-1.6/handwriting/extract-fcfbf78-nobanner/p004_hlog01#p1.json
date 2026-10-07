@@ -1,0 +1,270 @@
+{
+ "id": "p004_hlog01#p1",
+ "llm": true,
+ "seconds": 47.75,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Blood pressure",
+   "value": "109/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "coffee",
+   "date_time": "25.6 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "119/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "25.6 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "109/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "coffee",
+   "date_time": "13.7 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "113/74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "13.7 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "111/76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "coffee",
+   "date_time": "30.7 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "116/83",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "13.8 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "107/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20.8 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "116/76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "23.8 AM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "110/67",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "11 PM"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "120/73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "poor sleep",
+   "date_time": "19.9 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "119/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "25.6 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "113/74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "13.7 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "111/76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "coffee",
+   "date_time": "30.7 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "116/83",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "13.8 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "107/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20.8 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "116/76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "23.8 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "110/67",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "11 PM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "120/73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "poor sleep",
+   "date_time": "19.9 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "coffee",
+   "date_time": "25.6 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "13.7 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "77",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "coffee",
+   "date_time": "30.7 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "13.8 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "77",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20.8 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "23.8 AM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "11 PM"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "poor sleep",
+   "date_time": "19.9 AM"
+  }
+ ],
+ "date_time": "June 2025",
+ "content_type": "medical_report"
+}

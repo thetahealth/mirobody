@@ -1,0 +1,67 @@
+{
+ "id": "p002_2023-08-08_e01a#p5",
+ "tier": "T2",
+ "image_sha256": "38edee4343b2ab56f8d9eb7f9dd0136bc1381be2673c940ded3ad51d8e3ab0aa",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nBasophil percentage(BASO%) 0.4 % 0.0--1.0 02\nNeutrophil count(NEUT#) 4.61 10^9/L 1.80--6.30 02\nLymphocyte count(LYMPH#) 1.96 10^9/L 1.10--3.20 02\nMonocyte count(MONO#) 0.30 10^9/L 0.10--0.60 02\nEosinophil count(EO#) 0.62 ↑ 10^9/L 0.02--0.52 02\nBasophil count(BASO#) 0.03 10^9/L 0.00--0.06 02\n\nLiver Function Tests\nTest Item Measurement Methodology Status Unit Normal Range Lab\nAlanine aminotransferase(ALT) 23 U/L 7--40 02\nAspartate aminotransferase(AST) 16 U/L 13--35 02\nAlkaline phosphatase(ALP) 55 U/L 35--100 02\nGamma-glutamyl transferase(GGT) 15 U/L 7--45 02\nTotal protein(TP) 78.0 g/L 65.0--85.0 02\nAlbumin(ALB) 45.2 g/L 40.0--55.0 02\nGlobulin(GLB) 32.8 20.0--40.0 02\nTotal bilirubin(TBIL) 12.2 µmol/L 0.0--21.0 02\nDirect bilirubin(DBIL) 2.3 µmol/L <8.0 02\nIndirect bilirubin(IBIL) 9.9 µmol/L 0.0--18.0 02\nTotal bile acid(TBA) 3.4 µmol/L <10.0 02\n\nRenal Function\nTest Item Measurement Methodology Status Unit Normal Range Lab\nUrea(BUN) 4.57 mmol/L 2.60--7.50 02\nCreatinine(CREA) 59 µmol/L 41--73 02\nUric acid(UA) 216 µmol/L 155--357 02\n\nElectrolytes\nTest Item Measurement Methodology Status Unit Normal Range Lab\nPotassium(K) 4.26 mmol/L 3.50--5.30 02\nSodium(Na) 144.6 mmol/L 137.0--147.0 02\nChloride(Cl) 102.9 mmol/L 99.0--110.0 02\nCalcium(Ca) 2.33 mmol/L 2.11--2.52 02\n\nLipid Profile\nTest Item Measurement Methodology Status Unit Normal Range Lab\nTotal cholesterol(TC) 3.68 mmol/L <5.18 02\nTriglycerides(TG) 0.70 mmol/L <1.70 02\nHDL cholesterol(HDL-C) 1.70 mmol/L >1.04 02\nLDL cholesterol(LDL-C) 1.66 mmol/L <3.37 02\nApolipoprotein A1(ApoA1) 1.82 ↑ g/L 1.20--1.60 02\nApolipoprotein B(ApoB) 0.56 ↓ g/L 0.60--1.10 02\n\nGlucose\nTest Item Measurement Methodology Status Unit Normal Range Lab",
+   "finish_reason": "stop",
+   "seconds": 14.57,
+   "usage": {
+    "completion_tokens": 928,
+    "prompt_tokens": 2156,
+    "total_tokens": 3084,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7922.219,
+    "prompt_per_token_ms": 3.683039981403998,
+    "prompt_per_second": 271.5148369415186,
+    "predicted_n": 928,
+    "predicted_ms": 6575.747,
+    "predicted_per_token_ms": 7.093578209277239,
+    "predicted_per_second": 140.97257695589565
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>Alanine aminotransferase(ALT)</td><td>23</td><td></td><td></td><td>U/L</td><td>7--40</td><td>02</td></tr><tr><td>Aspartate aminotransferase(AST)</td><td>16</td><td></td><td></td><td>U/L</td><td>13--35</td><td>02</td></tr><tr><td>Alkaline phosphatase(ALP)</td><td>55</td><td></td><td></td><td>U/L</td><td>35--100</td><td>02</td></tr><tr><td>Gamma-glutamyl transferase(GGT)</td><td>15</td><td></td><td></td><td>U/L</td><td>7--45</td><td>02</td></tr><tr><td>Total protein(TP)</td><td>78.0</td><td></td><td></td><td>g/L</td><td>65.0--85.0</td><td>02</td></tr><tr><td>Albumin(ALB)</td><td>45.2</td><td></td><td></td><td>g/L</td><td>40.0--55.0</td><td>02</td></tr><tr><td>Globulin(GLB)</td><td>32.8</td><td></td><td></td><td>20.0--40.0</td><td></td><td>02</td></tr><tr><td>Total bilirubin(TBIL)</td><td>12.2</td><td></td><td></td><td>μmol/L</td><td>0.0--21.0</td><td>02</td></tr><tr><td>Direct bilirubin(DBIL)</td><td>2.3</td><td></td><td></td><td>μmol/L</td><td>&lt;8.0</td><td>02</td></tr><tr><td>Indirect bilirubin(IBIL)</td><td>9.9</td><td></td><td></td><td>μmol/L</td><td>0.0--18.0</td><td>02</td></tr><tr><td>Total bile acid(TBA)</td><td>3.4</td><td></td><td></td><td>μmol/L</td><td>&lt;10.0</td><td>02</td></tr></tbody><thead><tr><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>Urea(BUN)</td><td>4.57</td><td></td><td>mmol/L</td><td>2.60--7.50</td><td></td><td>02</td></tr><tr><td>Creatinine(CREA)</td><td>59</td><td></td><td>μmol/L</td><td>41--73</td><td></td><td>02</td></tr><tr><td>Uric acid(UA)</td><td>216</td><td></td><td>μmol/L</td><td>155--357</td><td></td><td>02</td></tr></tbody><thead><tr><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>Potassium(K)</td><td>4.26</td><td></td><td>mmol/L</td><td>3.50--5.30</td><td></td><td>02</td></tr><tr><td>Sodium(Na)</td><td>144.6</td><td></td><td>mmol/L</td><td>137.0--147.0</td><td></td><td>02</td></tr><tr><td>Chloride(Cl)</td><td>102.9</td><td></td><td>mmol/L</td><td>99.0--110.0</td><td></td><td>02</td></tr><tr><td>Calcium(Ca)</td><td>2.33</td><td></td><td>mmol/L</td><td>2.11--2.52</td><td></td><td>02</td></tr></tbody><thead><tr><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>Total cholesterol(TC)</td><td>3.68</td><td></td><td></td><td>mmol/L</td><td>&lt;5.18</td><td>02</td></tr><tr><td>Triglycerides(TG)</td><td>0.70</td><td></td><td></td><td>mmol/L</td><td>&lt;1.70</td><td>02</td></tr><tr><td>HDL cholesterol(HDL-C)</td><td>1.70</td><td></td><td></td><td>mmol/L</td><td>&gt;1.04</td><td>02</td></tr><tr><td>LDL cholesterol(LDL-C)</td><td>1.66</td><td></td><td></td><td>mmol/L</td><td>&lt;3.37</td><td>02</td></tr><tr><td>Apolipoprotein A1(ApoA1)</td><td>1.82</td><td></td><td>↑</td><td>g/L</td><td>1.20--1.60</td><td>02</td></tr><tr><td>Apolipoprotein B(ApoB)</td><td>0.56</td><td></td><td>↓</td><td>g/L</td><td>0.60--1.10</td><td>02</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 12.57,
+   "usage": {
+    "completion_tokens": 1656,
+    "prompt_tokens": 2156,
+    "total_tokens": 3812,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 17.844,
+    "prompt_per_token_ms": 3.5688000000000004,
+    "prompt_per_second": 280.2062317865949,
+    "predicted_n": 1656,
+    "predicted_ms": 12452.958,
+    "predicted_per_token_ms": 7.524445921450152,
+    "predicted_per_second": 132.90015111269145
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2214.8,
+  "phys_footprint_mib": 1780.0,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

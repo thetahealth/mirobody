@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-04-18_e03a#p1",
+ "tier": "T6",
+ "image_sha256": "523b15db7c9bb51ea3e5eca1c4ac76c83babcb3c1c4acd385c87c2f6b9020000",
+ "image_size": [
+  1240,
+  875
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n砚岚门诊部\n\n肿瘤标志物检验报告单\n\n姓名：闫柏超 性别：男 年龄：52岁 门诊号：7989239048\n标本号：356289800\n\n报告时间：2024-04-19 00:25:16 检测时间：2024-04-18 13:25:16 检查日期：2024-04-18 10:25:16\n\n检查项目 结果 参考区间\n甲胎蛋白 2.45 <7.00&ng/mL\n癌胚抗原 1.88 <5.00&ng/mL\n前列腺特异性抗原 0.78 <4.00&ng/mL\n\n本报告仅对所检标本负责，如有疑问请于三日内咨询。\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 5.43,
+   "usage": {
+    "completion_tokens": 237,
+    "prompt_tokens": 1375,
+    "total_tokens": 1612,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1370,
+    "prompt_ms": 3720.339,
+    "prompt_per_token_ms": 2.715575912408759,
+    "prompt_per_second": 368.24601198976757,
+    "predicted_n": 237,
+    "predicted_ms": 1664.932,
+    "predicted_per_token_ms": 7.0547966101694914,
+    "predicted_per_second": 141.74753083008795
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检查项目</th><th>结果</th><th>参考区间</th></tr></thead><tbody><tr><td>甲胎蛋白</td><td>2.45</td><td>&lt;7.00&ng/mL</td></tr><tr><td>癌胚抗原</td><td>1.88</td><td>&lt;5.00&ng/mL</td></tr><tr><td>前列腺特异性抗原</td><td>0.78</td><td>&lt;4.00&ng/mL</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 1.1,
+   "usage": {
+    "completion_tokens": 152,
+    "prompt_tokens": 1375,
+    "total_tokens": 1527,
+    "prompt_tokens_details": {
+     "cached_tokens": 1370
+    }
+   },
+   "timings": {
+    "cache_n": 1370,
+    "prompt_n": 5,
+    "prompt_ms": 13.622,
+    "prompt_per_token_ms": 2.7244,
+    "prompt_per_second": 367.0532961385993,
+    "predicted_n": 152,
+    "predicted_ms": 1031.244,
+    "predicted_per_token_ms": 6.829430463576158,
+    "predicted_per_second": 146.42509435206412
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2327.0,
+  "phys_footprint_mib": 1712.2,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

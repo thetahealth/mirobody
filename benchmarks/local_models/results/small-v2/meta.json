@@ -1,0 +1,186 @@
+{
+ "size": "small-v2",
+ "agent": "minicpm5-2b",
+ "started": "2026-10-07T10:39:23+08:00",
+ "parts": [
+  "extraction",
+  "journal",
+  "qa"
+ ],
+ "switch": {
+  "agent": "minicpm5-2b",
+  "ocr": "glm-ocr",
+  "switch_s": 47.4,
+  "load_s": 10.0,
+  "local_models": {
+   "agent": "minicpm5-2b",
+   "utils": "minicpm5-2b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "minicpm5-2b",
+   "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+   "ctx_size": "32768",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "MiniCPM5-2B-Q4_K_M.gguf",
+     "bytes": 1561318368,
+     "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-07T10:40:11+08:00",
+  "processes": [
+   {
+    "pid": 45496,
+    "ppid": 45486,
+    "rss_mb": 9.5,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 35.6
+   },
+   {
+    "pid": 58799,
+    "ppid": 45496,
+    "rss_mb": 2169.2,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1565.0
+   },
+   {
+    "pid": 58800,
+    "ppid": 45496,
+    "rss_mb": 2839.3,
+    "alias": "minicpm5-2b",
+    "role": "child",
+    "footprint_mb": 1430.3
+   }
+  ],
+  "children_rss_mb": 5008.5,
+  "children_footprint_mb": 2995.3,
+  "swap_used_mb": 10978.12
+ },
+ "passes": [
+  {
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "started": "2026-10-07T10:40:11+08:00",
+   "resources": {
+    "disk_free_gb": 11.5,
+    "memory_free_pct": 23,
+    "swap_used_mb": 10978.12
+   },
+   "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-2b"
+   ],
+   "memory": {
+    "at": "2026-10-07T10:40:11+08:00",
+    "processes": [
+     {
+      "pid": 45496,
+      "ppid": 45486,
+      "rss_mb": 9.5,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 35.6
+     },
+     {
+      "pid": 58799,
+      "ppid": 45496,
+      "rss_mb": 2169.2,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1565.0
+     },
+     {
+      "pid": 58800,
+      "ppid": 45496,
+      "rss_mb": 2839.3,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1430.3
+     }
+    ],
+    "children_rss_mb": 5008.5,
+    "children_footprint_mb": 2995.3,
+    "swap_used_mb": 10978.12
+   },
+   "memory_run": {
+    "samples": 106,
+    "peak_rss_mb": 5117.6,
+    "peak_footprint_mb": 4294.4
+   },
+   "memory_after_qa": {
+    "at": "2026-10-07T11:15:39+08:00",
+    "processes": [
+     {
+      "pid": 45496,
+      "ppid": 45486,
+      "rss_mb": 10.5,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 36.4
+     },
+     {
+      "pid": 58799,
+      "ppid": 45496,
+      "rss_mb": 10.0,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1565.0
+     },
+     {
+      "pid": 58800,
+      "ppid": 45496,
+      "rss_mb": 2958.0,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 2020.6
+     }
+    ],
+    "children_rss_mb": 2968.0,
+    "children_footprint_mb": 3585.6,
+    "swap_used_mb": 9347.0,
+    "disk_free_gb": 13.7,
+    "memory_free_pct": 39
+   },
+   "finished": "2026-10-07T11:23:25+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 106,
+  "peak_rss_mb": 5117.6,
+  "peak_footprint_mb": 4294.4
+ },
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-07T11:23:25+08:00"
+}

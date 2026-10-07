@@ -1,0 +1,160 @@
+{
+ "id": "p007_hlog01#p1",
+ "llm": true,
+ "seconds": 31.38,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "空腹",
+   "value": "4.9",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "6.8",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "4.5",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "7.5",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "7.0",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "5.2",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "4.7",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "5.0",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "6.4",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "4.8",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "4.6",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "5.7",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "4.7",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹",
+   "value": "5.1",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  },
+  {
+   "original_indicator": "餐后2小時",
+   "value": "5.5",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-01-01 00:00:00"
+  }
+ ],
+ "date_time": "2026-01",
+ "content_type": "medical_report"
+}

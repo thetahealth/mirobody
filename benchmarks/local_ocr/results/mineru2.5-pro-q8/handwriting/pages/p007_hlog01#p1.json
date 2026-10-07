@@ -1,0 +1,67 @@
+{
+ "id": "p007_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "d1306cb70af636717187a1f93b4657872fd8fb4b05b0cf6ce32e019275b5b06f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n测血糖记录(mmol/L)\n\n2026年1月\n\n日期 空腹 餐后2小時 备注\n\n1/17 4.9 6.8 按時服 药\n\n1/18 4.5 7.5\n\n1/19 4.9 7.0\n\n1/20 4.5\n\n1/21 5.2 4.7\n\n1/22 5.0 6.4\n\n1/23 4.8\n\n1/24 4.6 加餐\n\n1/25 4.9\n\n1/26 4.8 5.7 运动后\n\n1/27 4.7 加餐\n\n1/28 5.1 5.5 感冒了\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n<ecel><|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.52,
+   "usage": {
+    "completion_tokens": 216,
+    "prompt_tokens": 2170,
+    "total_tokens": 2386,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11677.038,
+    "prompt_per_token_ms": 5.4185791183294665,
+    "prompt_per_second": 184.55022583638075,
+    "predicted_n": 216,
+    "predicted_ms": 1794.248,
+    "predicted_per_token_ms": 8.34533953488372,
+    "predicted_per_second": 119.82735942857398
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><nl>\n<ecel><fcel>测血糖记录(mmol/L)<lcel><lcel><nl>\n<ecel><fcel>2026年1月<lcel><lcel><nl>\n<ecel><fcel>日期<fcel>空腹<fcel>餐后2小時 备注<nl>\n<ecel><fcel>1/17<fcel>4.9<fcel>6.8 按時服药<nl>\n<ecel><fcel>1/18<fcel>4.5<fcel>7.5<nl>\n<ecel><fcel>1/19<fcel>4.9<fcel>7.0<nl>\n<ecel><fcel>1/20<fcel>4.5<ecel><nl>\n<ecel><fcel>1/21<fcel>5.2<fcel>4.7<nl>\n<ecel><fcel>1/22<fcel>5.0<fcel>6.4<nl>\n<ecel><fcel>1/23<fcel>4.8<ecel><nl>\n<ecel><fcel>1/24<fcel>4.6<fcel>加餐<nl>\n<ecel><fcel>1/25<fcel>4.9<ecel><nl>\n<ecel><fcel>1/26<fcel>4.8<fcel>5.7 运动后<nl>\n<ecel><fcel>1/27<fcel>4.7<fcel>加餐<nl>\n<ecel><fcel>1/28<fcel>5.1<fcel>5.5 感冒了<nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.53,
+   "usage": {
+    "completion_tokens": 303,
+    "prompt_tokens": 2170,
+    "total_tokens": 2473,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 20.829,
+    "prompt_per_token_ms": 2.603625,
+    "prompt_per_second": 384.0798886168323,
+    "predicted_n": 303,
+    "predicted_ms": 2459.94,
+    "predicted_per_token_ms": 8.145496688741723,
+    "predicted_per_second": 122.76722196476337
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1751.4,
+  "phys_footprint_mib": 1263.1,
+  "phys_footprint_peak_mib": 1264.3
+ }
+}

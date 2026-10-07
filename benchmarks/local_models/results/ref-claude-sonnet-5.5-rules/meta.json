@@ -1,0 +1,116 @@
+{
+ "size": "ref-claude-sonnet-5.5-rules",
+ "reference": "claude-sonnet-5.5-rules",
+ "agent": "anthropic/claude-sonnet-5.5",
+ "models": {
+  "chat_model": "anthropic/claude-sonnet-5.5",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "anthropic/claude-sonnet-5.5",
+     "default": "anthropic/claude-sonnet-5.5",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "anthropic/claude-sonnet-5.5",
+     "default": "anthropic/claude-sonnet-5.5",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5.5",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5.5",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Google",
+    "model": "anthropic/claude-sonnet-5.5",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Google",
+    "model": "anthropic/claude-sonnet-5.5",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-07T13:43:58+08:00",
+ "parts": [
+  "extraction"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "extraction"
+   ],
+   "started": "2026-10-07T13:44:29+08:00",
+   "resources": {
+    "disk_free_gb": 9.6,
+    "memory_free_pct": 55,
+    "swap_used_mb": 12400.38
+   },
+   "mirobody_commit": "bb3af91c685473c1a1385340d591a4b1aac17704",
+   "mirobody_dirty": false,
+   "loaded": [],
+   "memory": null,
+   "finished": "2026-10-07T13:48:03+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 329.462988891,
+     "extraction": 330.006409961
+    },
+    "parts": {
+     "extraction": 0.543421
+    },
+    "total": 0.543421
+   }
+  }
+ ],
+ "background_tasks_drained_s": 10.3,
+ "finished": "2026-10-07T13:48:03+08:00"
+}

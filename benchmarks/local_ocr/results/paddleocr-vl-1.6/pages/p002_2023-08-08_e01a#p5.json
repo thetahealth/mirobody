@@ -1,0 +1,67 @@
+{
+ "id": "p002_2023-08-08_e01a#p5",
+ "tier": "T2",
+ "image_sha256": "38edee4343b2ab56f8d9eb7f9dd0136bc1381be2673c940ded3ad51d8e3ab0aa",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nBasophil percentage(BASO%) 0.4 % 0.0~1.0 02\nNeutrophil count(NEUT#) 4.61 10^9/L 1.80~6.30 02\nLymphocyte count(LYMPH#) 1.96 10^9/L 1.10~3.20 02\nMonocyte count(MONO#) 0.30 10^9/L 0.10~0.60 02\nEosinophil count(EO#) 0.62 ↑ 10^9/L 0.02~0.52 02\nBasophil count(BASO#) 0.03 10^9/L 0.00~0.06 02\n\nLiver Function Tests\nTest Item Measurement Methodology Status Unit Normal Range Lab\nAlanine aminotransferase(ALT) 23 U/L 7--40 02\nAspartate aminotransferase(AST) 16 U/L 13--35 02\nAlkaline phosphatase(ALP) 55 U/L 35--100 02\nGamma-glutamyl transferase(GGT) 15 U/L 7--45 02\nTotal protein(TP) 78.0 g/L 65.0--85.0 02\nAlbumin(ALB) 45.2 g/L 40.0--55.0 02\nGlobulin(GLB) 32.8 20.0--40.0 02\nTotal bilirubin(TBIL) 12.2 μmol/L 0.0--21.0 02\nDirect bilirubin(DBIL) 2.3 μmol/L <8.0 02\nIndirect bilirubin(IBIL) 9.9 μmol/L 0.0--18.0 02\nTotal bile acid(TBA) 3.4 μmol/L <10.0 02\n\nRenal Function\nTest Item Measurement Methodology Status Unit Normal Range Lab\nUrea(BUN) 4.57 mmol/L 2.60--7.50 02\nCreatinine(CREA) 59 μmol/L 41--73 02\nUric acid(UA) 216 μmol/L 155--357 02\n\nElectrolytes\nTest Item Measurement Methodology Status Unit Normal Range Lab\nPotassium(K) 4.26 mmol/L 3.50--5.30 02\nSodium(Na) 144.6 mmol/L 137.0--147.0 02\nChloride(Cl) 102.9 mmol/L 99.0--110.0 02\nCalcium(Ca) 2.33 mmol/L 2.11--2.52 02\n\nLipid Profile\nTest Item Measurement Methodology Status Unit Normal Range Lab\nTotal cholesterol(TC) 3.68 mmol/L <5.18 02\nTriglycerides(TG) 0.70 mmol/L <1.70 02\nHDL cholesterol(HDL-C) 1.70 mmol/L >1.04 02\nLDL cholesterol(LDL-C) 1.66 mmol/L <3.37 02\nApolipoprotein A1(ApoA1) 1.82 ↑ g/L 1.20--1.60 02\nApolipoprotein B(ApoB) 0.56 ↓ g/L 0.60--1.10 02\n\nGlucose\nTest Item Measurement Methodology Status Unit Normal Range Lab\nPage 5 of 7",
+   "finish_reason": "stop",
+   "seconds": 12.32,
+   "usage": {
+    "completion_tokens": 960,
+    "prompt_tokens": 1273,
+    "total_tokens": 2233,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5707.954,
+    "prompt_per_token_ms": 4.501541009463722,
+    "prompt_per_second": 222.14614904044427,
+    "predicted_n": 960,
+    "predicted_ms": 6564.802,
+    "predicted_per_token_ms": 6.845466110531803,
+    "predicted_per_second": 146.08209051849548
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>Basophil percentage(BASO%)<fcel>0.4<ecel><fcel>%<fcel>0.0~1.0<fcel>02<nl><fcel>Neutrophil count(NEUT#)<fcel>4.61<ecel><fcel>\\(10^{{9}}/L\\)<fcel>1.80~6.30<fcel>02<nl><fcel>Lymphocyte count(LYMPH#)<fcel>1.96<ecel><fcel>\\(10^{{9}}/L\\)<fcel>1.10~3.20<fcel>02<nl><fcel>Monocyte count(MONO#)<fcel>0.30<ecel><fcel>\\(10^{{9}}/L\\)<fcel>0.10~0.60<fcel>02<nl><fcel>Eosinophil count(EO#)<fcel>0.62<fcel>\\(\\uparrow\\)<fcel>\\(10^{{9}}/L\\)<fcel>0.02~0.52<fcel>02<nl><fcel>Basophil count(BASO#)<fcel>0.03<ecel><fcel>\\(10^{{9}}/L\\)<fcel>0.00~0.06<fcel>02<nl><fcel>Liver Function Tests<lcel><lcel><lcel><lcel><lcel><nl><fcel>Test Item<fcel>Measurement<fcel>Methodology<fcel>Status<fcel>Unit<fcel>Normal Range<fcel>Lab<nl><fcel>Alanine aminotransferase(ALT)<fcel>23<ecel><fcel>U/L<fcel>7~40<fcel>02<ecel><nl><fcel>Aspartate aminotransferase(AST)<fcel>16<ecel><fcel>U/L<fcel>13~35<fcel>02<ecel><nl><fcel>Alkaline phosphatase(ALP)<fcel>55<ecel><fcel>U/L<fcel>35~100<fcel>02<ecel><nl><fcel>Gamma-glutamyl transferase(GGT)<fcel>15<ecel><fcel>U/L<fcel>7~45<fcel>02<ecel><nl><fcel>Total protein(TP)<fcel>78.0<ecel><fcel>g/L<fcel>65.0~85.0<fcel>02<ecel><nl><fcel>Albumin(ALB)<fcel>45.2<ecel><fcel>g/L<fcel>40.0~55.0<fcel>02<ecel><nl><fcel>Globulin(GLB)<fcel>32.8<ecel><fcel>20.0~40.0<ecel><fcel>02<ecel><nl><fcel>Total bilirubin(TBIL)<fcel>12.2<ecel><fcel>\\(\\mu mol/L\\)<fcel>0.0~21.0<fcel>02<ecel><nl><fcel>Direct bilirubin(DBIL)<fcel>2.3<ecel><fcel>\\(\\mu mol/L\\)<fcel>< 8.0<fcel>02<ecel><nl><fcel>Indirect bilirubin(IBIL)<fcel>9.9<ecel><fcel>\\(\\mu mol/L\\)<fcel>0.0~18.0<fcel>02<ecel><nl><fcel>Total bile acid(TBA)<fcel>3.4<ecel><fcel>\\(\\mu mol/L\\)<fcel>< 10.0<fcel>02<ecel><nl><fcel>Renal Function<lcel><lcel><lcel><lcel><lcel><nl><fcel>Test Item<fcel>Measurement<fcel>Methodology<fcel>Status<fcel>Unit<fcel>Normal Range<fcel>Lab<nl><fcel>Urea(BUN)<fcel>4.57<fcel>mmol/L<fcel>2.60~7.50<ecel><fcel>02<ecel><nl><fcel>Creatinine(CREA)<fcel>59<fcel>\\(\\mu mol/L\\)<fcel>41~73<ecel><fcel>02<ecel><nl><fcel>Uric acid(UA)<fcel>216<fcel>\\(\\mu mol/L\\)<fcel>155~357<ecel><fcel>02<ecel><nl><fcel>Electrolytes<lcel><lcel><lcel><lcel><lcel><nl><fcel>Test Item<fcel>Measurement<fcel>Methodology<fcel>Status<fcel>Unit<fcel>Normal Range<fcel>Lab<nl><fcel>Potassium(K)<fcel>4.26<fcel>mmol/L<fcel>3.50~5.30<ecel><fcel>02<ecel><nl><fcel>Sodium(Na)<fcel>144.6<fcel>mmol/L<fcel>137.0~147.0<ecel><fcel>02<ecel><nl><fcel>Chloride(Cl)<fcel>102.9<fcel>mmol/L<fcel>99.0~110.0<ecel><fcel>02<ecel><nl><fcel>Calcium(Ca)<fcel>2.33<fcel>mmol/L<fcel>2.11~2.52<ecel><fcel>02<ecel><nl><fcel>Lipid Profile<lcel><lcel><lcel><lcel><lcel><nl><fcel>Test Item<fcel>Measurement<fcel>Methodology<fcel>Status<fcel>Unit<fcel>Normal Range<fcel>Lab<nl><fcel>Total cholesterol(TC)<fcel>3.68<ecel><fcel>mmol/L<fcel>< 5.18<fcel>02<ecel><nl><fcel>Triglycerides(TG)<fcel>0.70<ecel><fcel>mmol/L<fcel>< 1.70<fcel>02<ecel><nl><fcel>HDL cholesterol(HDL-C)<fcel>1.70<ecel><fcel>mmol/L<fcel>> 1.04<fcel>02<ecel><nl><fcel>LDL cholesterol(LDL-C)<fcel>1.66<ecel><fcel>mmol/L<fcel>< 3.37<fcel>02<ecel><nl><fcel>Apolipoprotein A1(ApoA1)<fcel>1.82<fcel>\\(\\uparrow\\)<fcel>g/L<fcel>1.20~1.60<fcel>02<ecel><nl><fcel>Apolipoprotein B(ApoB)<fcel>0.56<fcel>\\(\\downarrow\\)<fcel>g/L<fcel>0.60~1.10<fcel>02<ecel><nl><fcel>Glucose<lcel><lcel><lcel><lcel><lcel><nl><fcel>Test Item<fcel>Measurement<fcel>Methodology<fcel>Status<fcel>Unit<fcel>Normal Range<fcel>Lab<nl>",
+   "finish_reason": "stop",
+   "seconds": 7.52,
+   "usage": {
+    "completion_tokens": 1150,
+    "prompt_tokens": 1273,
+    "total_tokens": 2423,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 18.242,
+    "prompt_per_token_ms": 2.6060000000000003,
+    "prompt_per_second": 383.7298541826554,
+    "predicted_n": 1150,
+    "predicted_ms": 7447.424,
+    "predicted_per_token_ms": 6.481657093124456,
+    "predicted_per_second": 154.2815341250881
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2169.7,
+  "phys_footprint_mib": 1327.8,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

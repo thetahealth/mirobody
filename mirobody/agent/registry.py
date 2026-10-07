@@ -158,25 +158,41 @@ def load_agent(dirs: list[str], config: Config | None = None) -> type | None:
             klass.__name__, len(extra),
         )
 
-    clients: dict[str, Any] = {}
-    loader = getattr(klass, "load_llm_clients", None)
-    cfg = config or global_config()
-    if callable(loader) and cfg:
-        providers = (cfg.get_agent_settings() or {}).get("providers") or {}
-        # `chat: false` entries (utility and embedding models) are not chat
-        # models and must not reach the picker or be built as one.
-        providers = {n: e for n, e in providers.items()
-                     if str((e or {}).get("chat", "")).strip().lower() not in ("false", "0", "no", "off")
-                     and not (e or {}).get("embedding")}
-        try:
-            clients = loader(providers) or {}
-        except Exception as e:
-            logger.error("agent LLM clients failed to load: agent_class=%s error_type=%s", klass.__name__, type(e).__name__)
-            clients = {}
-
-    _agent_class, _llm_clients = klass, clients
-    logger.info("agent loaded: agent_class=%s provider_count=%d", klass.__name__, len(clients))
+    _agent_class, _llm_clients = klass, _build_clients(klass, config or global_config())
+    logger.info("agent loaded: agent_class=%s provider_count=%d", klass.__name__, len(_llm_clients))
     return klass
+
+
+def _build_clients(klass: type, cfg: Config | None) -> dict[str, Any]:
+    from mirobody.utils.config.llm import model_entries
+
+    loader = getattr(klass, "load_llm_clients", None)
+    if not callable(loader) or not cfg:
+        return {}
+    # With each entry's `model_env` applied: a model changed on the setup
+    # page is rebuilt here (`reload_llm_clients`) without a restart.
+    providers = model_entries()
+    # `chat: false` entries (utility and embedding models) are not chat
+    # models and must not reach the picker or be built as one.
+    providers = {n: e for n, e in providers.items()
+                 if str((e or {}).get("chat", "")).strip().lower() not in ("false", "0", "no", "off")
+                 and not (e or {}).get("embedding")}
+    try:
+        return loader(providers) or {}
+    except Exception as e:
+        logger.error("agent LLM clients failed to load: agent_class=%s error_type=%s", klass.__name__, type(e).__name__)
+        return {}
+
+
+def reload_llm_clients() -> int:
+    """Rebuild the chat clients after a key or a local address changed (the
+    first-run page), without restarting. Returns how many there are."""
+    global _llm_clients
+    if _agent_class is None:
+        return 0
+    _llm_clients = _build_clients(_agent_class, global_config())
+    logger.info("agent LLM clients rebuilt: provider_count=%d", len(_llm_clients))
+    return len(_llm_clients)
 
 
 #-----------------------------------------------------------------------------
@@ -228,25 +244,36 @@ def available_models() -> list[str]:
     """
     if not _llm_clients:
         return []
-    from mirobody.utils.config.llm import read_api_key
+    from mirobody.utils.config.llm import entry_ready, model_entries
 
-    cfg = global_config()
-    providers = (cfg.get_agent_settings() or {}).get("providers") or {} if cfg else {}
+    providers = model_entries()
     names = []
     for name in providers:
         if name not in _llm_clients:
             continue
-        # `read_api_key`, which `config.llm` calls THE admission function, and
-        # not `safe_read_cfg`: the vendor-documented aliases live in it. With
-        # `GEMINI_API_KEY` set and `GOOGLE_API_KEY` unset, the router resolved
-        # the key and built a real client while this returned []: an empty
-        # picker over a chat surface `mirobody doctor` called healthy. One key,
-        # two answers, twice now.
-        key_name = (providers.get(name) or {}).get("api_key", "")
-        if key_name and not read_api_key(key_name):
+        # `entry_ready`, the test `chat_default` and `mirobody doctor` use, and
+        # not a key lookup of its own: with `GEMINI_API_KEY` set and
+        # `GOOGLE_API_KEY` unset this returned [] while the router built a real
+        # client (one key, two answers, twice), and a `local` entry whose
+        # LOCAL_BASE_URL is unset would be offered and fail at chat time.
+        if not entry_ready(providers.get(name)):
             continue
         names.append(name)
     # Config order, not sorted(): `config.llm.yaml` says "in this order; the
     # FIRST is the default", and `chat_default()` reads it that way. Sorting
     # here made the picker's first entry disagree with the server's default.
     return names
+
+
+def model_labels(names: list[str]) -> dict[str, str]:
+    """What a person knows each entry by: the model it runs ("qwen3.8-27b",
+    not "local"), without an OpenRouter-style vendor prefix. When two entries
+    run the same model, the entry's name tells them apart."""
+    from mirobody.utils.config.llm import model_entries
+
+    providers = model_entries()
+    labels = {n: str((providers.get(n) or {}).get("model") or n).rsplit("/", 1)[-1] for n in names}
+    counts: dict[str, int] = {}
+    for label in labels.values():
+        counts[label] = counts.get(label, 0) + 1
+    return {n: f"{label} ({n})" if counts[label] > 1 else label for n, label in labels.items()}

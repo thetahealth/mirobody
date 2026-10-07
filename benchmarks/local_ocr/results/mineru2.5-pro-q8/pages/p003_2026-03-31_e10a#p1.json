@@ -1,0 +1,67 @@
+{
+ "id": "p003_2026-03-31_e10a#p1",
+ "tier": "T2",
+ "image_sha256": "5e8dfcd485500b0134258fedb37d247f6fc3443395c4090dea03a624e69bb97a",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n芷沅市中心医院\n\n门诊病历\n\n姓名：闫柏超 性别：男 年龄：54岁\n\n门诊号：5617297173\n\n报告日期：2026-04-01\n\n主诉：反复手麻2月余\n现病史：2月余来手麻，休息后可缓解，今来复诊。规律服用二甲双胍，未自行停药。\n既往史：2型糖尿病病史2年，口服二甲双胍治疗。\n体格检查：T 36.6℃ P 67次/分 R 16次/分 BP 111/65mmHg 体重 84.9kg\n辅助检查：SpO2 97%；FPG 4.76mmol/L；HbA1c 6.1%↑；GA 13.4%（详见检验报告单）\n诊断：2型糖尿病\n处理：1. 继续目前治疗；2. 复查血糖；3. 低盐低脂饮食，规律作息；4. 3个月后复诊。\n\n医师：许文\n\n检验专用章\n\n第1页/共1页<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 14.1,
+   "usage": {
+    "completion_tokens": 287,
+    "prompt_tokens": 2170,
+    "total_tokens": 2457,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11698.213,
+    "prompt_per_token_ms": 5.428405104408353,
+    "prompt_per_second": 184.2161704527008,
+    "predicted_n": 287,
+    "predicted_ms": 2352.669,
+    "predicted_per_token_ms": 8.226115384615385,
+    "predicted_per_second": 121.56406192286293
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>芷沅市中心医院<lcel><nl>\n<fcel>门诊病历<lcel><nl>\n<fcel>姓名：闫柏超 性别：男 年龄：54岁<lcel><nl>\n<fcel>门诊号：5617297173<lcel><nl>\n<fcel>报告日期：2026-04-01<lcel><nl>\n<fcel>主诉：反复手麻2月余<lcel><nl>\n<fcel>现病史：2月余来手麻，休息后可缓解，今来复诊。规律服用二甲双胍，未自行停药。<lcel><nl>\n<fcel>既往史：2型糖尿病病史2年，口服二甲双胍治疗。<lcel><nl>\n<fcel>体格检查：T 36.6°C P 67次/分 R 16次/分 BP 111/65mmHg 体重 84.9kg<lcel><nl>\n<fcel>辅助检查：SpO2 97%；FPG 4.76mmol/L；HbA1c 6.1%↑；GA 13.4%（详见检验报告单）<lcel><nl>\n<fcel>诊断：2型糖尿病<lcel><nl>\n<fcel>处理：1. 继续目前治疗；2. 复查血糖；3. 低盐低脂饮食，规律作息；4. 3个月后复诊。<lcel><nl>\n<fcel>医师：许文<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.68,
+   "usage": {
+    "completion_tokens": 302,
+    "prompt_tokens": 2170,
+    "total_tokens": 2472,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 18.631,
+    "prompt_per_token_ms": 2.328875,
+    "prompt_per_second": 429.39187375878913,
+    "predicted_n": 302,
+    "predicted_ms": 2616.156,
+    "predicted_per_token_ms": 8.691548172757475,
+    "predicted_per_second": 115.05430104320996
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1655.2,
+  "phys_footprint_mib": 1204.7,
+  "phys_footprint_peak_mib": 1205.8
+ }
+}

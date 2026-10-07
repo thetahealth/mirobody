@@ -1,0 +1,67 @@
+{
+ "id": "p001_2023-11-27_e04a#p5",
+ "tier": "T2",
+ "image_sha256": "3bdd233c44933dcdaea4378474d587e9822412af729be079d18775bdd6dbe382",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n实验室检查\n\n血常规\n检测项目 测定值 正常范围值 单位(Unit)\n白细胞计数(WBC) 3.71 3.50 - 9.50 ×10^9/L\n红细胞计数(RBC) 4.83 4.30 - 5.80 ×10^12/L\n血红蛋白(HGB) 139 130 - 175 g/L\n红细胞压积(HCT) 41.0 40.0 - 50.0 %\n平均红细胞体积(MCV) 84.8 82.0 - 100.0 fL\n平均红细胞血红蛋白量(MCH) 28.8 27.0 - 34.0 pg\n平均红细胞血红蛋白浓度(MCHC) 340 316 - 354 g/L\n红细胞分布宽度(RDW-CV) 11.2 偏低 11.5 - 14.5 %\n血小板计数(PLT) 336 125 - 350 ×10^9/L\n平均血小板体积(MPV) 10.7 7.6 - 13.2 fL\n血小板分布宽度(PDW) 12.0 9.0 - 17.0 fL\n血小板压积(PCT) 0.215 0.108 - 0.282 %\n中性粒细胞百分比(NEUT%) 64.8 40.0 - 75.0 %\n淋巴细胞百分比(LYMPH%) 28.4 20.0 - 50.0 %\n单核细胞百分比(MONO%) 4.5 3.0 - 10.0 %\n嗜酸性粒细胞百分比(EO%) 2.0 0.4 - 8.0 %\n嗜碱性粒细胞百分比(BASO%) 0.3 0.0 - 1.0 %\n中性粒细胞绝对值(NEUT#) 2.40 1.80 - 6.30 ×10^9/L\n淋巴细胞绝对值(LYMPH#) 1.05 偏低 1.10 - 3.20 ×10^9/L\n单核细胞绝对值(MONO#) 0.17 0.10 - 0.60 ×10^9/L\n嗜酸性粒细胞绝对值(EO#) 0.07 0.02 - 0.52 ×10^9/L\n嗜碱性粒细胞绝对值(BASO#) 0.01 0.00 - 0.06 ×10^9/L\n\n血型\n检测项目 测定值 正常范围值 单位(Unit)\nABO血型(ABO) O\nRh(D)血型(Rh) 阳性\n\n贫血相关检测\n检测项目 测定值 正常范围值 单位(Unit)\n铁蛋白(FER) 210.8 30.0 - 400.0 ng/mL\n血清铁(Fe) 22.6 11.6 - 31.3 μmol/L\n维生素B12(VB12) 474 145 - 569 pmol/L\n叶酸(FA) 21.3 7.0 - 46.4 nmol/L\n\n凝血功能\n检测项目 测定值 正常范围值 单位(Unit)\n凝血酶原时间(PT) 11.8 11.0 - 14.0 s\n国际标准化比值(INR) 0.92 0.80 - 1.20\n活化部分凝血活酶时间(APTT) 29.6 25.0 - 37.0 s\n凝血酶时间(TT) 17.9 14.0 - 21.0 s\n纤维蛋白原(FIB) 3.72 2.00 - 4.00 g/L\nD-二聚体(D-D) 0.40 (<0.50) mg/L FEU",
+   "finish_reason": "stop",
+   "seconds": 14.43,
+   "usage": {
+    "completion_tokens": 961,
+    "prompt_tokens": 2156,
+    "total_tokens": 3117,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7257.086,
+    "prompt_per_token_ms": 3.373819618781962,
+    "prompt_per_second": 296.39995998393846,
+    "predicted_n": 961,
+    "predicted_ms": 7093.12,
+    "predicted_per_token_ms": 7.3886666666666665,
+    "predicted_per_second": 135.34241631327257
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检测项目</th><th>测定值</th><th>正常范围值</th><th>单位(Unit)</th></tr></thead><tbody><tr><td>白细胞计数(WBC)</td><td>3.71</td><td>3.50 - 9.50</td><td>×10^9/L</td></tr><tr><td>红细胞计数(RBC)</td><td>4.83</td><td>4.30 - 5.80</td><td>×10^12/L</td></tr><tr><td>血红蛋白(HGB)</td><td>139</td><td>130 - 175</td><td>g/L</td></tr><tr><td>红细胞压积(HCT)</td><td>41.0</td><td>40.0 - 50.0</td><td>%</td></tr><tr><td>平均红细胞体积(MCV)</td><td>84.8</td><td>82.0 - 100.0</td><td>fL</td></tr><tr><td>平均红细胞血红蛋白量(MCH)</td><td>28.8</td><td>27.0 - 34.0</td><td>pg</td></tr><tr><td>平均红细胞血红蛋白浓度(MCHC)</td><td>340</td><td>316 - 354</td><td>g/L</td></tr><tr><td>红细胞分布宽度(RDW-CV)</td><td>11.2偏低</td><td>11.5 - 14.5</td><td>%</td></tr><tr><td>血小板计数(PLT)</td><td>336</td><td>125 - 350</td><td>×10^9/L</td></tr><tr><td>平均血小板体积(MPV)</td><td>10.7</td><td>7.6 - 13.2</td><td>fL</td></tr><tr><td>血小板分布宽度(PDW)</td><td>12.0</td><td>9.0 - 17.0</td><td>fL</td></tr><tr><td>血小板压积(PCT)</td><td>0.215</td><td>0.108 - 0.282</td><td>%</td></tr><tr><td>中性粒细胞百分比(NEUT%)</td><td>64.8</td><td>40.0 - 75.0</td><td>%</td></tr><tr><td>淋巴细胞百分比(LYMPH%)</td><td>28.4</td><td>20.0 - 50.0</td><td>%</td></tr><tr><td>单核细胞百分比(MONO%)</td><td>4.5</td><td>3.0 - 10.0</td><td>%</td></tr><tr><td>嗜酸性粒细胞百分比(EO%)</td><td>2.0</td><td>0.4 - 8.0</td><td>%</td></tr><tr><td>嗜碱性粒细胞百分比(BASO%)</td><td>0.3</td><td>0.0 - 1.0</td><td>%</td></tr><tr><td>中性粒细胞绝对值(NEUT#)</td><td>2.40</td><td>1.80 - 6.30</td><td>×10^9/L</td></tr><tr><td>淋巴细胞绝对值(LYMPH#)</td><td>1.05偏低</td><td>1.10 - 3.20</td><td>×10^9/L</td></tr><tr><td>单核细胞绝对值(MONO#)</td><td>0.17</td><td>0.10 - 0.60</td><td>×10^9/L</td></tr><tr><td>嗜酸性粒细胞绝对值(EO#)</td><td>0.07</td><td>0.02 - 0.52</td><td>×10^9/L</td></tr><tr><td>嗜碱性粒细胞绝对值(BASO#)</td><td>0.01</td><td>0.00 - 0.06</td><td>×10^9/L</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 8.97,
+   "usage": {
+    "completion_tokens": 1102,
+    "prompt_tokens": 2156,
+    "total_tokens": 3258,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 16.132,
+    "prompt_per_token_ms": 3.2264000000000004,
+    "prompt_per_second": 309.9429704934292,
+    "predicted_n": 1102,
+    "predicted_ms": 8872.632,
+    "predicted_per_token_ms": 8.058702997275203,
+    "predicted_per_second": 124.08944718996574
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2214.2,
+  "phys_footprint_mib": 1695.3,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

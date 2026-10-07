@@ -1,0 +1,67 @@
+{
+ "id": "p008_hlog02#p1",
+ "tier": "H2",
+ "image_sha256": "dd05d9cfb0f15ae67fe595ba612e7a60510745d80cd1df2c5309424a51ed1f11",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n血糖监测\n2024年8月\n\n日期 空腹 早餐后 午餐后 晚餐后 备注\n8.5 5.8 7.3 6.1\n8.6 6.6 7.1\n8.7 5.7 7.3\n8.8 6.6 6.3\n8.9 5.6 7.1\n8.10 5.7 6.8 2.0 6.0\n8.11 5.8 6.2 7.7\n8.12 6.3 7.1 6.8\n8.13 5.6 9.0 8.3\n8.14 6.4 6.8 7.9\n8.15 6.3 6.8\n\n加餐\n吃了水果\n\n聚餐",
+   "finish_reason": "stop",
+   "seconds": 8.62,
+   "usage": {
+    "completion_tokens": 227,
+    "prompt_tokens": 2156,
+    "total_tokens": 2383,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7080.009,
+    "prompt_per_token_ms": 3.291496513249651,
+    "prompt_per_second": 303.8131731188477,
+    "predicted_n": 227,
+    "predicted_ms": 1479.063,
+    "predicted_per_token_ms": 6.544526548672567,
+    "predicted_per_second": 152.7994412678838
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>日期</th><th>空腹</th><th>早餐后</th><th>午餐后</th><th>晚餐后</th><th>备注</th></tr></thead><tbody><tr><td>8.5</td><td>5.8</td><td></td><td>7.3</td><td>6.1</td><td></td></tr><tr><td>8.6</td><td>6.6</td><td></td><td>7.1</td><td></td><td></td></tr><tr><td>8.7</td><td>5.7</td><td>7.3</td><td></td><td></td><td></td></tr><tr><td>8.8</td><td>6.6</td><td>6.3</td><td></td><td></td><td>加餐</td></tr><tr><td>8.9</td><td>5.6</td><td>7.1</td><td></td><td></td><td>吃了水果</td></tr><tr><td>8.10</td><td>5.7</td><td>6.8</td><td>2.0</td><td>6.0</td><td></td></tr><tr><td>8.11</td><td>5.8</td><td></td><td>6.2</td><td>7.7</td><td></td></tr><tr><td>8.12</td><td>6.3</td><td>7.1</td><td></td><td>6.8</td><td></td></tr><tr><td>8.13</td><td>5.6</td><td>9.0</td><td>8.3</td><td></td><td></td></tr><tr><td>8.14</td><td>6.4</td><td>6.8</td><td>7.9</td><td></td><td>聚餐</td></tr><tr><td>8.15</td><td>6.3</td><td></td><td>6.8</td><td></td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 3.75,
+   "usage": {
+    "completion_tokens": 547,
+    "prompt_tokens": 2156,
+    "total_tokens": 2703,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 18.539,
+    "prompt_per_token_ms": 3.7078,
+    "prompt_per_second": 269.70170990884077,
+    "predicted_n": 547,
+    "predicted_ms": 3674.098,
+    "predicted_per_token_ms": 6.729117216117216,
+    "predicted_per_second": 148.6079032186948
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2495.4,
+  "phys_footprint_mib": 1819.3,
+  "phys_footprint_peak_mib": 1820.8
+ }
+}

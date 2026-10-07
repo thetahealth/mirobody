@@ -1,0 +1,67 @@
+{
+ "id": "p014_2026-08-21_e09hf#p1",
+ "tier": "H1",
+ "image_sha256": "affa7194398bf33468503b86b7f709afbe22737a6ea0f6b51d459eeed8cacbb1",
+ "image_size": [
+  1186,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nFernvale Health Screening Centre\n\nGeneral examination record\n\nName: Linda Porter    Sex: Female    Age: 72 Y    MRN: 2522771577\nLab No.: 232006988    Specimen: Serum    Requested by: Emily Lambert\n\nPrinted: 2026-09-07 12:06    ReportTime: 2026-08-21 12:06\n\nTEST                    VALUE                    Unit             Normal Value\nHeight                   172.6                   cm\nBody weight                77.5                   kg\nBody mass index            26.0                     kg/m² (18.5-23.9)\nBlood Pressure                109/74             mmHg (90-139/60-89)\nHeart rate                   67                        /min (60-100)\nFasting plasma glucose   5.42                   mmol/L (3.90-6.10)\nGlycated hemoglobin   5.1                   % (4.0-6.0)\nFasting insulin                10.38                   µIU/mL (2.60-24.90)\nC-peptide                3.51                     ng/mL (1.10-4.40)\n\nVERIFIED\nPage 1 of 1",
+   "finish_reason": "stop",
+   "seconds": 7.77,
+   "usage": {
+    "completion_tokens": 354,
+    "prompt_tokens": 1253,
+    "total_tokens": 1607,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1248,
+    "prompt_ms": 5555.575,
+    "prompt_per_token_ms": 4.451582532051282,
+    "prompt_per_second": 224.63921376275184,
+    "predicted_n": 354,
+    "predicted_ms": 2174.769,
+    "predicted_per_token_ms": 6.160818696883852,
+    "predicted_per_second": 162.31608966285617
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>TEST<fcel>VALUE<fcel>Unit<fcel>Normal Value<nl><fcel>Height<fcel>172.6<fcel>cm<ecel><nl><fcel>Body weight<fcel>77.5<fcel>kg<ecel><nl><fcel>Body mass index<fcel>26.0<fcel>\\(kg/m^{2}\\)<fcel>(18.5-23.9)<nl><fcel>Blood Pressure<fcel>109/74<fcel>mmHg<fcel>90-139/60-89<nl><fcel>Heart rate<fcel>67<fcel>/min<fcel>(60-100)<nl><fcel>Fasting plasma glucose<fcel>5.42<fcel>mmol/L<fcel>(3.90-6.10)<nl><fcel>Glycated hemoglobin<fcel>5.1<fcel>%<fcel>(4.0-6.0)<nl><fcel>Fasting insulin<fcel>10.38<fcel>\\(\\mu IU/mL\\)<fcel>(2.60-24.90)<nl><fcel>C-peptide<fcel>3.51<fcel>ng/mL<fcel>(1.10-4.40)<nl>",
+   "finish_reason": "stop",
+   "seconds": 1.46,
+   "usage": {
+    "completion_tokens": 222,
+    "prompt_tokens": 1253,
+    "total_tokens": 1475,
+    "prompt_tokens_details": {
+     "cached_tokens": 1246
+    }
+   },
+   "timings": {
+    "cache_n": 1246,
+    "prompt_n": 7,
+    "prompt_ms": 11.877,
+    "prompt_per_token_ms": 1.6967142857142858,
+    "prompt_per_second": 589.374421150122,
+    "predicted_n": 222,
+    "predicted_ms": 1408.253,
+    "predicted_per_token_ms": 6.372185520361991,
+    "predicted_per_second": 156.9320285488474
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2268.8,
+  "phys_footprint_mib": 1382.7,
+  "phys_footprint_peak_mib": 1384.0
+ }
+}

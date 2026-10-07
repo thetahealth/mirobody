@@ -1,0 +1,67 @@
+{
+ "id": "p008_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "04c51cab2964a5243088ad53548cef9e538f3bef7c61051691e17dddad55219f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n家庭血压记录\n2025年1月\n日期 时间 血压(mmHg) 心率(次/分) 备注\n1.5 早 109/81 77\n1.9 早 120/79 74\n1.18 早 107/75 79\n1.24 早 118/76 74\n2.7 早 110/77 72\n2.27 早 107/82 74\n3.1 早 107/90 72\n3.25 早 130/88 80\n11 晚 106/79 76\n4.25 早 113/71 73",
+   "finish_reason": "stop",
+   "seconds": 7.07,
+   "usage": {
+    "completion_tokens": 215,
+    "prompt_tokens": 1273,
+    "total_tokens": 1488,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5713.737,
+    "prompt_per_token_ms": 4.506101735015773,
+    "prompt_per_second": 221.92130999379216,
+    "predicted_n": 215,
+    "predicted_ms": 1319.482,
+    "predicted_per_token_ms": 6.165803738317757,
+    "predicted_per_second": 162.18485739100646
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><ecel><fcel>家庭血压记录<nl><ecel><fcel>2025年1月<nl><ecel><fcel>日期 时间 血压(mmHg) 心率（次/分）备注<nl><ecel><fcel>1.5 早 109/81 77<nl><ecel><fcel>1.9 早 120/79 74<nl><ecel><fcel>1.18 早 107/75 79<nl><ecel><fcel>1.24 早 118/76 74<nl><ecel><fcel>2.7 早 110/77 72<nl><ecel><fcel>2.27 早 107/82 74<nl><ecel><fcel>3.1 早 107/90 72<nl><ecel><fcel>3.25 早 130/88 80<nl><ecel><fcel>11 晚 106/79 76<nl><ecel><fcel>4.25 早 113/71 73<nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.66,
+   "usage": {
+    "completion_tokens": 262,
+    "prompt_tokens": 1273,
+    "total_tokens": 1535,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.837,
+    "prompt_per_token_ms": 1.691,
+    "prompt_per_second": 591.3660555884093,
+    "predicted_n": 262,
+    "predicted_ms": 1604.55,
+    "predicted_per_token_ms": 6.147701149425287,
+    "predicted_per_second": 162.66242871833225
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2263.7,
+  "phys_footprint_mib": 1388.0,
+  "phys_footprint_peak_mib": 1389.4
+ }
+}

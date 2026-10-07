@@ -1,0 +1,67 @@
+{
+ "id": "p001_2026-05-15_e07a#p1",
+ "tier": "T4",
+ "image_sha256": "47bb28de9dccd7948ea09a7b083f1ec2ed94359b8945ca63c4b1059f0633c011",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n桐渚社区卫生服务中心\n\n炎症指标\n\n姓名：黎宇海 性别：男 年龄：40岁\nID号：1553296126 标本号：861283792 科室：心内科\n标本类型：静脉血\n\n打印时间：2026-05-16 09:31 报告时间：2026-05-15 13:31 接收时间：2026-05-15 09:18\n\n检验项目名称 _____ 检测结果 _____ 正常值 _____\nC反应蛋白 _____ 0.85mg/L <8.00\n超敏C反应蛋白 _____ 0.74mg/L <3.00\n红细胞沉降率 _____ 8mm/h 男:0-15 女:0-20\n\n审核者：郝岚安\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 7.33,
+   "usage": {
+    "completion_tokens": 248,
+    "prompt_tokens": 1273,
+    "total_tokens": 1521,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5732.814,
+    "prompt_per_token_ms": 4.521146687697161,
+    "prompt_per_second": 221.18282574665773,
+    "predicted_n": 248,
+    "predicted_ms": 1551.283,
+    "predicted_per_token_ms": 6.280497975708502,
+    "predicted_per_second": 159.22304311979184
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>姓名：黎宇海<fcel>性别：男<fcel>年龄：40岁<nl><fcel>ID号：1553296126<fcel>标本号：861283792<fcel>科室：心内科<nl><fcel>标本类型：静脉血<ecel><ecel><nl><fcel>打印时间：2026-05-16 09:31 报告时间：2026-05-15 13:31 接收时间：2026-05-15 09:18<lcel><lcel><nl><fcel>检验项目名称<fcel>检测结果<fcel>正常值<nl><fcel>C反应蛋白<fcel>0.85mg/L<fcel><8.00<nl><fcel>超敏C反应蛋白<fcel>0.74mg/L<fcel><3.00<nl><fcel>红细胞沉降率<fcel>8mm/h<fcel>男:0-15 女:0-20<nl><fcel>审核者：郝岚安<lcel><lcel><nl><fcel>第1页/共1页<lcel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.42,
+   "usage": {
+    "completion_tokens": 219,
+    "prompt_tokens": 1273,
+    "total_tokens": 1492,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 17.942,
+    "prompt_per_token_ms": 2.563142857142857,
+    "prompt_per_second": 390.14602608404863,
+    "predicted_n": 219,
+    "predicted_ms": 1351.659,
+    "predicted_per_token_ms": 6.200270642201835,
+    "predicted_per_second": 161.2832822479634
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2192.4,
+  "phys_footprint_mib": 1330.4,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

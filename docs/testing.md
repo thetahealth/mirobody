@@ -12,23 +12,28 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 17 | 134 passed, 13 xfailed |
-| `'.[test,parse]'` | 74 | 134 passed, 13 xfailed |
-| `'.[test,app]'` | 146 | 134 passed, 13 xfailed |
+| `'.[test]'` | 17 | 228 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,parse]'` | 74 | 228 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,app]'` | 146 | 255 passed, 13 xfailed |
 
-The extras no longer change what a clone can run, and that is not a mistake in
-the table. Three public modules are kept in the repository: the resolver score,
-the cross-language identity gate, and `test_skills.py`, which checks the agent
-skills' commands and claims. The first two are checkout gates; the skills
-module also ships in the wheel as inspectable release evidence, but skips when
-the wheel is installed without the repository-root `skills/` directory. None
-needs an extra, so all three installs run all three in a clone. The 13 xfails are the
-known cross-language splits, described below. What the extras still decide is what the SERVER needs, which is
-what the package counts are for.
+The extras barely change what a clone can run, and that is not a mistake in
+the table. Four public modules are kept in the repository: the resolver score,
+the cross-language identity gate, `test_skills.py`, which checks the agent
+skills' commands and claims, and `test_security_gates.py`, which pins the
+server's security decisions. The skills module also ships in the wheel as
+inspectable release evidence, but skips when the wheel is installed without
+the repository-root `skills/` directory. The first three need no extra, so
+every install runs them in a clone; the security module needs FastAPI, which
+only `[app]` installs, and skips its 27 tests without it
+(`pytest.importorskip("fastapi")`). The 13
+xfails are the known cross-language splits, described below. What the extras
+still decide is what the SERVER needs, which is what the package counts are
+for.
 
-<sub>Measured 2026-09-23 on a clone-shaped tree (1.5.0). `pytest` in a checkout
-that also has the maintainers' local suite collects more; these are the numbers
-a clone sees.</sub>
+<sub>Package counts measured 2026-09-23 on a clone-shaped tree (1.5.0); test
+counts are this tree's (`pytest -q mirobody/tests`, 268 collected with
+`[app]`). `pytest` in a checkout that also has the maintainers' local suite
+collects more; these are the numbers a clone sees.</sub>
 
 They used to abort collection outright rather than skip — first with
 `ModuleNotFoundError: langchain_core`, then with `psycopg_pool` and `mandrill`
@@ -67,7 +72,7 @@ a clone can re-run it.
 
 | Module | Covers | Notes |
 | --- | --- | --- |
-| `test_engine_coverage.py` | **the published accuracy number** | 296 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
+| `test_engine_coverage.py` | **the published accuracy number** | 317 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文 and 日本語, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
 | `test_cross_language_identity.py` | one analyte, one code, in every language | `SAME_ANALYTE` rows must agree; `KNOWN_SPLITS` are the rows that do not yet, each a strict xfail that fails once fixed, so the row moves up |
 | `test_skills.py` | agent skill commands, frontmatter, Compose names and resolver examples | ships in the wheel and sdist as public evidence; it skips the repository-only skill files when run from `site-packages` |
 | `test_security_gates.py` | the server's security decisions: the OAuth return URL, the second factor for a token in the query string, upload ownership, the placeholder `JWT_KEY`, the response headers | needs `[app]` and skips without it. Each case was reproduced on a running server before its fix |

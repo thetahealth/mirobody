@@ -1,0 +1,100 @@
+{
+ "size": "ref-deepseek-v4.1-flash",
+ "reference": "deepseek-v4.1-flash",
+ "agent": "deepseek/deepseek-v4.1-flash",
+ "models": {
+  "chat_model": "deepseek/deepseek-v4.1-flash",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "deepseek/deepseek-v4.1-flash",
+     "default": "anthropic/claude-sonnet-5",
+     "env": "OPENROUTER_CHAT_MODEL",
+     "in_env_file": true
+    },
+    "utils_model": {
+     "model": "deepseek/deepseek-v4.1-flash",
+     "default": "google/gemini-3.8-flash",
+     "env": "OPENROUTER_UTILS_MODEL",
+     "in_env_file": true
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "qwen3.5-9b",
+    "utils": "qwen3.5-9b",
+    "ocr": "glm-ocr"
+   }
+  }
+ },
+ "started": "2026-10-06T20:38:56+08:00",
+ "parts": [
+  "extraction",
+  "journal",
+  "qa"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "started": "2026-10-06T20:38:56+08:00",
+   "resources": {
+    "disk_free_gb": 20.1,
+    "memory_free_pct": 32,
+    "swap_used_mb": 7730.75
+   },
+   "mirobody_commit": "357bd2a108c8991f17387758d448f1048fd8e01b",
+   "mirobody_dirty": true,
+   "loaded": [],
+   "memory": null,
+   "memory_run": null,
+   "memory_after_qa": {
+    "swap_used_mb": 7617.75,
+    "disk_free_gb": 20.0,
+    "memory_free_pct": 53
+   },
+   "finished": "2026-10-06T20:51:55+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 322.267077368,
+     "qa": 322.334765644,
+     "extraction": 322.56663774,
+     "journal": 322.593164266
+    },
+    "parts": {
+     "qa": 0.067688,
+     "extraction": 0.231872,
+     "journal": 0.026527
+    },
+    "total": 0.326087
+   }
+  }
+ ],
+ "memory_run": null,
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-06T20:51:55+08:00",
+ "memory_note": "a reference runs no llama-server; the snapshot taken during this run was another llama-server on the machine (pid 45498, started 20:32, not part of this evaluation), so it is removed",
+ "env": {
+  "OPENROUTER_API_KEY": "(set; removed after the run)",
+  "OPENROUTER_CHAT_MODEL": "deepseek/deepseek-v4.1-flash",
+  "OPENROUTER_UTILS_MODEL": "deepseek/deepseek-v4.1-flash",
+  "DEFAULT_MODEL": "claude-sonnet",
+  "UTILS_TEXT_MODEL": "openrouter-utils",
+  "UTILS_VISION_MODEL": "local-utils",
+  "note": "the document OCR route (local-ocr) stayed as the setup page saved it; no llama-server ran, and every extraction document's OCR text was already stored, so no document was read by a vision model"
+ },
+ "pricing_usd_per_token": {
+  "prompt": 2.1421e-08,
+  "completion": 1.32e-06,
+  "source": "openrouter.ai/api/v1/models, 2026-10-06"
+ }
+}

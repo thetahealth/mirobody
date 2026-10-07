@@ -1,0 +1,67 @@
+{
+ "id": "p010_2024-05-31_e03hn#p1",
+ "tier": "H1",
+ "image_sha256": "3769d521f1bea7bad8325dea460b9bd431315305abdc4fd40a27980389102dff",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：全科    日期：2024.5.31\n\n复诊\n\n近期无特殊不适\n\nT: 36.4℃ P: 81次/分 R: 16 BP 126/73 mmHg SpO2 97% Wt 64.9 kg\n\n心律齐，心肺听诊未见异常\n\n诊断：血脂异常\n\n建议：多饮水，注意休息，定期复查，继续原方案治疗<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.78,
+   "usage": {
+    "completion_tokens": 129,
+    "prompt_tokens": 2170,
+    "total_tokens": 2299,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11675.405,
+    "prompt_per_token_ms": 5.417821345707657,
+    "prompt_per_second": 184.57603826162773,
+    "predicted_n": 129,
+    "predicted_ms": 1058.513,
+    "predicted_per_token_ms": 8.2696328125,
+    "predicted_per_second": 120.9243533145082
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<fcel>门诊病历<lcel><nl>\n<fcel>科别:全科<fcel>日期:2024.5.31<nl>\n<fcel>复诊<lcel><nl>\n<fcel>近期无特殊不适<lcel><nl>\n<fcel>T: 36.4°C P: 81次/分 R: 16 BP 126/73 mmHg SpO2 97% Wt 64.9 kg<lcel><nl>\n<fcel>心律齐,心肺听诊未见异常<lcel><nl>\n<fcel>诊断:血脂异常<lcel><nl>\n<fcel>建议:多饮水,注意休息,定期复查,继续原方案治疗<lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<ecel><lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.8,
+   "usage": {
+    "completion_tokens": 203,
+    "prompt_tokens": 2170,
+    "total_tokens": 2373,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 13.449,
+    "prompt_per_token_ms": 1.681125,
+    "prompt_per_second": 594.8397650382929,
+    "predicted_n": 203,
+    "predicted_ms": 1731.735,
+    "predicted_per_token_ms": 8.572945544554456,
+    "predicted_per_second": 116.6460226304833
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1748.0,
+  "phys_footprint_mib": 1260.7,
+  "phys_footprint_peak_mib": 1261.8
+ }
+}

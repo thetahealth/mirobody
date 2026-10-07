@@ -23,7 +23,7 @@
 
 ---
 
-去年体检写 `A1c`，今年医院写 `HbA1c`，换家机构又成 `糖化血红蛋白`。一项检查三个名字，读不懂，也比不了。Mirobody 把任何来源、任何格式、任何语言的健康数据读进来，每个值都落到同一套标准上，再在这份记录上回答你的问题，每个数字都能追回它出自的那份文件。全部跑在你自己的机器上，用你自己选的模型 key。
+去年体检写 `A1c`，今年医院写 `HbA1c`，换家机构又成 `糖化血红蛋白`。一项检查三个名字，读不懂，也比不了。Mirobody 把任何来源、任何格式、任何语言的健康数据读进来，每个值都落到同一套标准上，再在这份记录上回答你的问题，每个数字都能追回它出自的那份文件。全部跑在你自己的机器上：用一把模型 key，或者让所有模型也跑在这台机器上，由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 提供模型服务；记录存在你自己运行的 Postgres 里。
 
 <p align="center">
   <img src="docs/images/ask-own-demo.zh-CN.gif" alt="用中文问胆固醇怎么变的，agent 找到三份用不同写法记录同一项检查的文件，把它们解析成同一个码，并画出趋势" width="880">
@@ -34,10 +34,23 @@
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-OPENROUTER_API_KEY=sk-or-... ./deploy.sh     # Postgres、服务端、worker 起来 → http://localhost:18060
+./deploy.sh     # Postgres、服务端、worker 起来，并打印首次设置页的链接
 ```
 
-只需要 Docker：不用 Python，不用 Node.js，不用 GPU，不用 Git LFS，连 Git 都可以不装（`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` 得到的是同一份检出）。`deploy.sh` 会把密钥和你的 key 写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建；端口被占用、或同名的另一套 Mirobody 已经在跑时，它会停下来并说清楚怎么改。镜像要和自己的 Postgres 一起跑，所以单独 `docker run` 是跑不起来的。之后再加 key：写进 `.env`，然后 `docker compose up -d`；`restart` 不会重新读 `.env`。
+首次设置页会问：由谁来处理你的健康数据。粘贴一把模型 key，或者选**100% 在本机运行**，再从这台电脑上 llama.cpp 服务提供的模型里选。key 要先用一次真实请求验证通过才会保存；选择加密存储，之后可以在「设置 › 模型」里修改。手上已经有 key 的话，`OPENROUTER_API_KEY=sk-or-... ./deploy.sh` 会跳过这一页。
+
+<p align="center">
+  <img src="docs/images/setup-demo.zh-CN.gif" alt="首次设置页：在 OpenRouter 的 key 旁边改模型名；再选 100% 在本机运行：页面找到 llama.cpp 服务，列出它提供的模型，两个模型都就绪" width="880">
+</p>
+<p align="center"><em>在一台 16 GB 内存的笔记本上录制，用的是默认的本地组合：MiniCPM5-2B 回答问题，GLM-OCR-0.9B 读文档，两个都由 llama.cpp 提供服务。大号的 Qwen3.8-27B 需要约 20 GB 内存。</em></p>
+
+| | 模型在哪里跑 | 你需要 | 什么会离开这台机器 |
+| --- | --- | --- | --- |
+| **一把模型 key** | 在你粘贴 key 的那家厂商：OpenRouter、OpenAI、Gemini、Anthropic、DeepSeek、DashScope，或任何 OpenAI 兼容网关 | Docker 和一把 key | 你的提问、智能体读到的数据行和它读的文档，都会发给那家厂商 |
+| **100% 在本机运行** | **由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供模型服务**，跟服务一起跑；Mirobody 自己不跑模型。默认由 MiniCPM5-2B 回答问题、GLM-OCR-0.9B 读文档；内存更多时可换 Qwen3.8-27B，回答更好。模型名可以自己改（[说明](docs/local-models.md)） | Docker 和 16 GB 内存即可跑默认组合，不需要显卡，Windows、Linux、macOS 都行（Qwen3.8-27B 约需 20 GB）；模型一次性下载 3.0 GB（大号 14.5 GB） | 与你有关的任何数据都不会离开。在 16 GB 的 M1 Pro 上一个回答约 30 秒；没有显卡时，4 核 CPU 上第一个回答要 2–3 分钟（Qwen3.8-27B 在 M4 Pro 上约两分钟） |
+| **只用库** | 不需要模型：`pip install mirobody` 或 `uvx --python 3.12 mirobody` 把名称解析到 LOINC、单位换算到 UCUM | Python 3.12 | 什么都不会离开：词表随包发布 |
+
+用模型 key 时只需要 Docker：不用 Python，不用 Node.js，不用 GPU，不用 Git LFS，连 Git 都可以不装（`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` 得到的是同一份检出）。`deploy.sh` 会把密钥和你的 key 写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建；端口被占用、或同名的另一套 Mirobody 已经在跑时，它会停下来并说清楚怎么改。镜像要和自己的 Postgres 一起跑，所以单独 `docker run` 是跑不起来的。之后再加 key：写进 `.env`，然后 `docker compose up -d`；`restart` 不会重新读 `.env`。
 
 1. **登录。** 登录页会直接给出演示账号：「邮箱验证码」页签，`you@mirobody.ai`，验证码 `111111`。`SEED_DEMO_DATA` 默认打开，一开始两个账号就合计有 **2,019 条读数**：你自己，和把记录以只读方式共享给你的 `mom@mirobody.ai`。
 2. **把一份文件拖到 Data 页。** [`demo/upload/`](demo/) 里放着四份种子数据故意没写进库的文件：化验单 PDF 和另一家化验所导出的 CSV 是你的，打印报告的照片和表格是妈妈的，要用她的账号上传。每一项分析物都带着数值、单位和编码被抽出来，并链回它来源的那一页。
@@ -51,6 +64,10 @@ OPENROUTER_API_KEY=sk-or-... ./deploy.sh     # Postgres、服务端、worker 起
 </p>
 
 **用哪把 key。** 下面任何一把都能把整套跑通：[OpenRouter](https://openrouter.ai/keys)（`OPENROUTER_API_KEY`）、[OpenAI](https://platform.openai.com/api-keys)（`OPENAI_API_KEY`）、[Gemini](https://aistudio.google.com/apikey)（`GOOGLE_API_KEY`）、[Anthropic](https://platform.claude.com/settings/keys)（`ANTHROPIC_API_KEY`）、DeepSeek、DashScope，或者任何 OpenAI 兼容网关（`<PROVIDER>_BASE_URL`）。[`config.llm.yaml`](config.llm.yaml) 写的是变量名（`api_key: OPENROUTER_API_KEY`），不是密钥本身；`mirobody doctor` 会列出每一环选中了什么。
+
+**用哪个模型。** [docs/model-choice.zh-CN.md](docs/model-choice.zh-CN.md) 把本地模型和五个云端模型（DeepSeek V4.1 Flash、Claude Sonnet 5.5、Claude Opus 5.5、Gemini 3.8 Flash、GPT-6 Luna）放在同样的题目、文档和日记句子上比：答得多好、多快、花多少钱，以及每种情况下谁会读到你的健康数据。
+
+**1.6.0 预告：Mirobody 自己的模型。** 足够小、足够快，普通电脑就能跑，针对 Mirobody 自己的工具和文档做了后训练，和其他模型一样由 llama.cpp 提供服务：最适合这套 harness 的模型，让完全私密的部署只需要一台普通电脑。
 
 → [自部署指南](https://docs.mirobody.ai/zh/self-host) · [配置](https://docs.mirobody.ai/zh/configuration) · [部署到服务器](https://docs.mirobody.ai/zh/deployment/production)
 
@@ -163,15 +180,25 @@ codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@m
 
 不起整套服务时，`uvx --python 3.12 mirobody mcp` 通过 stdio 提供词表工具，离线、不需要 key：名称到 LOINC、单位，以及把读数或症状写成 FHIR。其中读整份文档的 `standardize_report` 还需要 `[parse]` 扩展和一把模型 key：`uvx --python 3.12 --from 'mirobody[parse]' mirobody mcp`。
 
-## 隐私
+## 什么留在你的机器上
 
-除了你自己选的那个模型，以及你连上的设备厂商，没有任何数据离开你的机器。**② 转译这一层完全在本地**：名字对到码、单位换算成 UCUM，查的是随包发布的词表，不用 key，不联网。你的记录存在你自己的 Postgres 里，容器是你自己起的，这里不会把任何使用情况报给谁。落库加密还没覆盖到每一个字段；要把它接到一个你控制不了的网络上，先过一遍 [SECURITY.md](SECURITY.md)。
+你的记录存在你自己的 Postgres 里，容器是你自己起的，这里不会把任何使用情况报给谁。什么会离开，取决于由谁来读：
+
+| | 用模型 key | 100% 在本机运行 |
+| --- | --- | --- |
+| 你的文档和提问 | 发给那家模型厂商，受其条款约束 | 留在这里 |
+| 名字对到码、单位换算成 UCUM（**② 转译**） | 在这里，查随包发布的词表，不联网 | 同左 |
+| 模型权重 | 无 | 首次从 Hugging Face 下载一次（`.env` 里的 `HF_ENDPOINT` 可以指定镜像） |
+| 设备厂商（Garmin、Oura、Whoop） | 只在你连接之后：它的令牌和你自己的数据 | 同左 |
+| 容器镜像 | `./deploy.sh` 从 Docker Hub 拉取；Docker Hub 不通时用镜像站（`.env` 里写 `DOCKER_MIRROR=` 可关闭） | 同左 |
+
+落库加密覆盖聊天、上传的文件、用药文字和你的档案，读数和基因型还没有覆盖。要把它接到一个你控制不了的网络上，先过一遍 [SECURITY.md](SECURITY.md)，服务端会访问的所有地址都列在那里。
 
 ## 每一个数字，都可以复现
 
 | 说法 | 怎么验 |
 | --- | --- |
-| **296/296**：常规体检会打印的那些项目，按报告上真正的印法写，覆盖英文、中文（简体和繁体）、日文、俄文和爱沙尼亚文 | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 跑一下就会把分数打出来 |
+| **317/317**：常规体检会打印的那些项目，按报告上真正的印法写，覆盖英文、中文（简体和繁体）、日文、俄文和爱沙尼亚文 | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 跑一下就会把分数打出来 |
 | **328 个 UCUM 单位**，带量纲分析和摩尔质量换算，百分比和绝对值之间明确拒绝换算 | [标准化详解](docs/standardization.zh-CN.md) |
 | **316 项设备指标** | [设备对照表](docs/device-crosswalk.md) |
 | 包会自己说清楚是哪份词表在回答你：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
@@ -183,6 +210,7 @@ codex plugin marketplace add thetahealth/mirobody && codex plugin add mirobody@m
 
 | 你想要 | 这样做 |
 | --- | --- |
+| 让所有模型都跑在自己的机器上 | `./deploy.sh`，再在它给出的页面上选**100% 在本机运行**；硬件要求、实测过的模型和各平台命令见 [docs/local-models.md](docs/local-models.md)（英文） |
 | 在自己代码里做离线解析和单位换算 | `pip install mirobody`（Python 3.12+）：不用 key，不用联网，两个包 |
 | 把一份文件变成读数 | `pip install 'mirobody[parse]'`：PDF、图片、Excel、Word、PowerPoint、文本都行；只有扫描件才会送到视觉模型 |
 | 在 Claude Code、Codex、Cursor、Claude Desktop 或自己的 loop 里用这些工具 | 设置 → MCP 链接，再按[各客户端一行配置](#或者通过-mcp-接到你的-agent) |

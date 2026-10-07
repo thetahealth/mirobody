@@ -1,0 +1,722 @@
+{
+ "account": "jnl-tiny-202610061928@bench.mirobody.local",
+ "user_id": "85",
+ "sentences": [
+  {
+   "text": "Feeling queasy, probably the aircon.",
+   "lang": "en",
+   "date": "2022-09-09",
+   "seconds": 0.6,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 51349,
+      "kind": "note",
+      "at": "2022-09-09T04:00:00+00:00",
+      "text": "Feeling queasy, probably the aircon.",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:|note",
+      "coded": false,
+      "reason": "note:free-text",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 1,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "feeling queasy",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "Dry eye or other abnormal eye sensations for a year now, will see the doctor tomorrow, 6543 steps today.",
+   "lang": "en",
+   "date": "2023-05-28",
+   "seconds": 2.7,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "干眼症或其他异常眼部不适已有一年了，明天去看医生",
+      "kind": "other",
+      "name": "6543 steps today",
+      "reason": "not_in_sentence"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "Dry eye or other abnormal eye sensations",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "steps 6543",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "Been leg cramps for 5 days.",
+   "lang": "en",
+   "date": "2023-09-02",
+   "seconds": 2.1,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "腿麻",
+      "kind": "other",
+      "name": "腿麻",
+      "reason": "not_in_sentence"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "leg cramps",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "A bit Headache.",
+   "lang": "en",
+   "date": "2024-05-15",
+   "seconds": 0.5,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 51350,
+      "kind": "note",
+      "at": "2024-05-15T04:00:00+00:00",
+      "text": "A bit Headache.",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:|note",
+      "coded": false,
+      "reason": "note:free-text",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 1,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "Headache",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "Feeling anxious or nervous or tense, better than yesterday, 7088 steps today.",
+   "lang": "en",
+   "date": "2024-07-12",
+   "seconds": 2.4,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "steps",
+      "kind": "other",
+      "name": "7088 steps today",
+      "reason": "negated"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "Feeling anxious or nervous or tense",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "steps 7088",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "最近1月余总是小腿抽筋，早上体重65.5公斤。",
+   "lang": "zh",
+   "date": "2022-02-24",
+   "seconds": 2.4,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "最近1月余",
+      "kind": "other",
+      "name": "其他",
+      "reason": "someone_else"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "小腿抽筋",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "weight 65.5",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "最近半年余总是便秘，血压123/80，心率79。",
+   "lang": "zh",
+   "date": "2022-12-07",
+   "seconds": 2.3,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "便秘",
+      "kind": "other",
+      "name": "便秘",
+      "reason": "someone_else"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "便秘",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 123",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 80",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 79",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "又嗳气了，血压117/79，心率81。",
+   "lang": "zh",
+   "date": "2024-01-27",
+   "seconds": 2.4,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "嗳气",
+      "kind": "symptom",
+      "name": "嗳气",
+      "reason": "not_a_record"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "嗳气",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 117",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 79",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 81",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "眼睛干了，可能是换季。",
+   "lang": "zh",
+   "date": "2026-01-01",
+   "seconds": 2.2,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "眼睛干枯",
+      "kind": "other",
+      "name": "眼睛干枯",
+      "reason": "not_in_sentence"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "眼睛干",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "又口渴了，血压115/66，心率81。",
+   "lang": "zh",
+   "date": "2023-10-13",
+   "seconds": 6.0,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "口渴了",
+      "kind": "other",
+      "name": "口渴了",
+      "reason": "someone_else"
+     },
+     {
+      "quote": "血压115/66",
+      "kind": "other",
+      "name": "血压115/66",
+      "reason": "someone_else"
+     },
+     {
+      "quote": "心率81",
+      "kind": "other",
+      "name": "心率81",
+      "reason": "someone_else"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "口渴",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 115",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 66",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 81",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "小腿抽筋，比昨天好点了，血压129/64，心率76。",
+   "lang": "zh",
+   "date": "2026-04-17",
+   "seconds": 5.9,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "小腿抽筋，比昨天好点了",
+      "kind": "other",
+      "name": "小腿抽筋",
+      "reason": "negated"
+     },
+     {
+      "quote": "血压129/64",
+      "kind": "other",
+      "name": "血压",
+      "reason": "negated"
+     },
+     {
+      "quote": "心率76",
+      "kind": "other",
+      "name": "心率",
+      "reason": "negated"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "小腿抽筋",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 129",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 64",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 76",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "头痛，比昨天好点了。",
+   "lang": "zh",
+   "date": "2024-01-16",
+   "seconds": 2.1,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "头痛",
+      "kind": "symptom",
+      "name": "头痛",
+      "reason": "negated"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "头痛",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "肩痛了，可能是加班。",
+   "lang": "zh",
+   "date": "2024-10-09",
+   "seconds": 2.3,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "肩痛了，可能是加班。",
+      "kind": "other",
+      "name": "肩痛了，可能是加班。",
+      "reason": "hypothetical"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "肩痛",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "嗳气，比昨天好点了，今天走了5740步。",
+   "lang": "zh",
+   "date": "2024-05-28",
+   "seconds": 2.5,
+   "error": "",
+   "response": {
+    "written": [],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "嗳气",
+      "kind": "other",
+      "name": "嗳气",
+      "reason": "someone_else"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "嗳气",
+      "found": false
+     },
+     {
+      "kind": "measurement",
+      "expected": "steps 5740",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "最近3月余总是心慌。",
+   "lang": "zh",
+   "date": "2024-08-18",
+   "seconds": 0.2,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 51351,
+      "kind": "note",
+      "at": "2024-08-18T04:00:00+00:00",
+      "text": "最近3月余总是心慌。",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:|note",
+      "coded": false,
+      "reason": "note:free-text",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 0,
+    "code_ok": 0,
+    "coded_checked": 0,
+    "extra": 0,
+    "notes": 1,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "心慌",
+      "found": false
+     }
+    ],
+    "extra_entries": []
+   }
+  }
+ ]
+}

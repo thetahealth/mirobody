@@ -1,0 +1,67 @@
+{
+ "id": "p018_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "8860fe3fe131c61280337e6df22b237d5b5213747709bc4ac6b82e3b760cc2e9",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nBlood pressure log\nOctober 2024\n\nDate Time BP Pulse Notes\n30/10 7:35 137/84 64\n11 21:15 177/89 65\n31/10 7:29 121/94 65\n1/11 7:38 135/81 65\n2/11 7:00 132/82 64\n3/11 7:29 121/92 62\n4/11 7:32 135/90 64\n6/11 7:28 140/83 65 poor sleep",
+   "finish_reason": "stop",
+   "seconds": 6.96,
+   "usage": {
+    "completion_tokens": 203,
+    "prompt_tokens": 1273,
+    "total_tokens": 1476,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5710.777,
+    "prompt_per_token_ms": 4.503767350157728,
+    "prompt_per_second": 222.03633586112713,
+    "predicted_n": 203,
+    "predicted_ms": 1201.871,
+    "predicted_per_token_ms": 5.949856435643565,
+    "predicted_per_second": 168.07128219251484
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><fcel>Blood pressure log<lcel><nl><fcel>October 2024<lcel><nl><fcel>Date<fcel>Time<fcel>BP<nl><fcel>30/10<fcel>7:35<fcel>137/84 64<nl><fcel>11<fcel>21:15<fcel>177/89 65<nl><fcel>31/10<fcel>7:29<fcel>121/94 65<nl><fcel>1/11<fcel>7:38<fcel>135/81 65<nl><fcel>2/11<fcel>7:00<fcel>132/82 64<nl><fcel>3/11<fcel>7:29<fcel>121/92 62<nl><fcel>4/11<fcel>7:32<fcel>135/90 64<nl><fcel>6/11<fcel>7:28<fcel>140/83 65 poor sleep<nl>",
+   "finish_reason": "stop",
+   "seconds": 1.36,
+   "usage": {
+    "completion_tokens": 216,
+    "prompt_tokens": 1273,
+    "total_tokens": 1489,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 12.094,
+    "prompt_per_token_ms": 1.7277142857142855,
+    "prompt_per_second": 578.7994046634695,
+    "predicted_n": 216,
+    "predicted_ms": 1300.179,
+    "predicted_per_token_ms": 6.047344186046512,
+    "predicted_per_second": 165.36184633038988
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2266.0,
+  "phys_footprint_mib": 1387.6,
+  "phys_footprint_peak_mib": 1389.0
+ }
+}

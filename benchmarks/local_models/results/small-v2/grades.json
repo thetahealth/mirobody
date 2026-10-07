@@ -1,0 +1,574 @@
+{
+ "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+ "date": "2026-10-07",
+ "grades": [
+  {
+   "id": "p002-weight-latest",
+   "correct": [
+    2,
+    "57.0 kg on 2026-09-01"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p002-rhr-monthly",
+   "correct": [
+    2,
+    "the six monthly means"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "saw the day view was cut to its latest 92 points and asked per month"
+   ]
+  },
+  {
+   "id": "p002-sleep-july",
+   "correct": [
+    0,
+    "says about 444 min (7 h 25 min); the July mean is 407"
+   ],
+   "grounded": [
+    1,
+    "the mean it computed from the rows it listed is off"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    1,
+    "adds that August averaged 410-430, which it did not query"
+   ]
+  },
+  {
+   "id": "p002-checkup-summary",
+   "correct": [
+    0,
+    "no answer: the turn timed out at 600 s"
+   ],
+   "grounded": [
+    0,
+    "empty"
+   ],
+   "range": [
+    0,
+    "empty"
+   ],
+   "language": [
+    0,
+    "empty"
+   ],
+   "useful": [
+    0,
+    "empty"
+   ]
+  },
+  {
+   "id": "p002-steps-chart",
+   "correct": [
+    2,
+    "31 days, low 2,305 (Aug 22) and high 9,018 (Aug 31)"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ],
+   "chart": [
+    0,
+    "the vis-chart JSON has one brace too many, so the client draws nothing"
+   ]
+  },
+  {
+   "id": "p002-headache-journal",
+   "correct": [
+    2,
+    "6 entries, last 2025-04-10"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p002-vitd-none",
+   "correct": [
+    0,
+    "no answer: the turn timed out at 600 s"
+   ],
+   "grounded": [
+    0,
+    "empty"
+   ],
+   "range": [
+    0,
+    "empty"
+   ],
+   "language": [
+    0,
+    "empty"
+   ],
+   "useful": [
+    0,
+    "empty"
+   ]
+  },
+  {
+   "id": "p003-bp-latest",
+   "correct": [
+    2,
+    "124/73 mmHg on 2026-08-22"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-weight-change",
+   "correct": [
+    1,
+    "January 84.76 right; August given as 85.04 (record 85.22) and the change as +0.28 (record +0.46)"
+   ],
+   "grounded": [
+    1,
+    "the August mean it computed is off by 0.18"
+   ],
+   "range": [
+    0,
+    "says the weight is still within the normal range, against no printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    1,
+    "the normal-range claim"
+   ]
+  },
+  {
+   "id": "p003-hba1c-series",
+   "correct": [
+    2,
+    "6.6%, 6.1%, 6.1%, falling then flat"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-fpg-range",
+   "correct": [
+    2,
+    "4.76 mmol/L, within the printed 3.90-6.10"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-clinic-note",
+   "correct": [
+    2,
+    "diagnosis and all four plan items"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-genotype",
+   "correct": [
+    2,
+    "TT"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    1,
+    "calls TT homozygous reference; on GRCh37's plus strand the reference allele is C, so TT carries two copies of the variant"
+   ]
+  },
+  {
+   "id": "p003-bp-chart",
+   "correct": [
+    1,
+    "February given as 111.6/56.8 (the record's day values give 113.6/68.8); June and July are the day view's means"
+   ],
+   "grounded": [
+    1,
+    "it averaged the day rows itself and got February wrong"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    1,
+    "calls February's 56.8 the year's lowest diastolic, which follows from the wrong mean"
+   ],
+   "chart": [
+    1,
+    "two vis-charts of both series, with February's wrong points"
+   ]
+  },
+  {
+   "id": "p003-numbness-journal",
+   "correct": [
+    2,
+    "6 times, last 2025-12-22"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-vitd-none",
+   "correct": [
+    2,
+    "says no vitamin D result"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p004-statin-pgx",
+   "correct": [
+    2,
+    "the 7 SLCO1B1 sites, rs4149056 TC; no advice to change the statin"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p004-weight-latest",
+   "correct": [
+    2,
+    "64.3 kg on 2026-08-26"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p004-bp-september-none",
+   "correct": [
+    2,
+    "no blood pressure at all"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-range",
+   "correct": [
+    2,
+    "140, 134, 153; newest above the printed 115-150"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-ferritin-change",
+   "correct": [
+    2,
+    "42.3 to 37.1 ng/mL, -5.2, with the printed range"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-lipids-range",
+   "correct": [
+    2,
+    "TC, TG, HDL, LDL with printed ranges, all within"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-chart",
+   "correct": [
+    2,
+    "all three results"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement, or against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ],
+   "chart": [
+    2,
+    "a vis-chart of the three results"
+   ]
+  },
+  {
+   "id": "p005-weight-chart",
+   "correct": [
+    1,
+    "June and August right; says March and April have no readings: its day view, asked with no window, was cut to the latest 92 days (from May 27)"
+   ],
+   "grounded": [
+    2,
+    "values from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    1,
+    "the claim that March and April hold no data is wrong"
+   ],
+   "chart": [
+    1,
+    "a vis-chart of a partial series"
+   ]
+  }
+ ]
+}

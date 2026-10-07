@@ -1,0 +1,42 @@
+{
+ "id": "p001_2021-11-27_e01a#p3",
+ "tier": "T0",
+ "image_sha256": "b228f0d242bc84e170c84ff286948e56a08555060a2d40035ac3571566dc9fb7",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>外眼<lcel><fcel>未见异常<nl>\n<fcel>结膜<lcel><fcel>未见异常<nl>\n<fcel>眼压<lcel><fcel>16/14 mmHg<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.09,
+   "usage": {
+    "completion_tokens": 36,
+    "prompt_tokens": 2170,
+    "total_tokens": 2206,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11701.429,
+    "prompt_per_token_ms": 5.429897447795824,
+    "prompt_per_second": 184.1655408070245,
+    "predicted_n": 36,
+    "predicted_ms": 332.294,
+    "predicted_per_token_ms": 9.494114285714286,
+    "predicted_per_second": 105.3284139948359
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1658.8,
+  "phys_footprint_mib": 1205.8,
+  "phys_footprint_peak_mib": 1206.1
+ }
+}

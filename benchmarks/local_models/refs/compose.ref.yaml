@@ -1,0 +1,14 @@
+# Eval-only: the app and the worker read a reference's model configuration
+# (refs/<ref>.llm.yaml, REF_CONFIG) in place of ./config.llm.yaml. Compose
+# merges volumes by their container path, so this mount replaces the one in
+# compose.override.yaml. Used as:
+#   REF_CONFIG=./benchmarks/local_models/refs/<ref>.llm.yaml docker compose \
+#     -f compose.yaml -f compose.override.yaml -f benchmarks/local_models/refs/compose.ref.yaml \
+#     up -d --force-recreate --no-deps mirobody mirobody_worker
+services:
+  mirobody:
+    volumes:
+      - ${REF_CONFIG:?set REF_CONFIG to a refs/<ref>.llm.yaml}:/app/config.llm.yaml:ro
+  mirobody_worker:
+    volumes:
+      - ${REF_CONFIG:?set REF_CONFIG to a refs/<ref>.llm.yaml}:/app/config.llm.yaml:ro

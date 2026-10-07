@@ -39,11 +39,11 @@ MAX_RENDER_CHARS = 40_000
 #: device-namespace row carries the indicator's own name in `code`.
 _COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "name", "time", "value", "unit", "system", "code", "file"),
+    "readings": ("indicator", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
     "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
     "stats": ("indicator", "count", "min", "max", "avg", "first", "first_date", "last", "last_date",
               "change", "unit", "mixed_units", "system", "code"),
-    "latest": ("indicator", "name", "date", "time", "value", "unit", "system", "code", "file"),
+    "latest": ("indicator", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the
@@ -114,7 +114,10 @@ def render_compact(envelope: tools.Envelope, columns: Sequence[str] | None = Non
     body = table or "(no rows)"
     if len(body) > MAX_RENDER_CHARS:
         body = body[:MAX_RENDER_CHARS] + f"\n… cut at {MAX_RENDER_CHARS} characters"
-    lines = [body, "", _meta_line(envelope.meta)]
+    # A cut answer says so before its rows: said after them, among the notes,
+    # it was missed (`tools.Meta.cut`).
+    lines = [envelope.meta.cut, "", body] if envelope.meta.cut else [body]
+    lines += ["", _meta_line(envelope.meta)]
     if envelope.assumptions:
         lines.append("notes: " + "; ".join(envelope.assumptions))
     if envelope.next_steps:
@@ -132,6 +135,7 @@ def render_rest(envelope: tools.Envelope) -> dict[str, Any]:
         "count": meta.row_count,
         "total": meta.catalog_total or meta.row_count,
         "truncated": meta.truncated,
+        **({"cut": meta.cut} if meta.cut else {}),
         "window": {"start": meta.window[0], "end": meta.window[1], "tz": meta.tz, "semantics": meta.window_semantics},
         "view": meta.view,
         "status": envelope.status,

@@ -89,8 +89,9 @@ def _request_kwargs(spec: RouteSpec, kwargs: dict[str, Any]) -> dict[str, Any]:
     if spec.reasoning_effort and "reasoning_effort" not in out:
         # Only when the entry declares it, so an endpoint that has never heard
         # of the parameter never sees it. `openai-utils` declares `none`
-        # because gpt-5.6-terra otherwise keeps reasoning on and then rejects
-        # the `temperature: 0` every extraction caller sends.
+        # because GPT-6 Luna, like gpt-5.6-terra before it, otherwise keeps
+        # reasoning on and then rejects the `temperature: 0` every extraction
+        # caller sends.
         out["reasoning_effort"] = spec.reasoning_effort
     return out
 
@@ -113,7 +114,7 @@ async def async_get_structured_output(
     """
     import time
     from .clients import client_manager
-    from .file_processors.results import clean_json_response
+    from .file_processors.results import clean_json_response, salvage_truncated_json
 
     start_time = time.time()
     spec = _route(provider, model_name, "text")
@@ -160,7 +161,18 @@ async def async_get_structured_output(
         # on Anthropic's compatibility endpoint, 2026-09-10. The vision path has
         # always stripped it; this one used to hand the fence to `json.loads`.
         # A no-op on a real json_schema answer, which never starts with a fence.
-        final_result = json.loads(clean_json_response(content))
+        try:
+            final_result = json.loads(clean_json_response(content))
+        except json.JSONDecodeError:
+            # Cut off at max_tokens: keep the part that closed. Any other
+            # malformed answer is still a failed call.
+            if response.choices[0].finish_reason != "length":
+                raise
+            final_result = salvage_truncated_json(clean_json_response(content))
+            if final_result is None:
+                raise
+            logger.warning(f"structured output from {provider_name} hit max_tokens; kept its complete part "
+                           f"({len(content)} chars returned)")
         duration = time.time() - start_time
         logger.info(f"{provider_name} structured output completed, duration: {duration:.3f}s")
         return final_result

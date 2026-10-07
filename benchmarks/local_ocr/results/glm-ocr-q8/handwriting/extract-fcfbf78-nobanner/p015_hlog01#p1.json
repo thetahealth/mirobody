@@ -1,0 +1,110 @@
+{
+ "id": "p015_hlog01#p1",
+ "llm": true,
+ "seconds": 14.03,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "Morning fasting",
+   "date_time": "2023-07-17"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.7",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-07-20"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.3",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-07-24"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "44.4",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "high",
+   "notes": "Morning fasting",
+   "date_time": "2023-07-28"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "64.4",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "high",
+   "notes": "Morning fasting",
+   "date_time": "2023-07-28"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.5",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-07-31"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.4",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-08-04"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.4",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-08-05"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-08-06"
+  },
+  {
+   "original_indicator": "体重(kg)",
+   "value": "63.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-08-07"
+  }
+ ],
+ "date_time": "",
+ "content_type": "medical_report"
+}

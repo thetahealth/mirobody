@@ -123,9 +123,9 @@ _PROFILES: dict[str, dict] = {
         "sleep_h": None,
         "bp": (114, 74, 28),
         "lab": ("2025-11-12", "you_lab_2025-11.md", (
-            ("Glycated Hemoglobin-HbA1c", 5.3, "%"),
-            ("Fasting Blood Glucose-FBG", 5.1, "mmol/L"),
-            ("Total Cholesterol-TC", 4.60, "mmol/L"),
+            ("Glycated Hemoglobin-HbA1c", 5.3, "%", "4.0-5.6", ""),
+            ("Fasting Blood Glucose-FBG", 5.1, "mmol/L", "3.9-6.1", ""),
+            ("Total Cholesterol-TC", 4.60, "mmol/L", "3.0-5.18", ""),
         )),
         "uploads": ("you_annual_checkup_2026-05.pdf", "you_lipid_panel_2026-08.csv"),
     },
@@ -141,9 +141,9 @@ _PROFILES: dict[str, dict] = {
         "sleep_h": (6.1, 5.4),
         "bp": (132, 86, 14),
         "lab": ("2025-11-12", "mom_lab_2025-11.md", (
-            ("Glycated Hemoglobin-HbA1c", 5.8, "%"),
-            ("Fasting Blood Glucose-FBG", 5.6, "mmol/L"),
-            ("Total Cholesterol-TC", 5.30, "mmol/L"),
+            ("Glycated Hemoglobin-HbA1c", 5.8, "%", "4.0-5.6", "high"),
+            ("Fasting Blood Glucose-FBG", 5.6, "mmol/L", "3.9-6.1", ""),
+            ("Total Cholesterol-TC", 5.30, "mmol/L", "3.0-5.18", "high"),
         )),
         "uploads": ("mom_physical_2026-06.jpg", "mom_clinic_visit_2026-07.xlsx"),
     },
@@ -196,7 +196,7 @@ def _member_series(member_id: str, email: str) -> list[dict]:
     common = {"user_id": member_id, "source": "demo.self_tracked", "indicator_id": "", "task_id": ""}
     first_day = _LAST_DAY - timedelta(days=_SPAN_DAYS - 1)
 
-    def row(indicator, value, day, unit, comment, time="08:00:00", document=""):
+    def row(indicator, value, day, unit, comment, time="08:00:00", document="", ref="", flag=""):
         """`document` is the file this reading was READ OFF, or "" for a device.
 
         `collect.query._reading_row` takes a reading's `source_table_id` as its
@@ -210,7 +210,8 @@ def _member_series(member_id: str, email: str) -> list[dict]:
                     start_time=ts, end_time=ts,
                     source_table="th_files" if document else "demo_seed",
                     source_table_id=f"demo/{email}/{document}" if document else "",
-                    comment=comment, fhir_mapping_info=json.dumps({"unit": unit}))
+                    comment=comment, fhir_mapping_info=json.dumps({"unit": unit}),
+                    reference_range=ref, flag=flag)
 
     def noise(indicator: str) -> random.Random:
         return random.Random(f"{email}:{indicator}")
@@ -262,15 +263,16 @@ def _member_series(member_id: str, email: str) -> list[dict]:
                             "Watch, self-tracked", time="07:00:00"))
 
     # The seeded panel, last, under the names a lab report PRINTS rather than
-    # the device catalogue's. Two reasons, both measured: `collect.query`
-    # resolves the indicator NAME to a LOINC code at read time, and
-    # `GlycatedHemoglobin-HbA1c` does not resolve while `Glycated Hemoglobin-
-    # HbA1c` is 4548-4; and the file this account uploads prints the same
-    # names, so the upload lands on this series instead of beside it.
+    # the device catalogue's: `collect.query` resolves the NAME to a LOINC code
+    # at read time, and `GlycatedHemoglobin-HbA1c` does not resolve while
+    # `Glycated Hemoglobin-HbA1c` is 4548-4; and the file this account uploads
+    # prints the same names, so the upload lands on this series. With the range
+    # and flag the document prints, in the words an upload stores (`H` -> `high`):
+    # without them an answer had to open the file to say whether one was in range.
     lab_day, document, panel = profile["lab"]
-    for indicator, value, unit in panel:
+    for indicator, value, unit, ref, flag in panel:
         rows.append(row(indicator, value, lab_day, unit, "Lab draw",
-                        time="09:15:00", document=document))
+                        time="09:15:00", document=document, ref=ref, flag=flag))
     rows[-1]["comment"] = PHI_CANARY
     return rows
 

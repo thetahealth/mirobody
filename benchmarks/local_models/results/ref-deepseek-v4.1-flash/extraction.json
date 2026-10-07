@@ -1,0 +1,2581 @@
+{
+ "account": "ext-ref-deepseek-v4.1-flash-202610062038@bench.mirobody.local",
+ "user_id": "90",
+ "documents": [
+  {
+   "label": "text-layer PDF, lab slip (zh), header the rules know",
+   "file": "files/p005/p005_2026-03-05_e07b.pdf",
+   "file_key": "uploads/20261006_124412_a3cd17ac.pdf",
+   "status": "done",
+   "seconds": 12.4,
+   "filed_s": 10.2,
+   "error": "",
+   "indicators_count": 4,
+   "report_date": "2026-03-05 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2026-03-05_贫血相关检测报告_向伟博.pdf",
+   "score": {
+    "rows": 4,
+    "found": 4,
+    "unit_ok": 4,
+    "range_ok": 4,
+    "flag_ok": 0,
+    "flag_rows": 4,
+    "stored": 4,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [
+     "2026-03-05"
+    ],
+    "date_ok": true,
+    "by_extractor": {
+     "rules:table@v1": 4
+    },
+    "detail": [
+     {
+      "row": 0,
+      "name": "FER",
+      "value": "42.3",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": false,
+      "stored": {
+       "name": "FER",
+       "value": "42.3",
+       "unit": "ng/mL",
+       "ref": "13.0-150.0",
+       "flag": "",
+       "date": "2026-03-05",
+       "extractor": "rules:table@v1"
+      }
+     },
+     {
+      "row": 1,
+      "name": "Fe",
+      "value": "15.2",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": false,
+      "stored": {
+       "name": "Fe",
+       "value": "15.2",
+       "unit": "μmol/l",
+       "ref": "9.0-30.4",
+       "flag": "",
+       "date": "2026-03-05",
+       "extractor": "rules:table@v1"
+      }
+     },
+     {
+      "row": 2,
+      "name": "VB12",
+      "value": "299",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": false,
+      "stored": {
+       "name": "VB12",
+       "value": "299",
+       "unit": "pmol/L",
+       "ref": "145-569",
+       "flag": "",
+       "date": "2026-03-05",
+       "extractor": "rules:table@v1"
+      }
+     },
+     {
+      "row": 3,
+      "name": "FA",
+      "value": "23.2",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": false,
+      "stored": {
+       "name": "FA",
+       "value": "23.2",
+       "unit": "nmol/L",
+       "ref": "7.0-46.4",
+       "flag": "",
+       "date": "2026-03-05",
+       "extractor": "rules:table@v1"
+      }
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "text-layer PDF, lab slip (zh)",
+   "file": "files/p004/p004_2023-11-12_e01a.pdf",
+   "file_key": "uploads/20261006_124424_45f837a3.pdf",
+   "status": "done",
+   "seconds": 32.6,
+   "filed_s": 10.1,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2023-11-12 12:38:58",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2023-11-12_芷霖中医医院血脂检验报告.pdf",
+   "score": {
+    "rows": 6,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "总胆固醇",
+      "value": "6.49",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "甘油三酯",
+      "value": "0.97",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "高密度脂蛋白胆固醇",
+      "value": "0.99",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "低密度脂蛋白胆固醇",
+      "value": "5.06",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "载脂蛋白A1",
+      "value": "1.23",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "载脂蛋白B",
+      "value": "0.82",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "text-layer PDF, lab slip (en)",
+   "file": "files/p006/p006_2024-10-25_e09a.pdf",
+   "file_key": "uploads/20261006_124457_ddeed75a.pdf",
+   "status": "done",
+   "seconds": 27.6,
+   "filed_s": 5.0,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2024-10-25 12:58:10",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2024-10-25_Thyroid_Lab_Report.pdf",
+   "score": {
+    "rows": 6,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "TSH",
+      "value": "2.242",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "FT3",
+      "value": "4.30",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "FT4",
+      "value": "16.03",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "TT3",
+      "value": "2.81",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "TT4",
+      "value": "116.0",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "TPOAb",
+      "value": "35.1",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "CSV export",
+   "file": "files/p004/p004_2024-05-10_e04a.csv",
+   "file_key": "uploads/20261006_124525_addce249.csv",
+   "status": "done",
+   "seconds": 29.8,
+   "filed_s": 7.0,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2024-05-10 08:10:00",
+   "date_source": "extracted",
+   "scene": "csv",
+   "title": "2024-05-10_血脂检验报告单_贺瑶欣.csv",
+   "score": {
+    "rows": 6,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "总胆固醇",
+      "value": "7.49",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "甘油三酯",
+      "value": "1.40",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "高密度脂蛋白胆固醇",
+      "value": "1.01",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "低密度脂蛋白胆固醇",
+      "value": "5.84",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "载脂蛋白A1",
+      "value": "1.38",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "载脂蛋白B",
+      "value": "0.97",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "XLSX, Traditional Chinese",
+   "file": "files/p004/p004_2026-04-30_e11b.xlsx",
+   "file_key": "uploads/20261006_124554_cc9000b5.xlsx",
+   "status": "done",
+   "seconds": 48.2,
+   "filed_s": 30.6,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2026-05-01 00:00:00",
+   "date_source": "extracted",
+   "scene": "excel",
+   "title": "2026-04-30_血脂检验报告.xlsx",
+   "score": {
+    "rows": 6,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "血清总胆固醇",
+      "value": "4.72",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "甘油三脂",
+      "value": "1.03",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "高密度脂蛋白",
+      "value": "0.97",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "低密度脂蛋白",
+      "value": "3.28",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "载脂蛋白A1",
+      "value": "1.21",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "载脂蛋白B",
+      "value": "0.84",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": false
+  },
+  {
+   "label": "flatbed scan (PDF)",
+   "file": "files/p003/p003_2025-04-05_e07a.pdf",
+   "file_key": "uploads/20261006_124643_7adc09b1.pdf",
+   "status": "done",
+   "seconds": 27.8,
+   "filed_s": 15.3,
+   "error": "",
+   "indicators_count": 3,
+   "report_date": "2025-04-05 09:11:41",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2025-04-05_血糖检验报告_闫柏超.pdf",
+   "score": {
+    "rows": 3,
+    "found": 3,
+    "unit_ok": 3,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 3,
+    "stored": 3,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [
+     "2025-04-05"
+    ],
+    "date_ok": true,
+    "by_extractor": {
+     "rules:table@v1+llm:file-parser@indicators-v1": 3
+    },
+    "detail": [
+     {
+      "row": 0,
+      "name": "FPG",
+      "value": "4.69",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": false,
+      "flag_ok": false,
+      "stored": {
+       "name": "FPG",
+       "value": "4.69",
+       "unit": "",
+       "ref": "",
+       "flag": "",
+       "date": "2025-04-05",
+       "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 1,
+      "name": "HbA1c",
+      "value": "6.1",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": false,
+      "flag_ok": false,
+      "stored": {
+       "name": "HbA1c",
+       "value": "6.1",
+       "unit": "",
+       "ref": "",
+       "flag": "",
+       "date": "2025-04-05",
+       "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 2,
+      "name": "GA",
+      "value": "13.6",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": false,
+      "flag_ok": false,
+      "stored": {
+       "name": "GA",
+       "value": "13.6",
+       "unit": "",
+       "ref": "",
+       "flag": "",
+       "date": "2025-04-05",
+       "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
+      }
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "phone photo, oblique",
+   "file": "files/p004/p004_2025-11-01_e09a.jpg",
+   "file_key": "uploads/20261006_124710_68eba0cd.jpg",
+   "status": "done",
+   "seconds": 22.7,
+   "filed_s": 10.2,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2025-11-02 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2025-11-02_贺瑶欣_血脂检验报告.jpg",
+   "score": {
+    "rows": 6,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "总胆固醇(TC)",
+      "value": "5.18",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "甘油三酯(TG)",
+      "value": "1.12",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "高密度脂蛋白胆固醇(HDL-C)",
+      "value": "1.08",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "低密度脂蛋白胆固醇(LDL-C)",
+      "value": "3.59",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "载脂蛋白A1(ApoA1)",
+      "value": "1.23",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "载脂蛋白B(ApoB)",
+      "value": "0.82",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "photocopy (JPG)",
+   "file": "files/p003/p003_2024-10-07_e06b.jpg",
+   "file_key": "uploads/20261006_124733_a79d9d95.jpg",
+   "status": "done",
+   "seconds": 7.2,
+   "filed_s": 5.1,
+   "error": "",
+   "indicators_count": 2,
+   "report_date": "2024-10-07 08:12:31",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2024-10-08_闫柏超血糖检验报告.jpg",
+   "score": {
+    "rows": 2,
+    "found": 2,
+    "unit_ok": 2,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 2,
+    "stored": 2,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [
+     "2024-10-07"
+    ],
+    "date_ok": true,
+    "by_extractor": {
+     "rules:table@v1": 2
+    },
+    "detail": [
+     {
+      "row": 0,
+      "name": "FPG",
+      "value": "4.67",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": false,
+      "flag_ok": false,
+      "stored": {
+       "name": "FPG",
+       "value": "4.67",
+       "unit": "",
+       "ref": "",
+       "flag": "",
+       "date": "2024-10-07",
+       "extractor": "rules:table@v1"
+      }
+     },
+     {
+      "row": 1,
+      "name": "HbA1c",
+      "value": "5.5",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": false,
+      "flag_ok": false,
+      "stored": {
+       "name": "HbA1c",
+       "value": "5.5",
+       "unit": "",
+       "ref": "",
+       "flag": "",
+       "date": "2024-10-07",
+       "extractor": "rules:table@v1"
+      }
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "app screenshot (en)",
+   "file": "files/p006/p006_2026-04-18_e13a.png",
+   "file_key": "uploads/20261006_124740_5b54de3d.png",
+   "status": "done",
+   "seconds": 29.7,
+   "filed_s": 7.0,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2026-10-06 20:47:47",
+   "date_source": "upload_time",
+   "scene": "report",
+   "title": "2026-04-18_Thyroid_Function_Report.png",
+   "score": {
+    "rows": 6,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "Thyroid stimulating hormone",
+      "value": "1.244",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "Free triiodothyronine",
+      "value": "4.48",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "Free thyroxine",
+      "value": "15.89",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "Total triiodothyronine",
+      "value": "3.10",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "Total thyroxine",
+      "value": "113.1",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "Thyroid peroxidase antibody",
+      "value": "36.4",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": false
+  },
+  {
+   "label": "check-up book, text-layer PDF, 7 pages (en)",
+   "file": "files/p002/p002_2026-08-07_e04a.pdf",
+   "file_key": "uploads/20261006_124810_50cc7f8f.pdf",
+   "status": "done",
+   "seconds": 55.4,
+   "filed_s": 12.2,
+   "error": "",
+   "indicators_count": 127,
+   "report_date": "2026-08-07 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2026-08-07_Health_Checkup_Report.pdf",
+   "score": {
+    "rows": 78,
+    "found": 77,
+    "unit_ok": 77,
+    "range_ok": 76,
+    "flag_ok": 75,
+    "flag_rows": 75,
+    "stored": 117,
+    "extra": 40,
+    "extra_distractors": 0,
+    "dates_stored": [
+     "2026-08-07"
+    ],
+    "date_ok": true,
+    "by_extractor": {
+     "llm:file-parser@indicators-v1": 117
+    },
+    "detail": [
+     {
+      "row": 0,
+      "name": "Height",
+      "value": "161.7",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": null,
+      "stored": {
+       "name": "Height",
+       "value": "161.7",
+       "unit": "cm",
+       "ref": "",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 1,
+      "name": "Body weight",
+      "value": "57.0",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": null,
+      "stored": {
+       "name": "Body weight",
+       "value": "57.0",
+       "unit": "kg",
+       "ref": "",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 2,
+      "name": "Body mass index(BMI)",
+      "value": "21.8",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Body mass index(BMI)",
+       "value": "21.8",
+       "unit": "kg/m²",
+       "ref": "18.5--23.9",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 3,
+      "name": "Blood Pressure",
+      "value": "123/78",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "Heart rate(HR)",
+      "value": "69",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": false,
+      "flag_ok": true,
+      "stored": {
+       "name": "Heart rate",
+       "value": "69",
+       "unit": "次/分",
+       "ref": "",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 5,
+      "name": "White blood cell count(WBC)",
+      "value": "9.04",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "White blood cell count(WBC)",
+       "value": "9.04",
+       "unit": "10^9/L",
+       "ref": "3.50--9.50",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 6,
+      "name": "Red blood cell count(RBC)",
+      "value": "4.60",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Red blood cell count(RBC)",
+       "value": "4.60",
+       "unit": "10^12/L",
+       "ref": "3.80--5.10",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 7,
+      "name": "Hemoglobin(HGB)",
+      "value": "138",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hemoglobin(HGB)",
+       "value": "138",
+       "unit": "g/L",
+       "ref": "115--150",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 8,
+      "name": "Hematocrit(HCT)",
+      "value": "42.8",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hematocrit(HCT)",
+       "value": "42.8",
+       "unit": "%",
+       "ref": "35.0--45.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 9,
+      "name": "Mean corpuscular volume(MCV)",
+      "value": "93.0",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Mean corpuscular volume(MCV)",
+       "value": "93.0",
+       "unit": "fL",
+       "ref": "82.0--100.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 10,
+      "name": "Mean corpuscular hemoglobin(MCH)",
+      "value": "30.0",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Mean corpuscular hemoglobin(MCH)",
+       "value": "30.0",
+       "unit": "pg",
+       "ref": "27.0--34.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 11,
+      "name": "Mean corpuscular hemoglobin concentration(MCHC)",
+      "value": "323",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Mean corpuscular hemoglobin concentration(MCHC)",
+       "value": "323",
+       "unit": "g/L",
+       "ref": "316--354",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 12,
+      "name": "Red cell distribution width(RDW-CV)",
+      "value": "14.0",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Red cell distribution width(RDW-CV)",
+       "value": "14.0",
+       "unit": "%",
+       "ref": "11.5--14.5",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 13,
+      "name": "Platelet count(PLT)",
+      "value": "177",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Platelet count(PLT)",
+       "value": "177",
+       "unit": "10^9/L",
+       "ref": "125--350",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 14,
+      "name": "Mean platelet volume(MPV)",
+      "value": "11.1",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Mean platelet volume(MPV)",
+       "value": "11.1",
+       "unit": "fL",
+       "ref": "7.6--13.2",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 15,
+      "name": "Platelet distribution width(PDW)",
+      "value": "12.2",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Platelet distribution width(PDW)",
+       "value": "12.2",
+       "unit": "fL",
+       "ref": "9.0--17.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 16,
+      "name": "Plateletcrit(PCT)",
+      "value": "0.189",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Plateletcrit(PCT)",
+       "value": "0.189",
+       "unit": "%",
+       "ref": "0.108--0.282",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 17,
+      "name": "Neutrophil percentage(NEUT%)",
+      "value": "55.1",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Neutrophil percentage(NEUT%)",
+       "value": "55.1",
+       "unit": "%",
+       "ref": "40.0--75.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 18,
+      "name": "Lymphocyte percentage(LYMPH%)",
+      "value": "31.3",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Lymphocyte percentage(LYMPH%)",
+       "value": "31.3",
+       "unit": "%",
+       "ref": "20.0--50.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 19,
+      "name": "Monocyte percentage(MONO%)",
+      "value": "5.9",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Monocyte percentage(MONO%)",
+       "value": "5.9",
+       "unit": "%",
+       "ref": "3.0--10.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 20,
+      "name": "Eosinophil percentage(EO%)",
+      "value": "7.3",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Eosinophil percentage(EO%)",
+       "value": "7.3",
+       "unit": "%",
+       "ref": "0.4--8.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 21,
+      "name": "Basophil percentage(BASO%)",
+      "value": "0.4",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Basophil percentage(BASO%)",
+       "value": "0.4",
+       "unit": "%",
+       "ref": "0.0--1.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 22,
+      "name": "Neutrophil count(NEUT#)",
+      "value": "4.98",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Neutrophil count(NEUT#)",
+       "value": "4.98",
+       "unit": "10^9/L",
+       "ref": "1.80--6.30",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 23,
+      "name": "Lymphocyte count(LYMPH#)",
+      "value": "2.83",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Lymphocyte count(LYMPH#)",
+       "value": "2.83",
+       "unit": "10^9/L",
+       "ref": "1.10--3.20",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 24,
+      "name": "Monocyte count(MONO#)",
+      "value": "0.53",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Monocyte count(MONO#)",
+       "value": "0.53",
+       "unit": "10^9/L",
+       "ref": "0.10--0.60",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 25,
+      "name": "Eosinophil count(EO#)",
+      "value": "0.66",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Eosinophil count(EO#)",
+       "value": "0.66",
+       "unit": "10^9/L",
+       "ref": "0.02--0.52",
+       "flag": "high",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 26,
+      "name": "Basophil count(BASO#)",
+      "value": "0.04",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Basophil count(BASO#)",
+       "value": "0.04",
+       "unit": "10^9/L",
+       "ref": "0.00--0.06",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 27,
+      "name": "Alanine aminotransferase(ALT)",
+      "value": "19",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Alanine aminotransferase(ALT)",
+       "value": "19",
+       "unit": "U/L",
+       "ref": "7--40",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 28,
+      "name": "Aspartate aminotransferase(AST)",
+      "value": "13",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Aspartate aminotransferase(AST)",
+       "value": "13",
+       "unit": "U/L",
+       "ref": "13--35",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 29,
+      "name": "Alkaline phosphatase(ALP)",
+      "value": "54",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Alkaline phosphatase(ALP)",
+       "value": "54",
+       "unit": "U/L",
+       "ref": "35--100",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 30,
+      "name": "Gamma-glutamyl transferase(GGT)",
+      "value": "16",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Gamma-glutamyl transferase(GGT)",
+       "value": "16",
+       "unit": "U/L",
+       "ref": "7--45",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 31,
+      "name": "Total protein(TP)",
+      "value": "74.1",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Total protein(TP)",
+       "value": "74.1",
+       "unit": "g/L",
+       "ref": "65.0--85.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 32,
+      "name": "Albumin(ALB)",
+      "value": "42.3",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Albumin(ALB)",
+       "value": "42.3",
+       "unit": "g/L",
+       "ref": "40.0--55.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 33,
+      "name": "Globulin(GLB)",
+      "value": "31.8",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Globulin(GLB)",
+       "value": "31.8",
+       "unit": "g/L",
+       "ref": "20.0--40.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 34,
+      "name": "Total bilirubin(TBIL)",
+      "value": "14.1",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Total bilirubin(TBIL)",
+       "value": "14.1",
+       "unit": "μmol/L",
+       "ref": "0.0--21.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 35,
+      "name": "Direct bilirubin(DBIL)",
+      "value": "2.7",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Direct bilirubin(DBIL)",
+       "value": "2.7",
+       "unit": "μmol/L",
+       "ref": "<8.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 36,
+      "name": "Indirect bilirubin(IBIL)",
+      "value": "11.4",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Indirect bilirubin(IBIL)",
+       "value": "11.4",
+       "unit": "μmol/L",
+       "ref": "0.0--18.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 37,
+      "name": "Total bile acid(TBA)",
+      "value": "3.5",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Total bile acid(TBA)",
+       "value": "3.5",
+       "unit": "μmol/L",
+       "ref": "<10.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 38,
+      "name": "Urea(BUN)",
+      "value": "3.79",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urea(BUN)",
+       "value": "3.79",
+       "unit": "mmol/L",
+       "ref": "2.60--7.50",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 39,
+      "name": "Creatinine(CREA)",
+      "value": "51",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Creatinine(CREA)",
+       "value": "51",
+       "unit": "μmol/L",
+       "ref": "41--73",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 40,
+      "name": "Uric acid(UA)",
+      "value": "236",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Uric acid(UA)",
+       "value": "236",
+       "unit": "μmol/L",
+       "ref": "155--357",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 41,
+      "name": "Potassium(K)",
+      "value": "4.09",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Potassium(K)",
+       "value": "4.09",
+       "unit": "mmol/L",
+       "ref": "3.50--5.30",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 42,
+      "name": "Sodium(Na)",
+      "value": "142.2",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Sodium(Na)",
+       "value": "142.2",
+       "unit": "mmol/L",
+       "ref": "137.0--147.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 43,
+      "name": "Chloride(Cl)",
+      "value": "110.7",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Chloride(Cl)",
+       "value": "110.7",
+       "unit": "mmol/L",
+       "ref": "99.0--110.0",
+       "flag": "high",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 44,
+      "name": "Calcium(Ca)",
+      "value": "2.23",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Calcium(Ca)",
+       "value": "2.23",
+       "unit": "mmol/L",
+       "ref": "2.11--2.52",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 45,
+      "name": "Total cholesterol(TC)",
+      "value": "3.89",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Total cholesterol(TC)",
+       "value": "3.89",
+       "unit": "mmol/L",
+       "ref": "<5.18",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 46,
+      "name": "Triglycerides(TG)",
+      "value": "0.89",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Triglycerides(TG)",
+       "value": "0.89",
+       "unit": "mmol/L",
+       "ref": "<1.70",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 47,
+      "name": "HDL cholesterol(HDL-C)",
+      "value": "1.81",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "HDL cholesterol(HDL-C)",
+       "value": "1.81",
+       "unit": "mmol/L",
+       "ref": ">1.04",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 48,
+      "name": "LDL cholesterol(LDL-C)",
+      "value": "1.68",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "LDL cholesterol(LDL-C)",
+       "value": "1.68",
+       "unit": "mmol/L",
+       "ref": "<3.37",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 49,
+      "name": "Apolipoprotein A1(ApoA1)",
+      "value": "1.69",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Apolipoprotein A1(ApoA1)",
+       "value": "1.69",
+       "unit": "g/L",
+       "ref": "1.20--1.60",
+       "flag": "high",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 50,
+      "name": "Apolipoprotein B(ApoB)",
+      "value": "0.58",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Apolipoprotein B(ApoB)",
+       "value": "0.58",
+       "unit": "g/L",
+       "ref": "0.60--1.10",
+       "flag": "low",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 51,
+      "name": "Fasting plasma glucose(FPG)",
+      "value": "4.45",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Fasting plasma glucose(FPG)",
+       "value": "4.45",
+       "unit": "mmol/L",
+       "ref": "3.90--6.10",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 52,
+      "name": "Glycated hemoglobin(HbA1c)",
+      "value": "4.5",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Glycated hemoglobin(HbA1c)",
+       "value": "4.5",
+       "unit": "%",
+       "ref": "4.0--6.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 53,
+      "name": "Thyroid stimulating hormone(TSH)",
+      "value": "2.421",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Thyroid stimulating hormone(TSH)",
+       "value": "2.421",
+       "unit": "mIU/L",
+       "ref": "0.270--4.200",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 54,
+      "name": "Free triiodothyronine(FT3)",
+      "value": "6.32",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Free triiodothyronine(FT3)",
+       "value": "6.32",
+       "unit": "pmol/L",
+       "ref": "3.10--6.80",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 55,
+      "name": "Free thyroxine(FT4)",
+      "value": "19.02",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Free thyroxine(FT4)",
+       "value": "19.02",
+       "unit": "pmol/L",
+       "ref": "12.00--22.00",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 56,
+      "name": "Urine specific gravity(SG)",
+      "value": "1.021",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine specific gravity(SG)",
+       "value": "1.021",
+       "unit": "",
+       "ref": "1.003--1.030",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 57,
+      "name": "Urine pH(pH)",
+      "value": "5.4",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine pH(pH)",
+       "value": "5.4",
+       "unit": "",
+       "ref": "4.5--8.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 58,
+      "name": "Urine protein(PRO)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine protein(PRO)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 59,
+      "name": "Urine glucose(GLU)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine glucose(GLU)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 60,
+      "name": "Urine occult blood(BLD)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine occult blood(BLD)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 61,
+      "name": "Urine ketone(KET)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine ketone(KET)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 62,
+      "name": "Nitrite(NIT)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Nitrite(NIT)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 63,
+      "name": "Urine RBC (microscopy)(U-RBC)",
+      "value": "0.6",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine RBC (microscopy)(U-RBC)",
+       "value": "0.6",
+       "unit": "/HP",
+       "ref": "0.0--3.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 64,
+      "name": "Urine WBC (microscopy)(U-WBC)",
+      "value": "1.1",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Urine WBC (microscopy)(U-WBC)",
+       "value": "1.1",
+       "unit": "/HP",
+       "ref": "0.0--5.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 65,
+      "name": "High-sensitivity CRP(hs-CRP)",
+      "value": "0.73",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "High-sensitivity CRP(hs-CRP)",
+       "value": "0.73",
+       "unit": "mg/L",
+       "ref": "<3.00",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 66,
+      "name": "Hepatitis B surface antigen(HBsAg)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hepatitis B surface antigen(HBsAg)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 67,
+      "name": "Hepatitis B surface antibody(HBsAb)",
+      "value": "Positive",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hepatitis B surface antibody(HBsAb)",
+       "value": "Positive",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 68,
+      "name": "Hepatitis B e antigen(HBeAg)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hepatitis B e antigen(HBeAg)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 69,
+      "name": "Hepatitis B e antibody(HBeAb)",
+      "value": "Negative",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hepatitis B e antibody(HBeAb)",
+       "value": "Negative",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 70,
+      "name": "Hepatitis B core antibody(HBcAb)",
+      "value": "Positive",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Hepatitis B core antibody(HBcAb)",
+       "value": "Positive",
+       "unit": "",
+       "ref": "阴性",
+       "flag": "high",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 71,
+      "name": "Alpha-fetoprotein(AFP)",
+      "value": "2.70",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Alpha-fetoprotein(AFP)",
+       "value": "2.70",
+       "unit": "ng/mL",
+       "ref": "<7.00",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 72,
+      "name": "Carcinoembryonic antigen(CEA)",
+      "value": "1.78",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Carcinoembryonic antigen(CEA)",
+       "value": "1.78",
+       "unit": "ng/mL",
+       "ref": "<5.00",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 73,
+      "name": "Cancer antigen 125(CA125)",
+      "value": "12.5",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "Cancer antigen 125(CA125)",
+       "value": "12.5",
+       "unit": "U/mL",
+       "ref": "<35.0",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 74,
+      "name": "PR interval(PR)",
+      "value": "146",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "PR interval(PR)",
+       "value": "146",
+       "unit": "ms",
+       "ref": "120--200",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 75,
+      "name": "QRS duration(QRS)",
+      "value": "80",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "QRS duration(QRS)",
+       "value": "80",
+       "unit": "ms",
+       "ref": "60--110",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 76,
+      "name": "QTc interval(QTc)",
+      "value": "354",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "QTc interval(QTc)",
+       "value": "354",
+       "unit": "ms",
+       "ref": "350--440",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     },
+     {
+      "row": 77,
+      "name": "QRS axis",
+      "value": "31",
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": true,
+      "stored": {
+       "name": "QRS axis",
+       "value": "31",
+       "unit": "°",
+       "ref": "-30--90",
+       "flag": "normal",
+       "date": "2026-08-07",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
+     }
+    ],
+    "extra_rows": [
+     {
+      "name": "Body composition analysis",
+      "value": "within normal limits",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "DOB",
+      "value": "0.7",
+      "unit": "‰",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Electrocardiogram",
+      "value": "Sinus rhythm, within normal limits.",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Adnexa",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Uterus",
+      "value": "Normal size",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Cervix",
+      "value": "Smooth",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Vagina",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Vulva",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Gums",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Teeth",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Lips, cheeks, palate",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Tonsils",
+      "value": "Not enlarged",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Pharynx",
+      "value": "Chronic pharyngeal congestion with lymphoid follicles",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Nasal cavity",
+      "value": "Clear",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Hearing",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Tympanic membrane",
+      "value": "Intact",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "External ear canal",
+      "value": "left cerumen",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Intraocular pressure",
+      "value": "11/19",
+      "unit": "mmHg",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Fundus",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "External eye",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Colour vision",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Corrected visual acuity",
+      "value": "1.0/1.2",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Visual acuity (unaided)",
+      "value": "1.5",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Other",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Anorectal",
+      "value": "Not examined",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Limbs and joints",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Spine",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Breasts",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Thyroid",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Superficial lymph nodes",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Skin",
+      "value": "Normal",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Nervous system",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Abdomen",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Spleen",
+      "value": "Not palpable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Liver",
+      "value": "Not palpable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Lungs",
+      "value": "Clear, no added sounds",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Heart sounds",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Rhythm",
+      "value": "Unremarkable",
+      "unit": "",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Heart rate(HR)",
+      "value": "69",
+      "unit": "/min",
+      "extractor": "llm:file-parser@indicators-v1"
+     },
+     {
+      "name": "Blood Pressure",
+      "value": "123",
+      "unit": "mmHg",
+      "extractor": "llm:file-parser@indicators-v1"
+     }
+    ]
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "outpatient record, scan, narrative + vitals",
+   "file": "files/p003/p003_2026-03-31_e10a.pdf",
+   "file_key": "uploads/20261006_124905_0f402532.pdf",
+   "status": "done",
+   "seconds": 27.7,
+   "filed_s": 10.2,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2026-04-01 00:00:00",
+   "date_source": "extracted",
+   "scene": "report",
+   "title": "2026-04-01_门诊病历_2型糖尿病复诊.pdf",
+   "score": {
+    "rows": 5,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "T",
+      "value": "36.6",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "P",
+      "value": "67",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "R",
+      "value": "16",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "体重",
+      "value": "84.9",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "BP",
+      "value": "111/65",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": true
+  },
+  {
+   "label": "home weight log, screen photo",
+   "file": "files/p005/p005_log01.jpg",
+   "file_key": "uploads/20261006_124933_d8264260.jpg",
+   "status": "done",
+   "seconds": 38.3,
+   "filed_s": 5.1,
+   "error": "",
+   "indicators_count": 0,
+   "report_date": "2026-10-06 20:49:38",
+   "date_source": "upload_time",
+   "scene": "report",
+   "title": "2025-12-14_向伟博晨起体重记录.jpg",
+   "score": {
+    "rows": 12,
+    "found": 0,
+    "unit_ok": 0,
+    "range_ok": 0,
+    "flag_ok": 0,
+    "flag_rows": 0,
+    "stored": 0,
+    "extra": 0,
+    "extra_distractors": 0,
+    "dates_stored": [],
+    "date_ok": false,
+    "by_extractor": {},
+    "detail": [
+     {
+      "row": 0,
+      "name": "体重(kg)",
+      "value": "51.9",
+      "found": false
+     },
+     {
+      "row": 1,
+      "name": "体重(kg)",
+      "value": "51.2",
+      "found": false
+     },
+     {
+      "row": 2,
+      "name": "体重(kg)",
+      "value": "51.8",
+      "found": false
+     },
+     {
+      "row": 3,
+      "name": "体重(kg)",
+      "value": "52.2",
+      "found": false
+     },
+     {
+      "row": 4,
+      "name": "体重(kg)",
+      "value": "51.2",
+      "found": false
+     },
+     {
+      "row": 5,
+      "name": "体重(kg)",
+      "value": "52.0",
+      "found": false
+     },
+     {
+      "row": 6,
+      "name": "体重(kg)",
+      "value": "51.1",
+      "found": false
+     },
+     {
+      "row": 7,
+      "name": "体重(kg)",
+      "value": "51.7",
+      "found": false
+     },
+     {
+      "row": 8,
+      "name": "体重(kg)",
+      "value": "51.8",
+      "found": false
+     },
+     {
+      "row": 9,
+      "name": "体重(kg)",
+      "value": "51.4",
+      "found": false
+     },
+     {
+      "row": 10,
+      "name": "体重(kg)",
+      "value": "51.5",
+      "found": false
+     },
+     {
+      "row": 11,
+      "name": "体重(kg)",
+      "value": "51.7",
+      "found": false
+     }
+    ],
+    "extra_rows": []
+   },
+   "report_date_ok": false
+  }
+ ],
+ "first_upload": {
+  "files/p005/p005_2026-03-05_e07b.pdf": {
+   "seconds": 7.3,
+   "filed_s": 5.0,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2023-11-12_e01a.pdf": {
+   "seconds": 35.4,
+   "filed_s": 22.7,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p006/p006_2024-10-25_e09a.pdf": {
+   "seconds": 29.4,
+   "filed_s": 15.6,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2024-05-10_e04a.csv": {
+   "seconds": 22.8,
+   "filed_s": 5.1,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2026-04-30_e11b.xlsx": {
+   "seconds": 17.7,
+   "filed_s": 5.1,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p003/p003_2025-04-05_e07a.pdf": {
+   "seconds": 12.4,
+   "filed_s": 5.1,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p004/p004_2025-11-01_e09a.jpg": {
+   "seconds": 38.5,
+   "filed_s": 20.7,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p003/p003_2024-10-07_e06b.jpg": {
+   "seconds": 23.2,
+   "filed_s": 21.0,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p006/p006_2026-04-18_e13a.png": {
+   "seconds": 33.3,
+   "filed_s": 15.5,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p002/p002_2026-08-07_e04a.pdf": {
+   "seconds": 45.3,
+   "filed_s": 12.4,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p003/p003_2026-03-31_e10a.pdf": {
+   "seconds": 17.7,
+   "filed_s": 5.1,
+   "agent_model": "minicpm5-2b"
+  },
+  "files/p005/p005_log01.jpg": {
+   "seconds": 22.8,
+   "filed_s": 20.6,
+   "agent_model": "minicpm5-2b"
+  }
+ }
+}

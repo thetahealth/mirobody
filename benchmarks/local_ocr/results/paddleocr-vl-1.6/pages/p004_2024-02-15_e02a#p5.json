@@ -1,0 +1,67 @@
+{
+ "id": "p004_2024-02-15_e02a#p5",
+ "tier": "T2",
+ "image_sha256": "d801fb3fc4f31b786b269ab52948c70dc287b9a42d302907a1baffa0bfb93623",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA. NOT A REAL PATIENT RECORD\n\n超声提示：前列腺未见明显异常\n\n碳13尿素呼气试验\n检测结果：DOB值 3.1‰（参考值 <4.0‰）\n结论：幽门螺杆菌阴性\n\n人体成分分析\n结论：体成分构成正常\n\n实验室检查\n血常规\n检查项目\n白细胞计数\n红细胞计数\n血红蛋白\n红细胞压积\n平均红细胞体积\n平均红细胞血红蛋白量\n平均红细胞血红蛋白浓度\n红细胞分布宽度\n血小板计数\n平均血小板体积\n血小板分布宽度\n血小板压积\n中性粒细胞百分比\n淋巴细胞百分比\n单核细胞百分比\n嗜酸性粒细胞百分比\n嗜碱性粒细胞百分比\n中性粒细胞绝对值\n淋巴细胞绝对值\n单核细胞绝对值\n嗜酸性粒细胞绝对值\n嗜碱性粒细胞绝对值\n肝功能\n检查项目\n丙氨酸氨基转移酶\n天门冬氨酸氨基转移酶\n碱性磷酸酶\nγ-谷氨酰基转移酶\n总蛋白\n白蛋白\n球蛋白\n总胆红素\n直接\n胆红素\n英文名称 化验结果 参考值\nWBC 6.27 3.50~9.50\nRBC 5.00 4.30~5.80\nHGB 169 130~175\nHCT 51.1 ↑ 40.0~50.0\nMCV 102.2 ↑ 82.0~100.0\nMCH 33.7 27.0~34.0\nMCHC 330 316~354\nRDW-CV 12.5 11.5~14.5\nPLT 332 125~350\nMPV 11.1 7.6~13.2\nPDW 12.3 9.0~17.0\nPCT 0.186 0.108~0.282\nNEUT% 56.8 40.0~75.0\nLYMPH% 25.8 20.0~50.0\nMONO% 7.7 3.0~10.0\nEO% 9.3 ↑ 0.4~8.0\nBASO% 0.4 0.0~1.0\nNEUT# 3.56 1.80~6.30\nLYMPH# 1.62 1.10~3.20\nMONO# 0.48 0.10~0.60\nEO# 0.58 ↑ 0.02~0.52\nBASO# 0.03 0.00~0.06\n肝功能\n检查项目\n丙氨酸氨基转移酶\n天门冬氨酸氨基转移酶\n碱性磷酸酶\nγ-谷氨酰基转移酶\n总蛋白\n白蛋白\n球蛋白\n总胆红素\n直接\n胆红素\n英文名称 化验结果 参考值\nALT 40 9~50\nAST 37 15~40\nALP 69 45~125\nGGT 19 10~60\nTP 79.0 65.0~85.0\nALB 51.4 40.0~55.0\nGLB 27.6 20.0~40.0\nTBIL 20.5 0.0~26.0\nDBIL 3.4 (<8.0)\nIBIL 17.1 0.0~18.0",
+   "finish_reason": "stop",
+   "seconds": 11.74,
+   "usage": {
+    "completion_tokens": 858,
+    "prompt_tokens": 1273,
+    "total_tokens": 2131,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5714.599,
+    "prompt_per_token_ms": 4.506781545741325,
+    "prompt_per_second": 221.88783499944614,
+    "predicted_n": 858,
+    "predicted_ms": 5973.212,
+    "predicted_per_token_ms": 6.969908984830806,
+    "predicted_per_second": 143.4738964563789
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>血常规<fcel>英文名称<fcel>化验结果<fcel>参考值<nl><fcel>检查项目<ecel><ecel><ecel><nl><fcel>白细胞计数<fcel>WBC<fcel>6.27<fcel>3.50~9.50<nl><fcel>红细胞计数<fcel>RBC<fcel>5.00<fcel>4.30~5.80<nl><fcel>血红蛋白<fcel>HGB<fcel>169<fcel>130~175<nl><fcel>红细胞压积<fcel>HCT<fcel>51.1\\(^{\\uparrow}\\)<fcel>40.0~50.0<nl><fcel>平均红细胞体积<fcel>MCV<fcel>102.2\\(^{\\uparrow}\\)<fcel>82.0~100.0<nl><fcel>平均红细胞血红蛋白量<fcel>MCH<fcel>33.7<fcel>27.0~34.0<nl><fcel>平均红细胞血红蛋白浓度<fcel>MCHC<fcel>330<fcel>316~354<nl><fcel>红细胞分布宽度<fcel>RDW-CV<fcel>12.5<fcel>11.5~14.5<nl><fcel>血小板计数<fcel>PLT<fcel>332<fcel>125~350<nl><fcel>平均血小板体积<fcel>MPV<fcel>11.1<fcel>7.6~13.2<nl><fcel>血小板分布宽度<fcel>PDW<fcel>12.3<fcel>9.0~17.0<nl><fcel>血小板压积<fcel>PCT<fcel>0.186<fcel>0.108~0.282<nl><fcel>中性粒细胞百分比<fcel>NEUT%<fcel>56.8<fcel>40.0~75.0<nl><fcel>淋巴细胞百分比<fcel>LYMPH%<fcel>25.8<fcel>20.0~50.0<nl><fcel>单核细胞百分比<fcel>MONO%<fcel>7.7<fcel>3.0~10.0<nl><fcel>嗜酸性粒细胞百分比<fcel>EO%<fcel>9.3\\(^{\\uparrow}\\)<fcel>0.4~8.0<nl><fcel>嗜碱性粒细胞百分比<fcel>BASO%<fcel>0.4<fcel>0.0~1.0<nl><fcel>中性粒细胞绝对值<fcel>NEUT#<fcel>3.56<fcel>1.80~6.30<nl><fcel>淋巴细胞绝对值<fcel>LYMPH#<fcel>1.62<fcel>1.10~3.20<nl><fcel>单核细胞绝对值<fcel>MONO#<fcel>0.48<fcel>0.10~0.60<nl><fcel>嗜酸性粒细胞绝对值<fcel>EO#<fcel>0.58\\(^{\\uparrow}\\)<fcel>0.02~0.52<nl><fcel>嗜碱性粒细胞绝对值<fcel>BASO#<fcel>0.03<fcel>0.00~0.06<nl><fcel>肝功能<ecel><ecel><ecel><nl><fcel>检查项目<fcel>英文名称<fcel>化验结果<fcel>参考值<nl><fcel>丙氨酸氨基转移酶<fcel>ALT<fcel>40<fcel>9~50<nl><fcel>天门冬氨酸氨基转移酶<fcel>AST<fcel>37<fcel>15~40<nl><fcel>碱性磷酸酶<fcel>ALP<fcel>69<fcel>45~125<nl><fcel>\\gamma -谷氨酰基转移酶<fcel>GGT<fcel>19<fcel>10~60<nl><fcel>总蛋白<fcel>TP<fcel>79.0<fcel>65.0~85.0<nl><fcel>白蛋白<fcel>ALB<fcel>51.4<fcel>40.0~55.0<nl><fcel>球蛋白<fcel>GLB<fcel>27.6<fcel>20.0~40.0<nl><fcel>总胆红素<fcel>TBIL<fcel>20.5<fcel>0.0~26.0<nl><fcel>直接胆红素<fcel>DBIL<fcel>3.4<fcel>(<8.0)<nl><fcel>间接胆红素<fcel>IBIL<fcel>17.1<fcel>0.0~18.0<nl>",
+   "finish_reason": "stop",
+   "seconds": 4.96,
+   "usage": {
+    "completion_tokens": 786,
+    "prompt_tokens": 1273,
+    "total_tokens": 2059,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 15.056,
+    "prompt_per_token_ms": 2.150857142857143,
+    "prompt_per_second": 464.93092454835283,
+    "predicted_n": 786,
+    "predicted_ms": 4879.006,
+    "predicted_per_token_ms": 6.215294267515924,
+    "predicted_per_second": 160.89342788264656
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2205.0,
+  "phys_footprint_mib": 1328.0,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

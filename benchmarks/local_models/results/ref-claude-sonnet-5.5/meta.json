@@ -1,0 +1,189 @@
+{
+ "size": "ref-claude-sonnet-5.5",
+ "reference": "claude-sonnet-5.5",
+ "agent": "anthropic/claude-sonnet-5.5",
+ "models": {
+  "chat_model": "anthropic/claude-sonnet-5.5",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "anthropic/claude-sonnet-5.5",
+     "default": "anthropic/claude-sonnet-5.5",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "anthropic/claude-sonnet-5.5",
+     "default": "anthropic/claude-sonnet-5.5",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5.5",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5.5",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Google",
+    "model": "anthropic/claude-sonnet-5.5",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Google",
+    "model": "anthropic/claude-sonnet-5.5",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-06T22:18:47+08:00",
+ "parts": [
+  "extraction",
+  "journal",
+  "qa"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "extraction",
+    "journal"
+   ],
+   "started": "2026-10-06T22:19:19+08:00",
+   "resources": {
+    "disk_free_gb": 16.4,
+    "memory_free_pct": 61,
+    "swap_used_mb": 7122.0
+   },
+   "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+   "mirobody_dirty": false,
+   "loaded": [],
+   "memory": null,
+   "finished": "2026-10-06T22:25:00+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 322.800505627,
+     "extraction": 323.401325627,
+     "journal": 323.401325627,
+     "settled_end": 323.884653627
+    },
+    "parts": {
+     "extraction": 0.60082,
+     "journal": 0.0
+    },
+    "total": 0.60082,
+    "settled_total": 1.084148,
+    "note": "OpenRouter books a request's cost up to minutes after the answer, so the readings at each part's end undercount; 'settled_total' is the key's usage at the next settled reading (the start of the next run on this key, nothing else used it between) less this run's start."
+   }
+  },
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-07T01:24:04+08:00",
+   "resources": {
+    "disk_free_gb": 11.5,
+    "memory_free_pct": 58,
+    "swap_used_mb": 9333.88
+   },
+   "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+   "mirobody_dirty": false,
+   "loaded": [],
+   "memory": null,
+   "memory_run": null,
+   "memory_after_qa": {
+    "disk_free_gb": 11.5,
+    "memory_free_pct": 69,
+    "swap_used_mb": 9309.88
+   },
+   "finished": "2026-10-07T01:28:06+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 324.529492253,
+     "qa": 324.720888453
+    },
+    "parts": {
+     "qa": 0.191396
+    },
+    "total": 0.191396
+   }
+  },
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-07T11:29:18+08:00",
+   "resources": {
+    "disk_free_gb": 13.7,
+    "memory_free_pct": 71,
+    "swap_used_mb": 9131.0
+   },
+   "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+   "mirobody_dirty": true,
+   "loaded": [],
+   "memory": null,
+   "memory_run": null,
+   "memory_after_qa": {
+    "disk_free_gb": 13.7,
+    "memory_free_pct": 72,
+    "swap_used_mb": 9115.0
+   },
+   "finished": "2026-10-07T11:30:44+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 325.293217917,
+     "qa": 325.3009194
+    },
+    "parts": {
+     "qa": 0.007701
+    },
+    "total": 0.007701
+   }
+  }
+ ],
+ "background_tasks_drained_s": 0.1,
+ "finished": "2026-10-07T11:30:44+08:00",
+ "memory_run": null
+}

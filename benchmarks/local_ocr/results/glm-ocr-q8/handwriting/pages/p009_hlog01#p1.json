@@ -1,0 +1,67 @@
+{
+ "id": "p009_hlog01#p1",
+ "tier": "H3",
+ "image_sha256": "7de0ea48e1fee4435c067242af99e817faa273bf6d7eae3a8bb530677023c2c0",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nWeigh-ins\nJanuary 2026\n\nDate Weight Notes\n23/1 52.3kg\n27/1 52.3kg\n31/1 52.3kg\n1/2 51.9kg\n2/2 52.5kg\n3/2 52.4kg\n6/2 51.8kg\n10/2 52.8kg big dinner\n11/2 52.4kg\n16/2 51.8kg\n17/2 52.5kg",
+   "finish_reason": "stop",
+   "seconds": 8.17,
+   "usage": {
+    "completion_tokens": 159,
+    "prompt_tokens": 2156,
+    "total_tokens": 2315,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7060.784,
+    "prompt_per_token_ms": 3.282558809855881,
+    "prompt_per_second": 304.64039120868165,
+    "predicted_n": 159,
+    "predicted_ms": 1047.865,
+    "predicted_per_token_ms": 6.632056962025317,
+    "predicted_per_second": 150.78278213319464
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>Date</th><th>Weight</th><th>Notes</th></tr></thead><tbody><tr><td>23/1</td><td>52.3kg</td><td></td></tr><tr><td>27/1</td><td>52.3kg</td><td></td></tr><tr><td>31/1</td><td>52.3kg</td><td></td></tr><tr><td>1/2</td><td>51.9kg</td><td></td></tr><tr><td>2/2</td><td>52.5kg</td><td></td></tr><tr><td>3/2</td><td>52.4kg</td><td></td></tr><tr><td>6/2</td><td>51.8kg</td><td></td></tr><tr><td>10/2</td><td>52.8kg</td><td>big dinner</td></tr><tr><td>11/2</td><td>52.4kg</td><td></td></tr><tr><td>16/2</td><td>51.8kg</td><td></td></tr><tr><td>17/2</td><td>52.5kg</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.33,
+   "usage": {
+    "completion_tokens": 338,
+    "prompt_tokens": 2156,
+    "total_tokens": 2494,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 10.807,
+    "prompt_per_token_ms": 2.1614,
+    "prompt_per_second": 462.6630887387804,
+    "predicted_n": 338,
+    "predicted_ms": 2248.688,
+    "predicted_per_token_ms": 6.6726646884273,
+    "predicted_per_second": 149.86516582113657
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2503.6,
+  "phys_footprint_mib": 1829.1,
+  "phys_footprint_peak_mib": 1830.7
+ }
+}

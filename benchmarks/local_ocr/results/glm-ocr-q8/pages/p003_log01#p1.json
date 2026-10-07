@@ -1,0 +1,67 @@
+{
+ "id": "p003_log01#p1",
+ "tier": "T2",
+ "image_sha256": "426e280efd2a09ca8fd7d29b63bd6a7494b6c9f5ff910d5859480c058dfe818f",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n霖蘅健康体检中心\n血压日记\n\n日期 时间 收缩压 舒张压 脉搏 备注\n2024/09/05 07:12 112 70 55 运动后\n2024/09/19 07:23 115 63 55\n2024/09/19 21:26 115 67 52 服药后\n2024/11/01 07:14 113 78 57\n2024/11/01 21:39 104 64 57\n2024/11/05 07:28 128 73 60 睡前\n2024/11/19 07:06 119 64 56 运动后\n2024/11/28 07:37 104 64 55\n2024/11/28 21:28 118 67 57\n2024/12/13 07:38 119 66 57\n2024/12/27 07:10 118 64 54 睡前\n2025/01/07 07:05 116 67 57\n2025/01/07 21:30 106 72 60\n2025/01/14 07:16 127 71 56 晨起\n2025/01/14 21:38 123 62 55",
+   "finish_reason": "stop",
+   "seconds": 11.42,
+   "usage": {
+    "completion_tokens": 450,
+    "prompt_tokens": 2156,
+    "total_tokens": 2606,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 8148.61,
+    "prompt_per_token_ms": 3.788289167828917,
+    "prompt_per_second": 263.97140125739236,
+    "predicted_n": 450,
+    "predicted_ms": 3208.198,
+    "predicted_per_token_ms": 7.145207126948775,
+    "predicted_per_second": 139.953955460355
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>日期</th><th>时间</th><th>收缩压</th><th>舒张压</th><th>脉搏</th><th>备注</th></tr></thead><tbody><tr><td>2024/09/05</td><td>07:12</td><td>112</td><td>70</td><td>55</td><td>运动后</td></tr><tr><td>2024/09/19</td><td>07:23</td><td>115</td><td>63</td><td>55</td><td></td></tr><tr><td>2024/09/19</td><td>21:26</td><td>115</td><td>67</td><td>52</td><td>服药后</td></tr><tr><td>2024/11/01</td><td>07:14</td><td>113</td><td>78</td><td>57</td><td></td></tr><tr><td>2024/11/01</td><td>21:39</td><td>104</td><td>64</td><td>57</td><td></td></tr><tr><td>2024/11/05</td><td>07:28</td><td>128</td><td>73</td><td>60</td><td>睡前</td></tr><tr><td>2024/11/19</td><td>07:06</td><td>119</td><td>64</td><td>56</td><td>运动后</td></tr><tr><td>2024/11/28</td><td>07:37</td><td>104</td><td>64</td><td>55</td><td></td></tr><tr><td>2024/11/28</td><td>21:28</td><td>118</td><td>67</td><td>57</td><td></td></tr><tr><td>2024/12/13</td><td>07:38</td><td>119</td><td>66</td><td>57</td><td></td></tr><tr><td>2024/12/27</td><td>07:10</td><td>118</td><td>64</td><td>54</td><td>睡前</td></tr><tr><td>2025/01/07</td><td>07:05</td><td>116</td><td>67</td><td>57</td><td></td></tr><tr><td>2025/01/07</td><td>21:30</td><td>106</td><td>72</td><td>60</td><td></td></tr><tr><td>2025/01/14</td><td>07:16</td><td>127</td><td>71</td><td>56</td><td>晨起</td></tr><tr><td>2025/01/14</td><td>21:38</td><td>123</td><td>62</td><td>55</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 6.5,
+   "usage": {
+    "completion_tokens": 908,
+    "prompt_tokens": 2156,
+    "total_tokens": 3064,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 10.922,
+    "prompt_per_token_ms": 2.1844,
+    "prompt_per_second": 457.7916132576451,
+    "predicted_n": 908,
+    "predicted_ms": 6429.095,
+    "predicted_per_token_ms": 7.088307607497244,
+    "predicted_per_second": 141.07739891851028
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2281.0,
+  "phys_footprint_mib": 1695.8,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

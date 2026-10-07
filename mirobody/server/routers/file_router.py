@@ -547,13 +547,16 @@ async def upload_files(
     user_id: str = Depends(verify_token),
     folder: str | None = Query(None, description="Custom folder prefix for uploaded files, defaults to 'uploads'"),
     target_user_id: str | None = Query(None, description="Upload for this person's record; needs a write grant"),
+    file: bool = Query(False, description="Also file the uploads in the record and start extraction, as the Data page does"),
 ) -> FileUploadResponse:
     """
-    Upload multiple files directly to S3
-    
-    This endpoint uploads multiple files directly to S3 without storing metadata in database.
-    Supports various file formats including PDF, images, and documents.
-    Uses the universal upload_files_to_storage service for cross-project compatibility.
+    Upload multiple files to storage, and with `file=true` file them.
+
+    Without `file` this is the first step of a chat attachment: the file is
+    stored, and the turn that sends its key files it and extracts it (so filing
+    here as well would file and extract every attachment twice). A client that
+    only uploads passes `file=true`: the files land in the record as a Data-page
+    upload would, through the same code the chat turn uses.
 
     `target_user_id` is declared so that it is checked. Undeclared, FastAPI
     dropped it and a proxy upload went ahead as the caller's own, with no grant
@@ -578,8 +581,20 @@ async def upload_files(
             return FileUploadResponse(code=403, msg="You cannot upload to that record.", data=[])
 
     result = await upload_files_to_storage(files=files, user_id=owner, folder_prefix=folder)
-    
-    # Convert result to FastAPI response format
+    stored = result.get("data") or []
+    if stored and file:
+        from mirobody.agent.chat.file import process_files_from_storage
+        from mirobody.collect import SOURCE_DATA
+
+        filed = await process_files_from_storage(
+            stored, user_id=str(user_id), msg_id=str(uuid.uuid4()), query_user_id=owner, source=SOURCE_DATA)
+        if filed < len(stored):
+            result = {**result, "code": 1, "msg": f"{len(stored)} stored, {filed} filed; the rest are not in the record"}
+        else:
+            result = {**result, "msg": f"{filed} filed; extraction started"}
+    elif stored and result.get("code") == 0:
+        result = {**result, "msg": f"{len(stored)} stored, not filed: send the keys with a chat message, or upload with file=true"}
+
     return FileUploadResponse(
         code=result["code"],
         msg=result["msg"],

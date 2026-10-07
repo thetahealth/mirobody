@@ -1,0 +1,67 @@
+{
+ "id": "p006_2023-09-11_e04a#p8",
+ "tier": "T2",
+ "image_sha256": "9cec48cd305182fd4d9bca50992834c5d83f64757711901086c47c5644e1d990",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n红细胞计数 5.30 5.27 10E12/L 男:4.30-5.80\n女:3.80-5.10\n\n血红蛋白 163 160 g/L 男:130-175\n女:115-150\n\n红细胞压积 50.1↑ 49.2 % 男:40.0-50.0\n女:35.0-45.0\n\n平均红细胞体积 94.5 93.4 fL 82.0-100.0\n\n平均红细胞血红蛋白量 30.8 30.4 pg 27.0-34.0\n\n平均红细胞血红蛋白浓度 326 326 g/L 316-354\n\n红细胞分布宽度 13.5 12.7 % 11.5-14.5\n\n血小板计数 280 227 10E9/L 125-350\n\n平均血小板体积 11.2 11.2 fL 7.6-13.2\n\n血小板分布宽度 12.5 12.4 fL 9.0-17.0\n\n血小板压积 0.179 0.166 % 0.108-0.282\n\n中性粒细胞百分比 60.3 63.2 % 40.0-75.0\n\n淋巴细胞百分比 30.5 28.7 % 20.0-50.0\n\n单核细胞百分比 5.8 4.9 % 3.0-10.0\n\n嗜酸性粒细胞百分比 2.6 2.2 % 0.4-8.0\n\n嗜碱性粒细胞百分比 0.8 0.9 % 0.0-1.0\n\n中性粒细胞绝对值 5.03 5.62 10E9/L 1.80-6.30\n\n淋巴细胞绝对值 2.54 2.55 10E9/L 1.10-3.20\n\n单核细胞绝对值 0.48 0.44 10E9/L 0.10-0.60\n\n嗜酸性粒细胞绝对值 0.22 0.20 10E9/L 0.02-0.52",
+   "finish_reason": "stop",
+   "seconds": 8.1,
+   "usage": {
+    "completion_tokens": 602,
+    "prompt_tokens": 1375,
+    "total_tokens": 1977,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1370,
+    "prompt_ms": 3951.395,
+    "prompt_per_token_ms": 2.8842299270072993,
+    "prompt_per_second": 346.71299629624474,
+    "predicted_n": 602,
+    "predicted_ms": 4097.585,
+    "predicted_per_token_ms": 6.817945091514143,
+    "predicted_per_second": 146.67175909712674
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>红细胞计数</th><td>5.30</td><td>5.27</td><td>10E12/L</td><td>男:4.30-5.80<br>女:3.80-5.10</td></tr></thead><tbody><tr><td>血红蛋白</td><td>163</td><td>160</td><td>g/L</td><td>男:130-175<br>女:115-150</td></tr><tr><td>红细胞压积</td><td>50.1↑</td><td>49.2</td><td>%</td><td>男:40.0-50.0<br>女:35.0-45.0</td></tr><tr><td>平均红细胞体积</td><td>94.5</td><td>93.4</td><td>fL</td><td>82.0-100.0</td></tr><tr><td>平均红细胞血红蛋白量</td><td>30.8</td><td>30.4</td><td>pg</td><td>27.0-34.0</td></tr><tr><td>平均红细胞血红蛋白浓度</td><td>326</td><td>326</td><td>g/L</td><td>316-354</td></tr><tr><td>红细胞分布宽度</td><td>13.5</td><td>12.7</td><td>%</td><td>11.5-14.5</td></tr><tr><td>血小板计数</td><td>280</td><td>227</td><td>10E9/L</td><td>125-350</td></tr><tr><td>平均血小板体积</td><td>11.2</td><td>11.2</td><td>fL</td><td>7.6-13.2</td></tr><tr><td>血小板分布宽度</td><td>12.5</td><td>12.4</td><td>fL</td><td>9.0-17.0</td></tr><tr><td>血小板压积</td><td>0.179</td><td>0.166</td><td>%</td><td>0.108-0.282</td></tr><tr><td>中性粒细胞百分比</td><td>60.3</td><td>63.2</td><td>%</td><td>40.0-75.0</td></tr><tr><td>淋巴细胞百分比</td><td>30.5</td><td>28.7</td><td>%</td><td>20.0-50.0</td></tr><tr><td>单核细胞百分比</td><td>5.8</td><td>4.9</td><td>%</td><td>3.0-10.0</td></tr><tr><td>嗜酸性粒细胞百分比</td><td>2.6</td><td>2.2</td><td>%</td><td>0.4-8.0</td></tr><tr><td>嗜碱性粒细胞百分比</td><td>0.8</td><td>0.9</td><td>%</td><td>0.0-1.0</td></tr><tr><td>中性粒细胞绝对值</td><td>5.03</td><td>5.62</td><td>10E9/L</td><td>1.80-6.30</td></tr><tr><td>淋巴细胞绝对值</td><td>2.54</td><td>2.55</td><td>10E9/L</td><td>1.10-3.20</td></tr><tr><td>单核细胞绝对值</td><td>0.48</td><td>0.44</td><td>10E9/L</td><td>0.10-0.60</td></tr><tr><td>嗜酸性粒细胞绝对值</td><td>0.22</td><td>0.20</td><td>10E9/L</td><td>0.02-0.52</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 7.42,
+   "usage": {
+    "completion_tokens": 1089,
+    "prompt_tokens": 1375,
+    "total_tokens": 2464,
+    "prompt_tokens_details": {
+     "cached_tokens": 1370
+    }
+   },
+   "timings": {
+    "cache_n": 1370,
+    "prompt_n": 5,
+    "prompt_ms": 15.118,
+    "prompt_per_token_ms": 3.0236,
+    "prompt_per_second": 330.73157825109143,
+    "predicted_n": 1089,
+    "predicted_ms": 7340.058,
+    "predicted_per_token_ms": 6.746376838235294,
+    "predicted_per_second": 148.22771155214303
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2229.4,
+  "phys_footprint_mib": 1731.5,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

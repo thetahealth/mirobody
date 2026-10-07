@@ -1,0 +1,159 @@
+{
+ "id": "p004_hlog01#p1",
+ "llm": true,
+ "seconds": 27.46,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Blood pressure",
+   "value": "109/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "119/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "113/74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "111/76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "107/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "116/76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "110/67",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "120/73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "119/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "HR reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "73",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "HR reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "77",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "HR reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "HR reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "HR reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Comments",
+   "value": "coffee",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  },
+  {
+   "original_indicator": "Comments",
+   "value": "poor sleep",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "BP reading",
+   "date_time": "2025-06-01 00:00:00"
+  }
+ ],
+ "date_time": "2025-06-01"
+}

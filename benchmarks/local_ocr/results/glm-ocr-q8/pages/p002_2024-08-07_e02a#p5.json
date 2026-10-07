@@ -1,0 +1,42 @@
+{
+ "id": "p002_2024-08-07_e02a#p5",
+ "tier": "T0",
+ "image_sha256": "36a9aef01072c3e51de6ac7cfebc06a29cc3eab5f35b34bf6ae30b429fd35b00",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>#</th><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>1</td><td>Alanine aminotransferase(ALT)</td><td>24</td><td></td><td></td><td>U/l</td><td>7--40</td><td>02</td></tr><tr><td>2</td><td>Aspartate aminotransferase(AST)</td><td>13</td><td></td><td></td><td>U/l</td><td>13--35</td><td>02</td></tr><tr><td>3</td><td>Alkaline phosphatase(ALP)</td><td>51</td><td></td><td></td><td>U/l</td><td>35--100</td><td>02</td></tr><tr><td>4</td><td>Gamma-glutamyl transferase(GGT)</td><td>17</td><td></td><td></td><td>U/l</td><td>7--45</td><td>02</td></tr><tr><td>5</td><td>Total protein(TP)</td><td>81.8</td><td></td><td></td><td>g/l</td><td>65.0--85.0</td><td>02</td></tr><tr><td>6</td><td>Albumin(ALB)</td><td>47.1</td><td></td><td></td><td>g/l</td><td>40.0--55.0</td><td>02</td></tr><tr><td>7</td><td>Globulin(GLB)</td><td>34.7</td><td></td><td></td><td>g/l</td><td>20.0--40.0</td><td>02</td></tr><tr><td>8</td><td>Total bilirubin(TBIL)</td><td>10.3</td><td></td><td></td><td>μmol/l</td><td>0.0--21.0</td><td>02</td></tr><tr><td>9</td><td>Direct bilirubin(DBIL)</td><td>1.9</td><td></td><td></td><td>μmol/l</td><td>&lt;8.0</td><td>02</td></tr><tr><td>10</td><td>Indirect bilirubin(IBIL)</td><td>8.4</td><td></td><td></td><td>μmol/l</td><td>0.0--18.0</td><td>02</td></tr><tr><td>11</td><td>Total bile acid(TBA)</td><td>3.8</td><td></td><td></td><td>μmol/l</td><td>&lt;10.0</td><td>02</td></tr></tbody><thead><tr><th>#</th><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>1</td><td>Urea(BUN)</td><td>3.90</td><td></td><td></td><td>mmol/l</td><td>2.60--7.50</td><td>02</td></tr><tr><td>2</td><td>Creatinine(CREA)</td><td>53</td><td></td><td></td><td>μmol/l</td><td>41--73</td><td>02</td></tr><tr><td>3</td><td>Uric acid(UA)</td><td>199</td><td></td><td></td><td>μmol/l</td><td>155--357</td><td>02</td></tr></tbody><thead><tr><th>#</th><th>Test Item</th><th>Measurement</th><th>Methodology</th><th>Status</th><th>Unit</th><th>Normal Range</th><th>Lab</th></tr></thead><tbody><tr><td>1</td><td>Potassium(K)</td><td>4.44</td><td></td><td></td><td>mmol/l</td><td>3.50--5.30</td><td>02</td></tr><tr><td>2</td><td>Sodium(Na)</td><td>135.2</td><td>↓</td><td></td><td>mmol/l</td><td>137.0--147.0</td><td>02</td></tr><tr><td>3</td><td>Chloride(Cl)</td><td>102.7</td><td></td><td></td><td>mmol/l</td><td>99.0--110.0</td><td>02</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 16.97,
+   "usage": {
+    "completion_tokens": 1303,
+    "prompt_tokens": 2156,
+    "total_tokens": 3459,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7474.134,
+    "prompt_per_token_ms": 3.4747252440725243,
+    "prompt_per_second": 287.79253890818654,
+    "predicted_n": 1303,
+    "predicted_ms": 9414.755,
+    "predicted_per_token_ms": 7.2309946236559135,
+    "predicted_per_second": 138.29356154249368
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2285.0,
+  "phys_footprint_mib": 1797.3,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

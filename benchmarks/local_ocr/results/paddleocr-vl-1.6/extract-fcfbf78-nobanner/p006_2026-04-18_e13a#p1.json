@@ -1,0 +1,145 @@
+{
+ "id": "p006_2026-04-18_e13a#p1",
+ "llm": true,
+ "seconds": 15.32,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Thyroid stimulating hormone",
+   "value": "1.244",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Free triiodothyronine",
+   "value": "4.48",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Free thyroxine",
+   "value": "15.89",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total triiodothyronine",
+   "value": "3.10",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total thyroxine",
+   "value": "113.1",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "36.4†",
+   "reference_range": "<34.0>&IU/mL",
+   "unit": "&IU/mL",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "3.10",
+   "reference_range": "0.270-4.200&mIU/L",
+   "unit": "&mIU/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "6.80",
+   "reference_range": "0.270-4.200&mIU/L",
+   "unit": "&mIU/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "12.00",
+   "reference_range": "3.10-6.80&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "22.00",
+   "reference_range": "3.10-6.80&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "1.30",
+   "reference_range": "12.00-22.00&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "low",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "66.0",
+   "reference_range": "12.00-22.00&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "181.0",
+   "reference_range": "12.00-22.00&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "<34.0",
+   "reference_range": "&μL",
+   "unit": "&μL",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "20260504"
+  }
+ ],
+ "date_time": "20260504",
+ "content_type": "medical_report"
+}

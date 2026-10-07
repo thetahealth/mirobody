@@ -54,7 +54,7 @@ from collections.abc import Callable
 from typing import Any
 
 from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.config.llm import vertex_host, vertex_location
+from mirobody.utils.config.llm import is_endpoint_name, vertex_host, vertex_location
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,9 @@ NON_INIT_CONFIG_KEYS = frozenset({
     "profile", "supports_pdf", "supports_image",
     "thinking_style", "auth_type", "prompt_cache",
     # read by the utility surfaces (config.llm), never by a chat constructor
-    "chat", "response_format",
+    "chat", "response_format", "ocr_prompts",
+    # read by config.llm.model_entries, which has already put its value in `model`
+    "model_env",
 })
 
 OPENAI_COMPATIBLE_TYPES = frozenset({"openai", "openrouter"})
@@ -186,7 +188,7 @@ def _apply_anthropic_thinking(kwargs: dict, entry: dict, model_name: str, effort
     output_config.setdefault("effort", effort)
     request["output_config"] = output_config
     # Sampling parameters are rejected alongside thinking on the models that
-    # take this shape (Opus 4.7+, Sonnet 5).
+    # take this shape (Opus 4.7+, Sonnet 5 and 5.5).
     for field in ("temperature", "top_p", "top_k"):
         kwargs.pop(field, None)
 
@@ -286,9 +288,17 @@ def reasoning_chat_openai() -> type:
 class MissingKeyError(RuntimeError):
     """The entry names an ``api_key`` that resolves to nothing."""
 
+    field = "api_key"
+
     def __init__(self, alias: str, key: str):
-        super().__init__(f"provider {alias!r}: api_key {key!r} is not set")
+        super().__init__(f"provider {alias!r}: {self.field} {key!r} is not set")
         self.alias, self.key = alias, key
+
+
+class MissingEndpointError(MissingKeyError):
+    """The entry's ``base_url`` is a NAME (``LOCAL_BASE_URL``) that resolves to nothing."""
+
+    field = "base_url"
 
 
 def default_resolver(name: str) -> str | None:
@@ -367,6 +377,9 @@ def is_routable(entry: Any, *, resolve: Resolver | None = None) -> bool:
             # Vertex MaaS: the credential is ambient, so what has to resolve is
             # the project the endpoint is built from.
             return bool(_resolve_ref(entry.get("project"), resolve)) or bool(entry.get("base_url"))
+        base = entry.get("base_url")
+        if isinstance(base, str) and is_endpoint_name(base) and not (resolve(base) or _base_url_override(entry, resolve)):
+            return False
         return not entry.get("api_key") or bool(resolve(entry["api_key"]))
     if family in ANTHROPIC_VERTEX_TYPES:
         return bool(_resolve_ref(entry.get("project"), resolve))
@@ -434,6 +447,8 @@ def _openai_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resol
     kwargs.setdefault("streaming", True)
     kwargs.setdefault("stream_usage", True)
     base_url = _base_url_override(entry, resolve) or _resolve_ref(entry.get("base_url"), resolve)
+    if isinstance(base_url, str) and is_endpoint_name(base_url):
+        raise MissingEndpointError(alias, base_url)
     if base_url:
         kwargs["base_url"] = base_url
     else:
@@ -452,6 +467,11 @@ def _openai_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resol
         key = _resolve_key(alias, entry, resolve)
         if key:
             kwargs["api_key"] = key
+        elif base_url:
+            # No key named, own endpoint: a self-hosted server that needs none.
+            # Left to the SDK, the client read OPENAI_API_KEY and sent it there,
+            # or refused to build on a machine without one (1.5.4).
+            kwargs["api_key"] = "-"
         else:
             kwargs.pop("api_key", None)
     kwargs.update(_openai_thinking_kwargs(entry, str(entry["model"]), str(kwargs.get("base_url") or ""), thinking))
@@ -733,17 +753,18 @@ class _PlaceholderClient:
     `MirobodyAgent._init_llm_client`.
     """
 
-    def __init__(self, model_name: str, missing_key: str, provider_name: str):
+    def __init__(self, model_name: str, missing_key: str, provider_name: str, hint: str = ""):
         object.__setattr__(self, "_missing_key", missing_key)
         object.__setattr__(self, "_provider_name", provider_name)
+        object.__setattr__(self, "_hint", hint or "Get an API key from the provider and set it in .env or the environment")
         object.__setattr__(self, "model_name", model_name)
         object.__setattr__(self, "model", model_name)
 
     def __getattribute__(self, name):
-        if name in ("model_name", "model", "_missing_key", "_provider_name"):
+        if name in ("model_name", "model", "_missing_key", "_provider_name", "_hint"):
             return object.__getattribute__(self, name)
         missing_key = object.__getattribute__(self, "_missing_key")
-        raise AttributeError(f"Missing {missing_key}. Get an API key from the provider and set it in .env or the environment")
+        raise AttributeError(f"Missing {missing_key}. {object.__getattribute__(self, '_hint')}")
 
 
 def build_llm_clients(
@@ -773,8 +794,9 @@ def build_llm_clients(
         try:
             clients[provider_name] = build_chat_model(entry, alias=provider_name, resolve=resolve)
         except MissingKeyError as exc:
-            logger.warning("[%s] provider %s: key %s not set — placeholder", class_name, provider_name, exc.key)
-            clients[provider_name] = _PlaceholderClient(str(entry["model"]), exc.key, provider_name)
+            logger.warning("[%s] provider %s: %s %s not set — placeholder", class_name, provider_name, exc.field, exc.key)
+            hint = "Set it in .env to the URL of the model server (…/v1)." if isinstance(exc, MissingEndpointError) else ""
+            clients[provider_name] = _PlaceholderClient(str(entry["model"]), exc.key, provider_name, hint)
             placeholder_count += 1
         except Exception as exc:
             logger.error("[%s] provider %s failed: %s", class_name, provider_name, type(exc).__name__, exc_info=True)

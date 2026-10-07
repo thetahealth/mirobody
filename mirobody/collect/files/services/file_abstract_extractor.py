@@ -10,10 +10,11 @@ import tempfile
 import logging
 import json
 
+from mirobody.utils.file_types import with_extension
 from mirobody.utils.llm import unified_file_extract
 from mirobody.collect.files.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
 from mirobody.documents import detect, extract as documents, render
-from mirobody.documents.ocr import vision_ocr
+from mirobody.documents.ocr import table_ocr, vision_ocr
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ class FileAbstractExtractor:
         otherwise (`documents.extract.pdf_text`, cached by content hash). The
         model summarises text; it is never handed the whole file."""
         try:
-            text = await documents.extract_text(filename, "application/pdf", file_content, ocr=vision_ocr, cache=ThFilesTextCache())
+            text = await documents.extract_text(filename, "application/pdf", file_content, ocr=vision_ocr, tables=table_ocr(), cache=ThFilesTextCache())
             page_count = text.count("--- page ")
             if not text.strip():
                 return {
@@ -217,7 +218,7 @@ class FileAbstractExtractor:
             context = f"Image file: {filename} ({width}x{height}, {fmt or 'Unknown'} format)"
             file_extension = self._infer_file_extension("image/jpeg", "image", filename)
             mime = detect.image_mime(filename, None, file_content)
-            text = await documents.extract_text(filename, mime, file_content, ocr=vision_ocr, cache=ThFilesTextCache())
+            text = await documents.extract_text(filename, mime, file_content, ocr=vision_ocr, tables=table_ocr(), cache=ThFilesTextCache())
             if text.strip():
                 result = await self._generate_llm_abstract_with_content(text, context, file_extension=file_extension, generate_filename=True)
             else:
@@ -394,7 +395,7 @@ Please return strictly in JSON format, do not include any markdown code block ma
                 # Try to parse as JSON
                 try:
                     result = json.loads(cleaned_response)
-                    file_name = result.get("file_name", "") if generate_filename else ""
+                    file_name = with_extension(str(result.get("file_name") or ""), file_extension) if generate_filename else ""
                     file_abstract = result.get("file_abstract", "")
                     
                     # Validate and clean up
@@ -583,7 +584,7 @@ Please return strictly in JSON format, do not include any markdown code block ma
         callers decide what a failure means for them: the upload handler fails
         the file with the reason, the agent's file reader answers ""."""
         hint = content_type or ({"pdf": "application/pdf", "image": "image/jpeg"}.get((file_type or "").lower()))
-        text = await documents.extract_text(filename, hint, file_content, ocr=vision_ocr, cache=ThFilesTextCache())
+        text = await documents.extract_text(filename, hint, file_content, ocr=vision_ocr, tables=table_ocr(), cache=ThFilesTextCache())
         logger.info("[Original Text] extracted: file_type=%s char_count=%d", file_type, len(text))
         return text
 

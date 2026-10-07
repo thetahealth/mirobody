@@ -159,6 +159,9 @@ class Meta:
     view: str = ""  # the readings tool's `view`; empty for tools without one
     row_count: int = 0
     truncated: bool = False
+    # What a truncated answer shows and the call that shows the rest, in plain
+    # words; a renderer puts it before the rows, where a reader cannot miss it.
+    cut: str = ""
     catalog_total: int = 0
 
 

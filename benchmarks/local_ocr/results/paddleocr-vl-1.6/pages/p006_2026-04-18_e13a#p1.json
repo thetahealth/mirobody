@@ -1,0 +1,67 @@
+{
+ "id": "p006_2026-04-18_e13a#p1",
+ "tier": "T6",
+ "image_sha256": "607a35d34d65f308286dcdc6807bb66adbe0f0bb1c6eb3013c0c96812c97f227",
+ "image_size": [
+  773,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nKestwick Medical Centre\nThyroid Function Report\n\nName: Daniel Lau    Sex: Male    Age: 47 Y\nMRN: 7188749866    Lab No.: 812161604    Specimen: Serum\n\nCollected: 20260418    Printed: 20260504    Time: 20260419\n\nItem                                Measured Value                  REF.RANGE\nThyroid stimulating hormone                1.244                  0.270-4.200&mIU/L\nFree triiodothyronine                   4.48                  3.10-6.80&pmol/L\nFree thyroxine                       15.89                  12.00-22.00&pmol/L\nTotal triiodothyronine                3.10                  1.30-3.10&nmol/L\nTotal thyroxine                       113.1                  66.0-181.0&nmol/L\nThyroid peroxidase antibody            36.4†                (<34.0)&IU/mL\n\nThis report relates only to the specimen received.\n\nPage 1 of 1",
+   "finish_reason": "stop",
+   "seconds": 7.67,
+   "usage": {
+    "completion_tokens": 326,
+    "prompt_tokens": 1255,
+    "total_tokens": 1581,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1250,
+    "prompt_ms": 5606.674,
+    "prompt_per_token_ms": 4.4853392,
+    "prompt_per_second": 222.94857878307175,
+    "predicted_n": 326,
+    "predicted_ms": 2038.298,
+    "predicted_per_token_ms": 6.2716861538461535,
+    "predicted_per_second": 159.44675410563127
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><fcel>Kestwick Medical Centre\\nThyroid Function Report<lcel><nl><fcel>Name: Daniel Lau<fcel>Sex: Male<nl><fcel>MRN: 7188749866<fcel>Lab No.: 812161604<nl><fcel>Age: 47 Y<fcel>Specimen: Serum<nl><fcel>Collected: 20260418\\nPrinted: 20260504\\nTime: 20260419<lcel><nl><fcel>Item<fcel>Measured Value<nl><fcel>Thyroid stimulating hormone<fcel>1.244<nl><fcel>Free triiodothyronine<fcel>4.48<nl><fcel>Free thyroxine<fcel>15.89<nl><fcel>Total triiodothyronine<fcel>3.10<nl><fcel>Total thyroxine<fcel>113.1<nl><fcel>Thyroid peroxidase antibody<fcel>36.4\\(^{\\dagger}\\)<nl><fcel>REF. RANGE\\n0.270-4.200&mIU/L<lcel><nl><fcel>3.10-6.80&pmol/L<lcel><nl><fcel>12.00-22.00&pmol/L<lcel><nl><fcel>1.30-3.10&nmol/L<lcel><nl><fcel>66.0-181.0&nmol/L<lcel><nl><fcel>(<34.0)&\\mu L<lcel><nl><fcel>This report relates only to the specimen received.<lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 2.24,
+   "usage": {
+    "completion_tokens": 341,
+    "prompt_tokens": 1255,
+    "total_tokens": 1596,
+    "prompt_tokens_details": {
+     "cached_tokens": 1248
+    }
+   },
+   "timings": {
+    "cache_n": 1248,
+    "prompt_n": 7,
+    "prompt_ms": 11.659,
+    "prompt_per_token_ms": 1.6655714285714287,
+    "prompt_per_second": 600.3945449867056,
+    "predicted_n": 341,
+    "predicted_ms": 2198.076,
+    "predicted_per_token_ms": 6.464929411764706,
+    "predicted_per_second": 154.6807298746722
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2152.4,
+  "phys_footprint_mib": 1270.8,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

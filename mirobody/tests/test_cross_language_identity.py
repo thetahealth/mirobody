@@ -195,7 +195,8 @@ def test_the_unit_still_picks_the_property_for_ck_mb(term, axis):
 #: key, so a split here puts one person's readings on two trend lines.
 #: Adding a language? Put its spelling in the matching row.
 SAME_ANALYTE = {
-    "hemoglobin": ["HGB", "hemoglobin", "血红蛋白", "ヘモグロビン", "Гемоглобин", "Гемоглобин общий"],
+    "hemoglobin": ["HGB", "hemoglobin", "haemoglobin", "血红蛋白", "ヘモグロビン", "Гемоглобин", "Гемоглобин общий"],
+    "ferritin": ["FER", "ferritin", "铁蛋白", "フェリチン", "Ферритин"],
     "platelets": ["PLT", "platelet count", "血小板计数", "Тромбоциты", "Количество тромбоцитов"],
     "leukocytes": ["WBC", "white blood cell count", "白细胞计数", "Количество лейкоцитов"],
     "erythrocytes": ["RBC", "red blood cell count", "红细胞计数", "Количество эритроцитов"],
@@ -273,3 +274,30 @@ def test_every_spelling_of_an_analyte_answers_one_code(spellings, want):
     assert len(set(codes.values())) == 1, codes
     if want:
         assert set(codes.values()) == {want}, codes
+
+
+#: A name, and a reading of it printed in the unit that moves the code to the
+#: other of mass and moles. Keyword recall resolves the NAME, with no unit,
+#: and must still reach that reading: "triglycerides" gives 2571-8 and a
+#: reading in mmol/L is 14927-8, and matching the two codes is how the 1.5.4
+#: local-model evaluation lost a stored triglyceride. The series is the key
+#: they share.
+UNIT_SIBLINGS = [
+    ("triglycerides", "1.1", "mmol/L"),
+    ("TG", "1.1", "mmol/L"),
+    ("total cholesterol", "5.0", "mmol/L"),
+    ("LDL-C", "2.9", "mmol/L"),
+    ("glucose", "5.4", "mmol/L"),
+    ("creatinine", "78", "umol/L"),
+    ("ferritin", "90", "pmol/L"),
+]
+
+
+@pytest.mark.parametrize("term,value,unit", UNIT_SIBLINGS, ids=[t for t, _v, _u in UNIT_SIBLINGS])
+def test_a_name_and_its_reading_in_the_other_unit_share_one_series(term, value, unit):
+    from mirobody.translate import series_of
+
+    name, reading = _code(term), mirobody.resolve_reading(term, value, unit).code
+    assert name != reading, f"{term} {unit}: the unit no longer moves the code, so this case pins nothing"
+    assert series_of(name), f"{name} has no series"
+    assert series_of(name) == series_of(reading), f"{name} vs {reading}"

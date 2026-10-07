@@ -54,6 +54,10 @@ class Worker:
             config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
+        # What the first-run page saved; each task loop rereads it (task/base.py).
+        from mirobody.utils.config import settings
+        await settings.apply()
+
         # The worker runs the extraction queues, so it has the same question
         # the server asks at boot: which surfaces have a provider.
         from mirobody.utils.config.doctor import log_report, provider_report

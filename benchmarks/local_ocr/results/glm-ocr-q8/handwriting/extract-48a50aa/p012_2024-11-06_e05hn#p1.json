@@ -1,0 +1,69 @@
+{
+ "id": "p012_2024-11-06_e05hn#p1",
+ "llm": true,
+ "seconds": 8.83,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Temp",
+   "value": "46.6",
+   "reference_range": "36.6",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Temperature reading",
+   "date_time": "06/11/2024"
+  },
+  {
+   "original_indicator": "P",
+   "value": "36.6",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Temperature reading",
+   "date_time": "06/11/2024"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "132",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Blood pressure reading",
+   "date_time": "06/11/2024"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "62",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Blood pressure reading",
+   "date_time": "06/11/2024"
+  },
+  {
+   "original_indicator": "Sata",
+   "value": "95%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Temperature reading",
+   "date_time": "06/11/2024"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "60.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Weight reading",
+   "date_time": "06/11/2024"
+  }
+ ],
+ "date_time": "06/11/2024"
+}

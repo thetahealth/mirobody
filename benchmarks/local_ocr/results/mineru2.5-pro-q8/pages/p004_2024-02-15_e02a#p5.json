@@ -1,0 +1,67 @@
+{
+ "id": "p004_2024-02-15_e02a#p5",
+ "tier": "T2",
+ "image_sha256": "d801fb3fc4f31b786b269ab52948c70dc287b9a42d302907a1baffa0bfb93623",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "超声提示：前列腺未见明显异常\n\n碳13尿素呼气试验\n检测结果：DOB值3.1‰（参考值＜4.0‰）\n结论：幽门螺杆菌阴性\n\n人体成分分析\n结论：体成分构成正常\n\n实验室检查\n\n血常规\n\n检查项目                          英文名称   化验结果     参考值\n白细胞计数                          WBC    6.27         3.50~9.50\n红细胞计数                          RBC    5.00         4.30~5.80\n血红蛋白                          HGB    169         130~175\n红细胞压积                          HCT    51.1↑        40.0~50.0\n平均红细胞体积                          MCV    102.2↑        82.0~100.0\n平均红细胞血红蛋白量                          MCH    33.7         27.0~34.0\n平均红细胞血红蛋白浓度                          MCHC    330         316~354\n红细胞分布宽度                          RDW-CV    12.5         11.5~14.5\n血小板计数                          PLT    332         125~350\n平均血小板体积                          MPV    11.1         7.6~13.2\n血小板分布宽度                          PDW    12.3         9.0~17.0\n血小板压积                          PCT    0.186         0.108~0.282\n中性粒细胞百分比                          NEUT%   56.8         40.0~75.0\n淋巴细胞百分比                          LYMPH%   25.8         20.0~50.0\n单核细胞百分比                          MONO%   7.7         3.0~10.0\n嗜酸性粒细胞百分比                          EO%    9.3↑        0.4~8.0\n嗜碱性粒细胞百分比                          BASO%    0.4         0.0~1.0\n中性粒细胞绝对值                          NEUT#   3.56         1.80~6.30\n淋巴细胞绝对值                          LYMPH#   1.62         1.10~3.20\n单核细胞绝对值                          MONO#    0.48         0.10~0.60\n嗜酸性粒细胞绝对值                          EO#    0.58↑        0.02~0.52\n嗜碱性粒细胞绝对值                          BASO#    0.03         0.00~0.06\n\n肝功能\n\n检查项目                          英文名称       化验结果     参考值\n丙氨酸氨基转移酶                          ALT      40          9~50\n天门冬氨酸氨基转移酶                          AST      37          15~40\n碱性磷酸酶                          ALP      69         45~125\nγ-谷氨酰基转移酶                          GGT      19          10~60\n总蛋白                          TP       79.0          65.0~85.0\n白蛋白                          ALB      51.4         40.0~55.0\n球蛋白                          GLB      27.6         20.0~40.0\n总胆红素                          TBIL      20.5          0.0~26.0\n直接                          DBIL      3.4          (<8.0)\n胆红素\n\n间接胆红素                          IBIL      17.1          0.0~18.0<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 19.02,
+   "usage": {
+    "completion_tokens": 899,
+    "prompt_tokens": 2170,
+    "total_tokens": 3069,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11692.625,
+    "prompt_per_token_ms": 5.425812064965197,
+    "prompt_per_second": 184.30420884959537,
+    "predicted_n": 899,
+    "predicted_ms": 7277.121,
+    "predicted_per_token_ms": 8.103698218262807,
+    "predicted_per_second": 123.40044916114492
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>超声提示:前列腺未见明显异常<lcel><lcel><lcel><nl>\n<fcel>碳13尿素呼气试验检测结果:DOB值3.1‰(参考值<4.0‰)结论:幽门螺杆菌阴性<lcel><lcel><lcel><nl>\n<fcel>人体成分分析结论:体成分构成正常<lcel><lcel><lcel><nl>\n<fcel>实验室检查<lcel><lcel><lcel><nl>\n<fcel>血常规<lcel><lcel><lcel><nl>\n<fcel>检查项目<fcel>英文名称<fcel>化验结果<fcel>参考值<nl>\n<fcel>白细胞计数<fcel>WBC<fcel>6.27<fcel>3.50~9.50<nl>\n<fcel>红细胞计数<fcel>RBC<fcel>5.00<fcel>4.30~5.80<nl>\n<fcel>血红蛋白<fcel>HGB<fcel>169<fcel>130~175<nl>\n<fcel>红细胞压积<fcel>HCT<fcel>51.1↑<fcel>40.0~50.0<nl>\n<fcel>平均红细胞体积<fcel>MCV<fcel>102.2↑<fcel>82.0~100.0<nl>\n<fcel>平均红细胞血红蛋白量<fcel>MCH<fcel>33.7<fcel>27.0~34.0<nl>\n<fcel>平均红细胞血红蛋白浓度<fcel>MCHC<fcel>330<fcel>316~354<nl>\n<fcel>红细胞分布宽度<fcel>RDW-CV<fcel>12.5<fcel>11.5~14.5<nl>\n<fcel>血小板计数<fcel>PLT<fcel>332<fcel>125~350<nl>\n<fcel>平均血小板体积<fcel>MPV<fcel>11.1<fcel>7.6~13.2<nl>\n<fcel>血小板分布宽度<fcel>PDW<fcel>12.3<fcel>9.0~17.0<nl>\n<fcel>血小板压积<fcel>PCT<fcel>0.186<fcel>0.108~0.282<nl>\n<fcel>中性粒细胞百分比<fcel>NEUT%<fcel>56.8<fcel>40.0~75.0<nl>\n<fcel>淋巴细胞百分比<fcel>LYMPH%<fcel>25.8<fcel>20.0~50.0<nl>\n<fcel>单核细胞百分比<fcel>MONO%<fcel>7.7<fcel>3.0~10.0<nl>\n<fcel>嗜酸性粒细胞百分比<fcel>EO%<fcel>9.3↑<fcel>0.4~8.0<nl>\n<fcel>嗜碱性粒细胞百分比<fcel>BASO%<fcel>0.4<fcel>0.0~1.0<nl>\n<fcel>中性粒细胞绝对值<fcel>NEUT#<fcel>3.56<fcel>1.80-6.30<nl>\n<fcel>淋巴细胞绝对值<fcel>LYMPH#<fcel>1.62<fcel>1.10~3.20<nl>\n<fcel>单核细胞绝对值<fcel>MONO#<fcel>0.48<fcel>0.10~0.60<nl>\n<fcel>嗜酸性粒细胞绝对值<fcel>EO#<fcel>0.58↑<fcel>0.02~0.52<nl>\n<fcel>嗜碱性粒细胞绝对值<fcel>BASO#<fcel>0.03<fcel>0.00~0.06<nl>\n<fcel>肝功能<lcel><lcel><lcel><nl>\n<fcel>检查项目<fcel>英文名称<fcel>化验结果<fcel>参考值<nl>\n<fcel>丙氨酸氨基转移酶<fcel>ALT<fcel>40<fcel>9~50<nl>\n<fcel>天门冬氨酸氨基转移酶<fcel>AST<fcel>37<fcel>15~40<nl>\n<fcel>碱性磷酸酶<fcel>ALP<fcel>69<fcel>45~125<nl>\n<fcel>γ-谷氨酰基转移酶<fcel>GGT<fcel>19<fcel>10~60<nl>\n<fcel>总蛋白<fcel>TP<fcel>79.0<fcel>65.0~85.0<nl>\n<fcel>白蛋白<fcel>ALB<fcel>51.4<fcel>40.0~55.0<nl>\n<fcel>球蛋白<fcel>GLB<fcel>27.6<fcel>20.0~40.0<nl>\n<fcel>总胆红素<fcel>TBIL<fcel>20.5<fcel>0.0~26.0<nl>\n<fcel>直接<fcel>DBIL<fcel>3.4<fcel>(<8.0)<nl>\n<fcel>胆红素<ecel><ecel><ecel><nl>\n<fcel>间接胆红素<fcel>IBIL<fcel>17.1<fcel>0.0~18.0<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 7.85,
+   "usage": {
+    "completion_tokens": 931,
+    "prompt_tokens": 2170,
+    "total_tokens": 3101,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 18.855,
+    "prompt_per_token_ms": 2.356875,
+    "prompt_per_second": 424.2906390877751,
+    "predicted_n": 931,
+    "predicted_ms": 7771.568,
+    "predicted_per_token_ms": 8.356524731182796,
+    "predicted_per_second": 119.66697068082013
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1638.4,
+  "phys_footprint_mib": 1202.8,
+  "phys_footprint_peak_mib": 1204.2
+ }
+}

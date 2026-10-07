@@ -1,0 +1,67 @@
+{
+ "id": "p018_2025-09-10_e04hf#p1",
+ "tier": "H3",
+ "image_sha256": "8737b17815ff9e1498de2f585baa9b5d5afe8d756ae895ba94e969709b03d58c",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nFernstead Health Screening Centre\n\nGeneral examination record\n\nName: Xin Palmer    Sex: Female    Age: 66 Y\nMRN: 7197900602    Lab No.: 840625880    Specimen: Serum\n\nPrinted: 2025-09-11    Reported: 2025-09-11    Collected: 2025-09-10\n\nTEST\nHeight\nBody weight\nBody mass index\nSystolic blood pressure\nDiastolic blood pressure\nHeart rate\nFasting plasma glucose\n\nValue\n145.8\n42.8\n20.1\n124\n69\n80\n5.58\n\nUNIT\ncm\nkg\nkg/m²\nmmHg\nmmHg/min\nmmHg/L\nmmHg/ml\nRef.\n18.5-23.9\n90-139\n60-89\n60-100\n3.90-6.10\n\nPage 1 of 1",
+   "finish_reason": "stop",
+   "seconds": 7.49,
+   "usage": {
+    "completion_tokens": 277,
+    "prompt_tokens": 1273,
+    "total_tokens": 1550,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5700.749,
+    "prompt_per_token_ms": 4.495858832807571,
+    "prompt_per_second": 222.42691267410652,
+    "predicted_n": 277,
+    "predicted_ms": 1741.832,
+    "predicted_per_token_ms": 6.310985507246377,
+    "predicted_per_second": 158.4538577773287
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>Name: Xin Palmer    Sex: Female    Age: 66 Y<lcel><lcel><lcel><nl><fcel>MRN: 7197900602    Lab No.: 840625880    Specimen: Serum<lcel><lcel><lcel><nl><fcel>Printed: 2025-09-11  Reported: 2025-09-11  Collected: 2025-09-10<lcel><lcel><lcel><nl><fcel>TEST<ecel><fcel>Value<fcel>UNIT<nl><fcel>Height<ecel><fcel>145.8<fcel>cm<nl><fcel>Body weight<ecel><fcel>42.8<fcel>kg<nl><fcel>Body mass index<ecel><fcel>20.1<fcel>kg/m\\(^{2}\\)<nl><fcel>Systolic blood pressure<ecel><fcel>124<fcel>mmHg<nl><fcel>Diastolic blood pressure<ecel><fcel>69<fcel>mmHg<nl><fcel>Heart rate<ecel><fcel>80<fcel>/min<nl><fcel>Fasting plasma glucose<ecel><fcel>5.58<fcel>mmol/L<nl>",
+   "finish_reason": "stop",
+   "seconds": 1.4,
+   "usage": {
+    "completion_tokens": 217,
+    "prompt_tokens": 1273,
+    "total_tokens": 1490,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.822,
+    "prompt_per_token_ms": 1.6888571428571428,
+    "prompt_per_second": 592.1163931652851,
+    "predicted_n": 217,
+    "predicted_ms": 1336.635,
+    "predicted_per_token_ms": 6.188125,
+    "predicted_per_second": 161.59983840016162
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2219.5,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ }
+}

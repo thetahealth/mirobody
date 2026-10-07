@@ -29,6 +29,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from mirobody.utils.config.llm import RouteSpec
+from mirobody.utils.llm.utils import _max_tokens_param
 
 from .media import (
     _build_vision_message,
@@ -41,8 +42,11 @@ from mirobody.utils.file_types import IMAGE_EXTENSIONS
 logger = logging.getLogger(__name__)
 
 
-def _api_params(spec: RouteSpec, messages: list[dict], json_mode: bool) -> dict[str, Any]:
+def _api_params(spec: RouteSpec, messages: list[dict], json_mode: bool,
+                max_tokens: int | None = None) -> dict[str, Any]:
     params: dict[str, Any] = {"model": spec.model, "messages": messages}
+    if max_tokens:
+        params[_max_tokens_param(spec)] = max_tokens
     if spec.extra_body:
         params["extra_body"] = dict(spec.extra_body)
     if spec.reasoning_effort:
@@ -60,7 +64,7 @@ def _api_params(spec: RouteSpec, messages: list[dict], json_mode: bool) -> dict[
 
 async def _process_pdf(
     pdf_path: str, prompt: str, client: AsyncOpenAI, spec: RouteSpec,
-    max_concurrency: int = 5, json_mode: bool = True,
+    max_concurrency: int = 5, json_mode: bool = True, max_tokens: int | None = None,
 ) -> str:
     """One request per rendered page, concurrently."""
     provider_name, model_name = spec.alias, spec.model
@@ -79,7 +83,7 @@ async def _process_pdf(
             try:
                 api_start = time.time()
                 messages = _build_vision_message(page_info['base64_image'], prompt, json_mode)
-                response = await client.chat.completions.create(**_api_params(spec, messages, json_mode))
+                response = await client.chat.completions.create(**_api_params(spec, messages, json_mode, max_tokens))
                 logger.info(f"Page {page_num} completed in {time.time() - api_start:.2f}s")
                 return {'page': page_num, 'content': response.choices[0].message.content, 'api_duration': time.time() - api_start}
             except Exception as e:
@@ -100,6 +104,7 @@ async def _process_pdf(
 
 async def _process_image(
     image_path: str, prompt: str, client: AsyncOpenAI, spec: RouteSpec, json_mode: bool = True,
+    max_tokens: int | None = None,
 ) -> str:
     """One image, one request. Raises on a failed request."""
     provider_name, model_name = spec.alias, spec.model
@@ -111,7 +116,7 @@ async def _process_image(
 
     api_start = time.time()
     messages = _build_vision_message(base64_image, prompt, json_mode)
-    response = await client.chat.completions.create(**_api_params(spec, messages, json_mode))
+    response = await client.chat.completions.create(**_api_params(spec, messages, json_mode, max_tokens))
     logger.info(f"{provider_name} API completed in {time.time() - api_start:.2f}s")
 
     result = response.choices[0].message.content
@@ -135,7 +140,8 @@ async def openai_compatible_file_extract(
     spec: RouteSpec,
     client: AsyncOpenAI | None = None,
     response_schema: Any | None = None,
-    json_mode: bool = True
+    json_mode: bool = True,
+    max_tokens: int | None = None,
 ) -> str:
     """File extraction through the entry `spec` resolves to.
 
@@ -156,9 +162,11 @@ async def openai_compatible_file_extract(
         final_prompt = _build_prompt_with_schema(prompt, response_schema) if json_mode and response_schema else prompt
         file_ext = file_path.suffix.lower()
         if detect.is_pdf(file_path.name):
-            return await _process_pdf(str(file_path), final_prompt, client, spec, json_mode=json_mode)
+            return await _process_pdf(str(file_path), final_prompt, client, spec, json_mode=json_mode,
+                                      max_tokens=max_tokens)
         if file_ext in IMAGE_EXTENSIONS:
-            return await _process_image(str(file_path), final_prompt, client, spec, json_mode=json_mode)
+            return await _process_image(str(file_path), final_prompt, client, spec, json_mode=json_mode,
+                                        max_tokens=max_tokens)
         raise ValueError(f"unsupported file type for vision extraction: {file_ext}")
     except Exception as e:
         provider_name, model_name = spec.alias, spec.model

@@ -62,7 +62,12 @@ services:
       PG_PASSWORD: ${PG_PASSWORD:-REPLACE_THIS_VALUE_IN_PRODUCTION}
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
-      NO_PROXY: ${NO_PROXY:-pg,localhost,127.0.0.1}
+      # host.docker.internal is a model server on this machine (LOCAL_BASE_URL):
+      # through the proxy, every request to it would leave the machine.
+      NO_PROXY: ${NO_PROXY:-pg,llama,localhost,127.0.0.1,host.docker.internal}
+    extra_hosts:
+      # Docker Desktop resolves this name itself; Docker Engine on Linux needs the line.
+      - "host.docker.internal:host-gateway"
     volumes:
       - mirobody_upload:/app/.theta/mcp/upload
       - ${MIROBODY_CONFIG_FILE:-./docker/empty-config.yaml}:/app/config.${ENV:-localdb}.yaml:ro
@@ -88,6 +93,55 @@ services:
       mirobody:
         condition: service_healthy
 
+  # The local models on llama.cpp's `llama-server` (docker/local-models.ini, or
+  # LOCAL_MODELS_PRESET), on Linux or Windows with an NVIDIA GPU:
+  # `COMPOSE_PROFILES=local ./deploy.sh`, which keeps the profile in .env, or
+  # `docker compose --profile local up -d` beside a running stack (a later
+  # `docker compose down` removes it, and the next `up` leaves it out unless
+  # .env names the profile).
+  # A container on a Mac cannot use its GPU, so there llama-server runs on the
+  # host (docs/local-models.md). The first-run page finds either one.
+  llama: &llama
+    profiles: [local]
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    restart: unless-stopped
+    command: ["--models-preset", "/presets/local-models.ini", "--models-max", "2", "--host", "0.0.0.0", "--port", "8080"]
+    environment:
+      LLAMA_CACHE: /models
+      # Where the models download from the first time, into the
+      # mirobody_models volume they load from after: a Hugging Face mirror
+      # where huggingface.co is unreachable, e.g. HF_ENDPOINT=https://<mirror>
+      # in .env (llama.cpp reads MODEL_ENDPOINT, then HF_ENDPOINT). Passed
+      # only when .env sets one.
+      HF_ENDPOINT:
+      MODEL_ENDPOINT:
+    volumes:
+      - ${LOCAL_MODELS_PRESET:-./docker/local-models.ini}:/presets/local-models.ini:ro
+      - mirobody_models:/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  # The same models with no GPU (`--profile local-cpu`), under the same name,
+  # so the app reaches it at http://llama:8080/v1 as well. Slower: on 4 vCPUs
+  # (colima, 2026-10-07) a first answer took 2-3 minutes. Both models loaded
+  # held about 6.0 GiB in the container, so Docker needs at least 8 GB of
+  # memory: Docker Desktop gives its VM half the computer's by default, and
+  # colima 2 GB unless started with `--memory 8`.
+  llama_cpu:
+    <<: *llama
+    profiles: [local-cpu]
+    image: ${LLAMA_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    deploy: {}
+    networks:
+      default:
+        aliases: [llama]
+
 volumes:
   mirobody_postgres:
   mirobody_upload:
+  mirobody_models:

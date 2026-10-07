@@ -36,20 +36,6 @@ class PreferenceSettings(BaseModel):
     dateFormat: str | None = "YYYY-MM-DD"
 
 
-class PrivacySettings(BaseModel):
-    dataSharing: bool | None = True
-    aiAnalysis: bool | None = True
-    analyticsTracking: bool | None = True
-
-
-class NotificationSettings(BaseModel):
-    email: bool | None = True
-    push: bool | None = True
-    healthAlerts: bool | None = True
-    deviceSync: bool | None = True
-    weeklyReport: bool | None = True
-
-
 class SecuritySettings(BaseModel):
     mfa_enabled: bool | None = None
 
@@ -57,8 +43,6 @@ class SecuritySettings(BaseModel):
 class UserSettings(BaseModel):
     profile: ProfileSettings | None = None
     preferences: PreferenceSettings | None = None
-    privacy: PrivacySettings | None = None
-    notifications: NotificationSettings | None = None
     security: SecuritySettings | None = None
 
 
@@ -209,18 +193,6 @@ async def get_user_settings(
                 "language": accept_language or user_data.get("lang", "en"),
                 "timezone": user_data.get("tz") or timezone or get_default_timezone(),
                 "dateFormat": "YYYY-MM-DD",
-            },
-            "privacy": {
-                "dataSharing": True,
-                "aiAnalysis": True,
-                "analyticsTracking": True,
-            },
-            "notifications": {
-                "email": True,
-                "push": True,
-                "healthAlerts": True,
-                "deviceSync": True,
-                "weeklyReport": True,
             },
         }
 

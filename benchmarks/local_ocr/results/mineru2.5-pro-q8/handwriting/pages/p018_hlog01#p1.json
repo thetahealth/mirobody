@@ -1,0 +1,67 @@
+{
+ "id": "p018_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "8860fe3fe131c61280337e6df22b237d5b5213747709bc4ac6b82e3b760cc2e9",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\nBlood pressure log\nOctober 2024\nDate Time BP Pulse Notes\n30/10 7:35 137/84 64\n11 21:15 117/89 65\n31/10 7:29 121/94 65\n1/11 7:38 135/81 65\n2/11 7:00 132/82 64\n3/11 7:29 121/92 62\n4/11 7:32 135/90 64\n6/11 7:28 140/83 65 poor sleep<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.31,
+   "usage": {
+    "completion_tokens": 197,
+    "prompt_tokens": 2170,
+    "total_tokens": 2367,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11672.252,
+    "prompt_per_token_ms": 5.416358236658933,
+    "prompt_per_second": 184.6258973846692,
+    "predicted_n": 197,
+    "predicted_ms": 1593.61,
+    "predicted_per_token_ms": 8.130663265306122,
+    "predicted_per_second": 122.99119608938197
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>Blood pressure log<lcel><lcel><lcel><nl>\n<ecel><fcel>October 2024<lcel><lcel><lcel><nl>\n<ecel><fcel>Date<fcel>Time<fcel>BP<fcel>Pulse Notes<nl>\n<ecel><fcel>30/10<fcel>7:35<fcel>137/84<fcel>64<nl>\n<ecel><fcel>11<fcel>21:15<fcel>117/89<fcel>65<nl>\n<ecel><fcel>31/10<fcel>7:29<fcel>121/94<fcel>65<nl>\n<ecel><fcel>1/11<fcel>7:38<fcel>135/81<fcel>65<nl>\n<ecel><fcel>2/11<fcel>7:00<fcel>132/82<fcel>64<nl>\n<ecel><fcel>3/11<fcel>7:29<fcel>121/92<fcel>62<nl>\n<ecel><fcel>4/11<fcel>7:32<fcel>135/90<fcel>64<nl>\n<ecel><fcel>6/11<fcel>7:28<fcel>140/83<fcel>65 poor sleep<nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.8,
+   "usage": {
+    "completion_tokens": 324,
+    "prompt_tokens": 2170,
+    "total_tokens": 2494,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 20.547,
+    "prompt_per_token_ms": 2.568375,
+    "prompt_per_second": 389.3512434905339,
+    "predicted_n": 324,
+    "predicted_ms": 2732.464,
+    "predicted_per_token_ms": 8.459640866873064,
+    "predicted_per_second": 118.2083277217925
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1748.1,
+  "phys_footprint_mib": 1260.7,
+  "phys_footprint_peak_mib": 1261.8
+ }
+}

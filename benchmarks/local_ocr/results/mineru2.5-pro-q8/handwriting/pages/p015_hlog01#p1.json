@@ -1,0 +1,67 @@
+{
+ "id": "p015_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "d918bdfe0723cde14e02a292d690898e11a008ae6819b9ab523a47dc4f983d8c",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n每天称体重\n2023年7月\n日期 体重(kg) 备注\n7.17 63.9 早上空腹\n7.20 63.7\n7.24 63.3\n7.28 44.4 64.4 早上空腹\n7.31 63.5\n8.4 63.4\n8.5 63.4 穿睡衣\n8.6 63.9\n8.7 63.8\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.94,
+   "usage": {
+    "completion_tokens": 144,
+    "prompt_tokens": 2170,
+    "total_tokens": 2314,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11672.819,
+    "prompt_per_token_ms": 5.416621345707656,
+    "prompt_per_second": 184.61692929531418,
+    "predicted_n": 144,
+    "predicted_ms": 1209.156,
+    "predicted_per_token_ms": 8.455636363636364,
+    "predicted_per_second": 118.26430998150778
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<ecel><fcel>每天称体重<nl>\n<ecel><fcel>2023年7月<nl>\n<ecel><fcel>日期 体重(kg) 备注<nl>\n<ecel><fcel>7.17 63.9 早上空腹<nl>\n<ecel><fcel>7.20 63.7<nl>\n<ecel><fcel>7.24 63.3<nl>\n<ecel><fcel>7.28 44.4 64.4 早上空腹<nl>\n<ecel><fcel>7.31 63.5<nl>\n<ecel><fcel>8.4 63.4<nl>\n<ecel><fcel>8.5 63.4 穿睡衣<nl>\n<ecel><fcel>8.6 63.9<nl>\n<ecel><fcel>8.7 63.8<nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.14,
+   "usage": {
+    "completion_tokens": 247,
+    "prompt_tokens": 2170,
+    "total_tokens": 2417,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 18.424,
+    "prompt_per_token_ms": 2.303,
+    "prompt_per_second": 434.2162396873643,
+    "predicted_n": 247,
+    "predicted_ms": 2051.513,
+    "predicted_per_token_ms": 8.339483739837398,
+    "predicted_per_second": 119.9114994640541
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1751.9,
+  "phys_footprint_mib": 1263.3,
+  "phys_footprint_peak_mib": 1264.4
+ }
+}

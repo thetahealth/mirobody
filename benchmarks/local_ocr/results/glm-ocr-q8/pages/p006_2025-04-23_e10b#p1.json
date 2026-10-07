@@ -1,0 +1,67 @@
+{
+ "id": "p006_2025-04-23_e10b#p1",
+ "tier": "T4",
+ "image_sha256": "16d7021f8666edf3b108b6551482824b76e0b6e33604ac33da254356e2e20fd6",
+ "image_size": [
+  1536,
+  1084
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n渚砚中医医院\n\n检验报告单\n\n姓名：董英 性别：男 年龄：46岁 门诊号：4652732123\n标本号：586549539\n\n初审日期：2025-04-24 13:52\n\n项目\t检测结果\t参考值(范围)\nC反应蛋白\t1.63\t<8.00&mg/L\n超敏C反应蛋白\t0.29\t<3.00&mg/L\n红细胞沉降率\t7\t0-15&mm/h\n异常项目数\t0\t\n\n审核者：马海峰\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 9.23,
+   "usage": {
+    "completion_tokens": 184,
+    "prompt_tokens": 2156,
+    "total_tokens": 2340,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7878.685,
+    "prompt_per_token_ms": 3.6628010227801027,
+    "prompt_per_second": 273.0151034087541,
+    "predicted_n": 184,
+    "predicted_ms": 1274.216,
+    "predicted_per_token_ms": 6.962928961748633,
+    "predicted_per_second": 143.61772258392614
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>项目</th><th>检测结果</th><th>参考值(范围)</th></tr></thead><tbody><tr><td>C反应蛋白</td><td>1.63</td><td>&lt;8.00&mg/L</td></tr><tr><td>超敏C反应蛋白</td><td>0.29</td><td>&lt;3.00&mg/L</td></tr><tr><td>红细胞沉降率</td><td>7</td><td>0-15&mm/h</td></tr><tr><td>异常项目数</td><td>0</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 1.22,
+   "usage": {
+    "completion_tokens": 171,
+    "prompt_tokens": 2156,
+    "total_tokens": 2327,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 15.73,
+    "prompt_per_token_ms": 3.146,
+    "prompt_per_second": 317.86395422759057,
+    "predicted_n": 171,
+    "predicted_ms": 1127.294,
+    "predicted_per_token_ms": 6.631141176470589,
+    "predicted_per_second": 150.80360580292273
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2336.5,
+  "phys_footprint_mib": 1799.4,
+  "phys_footprint_peak_mib": 1800.5
+ }
+}

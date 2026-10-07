@@ -23,7 +23,7 @@
 
 ---
 
-Last year's checkup wrote `A1c`, this year's panel `HbA1c`, the new clinic `Glycated Hemoglobin`. One test, three names, nothing to compare. Mirobody reads any source, any format, any language, settles every value onto one standard, and answers questions over that record with each number traced to its file. It runs on your machine, on a model key you choose.
+Last year's checkup wrote `A1c`, this year's panel `HbA1c`, the new clinic `Glycated Hemoglobin`. One test, three names, nothing to compare. Mirobody reads any source, any format, any language, settles every value onto one standard, and answers questions over that record with each number traced to its file. It runs on your machine, with one model key or with every model on that same machine, served by [llama.cpp](https://github.com/ggml-org/llama.cpp), and the record stays in a Postgres you run.
 
 <p align="center">
   <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent finds three files that name the test differently, resolves them to one code, and charts the trend" width="880">
@@ -34,10 +34,23 @@ Last year's checkup wrote `A1c`, this year's panel `HbA1c`, the new clinic `Glyc
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-OPENROUTER_API_KEY=sk-or-... ./deploy.sh     # Postgres, server and worker → http://localhost:18060
+./deploy.sh     # Postgres, server and worker; prints the link to the first-run page
 ```
 
-Docker is the only requirement: no Python, Node.js, GPU or Git LFS, and not even Git (`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` is the same checkout). `deploy.sh` writes the secrets and your key into `.env` and pulls the prebuilt image, building it from the checkout when the pull fails. It stops and names the fix when a port is taken or another Mirobody stack already runs under this folder's name. The image runs beside its own Postgres, so `docker run` alone is not a way in. A key added later goes in `.env`, then `docker compose up -d`: a `restart` does not read `.env` again.
+The first-run page asks who reads your health data: paste one model key, or choose **100% on this machine** and pick the models a llama.cpp server on this computer serves. A key is kept only after one real request through it works; the choice is stored encrypted and can be changed later in Settings › Model. With a key already in hand, `OPENROUTER_API_KEY=sk-or-... ./deploy.sh` skips the page.
+
+<p align="center">
+  <img src="docs/images/setup-demo.gif" alt="The first-run page: a model name edited beside an OpenRouter key, then 100% on this machine: the page finds the llama.cpp server, lists the models it serves, and both models are ready" width="880">
+</p>
+<p align="center"><em>Recorded on a 16 GB laptop with the default local pair, MiniCPM5-2B answering and GLM-OCR-0.9B reading, both served by llama.cpp. The large size, Qwen3.8-27B, needs about 20 GB.</em></p>
+
+| | Where the models run | You need | What leaves the machine |
+| --- | --- | --- | --- |
+| **A model key** | at the vendor whose key you paste: OpenRouter, OpenAI, Gemini, Anthropic, DeepSeek, DashScope, or any OpenAI-compatible gateway | Docker and one key | your questions, the rows the agent reads and the documents it reads go to that vendor |
+| **100% on this machine** | **[llama.cpp](https://github.com/ggml-org/llama.cpp)'s `llama-server` serves the models**, beside the stack; Mirobody runs no model itself. By default MiniCPM5-2B answers and GLM-OCR-0.9B reads documents; Qwen3.8-27B answers better on more memory. The model names are yours to change ([guide](docs/local-models.md)) | Docker and 16 GB of memory for the default, no GPU, on Windows, Linux or macOS (about 20 GB for Qwen3.8-27B); a one-time 3.0 GB download (14.5 GB) | nothing about you. An answer takes about 30 s on a 16 GB M1 Pro; with no GPU, a first answer takes 2–3 minutes on 4 CPU cores (Qwen3.8-27B: about two minutes on an M4 Pro) |
+| **The library alone** | no model: `pip install mirobody` or `uvx --python 3.12 mirobody` resolves names to LOINC and units to UCUM | Python 3.12 | nothing: the vocabulary ships in the package |
+
+With a model key, Docker is the only requirement: no Python, Node.js, GPU or Git LFS, and not even Git (`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` is the same checkout). `deploy.sh` writes the secrets and your key into `.env` and pulls the prebuilt image, building it from the checkout when the pull fails. It stops and names the fix when a port is taken or another Mirobody stack already runs under this folder's name. The image runs beside its own Postgres, so `docker run` alone is not a way in. A key added later goes in `.env`, then `docker compose up -d`: a `restart` does not read `.env` again.
 
 1. **Sign in.** The sign-in page offers the demo account, `you@mirobody.ai` with code `111111` on the Email code tab. `SEED_DEMO_DATA` is on by default, so two accounts already hold **2,019 readings**: you, and `mom@mirobody.ai`, who shares her record with you view-only.
 2. **Drop a file on the Data page.** [`demo/upload/`](demo/) holds four files the seed leaves out. The lab PDF and the other lab's CSV are yours; the report photo and the spreadsheet are mom's, so drop those signed in as her. Each analyte comes out with a value, a unit and a code, linked to the page it was read from.
@@ -51,6 +64,10 @@ Docker is the only requirement: no Python, Node.js, GPU or Git LFS, and not even
 </p>
 
 **Which key.** Any one of these runs every surface: [OpenRouter](https://openrouter.ai/keys) (`OPENROUTER_API_KEY`), [OpenAI](https://platform.openai.com/api-keys) (`OPENAI_API_KEY`), [Gemini](https://aistudio.google.com/apikey) (`GOOGLE_API_KEY`), [Anthropic](https://platform.claude.com/settings/keys) (`ANTHROPIC_API_KEY`), DeepSeek, DashScope, or any OpenAI-compatible gateway through `<PROVIDER>_BASE_URL`. [`config.llm.yaml`](config.llm.yaml) names the variable (`api_key: OPENROUTER_API_KEY`), never the secret; `mirobody doctor` prints what each surface selected.
+
+**Which model.** [docs/model-choice.md](docs/model-choice.md) puts the local models beside five cloud ones, DeepSeek V4.1 Flash, Claude Sonnet 5.5, Claude Opus 5.5, Gemini 3.8 Flash and GPT-6 Luna, on the same questions, documents and journal sentences: how good the answers are, how fast, what they cost, and who reads your health data in each case.
+
+**Coming in 1.6.0: a Mirobody model.** Small and fast enough for an ordinary computer, post-trained for Mirobody's own tools and documents, and served by llama.cpp like the others: the best fit for this harness, so that a fully private deployment needs nothing more than an ordinary computer.
 
 → [Self-host guide](https://docs.mirobody.ai/en/self-host) · [Configuration](https://docs.mirobody.ai/en/configuration) · [Deploy on a server](https://docs.mirobody.ai/en/deployment/production)
 
@@ -163,15 +180,25 @@ Every tool the built-in agent has is also served at `/mcp`, one link per person:
 
 Without the stack, `uvx --python 3.12 mirobody mcp` serves the vocabulary over stdio, offline and with no key: names to LOINC, units, and a reading or a complaint to FHIR. Its one tool that reads a whole document, `standardize_report`, also needs the `[parse]` extra and a model key: `uvx --python 3.12 --from 'mirobody[parse]' mirobody mcp`.
 
-## Privacy
+## What stays on your machine
 
-Nothing leaves your machine except calls to the model you chose, and to a device vendor once you link one. **② Translate stays local entirely**: a name to a code, a unit to UCUM, looked up in a bundle that ships inside the package, with no key and no network. Your record lives in your own Postgres, in containers you run, and nothing here reports usage anywhere. Encryption at rest does not yet cover every field; before this reaches a network you do not control, read [SECURITY.md](SECURITY.md).
+Your record lives in your own Postgres, in containers you run, and nothing here reports usage anywhere. What leaves depends on who reads it:
+
+| | With a model key | 100% on this machine |
+| --- | --- | --- |
+| Your documents and questions | sent to that model vendor, under its terms | stay here |
+| A name to a code, a unit to UCUM (**② Translate**) | here, from a bundle inside the package, with no network | the same |
+| Model weights | none | downloaded once from Hugging Face (`HF_ENDPOINT` in `.env` names a mirror) |
+| A device vendor (Garmin, Oura, Whoop) | only after you link one: its tokens and your own data | the same |
+| Container images | pulled by `./deploy.sh` from Docker Hub, or from a mirror when Docker Hub does not answer (`DOCKER_MIRROR=` in `.env` turns the mirror off) | the same |
+
+Encryption at rest covers chat, uploaded files, medication text and your profile, not yet readings or genotypes. Before this reaches a network you do not control, read [SECURITY.md](SECURITY.md), which lists every address the server can call.
 
 ## Numbers you can check
 
 | Claim | Check it |
 | --- | --- |
-| **296/296** on the tests an ordinary checkup prints, written the way a report prints them, in English, Chinese (Simplified and Traditional), Japanese, Russian and Estonian | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score when you run it |
+| **317/317** on the tests an ordinary checkup prints, written the way a report prints them, in English, Chinese (Simplified and Traditional), Japanese, Russian and Estonian | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score when you run it |
 | **328 UCUM units** with dimensional analysis, a molar-mass bridge, and an explicit refusal to convert a percentage into a count | [Standardization in depth](docs/standardization.md) |
 | **316 standard device indicators** | [Device crosswalk](docs/device-crosswalk.md) |
 | The package names the vocabulary that answered you: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
@@ -183,6 +210,7 @@ The engine powers **[Theta Wellness](https://www.thetahealth.ai/)**, a live cons
 
 | You want | Do this |
 | --- | --- |
+| Every model on your own machine | `./deploy.sh`, then **100% on this machine** on the page it links; [docs/local-models.md](docs/local-models.md) has the hardware, the models measured and the commands per platform |
 | Offline resolution and units in your code | `pip install mirobody` on Python 3.12+: no key, no network, two packages |
 | A document turned into readings | `pip install 'mirobody[parse]'`: PDF, image, Excel, Word, PowerPoint, text; only a scanned page reaches a vision model |
 | These tools in Claude Code, Codex, Cursor, Claude Desktop or your own loop | Settings → MCP link, then [one line per client](#or-connect-it-to-your-agent-over-mcp) |

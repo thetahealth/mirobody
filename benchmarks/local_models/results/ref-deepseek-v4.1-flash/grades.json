@@ -1,0 +1,574 @@
+{
+ "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+ "date": "2026-10-06",
+ "grades": [
+  {
+   "id": "p002-weight-latest",
+   "correct": [
+    2,
+    "57.0 kg on 2026-09-01"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct, with the recent range"
+   ]
+  },
+  {
+   "id": "p002-rhr-monthly",
+   "correct": [
+    2,
+    "all six means right"
+   ],
+   "grounded": [
+    2,
+    "from the tool's month view"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "table, plus a chart it was not asked for"
+   ]
+  },
+  {
+   "id": "p002-sleep-july",
+   "correct": [
+    2,
+    "407 min (6 h 47 min), 28 recorded nights"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct, says nights are missing"
+   ]
+  },
+  {
+   "id": "p002-checkup-summary",
+   "correct": [
+    2,
+    "all five findings of the physician summary"
+   ],
+   "grounded": [
+    2,
+    "quoted from page 7"
+   ],
+   "range": [
+    2,
+    "repeats the printed flags and ranges"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "complete"
+   ]
+  },
+  {
+   "id": "p002-steps-chart",
+   "correct": [
+    2,
+    "31 days, low 2,305 and high 9,018 right"
+   ],
+   "grounded": [
+    2,
+    "chart points are the tool's"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "chart and summary"
+   ],
+   "chart": [
+    2,
+    "a vis-chart of the 31 days with the recorded counts"
+   ]
+  },
+  {
+   "id": "p002-headache-journal",
+   "correct": [
+    2,
+    "6 entries, last 2025-04-10"
+   ],
+   "grounded": [
+    2,
+    "from the tool, with the person's words"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p002-vitd-none",
+   "correct": [
+    2,
+    "says no vitamin D result"
+   ],
+   "grounded": [
+    2,
+    "no value given"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "says which report it checked"
+   ]
+  },
+  {
+   "id": "p003-bp-latest",
+   "correct": [
+    2,
+    "124/73 mmHg on 2026-08-22"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "declines to judge without a printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-weight-change",
+   "correct": [
+    2,
+    "84.76, 85.22, +0.46 kg"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct, notes the month-to-month noise"
+   ]
+  },
+  {
+   "id": "p003-hba1c-series",
+   "correct": [
+    2,
+    "6.6%, 6.1%, 6.1%, falling then flat"
+   ],
+   "grounded": [
+    2,
+    "from the tool; the printed 4.0-6.0 read off the report"
+   ],
+   "range": [
+    2,
+    "judged against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "table, chart, plain trend"
+   ]
+  },
+  {
+   "id": "p003-fpg-range",
+   "correct": [
+    2,
+    "4.76 mmol/L on 2026-03-31, within 3.90-6.10"
+   ],
+   "grounded": [
+    2,
+    "the range was read off the report photo (read_file of the .jpg, so the photo went to the model)"
+   ],
+   "range": [
+    2,
+    "judged against the printed range"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-clinic-note",
+   "correct": [
+    2,
+    "diagnosis and all four plan items"
+   ],
+   "grounded": [
+    2,
+    "quoted from the record"
+   ],
+   "range": [
+    2,
+    "repeats the printed ↑ only"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "complete"
+   ]
+  },
+  {
+   "id": "p003-genotype",
+   "correct": [
+    2,
+    "TT"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct, says array data are not diagnostic"
+   ]
+  },
+  {
+   "id": "p003-bp-chart",
+   "correct": [
+    1,
+    "Jan-Aug means as the tool's month view gives them; April, June and July are 2-5 mmHg below the mean of the readings, because the view averages each day's last reading"
+   ],
+   "grounded": [
+    2,
+    "every point is the tool's"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "chart and table"
+   ],
+   "chart": [
+    2,
+    "a vis-chart of both series, monthly"
+   ]
+  },
+  {
+   "id": "p003-numbness-journal",
+   "correct": [
+    2,
+    "6 times, last 2025-12-22"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p003-vitd-none",
+   "correct": [
+    2,
+    "says no vitamin D result"
+   ],
+   "grounded": [
+    2,
+    "no value given"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "says what it searched"
+   ]
+  },
+  {
+   "id": "p004-statin-pgx",
+   "correct": [
+    2,
+    "the 7 sites, rs4149056 TC, status not_determined"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no range question"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "no advice to change the statin"
+   ]
+  },
+  {
+   "id": "p004-weight-latest",
+   "correct": [
+    2,
+    "64.3 kg on 2026-08-26"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p004-bp-september-none",
+   "correct": [
+    2,
+    "no blood pressure at all"
+   ],
+   "grounded": [
+    2,
+    "invents none"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "plain"
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-range",
+   "correct": [
+    2,
+    "140, 134, 153; newest above 115-150"
+   ],
+   "grounded": [
+    2,
+    "from the tool (searched 血红蛋白 and HGB too)"
+   ],
+   "range": [
+    2,
+    "against the printed ranges; says the first has none stored"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-ferritin-change",
+   "correct": [
+    2,
+    "42.3 to 37.1 ng/mL, -5.2"
+   ],
+   "grounded": [
+    2,
+    "42.3 from the report text (grep FER), 37.1 from the tool"
+   ],
+   "range": [
+    2,
+    "both within their printed ranges"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-lipids-range",
+   "correct": [
+    2,
+    "TC, TG, HDL, LDL with printed ranges, all within"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "against the printed ranges"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "direct"
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-chart",
+   "correct": [
+    2,
+    "all three results"
+   ],
+   "grounded": [
+    2,
+    "chart points are the tool's"
+   ],
+   "range": [
+    2,
+    "repeats the printed flag"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "chart and change"
+   ],
+   "chart": [
+    2,
+    "a vis-chart of the three results"
+   ]
+  },
+  {
+   "id": "p005-weight-chart",
+   "correct": [
+    2,
+    "all six monthly means"
+   ],
+   "grounded": [
+    2,
+    "from the tool's month view"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "chart and table"
+   ],
+   "chart": [
+    2,
+    "a vis-chart of the six means"
+   ]
+  }
+ ]
+}

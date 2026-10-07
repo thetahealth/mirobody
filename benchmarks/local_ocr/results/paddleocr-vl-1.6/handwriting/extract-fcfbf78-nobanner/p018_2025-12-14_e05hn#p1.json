@@ -1,0 +1,80 @@
+{
+ "id": "p018_2025-12-14_e05hn#p1",
+ "llm": true,
+ "seconds": 10.31,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Jemp",
+   "value": "36.4",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Body temperature",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "P",
+   "value": "85",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Blood pressure",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "RE",
+   "value": "17",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Respiratory rate",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "115/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Blood pressure",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Lats",
+   "value": "96%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Anxiety",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Mt",
+   "value": "2.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Weight",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Amp",
+   "value": "H/N",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Amnesia",
+   "date_time": "2025-12-14"
+  }
+ ],
+ "date_time": "2025-12-14",
+ "content_type": "medical_report"
+}

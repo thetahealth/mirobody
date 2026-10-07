@@ -1,0 +1,67 @@
+{
+ "id": "p008_hlog02#p1",
+ "tier": "H2",
+ "image_sha256": "dd05d9cfb0f15ae67fe595ba612e7a60510745d80cd1df2c5309424a51ed1f11",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n血糖监测\n2024年8月\n日期 空腹 早餐后 午餐后 晚餐后 备注\n8.5 5.8 7.3 6.1\n8.6 6.6 7.1\n8.7 5.7 7.3\n8.8 6.6 6.3\n8.9 5.6 7.1\n8.10 5.7 6.8 2.0 6.0\n8.11 5.8 6.2 7.7\n8.12 6.3 7.1 6.8\n8.13 5.6 9.0 8.3\n8.14 6.4 6.8 7.9\n8.15 6.3 6.8\n聚餐<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.52,
+   "usage": {
+    "completion_tokens": 218,
+    "prompt_tokens": 2170,
+    "total_tokens": 2388,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11672.402,
+    "prompt_per_token_ms": 5.416427842227378,
+    "prompt_per_second": 184.62352478949919,
+    "predicted_n": 218,
+    "predicted_ms": 1786.497,
+    "predicted_per_token_ms": 8.232705069124425,
+    "predicted_per_second": 121.46675869033086
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>血糖监测<lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>2024年8月<lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>日期<fcel>空腹<fcel>早餐后<fcel>午餐后<fcel>晚餐后<fcel>备注<nl>\n<ecel><fcel>8.5<fcel>5.8<ecel><fcel>7.3<fcel>6.1<ecel><nl>\n<ecel><fcel>8.6<fcel>6.6<ecel><fcel>7.1<ecel><ecel><nl>\n<ecel><fcel>8.7<fcel>5.7<fcel>7.3<ecel><ecel><ecel><nl>\n<ecel><fcel>8.8<fcel>6.6<fcel>6.3<ecel><ecel><fcel>加餐<nl>\n<ecel><fcel>8.9<fcel>5.6<fcel>7.1<ecel><ecel><fcel>吃了水果<nl>\n<ecel><fcel>8.10<fcel>5.7<fcel>6.8<fcel>2.0 6.0<ecel><ecel><nl>\n<ecel><fcel>8.11<fcel>5.8<ecel><fcel>6.2<fcel>7.7<ecel><nl>\n<ecel><fcel>8.12<fcel>6.3<fcel>7.1<ecel><fcel>6.8<ecel><nl>\n<ecel><fcel>8.13<fcel>5.6<fcel>9.0<fcel>8.3<ecel><ecel><nl>\n<ecel><fcel>8.14<fcel>6.4<fcel>6.8<fcel>7.9<ecel><fcel>聚餐<nl>\n<ecel><fcel>8.15<fcel>6.3<ecel><fcel>6.8<ecel><ecel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><lcel><lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 3.48,
+   "usage": {
+    "completion_tokens": 412,
+    "prompt_tokens": 2170,
+    "total_tokens": 2582,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 16.569,
+    "prompt_per_token_ms": 2.071125,
+    "prompt_per_second": 482.82938016778326,
+    "predicted_n": 412,
+    "predicted_ms": 3403.186,
+    "predicted_per_token_ms": 8.280257907542579,
+    "predicted_per_second": 120.76918511065806
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1751.7,
+  "phys_footprint_mib": 1263.3,
+  "phys_footprint_peak_mib": 1264.4
+ }
+}

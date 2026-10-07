@@ -1,0 +1,67 @@
+{
+ "id": "p012_2025-03-06_e06hn#p1",
+ "tier": "H2",
+ "image_sha256": "160f4bd69c0a79919b3ce5e2891a4c0ff69b9ed208f0956c97f08ad4987197bd",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE—GENERATED DATA, NOT A REAL PATIENT RECORD\n门诊记录\n科别：金科    日期：2025-3-6\n缺铁性贫血复诊\n一般情况可，近期无特殊不适\nT: 36.9° CP 80次/分 R:16 BP 115/67 sp02 99%\n体重 59.2 kg\n双肺呼吸音清，腹软无压痛\n印象：缺铁性贫血\n建议：监测血糖，多饮水，注意休息<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.76,
+   "usage": {
+    "completion_tokens": 127,
+    "prompt_tokens": 2170,
+    "total_tokens": 2297,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11671.957,
+    "prompt_per_token_ms": 5.4162213457076565,
+    "prompt_per_second": 184.63056366640143,
+    "predicted_n": 127,
+    "predicted_ms": 1034.883,
+    "predicted_per_token_ms": 8.213357142857143,
+    "predicted_per_second": 121.75289380538669
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<fcel>门诊记录<lcel><nl>\n<fcel>科别:全科<fcel>日期:2025-3-6<nl>\n<fcel>缺铁性贫血复诊<lcel><nl>\n<fcel>一般情况可,近期无特殊不适<lcel><nl>\n<fcel>T: 36.9° CP 80次/分 R:16 BP 115/67 sp02 99%<lcel><nl>\n<fcel>体重 59.2 kg<lcel><nl>\n<fcel>双肺呼吸音清,腹软无压痛<lcel><nl>\n<fcel>印象:缺铁性贫血<lcel><nl>\n<fcel>建议:监测血糖,多饮水,注意休息<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.36,
+   "usage": {
+    "completion_tokens": 156,
+    "prompt_tokens": 2170,
+    "total_tokens": 2326,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 17.884,
+    "prompt_per_token_ms": 2.2355,
+    "prompt_per_second": 447.32721986132856,
+    "predicted_n": 156,
+    "predicted_ms": 1282.407,
+    "predicted_per_token_ms": 8.273593548387096,
+    "predicted_per_second": 120.86646439079014
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1752.3,
+  "phys_footprint_mib": 1263.3,
+  "phys_footprint_peak_mib": 1264.4
+ }
+}

@@ -8,8 +8,12 @@ Mirobody-specific middleware on top of the deepagents stack:
   killing the turn.
 - `InvalidToolCallRepairMiddleware`: a tool call with unparseable JSON arguments
   becomes an error ToolMessage + retry instead of silently ending the turn.
+- `EmptyAnswerRepairMiddleware`: a reply with no answer text and no tool call
+  is asked for once more instead of ending the turn blank.
 - `RetryGovernanceMiddleware`: a call that already failed unrecoverably is
   refused before it runs again (`mirobody.kernel.tools.RetryLedger`).
+- `NoVisionReadMiddleware`: for a model that cannot see, `read_file` answers an
+  image with its OCR text instead of an image block.
 
 The filesystem and tool-call repair pieces come from upstream `deepagents`.
 GenotypeSafeSummarizationMiddleware replaces its summarization slot so history
@@ -19,16 +23,20 @@ deepagents 0.7 dropped it from the default stack and the agent does not add it
 back, so there is no `write_todos` tool.
 """
 
+from .empty_answer import EmptyAnswerRepairMiddleware
 from .prompt_caching import UniversalPromptCachingMiddleware
 from .genotype_row_guard import GenotypeRowGuardMiddleware
 from .genotype_summarization import GenotypeSafeSummarizationMiddleware
+from .no_vision import NoVisionReadMiddleware
 from .retry_governance import RetryGovernanceMiddleware
 from .tool_faults import InvalidToolCallRepairMiddleware, ToolFaultMiddleware
 
 __all__ = [
+    "EmptyAnswerRepairMiddleware",
     "InvalidToolCallRepairMiddleware",
     "GenotypeRowGuardMiddleware",
     "GenotypeSafeSummarizationMiddleware",
+    "NoVisionReadMiddleware",
     "RetryGovernanceMiddleware",
     "ToolFaultMiddleware",
     "UniversalPromptCachingMiddleware",

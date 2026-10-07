@@ -96,6 +96,10 @@ CASES: list[tuple[str, str, str]] = [
     ("Lipid-Low-Density Lipoprotein Calculated", r"cholesterol.*LDL|LDL.*cholesterol", r"HDL|ratio"),
     # ── complete blood count ─────────────────────────────────────────────────
     ("hemoglobin",                  r"hemoglobin",                   r"A1c|glycated"),
+    # The British spelling answered 4548-4 Hemoglobin A1c, and `Haemoglobin
+    # (Hb)` was refused as two analytes.
+    ("haemoglobin",                 r"hemoglobin",                   r"A1c|glycated"),
+    ("Haemoglobin (Hb)",            r"hemoglobin",                   r"A1c|glycated"),
     ("hematocrit",                  r"hematocrit",                   r""),
     ("white blood cell count",      r"leukocyte|white blood cell",   r""),
     ("red blood cell count",        r"erythrocyte|red blood cell",   r""),
@@ -150,6 +154,28 @@ CASES: list[tuple[str, str, str]] = [
     ("vitamin D",                   r"vitamin d|calcidiol|hydroxyvitamin", r""),
     ("vitamin B12",                 r"cobalamin|vitamin b12",        r""),
     ("ferritin",                    r"ferritin",                     r""),
+    # `FER` answered 2498-4 Iron: French LOINC names the iron component `Fer`.
+    ("FER",                         r"ferritin",                     r"^iron"),
+    ("Ferritin (FER)",              r"ferritin",                     r"^iron"),
+    # `TT4` answered 3024-7, free thyroxine; the antibodies resolved to nothing.
+    ("TT4",                         r"^thyroxine \(T4\)",           r"free"),
+    ("总甲状腺素(TT4)",               r"^thyroxine \(T4\)",           r"free"),
+    ("Total thyroxine",             r"^thyroxine \(T4\)",           r"free"),
+    ("TT3",                         r"^triiodothyronine \(T3\)",    r"free"),
+    ("总三碘甲状腺原氨酸(TT3)",        r"^triiodothyronine \(T3\)",    r"free"),
+    ("Total triiodothyronine",      r"^triiodothyronine \(T3\)",    r"free"),
+    ("超敏促甲状腺激素",              r"thyrotropin",                  r"receptor"),
+    ("抗TPO抗体",                    r"thyroperoxidase ab",           ""),
+    ("TPO抗体",                      r"thyroperoxidase ab",           ""),
+    ("抗甲状腺过氧化物酶抗体",          r"thyroperoxidase ab",           ""),
+    ("Thyroid peroxidase antibody", r"thyroperoxidase ab",           ""),
+    ("抗TG抗体",                     r"thyroglobulin ab",             ""),
+    ("TG-Ab",                       r"thyroglobulin ab",             r"triglyceride"),
+    ("抗甲状腺球蛋白抗体",              r"thyroglobulin ab",             ""),
+    ("Thyroglobulin antibody",      r"thyroglobulin ab",             ""),
+    ("促甲状腺素受体抗体",              r"thyrotropin receptor ab",      r"fetus"),
+    # `TRAb` answered 63363-6, the antibody in blood from a fetus.
+    ("TRAb",                        r"thyrotropin receptor ab",      r"fetus"),
     ("CRP",                         r"c reactive protein",           r""),
     # ── Simplified Chinese ────────────────────────────────────────────────────
     ("血红蛋白",                     r"hemoglobin",                   r"A1c|glycated"),
@@ -587,6 +613,9 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("尿酸",             "420", "umol/L", "14933-6", "urate to substance conc"),
     ("总胆红素",          "17",  "umol/L", "14631-6", "bilirubin.total to substance conc"),
     ("甘油三酯",          "1.7", "mmol/L", "14927-8", "triglyceride to substance conc"),
+    # ng/mL is a mass concentration for iron and for ferritin alike, so the
+    # unit could not catch `FER` answering iron; the name has to be right.
+    ("FER",             "42.3", "ng/mL", "20567-4", "ferritin, not 2498-4 iron"),
     # No unit, an unparseable unit, or a unit already in the right family must
     # all leave the answer exactly where `resolve` put it.
     ("HGB",             "140", "g/L",    "718-7",   "g/L is already MCnc"),

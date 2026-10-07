@@ -1,0 +1,37 @@
+{
+ "id": "p004_2024-07-17_e05a#p1",
+ "llm": true,
+ "seconds": 2.75,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Alpha-fetoprotein",
+   "value": "3.11",
+   "unit": "ng/mL",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Carcinoembryonic antigen",
+   "value": "1.61",
+   "unit": "ng/mL",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Prostate specific antigen",
+   "value": "0.86",
+   "unit": "ng/mL",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "2024-07-18 00:21",
+ "content_type": "medical_report"
+}

@@ -1,0 +1,17 @@
+LLM models by surface (config.llm.yaml)
+------------------------------------------------------------------------
+keys present   : OPENROUTER_API_KEY
+
+  chat    OK    claude-sonnet (also gpt, local) / deepseek/deepseek-v4.1-flash
+  vision  OK    local-utils / qwen3.5-9b
+  text    OK    openrouter-utils / deepseek/deepseek-v4.1-flash
+  ocr     OK    local-ocr / glm-ocr
+------------------------------------------------------------------------
+Probes (one real request each)
+------------------------------------------------------------------------
+  served  FAIL     0.0s  URLError: <urlopen error [Errno 111] Connection refused>
+  chat    PASS     1.6s  claude-sonnet: query_health_indicators({"keywords": ["fasting glucose"], "days": 90})
+  text    PASS     1.1s  openrouter-utils (json_schema): {"name": "Hemoglobin", "value": 13.5, "unit": "g/dL"}
+  vision  FAIL     0.1s  ValueError: local-utils (qwen3.5-9b) failed: Connection error.
+  ocr     FAIL     0.0s  ValueError: local-ocr (glm-ocr) failed: Connection error.
+------------------------------------------------------------------------

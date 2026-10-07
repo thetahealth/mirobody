@@ -64,13 +64,14 @@ class ThFilesBackend(PgFilesystemBackend):
         file_keys: list[str] | None = None,
         supports_file_block: bool = False,
         turn_names: dict[str, str] | None = None,
+        supports_image: bool = True,
     ):
         if scope not in ("uploads", "library"):
             raise ValueError(f"ThFilesBackend scope must be uploads|library, got {scope!r}")
         # session_id is irrelevant to a projection: the row key is the file, and
         # `/uploads/` narrows by the keys this request named rather than by session.
         super().__init__(user_id=user_id, session_id="", scope=scope,
-                         supports_file_block=supports_file_block)
+                         supports_file_block=supports_file_block, supports_image=supports_image)
         self._keys = [str(k) for k in (file_keys or [])][:_MAX_SESSION_FILES]
         # file_key -> the name THIS request attached the file under. `/uploads/`
         # uses it rather than `th_files.file_name`, which is not stable: the

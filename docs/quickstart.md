@@ -6,7 +6,7 @@ and ignore the other two.
 | You want | Go to | Needs | Key |
 | --- | --- | --- | --- |
 | Names and units resolved in your own code | [A · the library](#a--the-library) | Python 3.12 | none |
-| The whole product running, with data in it | [B · the stack](#b--the-stack) | Docker | one for model features |
+| The whole product running, with data in it | [B · the stack](#b--the-stack) | Docker | one for model features, or none with the local models on llama.cpp |
 | To change the code and see it | [C · a checkout](#c--a-checkout) | Python + a Postgres | one |
 
 For a hosted API key and `/v1` requests, use the separate [Cloud
@@ -46,14 +46,18 @@ seeded.
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-./deploy.sh                       # → http://localhost:18060
+./deploy.sh                       # → prints the first-run page's link on http://localhost:18060
 ```
 
 `deploy.sh` pulls the application image, which already contains the LOINC
 bundle, and writes a `.env` with generated secrets on first run. Docker users
-do not need Git LFS. Put **one** model key in `.env`, then restart the server
-and worker with `docker compose up -d`. Check available model features
-inside the server container:
+do not need Git LFS. With no model yet, it prints the link to the first-run
+page: paste **one** model key there, or choose **100% on this machine** to run
+every model locally on [llama.cpp](local-models.md) (`llama-server`, the local
+model runtime Mirobody ships a preset for; the default pair needs 16 GB of
+memory and no GPU, and without a GPU a first answer takes 2–3 minutes). A key
+can also go in `.env`, followed by `docker compose up -d` (a `restart` does not
+reread `.env`). Check available model features inside the server container:
 
 ```bash
 docker compose exec mirobody mirobody doctor
@@ -115,7 +119,7 @@ do not survive a restart. Set `JWT_KEY`, `CONFIG_ENCRYPTION_KEY` and
 
 | What you see | What it is |
 | --- | --- |
-| `keys present : none` from `mirobody doctor` | No model key. ① Collect and ② Translate still work; extraction and answers do not. |
+| `keys present : none` and every surface `--` from `mirobody doctor` | No model key and no local model server. ① Collect and ② Translate still work; extraction and answers do not. Open the link `./deploy.sh` printed. |
 | A LOINC lookup raises on a fresh clone | `git lfs pull` has not run — the bundle is still a pointer stub. |
 | `mirobody dev` exits asking for a Postgres | `--pg-url`, or `PG_URL` / `DATABASE_URL` in the environment. |
 | The server starts but device sync never runs | Check the worker logs and Postgres connection; device pulls and task state both use Postgres. |

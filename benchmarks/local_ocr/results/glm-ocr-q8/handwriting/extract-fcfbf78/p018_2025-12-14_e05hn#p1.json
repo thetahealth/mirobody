@@ -1,0 +1,90 @@
+{
+ "id": "p018_2025-12-14_e05hn#p1",
+ "llm": true,
+ "seconds": 10.54,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Temperature",
+   "value": "36.4",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Feels well",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "85",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "115/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "17",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Mt+2.8kg",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "BMI",
+   "value": "96%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "Abdominal exam",
+   "value": "soft, non-tender",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "Imp",
+   "value": "HM",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Pathological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "14 Dec 2025"
+  },
+  {
+   "original_indicator": "Plan",
+   "value": "check sugars at home, continue current media",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "14 Dec 2025"
+  }
+ ],
+ "date_time": "14 Dec 2025",
+ "content_type": "medical_report"
+}

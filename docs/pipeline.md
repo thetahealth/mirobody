@@ -112,7 +112,7 @@ maintains none. Only the physically impossible is rejected.
 conversion raises, but neither path is tagged. `kernel/quality.py` computes a
 `unit_converted` flag (`FLAG_UNIT_CONVERTED`) for exactly this purpose and
 nothing downstream stores it, so a converted reading and one that arrived
-already in the catalogue's unit are the same shape in `th_series_data` today.
+already in the catalogue's unit are the same shape in `th_observation` today.
 `mirobody/translate/__init__.py` carries the plan to separate them.
 
 ## 6. Store
@@ -144,9 +144,14 @@ bucket), and its standardization was a second UPDATE on the hot table, which
 is where every production deadlock on it came from.
 
 **Stated, not hidden.** A deployment upgraded in place keeps its history in
-`th_series_data_retired_15` (`90_retire.sql` renames, never
-drops) and answers from an empty catalogue until `mirobody
-migrate-observations` has moved the rows through the same writer. A migrated
+`th_series_data_retired_15` and answers from an empty catalogue until `mirobody
+migrate-observations` has moved the rows through the same writer. A row counts
+as moved only when a row with its fingerprint is in `th_observation`; the
+table is dropped (by that command, or by `90_retire.sql` at the next boot)
+once no row is left that is neither moved nor deleted by the person, and the
+rows the person deleted go with it. A row whose comment does not decrypt, one
+that differs from the reading already stored under its identity and one the
+new model rejects all keep the table. A migrated
 file reading carries `note_text = migrated:th_series_data`, because its name
 was written in the user's language by the old extractor rather than as
 printed.

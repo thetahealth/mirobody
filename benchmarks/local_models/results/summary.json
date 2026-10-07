@@ -1,0 +1,6402 @@
+{
+ "generated": "2026-10-07T13:52:13+08:00",
+ "environment": {
+  "mirobody_commit": "bb3af91c685473c1a1385340d591a4b1aac17704",
+  "mirobody_dirty": true,
+  "mirobody_gen": {
+   "seed": 7,
+   "people": 6,
+   "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+   "repo_head_at_run": "b195fde5ed5e4ee562b9742304fa17dacf6f803c",
+   "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+   "corpus": "<scratch>/gen6",
+   "sha256": {
+    "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+    "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+    "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+    "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+    "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+    "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+   }
+  },
+  "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+  "router": {
+   "preset": "docker/local-models.ini",
+   "models_max": 2
+  },
+  "machine": {
+   "chip": "Apple M1 Pro",
+   "memory_gb": 16,
+   "os": "Darwin 26.6.2",
+   "docker_vm": "colima 4 CPU, 8 GB"
+  },
+  "timeouts": {
+   "question_s": 600,
+   "late_wait_s": 900,
+   "upload_s": 1800,
+   "journal_s": 900,
+   "settle_s": 35
+  },
+  "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",
+  "references": {
+   "ref-deepseek-v4.1-flash": {
+    "started": "2026-10-06T20:38:56+08:00",
+    "finished": "2026-10-06T20:51:55+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "deepseek/deepseek-v4.1-flash",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "default": "anthropic/claude-sonnet-5",
+        "env": "OPENROUTER_CHAT_MODEL",
+        "in_env_file": true
+       },
+       "utils_model": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "default": "google/gemini-3.8-flash",
+        "env": "OPENROUTER_UTILS_MODEL",
+        "in_env_file": true
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "qwen3.5-9b",
+       "utils": "qwen3.5-9b",
+       "ocr": "glm-ocr"
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal",
+       "qa"
+      ],
+      "started": "2026-10-06T20:38:56+08:00",
+      "finished": "2026-10-06T20:51:55+08:00",
+      "mirobody_commit": "357bd2a108c8991f17387758d448f1048fd8e01b",
+      "mirobody_dirty": true
+     }
+    ],
+    "summary": {
+     "size": "ref-deepseek-v4.1-flash",
+     "agent": "deepseek/deepseek-v4.1-flash",
+     "qa_pass": 23,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 24,
+      "tool": 24,
+      "facts": 23,
+      "language": 24,
+      "chart": 24
+     },
+     "qa_unsupported_numbers": 7,
+     "qa_answers_with_unsupported": 4,
+     "qa_timeouts": 0,
+     "qa_median_s": 11.1,
+     "qa_p90_s": 20.6,
+     "ext_rows": 140,
+     "ext_found": 86,
+     "ext_unit_ok": 86,
+     "ext_range_ok": 80,
+     "ext_extra": 40,
+     "ext_dates_ok": 9,
+     "ext_docs": 12,
+     "ext_median_s": 28.8,
+     "ext_failed": 0,
+     "jnl_expected": 31,
+     "jnl_found": 26,
+     "jnl_code_ok": 12,
+     "jnl_coded_checked": 15,
+     "jnl_extra": 3,
+     "jnl_exact": 9,
+     "jnl_n": 15,
+     "jnl_errors": 0,
+     "jnl_median_s": 4.6,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-deepseek-v4.1-flash-v2": {
+    "started": "2026-10-06T22:03:29+08:00",
+    "finished": "2026-10-07T11:26:08+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "deepseek/deepseek-v4.1-flash",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "default": "deepseek/deepseek-v4.1-flash",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "default": "deepseek/deepseek-v4.1-flash",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "together"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "supports_image": false,
+       "response_format": "json_object",
+       "extra_body": {
+        "reasoning": {
+         "enabled": false
+        },
+        "provider": {
+         "order": [
+          "together"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Together",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Together",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal"
+      ],
+      "started": "2026-10-06T22:03:33+08:00",
+      "finished": "2026-10-06T22:06:07+08:00",
+      "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T01:15:33+08:00",
+      "finished": "2026-10-07T01:18:19+08:00",
+      "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T11:24:52+08:00",
+      "finished": "2026-10-07T11:26:08+08:00",
+      "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+      "mirobody_dirty": true
+     }
+    ],
+    "summary": {
+     "size": "ref-deepseek-v4.1-flash-v2",
+     "agent": "deepseek/deepseek-v4.1-flash",
+     "qa_pass": 23,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 24,
+      "tool": 24,
+      "facts": 23,
+      "language": 24,
+      "chart": 23
+     },
+     "qa_unsupported_numbers": 8,
+     "qa_answers_with_unsupported": 4,
+     "qa_timeouts": 0,
+     "qa_median_s": 4.2,
+     "qa_p90_s": 10.1,
+     "ext_rows": 140,
+     "ext_found": 138,
+     "ext_unit_ok": 138,
+     "ext_range_ok": 133,
+     "ext_extra": 48,
+     "ext_dates_ok": 11,
+     "ext_docs": 12,
+     "ext_median_s": 9.1,
+     "ext_failed": 0,
+     "jnl_expected": 31,
+     "jnl_found": 29,
+     "jnl_code_ok": 11,
+     "jnl_coded_checked": 15,
+     "jnl_extra": 0,
+     "jnl_exact": 9,
+     "jnl_n": 15,
+     "jnl_errors": 0,
+     "jnl_median_s": 0.8,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-gpt-6-luna": {
+    "started": "2026-10-06T22:09:10+08:00",
+    "finished": "2026-10-07T11:28:30+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "openai/gpt-6-luna",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "openai/gpt-6-luna",
+        "default": "openai/gpt-6-luna",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "openai/gpt-6-luna",
+        "default": "openai/gpt-6-luna",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "openai/gpt-6-luna",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "azure"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "openai/gpt-6-luna",
+       "supports_image": false,
+       "reasoning_effort": "none",
+       "extra_body": {
+        "provider": {
+         "order": [
+          "azure"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Azure",
+       "model": "openai/gpt-6-luna",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Azure",
+       "model": "openai/gpt-6-luna",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal"
+      ],
+      "started": "2026-10-06T22:09:35+08:00",
+      "finished": "2026-10-06T22:18:11+08:00",
+      "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T01:19:07+08:00",
+      "finished": "2026-10-07T01:23:17+08:00",
+      "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T11:26:55+08:00",
+      "finished": "2026-10-07T11:28:30+08:00",
+      "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+      "mirobody_dirty": true
+     }
+    ],
+    "summary": {
+     "size": "ref-gpt-6-luna",
+     "agent": "openai/gpt-6-luna",
+     "qa_pass": 21,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 24,
+      "tool": 23,
+      "facts": 21,
+      "language": 24,
+      "chart": 24
+     },
+     "qa_unsupported_numbers": 3,
+     "qa_answers_with_unsupported": 2,
+     "qa_timeouts": 0,
+     "qa_median_s": 9.7,
+     "qa_p90_s": 17.2,
+     "ext_rows": 140,
+     "ext_found": 140,
+     "ext_unit_ok": 140,
+     "ext_range_ok": 134,
+     "ext_extra": 49,
+     "ext_dates_ok": 12,
+     "ext_docs": 12,
+     "ext_median_s": 12.3,
+     "ext_failed": 0,
+     "jnl_expected": 31,
+     "jnl_found": 31,
+     "jnl_code_ok": 10,
+     "jnl_coded_checked": 15,
+     "jnl_extra": 1,
+     "jnl_exact": 10,
+     "jnl_n": 15,
+     "jnl_errors": 0,
+     "jnl_median_s": 2.5,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-claude-sonnet-5.5": {
+    "started": "2026-10-06T22:18:47+08:00",
+    "finished": "2026-10-07T11:30:44+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "anthropic/claude-sonnet-5.5",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "anthropic/claude-sonnet-5.5",
+        "default": "anthropic/claude-sonnet-5.5",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "anthropic/claude-sonnet-5.5",
+        "default": "anthropic/claude-sonnet-5.5",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "anthropic/claude-sonnet-5.5",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "anthropic/claude-sonnet-5.5",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Google",
+       "model": "anthropic/claude-sonnet-5.5",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Google",
+       "model": "anthropic/claude-sonnet-5.5",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal"
+      ],
+      "started": "2026-10-06T22:19:19+08:00",
+      "finished": "2026-10-06T22:25:00+08:00",
+      "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T01:24:04+08:00",
+      "finished": "2026-10-07T01:28:06+08:00",
+      "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T11:29:18+08:00",
+      "finished": "2026-10-07T11:30:44+08:00",
+      "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+      "mirobody_dirty": true
+     }
+    ],
+    "summary": {
+     "size": "ref-claude-sonnet-5.5",
+     "agent": "anthropic/claude-sonnet-5.5",
+     "qa_pass": 23,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 24,
+      "tool": 24,
+      "facts": 23,
+      "language": 24,
+      "chart": 24
+     },
+     "qa_unsupported_numbers": 7,
+     "qa_answers_with_unsupported": 4,
+     "qa_timeouts": 0,
+     "qa_median_s": 9.0,
+     "qa_p90_s": 16.0,
+     "ext_rows": 140,
+     "ext_found": 140,
+     "ext_unit_ok": 140,
+     "ext_range_ok": 134,
+     "ext_extra": 48,
+     "ext_dates_ok": 11,
+     "ext_docs": 12,
+     "ext_median_s": 17.4,
+     "ext_failed": 0,
+     "jnl_expected": 31,
+     "jnl_found": 30,
+     "jnl_code_ok": 9,
+     "jnl_coded_checked": 15,
+     "jnl_extra": 0,
+     "jnl_exact": 9,
+     "jnl_n": 15,
+     "jnl_errors": 0,
+     "jnl_median_s": 2.4,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-gpt-6.1-sol": {
+    "started": "2026-10-06T22:52:31+08:00",
+    "finished": "2026-10-07T11:41:58+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "openai/gpt-6.1-sol",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "openai/gpt-6.1-sol",
+        "default": "openai/gpt-6.1-sol",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "openai/gpt-6.1-sol",
+        "default": "openai/gpt-6.1-sol",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/gpt-6.1-sol.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "openai/gpt-6.1-sol",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "azure"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "openai/gpt-6.1-sol",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "azure"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Azure",
+       "model": "openai/gpt-6.1-sol",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Azure",
+       "model": "openai/gpt-6.1-sol",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal"
+      ],
+      "started": "2026-10-06T22:53:07+08:00",
+      "finished": "2026-10-07T00:36:14+08:00",
+      "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T01:34:29+08:00",
+      "finished": null,
+      "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T01:41:17+08:00",
+      "finished": null,
+      "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T02:04:54+08:00",
+      "finished": "2026-10-07T02:38:46+08:00",
+      "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T03:00:26+08:00",
+      "finished": null,
+      "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+      "mirobody_dirty": false
+     },
+     {
+      "parts": [
+       "qa"
+      ],
+      "started": "2026-10-07T11:32:03+08:00",
+      "finished": "2026-10-07T11:41:58+08:00",
+      "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+      "mirobody_dirty": true
+     }
+    ],
+    "summary": {
+     "size": "ref-gpt-6.1-sol",
+     "agent": "openai/gpt-6.1-sol",
+     "qa_pass": 21,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 23,
+      "tool": 22,
+      "facts": 21,
+      "language": 24,
+      "chart": 24
+     },
+     "qa_unsupported_numbers": 6,
+     "qa_answers_with_unsupported": 4,
+     "qa_timeouts": 0,
+     "qa_median_s": 11.1,
+     "qa_p90_s": 18.8,
+     "ext_rows": 140,
+     "ext_found": 90,
+     "ext_unit_ok": 90,
+     "ext_range_ok": 90,
+     "ext_extra": 25,
+     "ext_dates_ok": 10,
+     "ext_docs": 12,
+     "ext_median_s": 19.9,
+     "ext_failed": 1,
+     "jnl_expected": 31,
+     "jnl_found": 29,
+     "jnl_code_ok": 9,
+     "jnl_coded_checked": 14,
+     "jnl_extra": 2,
+     "jnl_exact": 8,
+     "jnl_n": 15,
+     "jnl_errors": 1,
+     "jnl_median_s": 5.4,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    },
+    "dropped": "2026-10-07: rate-limited upstream even pinned to Azure, at about 20 times GPT-6 Luna's price; raw results kept"
+   },
+   "ref-gemini-3.8-flash": {
+    "started": "2026-10-07T11:58:20+08:00",
+    "finished": "2026-10-07T12:11:58+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "google/gemini-3.8-flash",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "google/gemini-3.8-flash",
+        "default": "google/gemini-3.8-flash",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "google/gemini-3.8-flash",
+        "default": "google/gemini-3.8-flash",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "google/gemini-3.8-flash",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "google/gemini-3.8-flash",
+       "supports_image": false,
+       "extra_body": {
+        "reasoning": {
+         "effort": "low",
+         "exclude": true
+        },
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Google",
+       "model": "google/gemini-3.8-flash",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Google",
+       "model": "google/gemini-3.8-flash",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal",
+       "qa"
+      ],
+      "started": "2026-10-07T11:58:52+08:00",
+      "finished": "2026-10-07T12:11:58+08:00",
+      "mirobody_commit": "29804fc414d4580ebc21146d808349a0e40dc241",
+      "mirobody_dirty": true
+     }
+    ],
+    "summary": {
+     "size": "ref-gemini-3.8-flash",
+     "agent": "google/gemini-3.8-flash",
+     "qa_pass": 23,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 24,
+      "tool": 24,
+      "facts": 23,
+      "language": 24,
+      "chart": 24
+     },
+     "qa_unsupported_numbers": 7,
+     "qa_answers_with_unsupported": 4,
+     "qa_timeouts": 0,
+     "qa_median_s": 14.9,
+     "qa_p90_s": 25.7,
+     "ext_rows": 140,
+     "ext_found": 140,
+     "ext_unit_ok": 140,
+     "ext_range_ok": 136,
+     "ext_extra": 47,
+     "ext_dates_ok": 11,
+     "ext_docs": 12,
+     "ext_median_s": 12.3,
+     "ext_failed": 0,
+     "jnl_expected": 31,
+     "jnl_found": 31,
+     "jnl_code_ok": 11,
+     "jnl_coded_checked": 15,
+     "jnl_extra": 0,
+     "jnl_exact": 11,
+     "jnl_n": 15,
+     "jnl_errors": 0,
+     "jnl_median_s": 2.6,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    },
+    "code_note": "application code as 321aa2c; the checkout was at 29804fc/e696cb8, which differ only in docs and in config.llm.yaml entries no reference uses"
+   },
+   "ref-claude-opus-5.5": {
+    "started": "2026-10-07T12:13:16+08:00",
+    "finished": "2026-10-07T12:26:49+08:00",
+    "parts": [
+     "extraction",
+     "journal",
+     "qa"
+    ],
+    "models": {
+     "chat_model": "anthropic/claude-opus-5.5",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "anthropic/claude-opus-5.5",
+        "default": "anthropic/claude-opus-5.5",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "anthropic/claude-opus-5.5",
+        "default": "anthropic/claude-opus-5.5",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/claude-opus-5.5.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "anthropic/claude-opus-5.5",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "anthropic/claude-opus-5.5",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Google",
+       "model": "anthropic/claude-opus-5.5",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Google",
+       "model": "anthropic/claude-opus-5.5",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction",
+       "journal",
+       "qa"
+      ],
+      "started": "2026-10-07T12:13:49+08:00",
+      "finished": "2026-10-07T12:26:49+08:00",
+      "mirobody_commit": "e696cb85e578479b13d44c83a0e7892fb333f83c",
+      "mirobody_dirty": false
+     }
+    ],
+    "summary": {
+     "size": "ref-claude-opus-5.5",
+     "agent": "anthropic/claude-opus-5.5",
+     "qa_pass": 23,
+     "qa_n": 24,
+     "qa_checks": {
+      "answered": 24,
+      "tool": 24,
+      "facts": 23,
+      "language": 24,
+      "chart": 24
+     },
+     "qa_unsupported_numbers": 15,
+     "qa_answers_with_unsupported": 8,
+     "qa_timeouts": 0,
+     "qa_median_s": 14.8,
+     "qa_p90_s": 25.0,
+     "ext_rows": 140,
+     "ext_found": 139,
+     "ext_unit_ok": 139,
+     "ext_range_ok": 136,
+     "ext_extra": 47,
+     "ext_dates_ok": 12,
+     "ext_docs": 12,
+     "ext_median_s": 12.3,
+     "ext_failed": 0,
+     "jnl_expected": 31,
+     "jnl_found": 29,
+     "jnl_code_ok": 9,
+     "jnl_coded_checked": 15,
+     "jnl_extra": 1,
+     "jnl_exact": 8,
+     "jnl_n": 15,
+     "jnl_errors": 0,
+     "jnl_median_s": 3.2,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    },
+    "code_note": "application code as 321aa2c; the checkout was at 29804fc/e696cb8, which differ only in docs and in config.llm.yaml entries no reference uses"
+   },
+   "ref-deepseek-v4.1-flash-rules": {
+    "started": "2026-10-07T13:32:04+08:00",
+    "finished": "2026-10-07T13:35:05+08:00",
+    "parts": [
+     "extraction"
+    ],
+    "models": {
+     "chat_model": "deepseek/deepseek-v4.1-flash",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "default": "deepseek/deepseek-v4.1-flash",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "deepseek/deepseek-v4.1-flash",
+        "default": "deepseek/deepseek-v4.1-flash",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "together"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "supports_image": false,
+       "response_format": "json_object",
+       "extra_body": {
+        "reasoning": {
+         "enabled": false
+        },
+        "provider": {
+         "order": [
+          "together"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Together",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Together",
+       "model": "deepseek/deepseek-v4.1-flash",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction"
+      ],
+      "started": "2026-10-07T13:32:35+08:00",
+      "finished": "2026-10-07T13:35:05+08:00",
+      "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+      "mirobody_dirty": false
+     }
+    ],
+    "summary": {
+     "size": "ref-deepseek-v4.1-flash-rules",
+     "agent": "deepseek/deepseek-v4.1-flash",
+     "qa_pass": 0,
+     "qa_n": 0,
+     "qa_checks": {
+      "answered": 0,
+      "tool": 0,
+      "facts": 0,
+      "language": 0,
+      "chart": 0
+     },
+     "qa_unsupported_numbers": 0,
+     "qa_answers_with_unsupported": 0,
+     "qa_timeouts": 0,
+     "qa_median_s": null,
+     "qa_p90_s": null,
+     "ext_rows": 140,
+     "ext_found": 138,
+     "ext_unit_ok": 138,
+     "ext_range_ok": 138,
+     "ext_extra": 28,
+     "ext_dates_ok": 11,
+     "ext_docs": 12,
+     "ext_median_s": 7.2,
+     "ext_failed": 0,
+     "jnl_expected": 0,
+     "jnl_found": 0,
+     "jnl_code_ok": 0,
+     "jnl_coded_checked": 0,
+     "jnl_extra": 0,
+     "jnl_exact": 0,
+     "jnl_n": 0,
+     "jnl_errors": 0,
+     "jnl_median_s": null,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-gemini-3.8-flash-rules": {
+    "started": "2026-10-07T13:35:24+08:00",
+    "finished": "2026-10-07T13:39:53+08:00",
+    "parts": [
+     "extraction"
+    ],
+    "models": {
+     "chat_model": "google/gemini-3.8-flash",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "google/gemini-3.8-flash",
+        "default": "google/gemini-3.8-flash",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "google/gemini-3.8-flash",
+        "default": "google/gemini-3.8-flash",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "google/gemini-3.8-flash",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "google/gemini-3.8-flash",
+       "supports_image": false,
+       "extra_body": {
+        "reasoning": {
+         "effort": "low",
+         "exclude": true
+        },
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Google",
+       "model": "google/gemini-3.8-flash",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Google",
+       "model": "google/gemini-3.8-flash",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction"
+      ],
+      "started": "2026-10-07T13:35:55+08:00",
+      "finished": "2026-10-07T13:39:53+08:00",
+      "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+      "mirobody_dirty": false
+     }
+    ],
+    "summary": {
+     "size": "ref-gemini-3.8-flash-rules",
+     "agent": "google/gemini-3.8-flash",
+     "qa_pass": 0,
+     "qa_n": 0,
+     "qa_checks": {
+      "answered": 0,
+      "tool": 0,
+      "facts": 0,
+      "language": 0,
+      "chart": 0
+     },
+     "qa_unsupported_numbers": 0,
+     "qa_answers_with_unsupported": 0,
+     "qa_timeouts": 0,
+     "qa_median_s": null,
+     "qa_p90_s": null,
+     "ext_rows": 140,
+     "ext_found": 139,
+     "ext_unit_ok": 139,
+     "ext_range_ok": 139,
+     "ext_extra": 41,
+     "ext_dates_ok": 10,
+     "ext_docs": 12,
+     "ext_median_s": 12.3,
+     "ext_failed": 0,
+     "jnl_expected": 0,
+     "jnl_found": 0,
+     "jnl_code_ok": 0,
+     "jnl_coded_checked": 0,
+     "jnl_extra": 0,
+     "jnl_exact": 0,
+     "jnl_n": 0,
+     "jnl_errors": 0,
+     "jnl_median_s": null,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-gpt-6-luna-rules": {
+    "started": "2026-10-07T13:40:10+08:00",
+    "finished": "2026-10-07T13:43:42+08:00",
+    "parts": [
+     "extraction"
+    ],
+    "models": {
+     "chat_model": "openai/gpt-6-luna",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "openai/gpt-6-luna",
+        "default": "openai/gpt-6-luna",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "openai/gpt-6-luna",
+        "default": "openai/gpt-6-luna",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "openai/gpt-6-luna",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "azure"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "openai/gpt-6-luna",
+       "supports_image": false,
+       "reasoning_effort": "none",
+       "extra_body": {
+        "provider": {
+         "order": [
+          "azure"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Azure",
+       "model": "openai/gpt-6-luna",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Azure",
+       "model": "openai/gpt-6-luna",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction"
+      ],
+      "started": "2026-10-07T13:40:41+08:00",
+      "finished": "2026-10-07T13:43:42+08:00",
+      "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+      "mirobody_dirty": false
+     }
+    ],
+    "summary": {
+     "size": "ref-gpt-6-luna-rules",
+     "agent": "openai/gpt-6-luna",
+     "qa_pass": 0,
+     "qa_n": 0,
+     "qa_checks": {
+      "answered": 0,
+      "tool": 0,
+      "facts": 0,
+      "language": 0,
+      "chart": 0
+     },
+     "qa_unsupported_numbers": 0,
+     "qa_answers_with_unsupported": 0,
+     "qa_timeouts": 0,
+     "qa_median_s": null,
+     "qa_p90_s": null,
+     "ext_rows": 140,
+     "ext_found": 140,
+     "ext_unit_ok": 140,
+     "ext_range_ok": 139,
+     "ext_extra": 26,
+     "ext_dates_ok": 11,
+     "ext_docs": 12,
+     "ext_median_s": 12.2,
+     "ext_failed": 0,
+     "jnl_expected": 0,
+     "jnl_found": 0,
+     "jnl_code_ok": 0,
+     "jnl_coded_checked": 0,
+     "jnl_extra": 0,
+     "jnl_exact": 0,
+     "jnl_n": 0,
+     "jnl_errors": 0,
+     "jnl_median_s": null,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   },
+   "ref-claude-sonnet-5.5-rules": {
+    "started": "2026-10-07T13:43:58+08:00",
+    "finished": "2026-10-07T13:48:03+08:00",
+    "parts": [
+     "extraction"
+    ],
+    "models": {
+     "chat_model": "anthropic/claude-sonnet-5.5",
+     "providers": [
+      {
+       "key": "OPENROUTER_API_KEY",
+       "set": true,
+       "chat_model": {
+        "model": "anthropic/claude-sonnet-5.5",
+        "default": "anthropic/claude-sonnet-5.5",
+        "env": "",
+        "in_env_file": false
+       },
+       "utils_model": {
+        "model": "anthropic/claude-sonnet-5.5",
+        "default": "anthropic/claude-sonnet-5.5",
+        "env": "",
+        "in_env_file": false
+       }
+      }
+     ],
+     "local": {
+      "configured": true,
+      "base_url": "http://host.docker.internal:8080/v1",
+      "models": {
+       "agent": "minicpm5-2b",
+       "utils": "minicpm5-2b",
+       "ocr": "glm-ocr"
+      }
+     },
+     "overlay": {
+      "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+      "ref-chat": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "anthropic/claude-sonnet-5.5",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       }
+      },
+      "ref-utils": {
+       "llm_type": "openai",
+       "api_key": "OPENROUTER_API_KEY",
+       "base_url": "https://openrouter.ai/api/v1",
+       "model": "anthropic/claude-sonnet-5.5",
+       "supports_image": false,
+       "extra_body": {
+        "provider": {
+         "order": [
+          "google-vertex"
+         ],
+         "allow_fallbacks": false
+        }
+       },
+       "chat": false
+      }
+     },
+     "host_probe": {
+      "ref-chat": {
+       "provider": "Google",
+       "model": "anthropic/claude-sonnet-5.5",
+       "attempts": 1
+      },
+      "ref-utils": {
+       "provider": "Google",
+       "model": "anthropic/claude-sonnet-5.5",
+       "attempts": 1
+      }
+     }
+    },
+    "passes": [
+     {
+      "parts": [
+       "extraction"
+      ],
+      "started": "2026-10-07T13:44:29+08:00",
+      "finished": "2026-10-07T13:48:03+08:00",
+      "mirobody_commit": "bb3af91c685473c1a1385340d591a4b1aac17704",
+      "mirobody_dirty": false
+     }
+    ],
+    "summary": {
+     "size": "ref-claude-sonnet-5.5-rules",
+     "agent": "anthropic/claude-sonnet-5.5",
+     "qa_pass": 0,
+     "qa_n": 0,
+     "qa_checks": {
+      "answered": 0,
+      "tool": 0,
+      "facts": 0,
+      "language": 0,
+      "chart": 0
+     },
+     "qa_unsupported_numbers": 0,
+     "qa_answers_with_unsupported": 0,
+     "qa_timeouts": 0,
+     "qa_median_s": null,
+     "qa_p90_s": null,
+     "ext_rows": 140,
+     "ext_found": 138,
+     "ext_unit_ok": 138,
+     "ext_range_ok": 138,
+     "ext_extra": 28,
+     "ext_dates_ok": 11,
+     "ext_docs": 12,
+     "ext_median_s": 12.2,
+     "ext_failed": 0,
+     "jnl_expected": 0,
+     "jnl_found": 0,
+     "jnl_code_ok": 0,
+     "jnl_coded_checked": 0,
+     "jnl_extra": 0,
+     "jnl_exact": 0,
+     "jnl_n": 0,
+     "jnl_errors": 0,
+     "jnl_median_s": null,
+     "memory_idle_rss_mb": null,
+     "memory_idle_footprint_mb": null,
+     "memory_peak_rss_mb": null,
+     "memory_peak_footprint_mb": null
+    }
+   }
+  },
+  "qa_records": {
+   "qa2": {
+    "accounts": "qa2-p002, qa2-p003, qa2-p004, qa2-p005 (results/load.json)",
+    "loaded": "2026-10-06 16:48-17:21 +08:00",
+    "extracted_by": "minicpm5-2b (the small size) with glm-ocr: the shared record's document readings were read by the small pair, whichever size later answers questions about them",
+    "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+    "mirobody_dirty": true
+   },
+   "qa3": {
+    "accounts": "qa3-p002, qa3-p003, qa3-p004, qa3-p005 (results/load.json)",
+    "loaded_at_commit": "490a0e1",
+    "extracted_by": "minicpm5-2b with glm-ocr (the small pair)",
+    "re_read_at_commit": "321aa2c",
+    "re_read": [
+     "files/p002/p002_2026-08-07_e04a.pdf",
+     "files/p005/p005_2026-08-28_e09a.pdf"
+    ],
+    "why": "at 490a0e1 the text model copied the extraction prompt's example date (2024-10-30) onto 24 readings of these two documents; after the re-read no file reading is dated 2024-10-30",
+    "used_by": [
+     "small-v2",
+     "ref-deepseek-v4.1-flash-v2",
+     "ref-claude-sonnet-5.5",
+     "ref-gpt-6-luna",
+     "ref-gpt-6.1-sol"
+    ]
+   }
+  },
+  "openrouter": {
+   "account": "requires zero data retention; OpenRouter's guardrail removes hosts without it (DeepSeek's own host among them)",
+   "pinning": "provider.order = [host], allow_fallbacks = false (refs/overlays.py); require_parameters not used: the app sends a temperature on every utility call and OpenRouter lists none for GPT-6 Luna or 6.1 Sol",
+   "hosts": {
+    "ref-deepseek-v4.1-flash-v2": [
+     "together",
+     "Together"
+    ],
+    "ref-claude-sonnet-5.5": [
+     "google-vertex",
+     "Google"
+    ],
+    "ref-gpt-6-luna": [
+     "azure",
+     "Azure"
+    ],
+    "ref-gpt-6.1-sol": [
+     "azure",
+     "Azure"
+    ],
+    "ref-gemini-3.8-flash": [
+     "google-vertex",
+     "Google"
+    ],
+    "ref-claude-opus-5.5": [
+     "google-vertex",
+     "Google"
+    ]
+   },
+   "quantization_listed": "unknown for all four pinned hosts",
+   "spend_usd": {
+    "total": 6.44,
+    "ref-deepseek-v4.1-flash-v2": 0.11,
+    "ref-gpt-6-luna": 0.047,
+    "ref-claude-sonnet-5.5": "about 1.77 (estimate: its question pass overlapped Sol's)",
+    "ref-gpt-6.1-sol": "about 1.05 (estimate, with every rate-limited retry and two discarded extraction tries)",
+    "ref-gemini-3.8-flash": 0.585,
+    "ref-claude-opus-5.5": 2.88
+   },
+   "sol_rate_limited_left": {
+    "questions": [
+     "p003-fpg-range"
+    ],
+    "documents": [
+     "p006_2026-04-18_e13a.png (0/6)",
+     "p002_2026-08-07_e04a.pdf (one page, 35/78)"
+    ],
+    "journal": [
+     "眼睛干了，可能是换季。"
+    ]
+   },
+   "hosts_probed_and_refused": {
+    "ref-claude-opus-5.5": "anthropic, azure, amazon-bedrock: no endpoint for json_schema with a temperature (Bedrock routed chat only)",
+    "ref-gemini-3.8-flash": "google-ai-studio: ZDR violation (account settings)"
+   },
+   "prices_usd_per_million": {
+    "anthropic/claude-opus-5.5": [
+     4,
+     20
+    ],
+    "google/gemini-3.8-flash": [
+     0.75,
+     3.75
+    ]
+   }
+  }
+ },
+ "sizes": {
+  "tiny": {
+   "agent": "minicpm5-1b",
+   "openrouter_usd": [],
+   "models": [
+    {
+     "id": "minicpm5-1b",
+     "hf_repo": "openbmb/MiniCPM5-1B-GGUF:Q8_0",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-1B-Q8_0.gguf",
+       "bytes": 1153529216,
+       "sha256": "0dc7638539067268774c275a14a6ec9c7e01f7eeb2cff606c8590361fa527e4c"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "automatic": {
+    "size": "tiny",
+    "agent": "minicpm5-1b",
+    "qa_pass": 3,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 12,
+     "facts": 4,
+     "language": 19,
+     "chart": 20
+    },
+    "qa_unsupported_numbers": 11,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 6.2,
+    "qa_p90_s": 156.3,
+    "ext_rows": 140,
+    "ext_found": 37,
+    "ext_unit_ok": 35,
+    "ext_range_ok": 10,
+    "ext_extra": 6,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 17.6,
+    "ext_failed": 2,
+    "jnl_expected": 31,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.3,
+    "memory_idle_rss_mb": 4183.5,
+    "memory_idle_footprint_mb": 2496.5,
+    "memory_peak_rss_mb": 4662.9,
+    "memory_peak_footprint_mb": 3831.3
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-06",
+    "points": 127,
+    "max": 248,
+    "domains": {
+     "device": [
+      30,
+      60
+     ],
+     "document": [
+      8,
+      20
+     ],
+     "chart": [
+      21,
+      48
+     ],
+     "journal": [
+      10,
+      20
+     ],
+     "no data": [
+      16,
+      30
+     ],
+     "lab": [
+      28,
+      50
+     ],
+     "genetics": [
+      14,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      6,
+      48
+     ],
+     "grounded": [
+      33,
+      48
+     ],
+     "range": [
+      44,
+      48
+     ],
+     "language": [
+      37,
+      48
+     ],
+     "useful": [
+      7,
+      48
+     ],
+     "chart": [
+      0,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": false,
+     "seconds": 14.3,
+     "first_text_s": 13.9,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": false,
+     "seconds": 3.3,
+     "first_text_s": 2.7,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": false,
+     "seconds": 5.5,
+     "first_text_s": 4.5,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": false,
+     "seconds": 6.8,
+     "first_text_s": 1.2,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": false,
+     "seconds": 17.4,
+     "first_text_s": 1.1,
+     "points": [
+      4,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": false,
+     "seconds": 2.3,
+     "first_text_s": 1.3,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 6.3,
+     "first_text_s": 5.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": false,
+     "seconds": 77.6,
+     "first_text_s": 7.0,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": false,
+     "seconds": 182.6,
+     "first_text_s": 159.7,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 9.8,
+     "first_text_s": 6.2,
+     "points": [
+      7,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": false,
+     "seconds": 3.5,
+     "first_text_s": 1.4,
+     "points": [
+      2,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": false,
+     "seconds": 126.9,
+     "first_text_s": 125.4,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 18.6,
+     "first_text_s": 17.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 6.0,
+     "first_text_s": 1.3,
+     "points": [
+      6,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": false,
+     "seconds": 2.6,
+     "first_text_s": 1.1,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": false,
+     "seconds": 201.9,
+     "first_text_s": 201.9,
+     "points": [
+      0,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": false,
+     "seconds": 3.7,
+     "first_text_s": 2.9,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": false,
+     "seconds": 7.4,
+     "first_text_s": 6.8,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": false,
+     "seconds": 2.1,
+     "first_text_s": 1.2,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": false,
+     "seconds": 2.0,
+     "first_text_s": 1.5,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": false,
+     "seconds": 6.1,
+     "first_text_s": 5.1,
+     "points": [
+      7,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": false,
+     "seconds": 2.4,
+     "first_text_s": 1.3,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": false,
+     "seconds": 4.9,
+     "first_text_s": 0.7,
+     "points": [
+      5,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": false,
+     "seconds": 168.9,
+     "first_text_s": 1.2,
+     "points": [
+      6,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "minicpm5-1b"
+     ],
+     "resources": {
+      "disk_free_gb": 9.5,
+      "memory_free_pct": 32,
+      "swap_used_mb": 9775.88
+     },
+     "processes": [
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 51.2,
+       "footprint_mb": 78.9
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2264.8,
+       "footprint_mb": 1643.6
+      },
+      {
+       "alias": "minicpm5-1b",
+       "role": "child",
+       "rss_mb": 1918.7,
+       "footprint_mb": 852.9
+      }
+     ],
+     "while_answering": {
+      "samples": 45,
+      "peak_rss_mb": 4662.9,
+      "peak_footprint_mb": 3831.3
+     }
+    }
+   ],
+   "stopped": null
+  },
+  "small": {
+   "agent": "minicpm5-2b",
+   "openrouter_usd": [],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "automatic": {
+    "size": "small",
+    "agent": "minicpm5-2b",
+    "qa_pass": 16,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 21,
+     "tool": 24,
+     "facts": 17,
+     "language": 22,
+     "chart": 21
+    },
+    "qa_unsupported_numbers": 16,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 28.4,
+    "qa_p90_s": 99.0,
+    "ext_rows": 140,
+    "ext_found": 45,
+    "ext_unit_ok": 27,
+    "ext_range_ok": 16,
+    "ext_extra": 0,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 18.7,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 3,
+    "jnl_exact": 0,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 0.2,
+    "memory_idle_rss_mb": 4985.0,
+    "memory_idle_footprint_mb": 2970.8,
+    "memory_peak_rss_mb": 5657.6,
+    "memory_peak_footprint_mb": 4353.4
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-06",
+    "points": 190,
+    "max": 248,
+    "domains": {
+     "device": [
+      53,
+      60
+     ],
+     "document": [
+      14,
+      20
+     ],
+     "chart": [
+      19,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      35,
+      50
+     ],
+     "genetics": [
+      19,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      34,
+      48
+     ],
+     "grounded": [
+      40,
+      48
+     ],
+     "range": [
+      40,
+      48
+     ],
+     "language": [
+      42,
+      48
+     ],
+     "useful": [
+      33,
+      48
+     ],
+     "chart": [
+      1,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 26.9,
+     "first_text_s": 25.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 62.3,
+     "first_text_s": 57.4,
+     "points": [
+      7,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 65.9,
+     "first_text_s": 56.9,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": false,
+     "seconds": 101.6,
+     "first_text_s": 96.3,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": false,
+     "seconds": 30.5,
+     "first_text_s": 17.0,
+     "points": [
+      10,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 7.4,
+     "first_text_s": 5.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 10.7,
+     "first_text_s": 9.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 33.8,
+     "first_text_s": 32.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 27.6,
+     "first_text_s": 24.2,
+     "points": [
+      7,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 10.6,
+     "first_text_s": 6.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 93.1,
+     "first_text_s": 90.1,
+     "points": [
+      8,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 19.8,
+     "first_text_s": 15.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 11.1,
+     "first_text_s": 9.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 73.5,
+     "first_text_s": 73.5,
+     "points": [
+      0,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 7.7,
+     "first_text_s": 6.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 37.0,
+     "first_text_s": 34.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 19.5,
+     "first_text_s": 12.4,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 17.3,
+     "first_text_s": 16.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 11.2,
+     "first_text_s": 9.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": false,
+     "seconds": 19.4,
+     "first_text_s": 16.6,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": false,
+     "seconds": 195.6,
+     "first_text_s": 195.6,
+     "points": [
+      0,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": false,
+     "seconds": 201.9,
+     "first_text_s": 198.2,
+     "points": [
+      8,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": false,
+     "seconds": 29.1,
+     "first_text_s": 25.5,
+     "points": [
+      9,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": false,
+     "seconds": 35.0,
+     "first_text_s": 35.0,
+     "points": [
+      0,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "minicpm5-2b"
+     ],
+     "resources": {
+      "disk_free_gb": 10.8,
+      "memory_free_pct": 26,
+      "swap_used_mb": 10379.31
+     },
+     "processes": [
+      {
+       "alias": "minicpm5-2b",
+       "role": "child",
+       "rss_mb": 2843.7,
+       "footprint_mb": 1418.5
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2163.8,
+       "footprint_mb": 1557.4
+      },
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 9.0,
+       "footprint_mb": 35.6
+      }
+     ],
+     "while_answering": {
+      "samples": 69,
+      "peak_rss_mb": 5657.6,
+      "peak_footprint_mb": 4353.4
+     }
+    },
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "minicpm5-2b"
+     ],
+     "resources": {
+      "disk_free_gb": 9.6,
+      "memory_free_pct": 25,
+      "swap_used_mb": 10117.38
+     },
+     "processes": [
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 13.2,
+       "footprint_mb": 34.6
+      },
+      {
+       "alias": "minicpm5-2b",
+       "role": "child",
+       "rss_mb": 2813.4,
+       "footprint_mb": 1417.5
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2171.6,
+       "footprint_mb": 1553.3
+      }
+     ],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  },
+  "small-v2": {
+   "agent": "minicpm5-2b",
+   "openrouter_usd": [],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "automatic": {
+    "size": "small-v2",
+    "agent": "minicpm5-2b",
+    "qa_pass": 19,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 22,
+     "tool": 24,
+     "facts": 20,
+     "language": 22,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 2,
+    "qa_median_s": 27.6,
+    "qa_p90_s": 101.6,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 137,
+    "ext_extra": 32,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 24,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.7,
+    "memory_idle_rss_mb": 5008.5,
+    "memory_idle_footprint_mb": 2995.3,
+    "memory_peak_rss_mb": 5117.6,
+    "memory_peak_footprint_mb": 4294.4
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 209,
+    "max": 248,
+    "domains": {
+     "device": [
+      51,
+      60
+     ],
+     "document": [
+      10,
+      20
+     ],
+     "chart": [
+      39,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      20,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      19,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      39,
+      48
+     ],
+     "grounded": [
+      41,
+      48
+     ],
+     "range": [
+      42,
+      48
+     ],
+     "language": [
+      44,
+      48
+     ],
+     "useful": [
+      39,
+      48
+     ],
+     "chart": [
+      4,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 43.5,
+     "first_text_s": 40.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 104.5,
+     "first_text_s": 24.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": false,
+     "seconds": 46.3,
+     "first_text_s": 37.0,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": false,
+     "seconds": 600.0,
+     "first_text_s": null,
+     "points": [
+      0,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": false,
+     "seconds": 94.9,
+     "first_text_s": 79.1,
+     "points": [
+      10,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 7.6,
+     "first_text_s": 5.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": false,
+     "seconds": 600.5,
+     "first_text_s": null,
+     "points": [
+      0,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 30.1,
+     "first_text_s": 28.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 27.7,
+     "first_text_s": 25.0,
+     "points": [
+      5,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 12.2,
+     "first_text_s": 6.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 21.8,
+     "first_text_s": 19.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 19.5,
+     "first_text_s": 15.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 8.0,
+     "first_text_s": 6.2,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": true,
+     "seconds": 83.6,
+     "first_text_s": 69.0,
+     "points": [
+      8,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 10.9,
+     "first_text_s": 9.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 14.1,
+     "first_text_s": 12.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 21.0,
+     "first_text_s": 16.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 17.5,
+     "first_text_s": 17.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 11.3,
+     "first_text_s": 9.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 27.8,
+     "first_text_s": 24.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 27.6,
+     "first_text_s": 23.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 15.4,
+     "first_text_s": 12.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 53.7,
+     "first_text_s": 45.4,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": false,
+     "seconds": 91.6,
+     "first_text_s": 83.7,
+     "points": [
+      9,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "minicpm5-2b"
+     ],
+     "resources": {
+      "disk_free_gb": 11.5,
+      "memory_free_pct": 23,
+      "swap_used_mb": 10978.12
+     },
+     "processes": [
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 9.5,
+       "footprint_mb": 35.6
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2169.2,
+       "footprint_mb": 1565.0
+      },
+      {
+       "alias": "minicpm5-2b",
+       "role": "child",
+       "rss_mb": 2839.3,
+       "footprint_mb": 1430.3
+      }
+     ],
+     "while_answering": {
+      "samples": 106,
+      "peak_rss_mb": 5117.6,
+      "peak_footprint_mb": 4294.4
+     }
+    }
+   ],
+   "stopped": null
+  },
+  "small-v3": {
+   "agent": "minicpm5-2b",
+   "openrouter_usd": [],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "automatic": {
+    "size": "small-v3",
+    "agent": "minicpm5-2b",
+    "qa_pass": 19,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 24,
+     "facts": 19,
+     "language": 23,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 28.9,
+    "qa_p90_s": 79.3,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 140,
+    "ext_extra": 9,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 12.4,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 22,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.7,
+    "memory_idle_rss_mb": 5003.0,
+    "memory_idle_footprint_mb": 2982.5,
+    "memory_peak_rss_mb": 5696.5,
+    "memory_peak_footprint_mb": 4484.3
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 215,
+    "max": 248,
+    "domains": {
+     "device": [
+      51,
+      60
+     ],
+     "document": [
+      14,
+      20
+     ],
+     "chart": [
+      32,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      18,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      39,
+      48
+     ],
+     "grounded": [
+      43,
+      48
+     ],
+     "range": [
+      42,
+      48
+     ],
+     "language": [
+      46,
+      48
+     ],
+     "useful": [
+      40,
+      48
+     ],
+     "chart": [
+      5,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 38.7,
+     "first_text_s": 37.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 42.3,
+     "first_text_s": 36.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": false,
+     "seconds": 78.9,
+     "first_text_s": 68.1,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": false,
+     "seconds": 79.2,
+     "first_text_s": 72.7,
+     "points": [
+      4,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 57.3,
+     "first_text_s": 31.4,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 6.9,
+     "first_text_s": 4.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 239.1,
+     "first_text_s": 26.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 30.2,
+     "first_text_s": 29.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 27.3,
+     "first_text_s": 24.5,
+     "points": [
+      5,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 10.2,
+     "first_text_s": 5.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 25.0,
+     "first_text_s": 22.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 16.0,
+     "first_text_s": 13.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 12.4,
+     "first_text_s": 10.6,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 79.3,
+     "first_text_s": 66.2,
+     "points": [
+      8,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 13.0,
+     "first_text_s": 9.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 44.7,
+     "first_text_s": 40.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": false,
+     "seconds": 20.5,
+     "first_text_s": 15.1,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 17.4,
+     "first_text_s": 16.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 11.0,
+     "first_text_s": 9.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 38.0,
+     "first_text_s": 33.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 27.6,
+     "first_text_s": 24.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 19.2,
+     "first_text_s": 14.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 53.3,
+     "first_text_s": 47.5,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": false,
+     "seconds": 520.7,
+     "first_text_s": 520.7,
+     "points": [
+      0,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "minicpm5-2b"
+     ],
+     "resources": {
+      "disk_free_gb": 9.6,
+      "memory_free_pct": 25,
+      "swap_used_mb": 12233.5
+     },
+     "processes": [
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 16.9,
+       "footprint_mb": 34.0
+      },
+      {
+       "alias": "minicpm5-2b",
+       "role": "child",
+       "rss_mb": 2828.2,
+       "footprint_mb": 1429.0
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2174.8,
+       "footprint_mb": 1553.5
+      }
+     ],
+     "while_answering": {
+      "samples": 75,
+      "peak_rss_mb": 5696.5,
+      "peak_footprint_mb": 4484.3
+     }
+    }
+   ],
+   "stopped": null
+  },
+  "ref-claude-opus-5.5": {
+   "agent": "anthropic/claude-opus-5.5",
+   "openrouter_usd": [
+    {
+     "readings": {
+      "start": 326.271536693,
+      "qa": 327.341659893,
+      "extraction": 328.358887893,
+      "journal": 329.016143893
+     },
+     "parts": {
+      "qa": 1.070123,
+      "extraction": 1.017228,
+      "journal": 0.657256
+     },
+     "total": 2.744607
+    }
+   ],
+   "models": {
+    "chat_model": "anthropic/claude-opus-5.5",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "anthropic/claude-opus-5.5",
+       "default": "anthropic/claude-opus-5.5",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "anthropic/claude-opus-5.5",
+       "default": "anthropic/claude-opus-5.5",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/claude-opus-5.5.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-opus-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-opus-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "anthropic/claude-opus-5.5",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "anthropic/claude-opus-5.5",
+      "attempts": 1
+     }
+    }
+   },
+   "automatic": {
+    "size": "ref-claude-opus-5.5",
+    "agent": "anthropic/claude-opus-5.5",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 15,
+    "qa_answers_with_unsupported": 8,
+    "qa_timeouts": 0,
+    "qa_median_s": 14.8,
+    "qa_p90_s": 25.0,
+    "ext_rows": 140,
+    "ext_found": 139,
+    "ext_unit_ok": 139,
+    "ext_range_ok": 136,
+    "ext_extra": 47,
+    "ext_dates_ok": 12,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 1,
+    "jnl_exact": 8,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 3.2,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 247,
+    "max": 248,
+    "domains": {
+     "device": [
+      60,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      47,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      20,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      47,
+      48
+     ],
+     "grounded": [
+      48,
+      48
+     ],
+     "range": [
+      48,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      48,
+      48
+     ],
+     "chart": [
+      8,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 7.8,
+     "first_text_s": 7.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 10.4,
+     "first_text_s": 9.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 7.9,
+     "first_text_s": 7.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 24.6,
+     "first_text_s": 4.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 14.3,
+     "first_text_s": 13.4,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 15.0,
+     "first_text_s": 14.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 34.3,
+     "first_text_s": 33.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 9.2,
+     "first_text_s": 8.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 11.4,
+     "first_text_s": 10.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 13.5,
+     "first_text_s": 12.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 23.7,
+     "first_text_s": 22.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 16.7,
+     "first_text_s": 2.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 13.9,
+     "first_text_s": 13.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 14.7,
+     "first_text_s": 13.4,
+     "points": [
+      11,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 18.0,
+     "first_text_s": 15.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 18.4,
+     "first_text_s": 5.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 25.1,
+     "first_text_s": 22.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 6.9,
+     "first_text_s": 6.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 16.4,
+     "first_text_s": 15.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 33.3,
+     "first_text_s": 31.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 13.7,
+     "first_text_s": 12.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 15.6,
+     "first_text_s": 2.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 15.4,
+     "first_text_s": 14.8,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 8.3,
+     "first_text_s": 7.6,
+     "points": [
+      12,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 15.6,
+      "memory_free_pct": 57,
+      "swap_used_mb": 7452.25
+     },
+     "processes": [],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  },
+  "ref-claude-sonnet-5.5": {
+   "agent": "anthropic/claude-sonnet-5.5",
+   "openrouter_usd": [
+    {
+     "readings": {
+      "start": 322.800505627,
+      "extraction": 323.401325627,
+      "journal": 323.401325627,
+      "settled_end": 323.884653627
+     },
+     "parts": {
+      "extraction": 0.60082,
+      "journal": 0.0
+     },
+     "total": 0.60082,
+     "settled_total": 1.084148,
+     "note": "OpenRouter books a request's cost up to minutes after the answer, so the readings at each part's end undercount; 'settled_total' is the key's usage at the next settled reading (the start of the next run on this key, nothing else used it between) less this run's start."
+    },
+    {
+     "readings": {
+      "start": 324.529492253,
+      "qa": 324.720888453
+     },
+     "parts": {
+      "qa": 0.191396
+     },
+     "total": 0.191396
+    },
+    {
+     "readings": {
+      "start": 325.293217917,
+      "qa": 325.3009194
+     },
+     "parts": {
+      "qa": 0.007701
+     },
+     "total": 0.007701
+    }
+   ],
+   "models": {
+    "chat_model": "anthropic/claude-sonnet-5.5",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     }
+    }
+   },
+   "automatic": {
+    "size": "ref-claude-sonnet-5.5",
+    "agent": "anthropic/claude-sonnet-5.5",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 7,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 9.0,
+    "qa_p90_s": 16.0,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 134,
+    "ext_extra": 48,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 17.4,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 30,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 9,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.4,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 247,
+    "max": 248,
+    "domains": {
+     "device": [
+      60,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      47,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      20,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      47,
+      48
+     ],
+     "grounded": [
+      48,
+      48
+     ],
+     "range": [
+      48,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      48,
+      48
+     ],
+     "chart": [
+      8,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 4.5,
+     "first_text_s": 4.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 7.2,
+     "first_text_s": 6.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 5.9,
+     "first_text_s": 5.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 12.6,
+     "first_text_s": 12.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 10.0,
+     "first_text_s": 9.5,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 5.2,
+     "first_text_s": 5.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 13.4,
+     "first_text_s": 12.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 6.0,
+     "first_text_s": 5.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 7.1,
+     "first_text_s": 6.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 8.8,
+     "first_text_s": 8.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 16.1,
+     "first_text_s": 15.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 8.7,
+     "first_text_s": 8.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 8.4,
+     "first_text_s": 8.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 9.4,
+     "first_text_s": 8.7,
+     "points": [
+      11,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 7.5,
+     "first_text_s": 7.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 15.7,
+     "first_text_s": 15.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 15.7,
+     "first_text_s": 13.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 6.5,
+     "first_text_s": 5.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 9.2,
+     "first_text_s": 8.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 17.2,
+     "first_text_s": 16.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 20.3,
+     "first_text_s": 19.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 11.7,
+     "first_text_s": 11.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 12.4,
+     "first_text_s": 11.2,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 8.7,
+     "first_text_s": 8.1,
+     "points": [
+      12,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 16.4,
+      "memory_free_pct": 61,
+      "swap_used_mb": 7122.0
+     },
+     "processes": [],
+     "while_answering": null
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 11.5,
+      "memory_free_pct": 58,
+      "swap_used_mb": 9333.88
+     },
+     "processes": [],
+     "while_answering": null
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 13.7,
+      "memory_free_pct": 71,
+      "swap_used_mb": 9131.0
+     },
+     "processes": [],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  },
+  "ref-deepseek-v4.1-flash": {
+   "agent": "deepseek/deepseek-v4.1-flash",
+   "openrouter_usd": [
+    {
+     "readings": {
+      "start": 322.267077368,
+      "qa": 322.334765644,
+      "extraction": 322.56663774,
+      "journal": 322.593164266
+     },
+     "parts": {
+      "qa": 0.067688,
+      "extraction": 0.231872,
+      "journal": 0.026527
+     },
+     "total": 0.326087
+    }
+   ],
+   "models": {
+    "chat_model": "deepseek/deepseek-v4.1-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "anthropic/claude-sonnet-5",
+       "env": "OPENROUTER_CHAT_MODEL",
+       "in_env_file": true
+      },
+      "utils_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "OPENROUTER_UTILS_MODEL",
+       "in_env_file": true
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "qwen3.5-9b",
+      "utils": "qwen3.5-9b",
+      "ocr": "glm-ocr"
+     }
+    }
+   },
+   "automatic": {
+    "size": "ref-deepseek-v4.1-flash",
+    "agent": "deepseek/deepseek-v4.1-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 7,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 11.1,
+    "qa_p90_s": 20.6,
+    "ext_rows": 140,
+    "ext_found": 86,
+    "ext_unit_ok": 86,
+    "ext_range_ok": 80,
+    "ext_extra": 40,
+    "ext_dates_ok": 9,
+    "ext_docs": 12,
+    "ext_median_s": 28.8,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 26,
+    "jnl_code_ok": 12,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 3,
+    "jnl_exact": 9,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 4.6,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-06",
+    "points": 247,
+    "max": 248,
+    "domains": {
+     "device": [
+      60,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      47,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      20,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      47,
+      48
+     ],
+     "grounded": [
+      48,
+      48
+     ],
+     "range": [
+      48,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      48,
+      48
+     ],
+     "chart": [
+      8,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 7.7,
+     "first_text_s": 6.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 6.1,
+     "first_text_s": 3.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 5.2,
+     "first_text_s": 3.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 13.6,
+     "first_text_s": 2.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 14.6,
+     "first_text_s": 8.6,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 9.8,
+     "first_text_s": 7.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 15.0,
+     "first_text_s": 13.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 11.9,
+     "first_text_s": 10.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 6.9,
+     "first_text_s": 5.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 11.6,
+     "first_text_s": 9.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 19.8,
+     "first_text_s": 16.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 9.7,
+     "first_text_s": 7.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 25.1,
+     "first_text_s": 19.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 21.0,
+     "first_text_s": 1.6,
+     "points": [
+      11,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 14.1,
+     "first_text_s": 9.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 8.2,
+     "first_text_s": 7.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 16.4,
+     "first_text_s": 13.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 4.7,
+     "first_text_s": 3.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 10.5,
+     "first_text_s": 8.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 5.5,
+     "first_text_s": 4.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 43.0,
+     "first_text_s": 38.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 3.5,
+     "first_text_s": 1.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 5.5,
+     "first_text_s": 3.6,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 12.8,
+     "first_text_s": 3.8,
+     "points": [
+      12,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 20.1,
+      "memory_free_pct": 32,
+      "swap_used_mb": 7730.75
+     },
+     "processes": [],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  },
+  "ref-deepseek-v4.1-flash-v2": {
+   "agent": "deepseek/deepseek-v4.1-flash",
+   "openrouter_usd": [
+    {
+     "readings": {
+      "start": 322.708149435,
+      "extraction": 322.716368259,
+      "journal": 322.716368259,
+      "settled": 322.775470767
+     },
+     "parts": {
+      "extraction+journal": 0.067321
+     },
+     "total": 0.067321,
+     "note": "read at each part's end the key had not booked the run yet; 'settled' was read at 2026-10-06T22:08:32+08:00 once the usage stopped moving, so the two parts are one figure here (no other request used the key between). The 'start' reading was taken right after the host probe, whose cost may be partly inside it.",
+     "settled_total": 0.067321
+    },
+    {
+     "readings": {
+      "start": 324.483830827,
+      "qa": 324.506191675
+     },
+     "parts": {
+      "qa": 0.022361
+     },
+     "total": 0.022361
+    },
+    {
+     "readings": {
+      "start": 325.277455653,
+      "qa": 325.277455653
+     },
+     "parts": {
+      "qa": 0.0
+     },
+     "total": 0.0
+    }
+   ],
+   "models": {
+    "chat_model": "deepseek/deepseek-v4.1-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "response_format": "json_object",
+      "extra_body": {
+       "reasoning": {
+        "enabled": false
+       },
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "automatic": {
+    "size": "ref-deepseek-v4.1-flash-v2",
+    "agent": "deepseek/deepseek-v4.1-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 8,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 4.2,
+    "qa_p90_s": 10.1,
+    "ext_rows": 140,
+    "ext_found": 138,
+    "ext_unit_ok": 138,
+    "ext_range_ok": 133,
+    "ext_extra": 48,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 9.1,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 11,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 9,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 0.8,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 245,
+    "max": 248,
+    "domains": {
+     "device": [
+      60,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      45,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      20,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      47,
+      48
+     ],
+     "grounded": [
+      48,
+      48
+     ],
+     "range": [
+      48,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      48,
+      48
+     ],
+     "chart": [
+      6,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 3.3,
+     "first_text_s": 2.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 3.1,
+     "first_text_s": 1.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 2.9,
+     "first_text_s": 2.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 13.9,
+     "first_text_s": 5.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 5.9,
+     "first_text_s": 3.8,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 2.8,
+     "first_text_s": 2.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 5.9,
+     "first_text_s": 5.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 3.3,
+     "first_text_s": 2.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 3.1,
+     "first_text_s": 2.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 4.1,
+     "first_text_s": 2.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 9.1,
+     "first_text_s": 8.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 3.8,
+     "first_text_s": 0.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 5.4,
+     "first_text_s": 4.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 4.3,
+     "first_text_s": 2.4,
+     "points": [
+      9,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 3.2,
+     "first_text_s": 1.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 5.6,
+     "first_text_s": 5.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 10.2,
+     "first_text_s": 7.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 3.3,
+     "first_text_s": 2.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 6.2,
+     "first_text_s": 5.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 11.0,
+     "first_text_s": 9.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 3.8,
+     "first_text_s": 2.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 5.7,
+     "first_text_s": 5.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 10.0,
+     "first_text_s": 8.7,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 3.6,
+     "first_text_s": 2.6,
+     "points": [
+      12,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 15.7,
+      "memory_free_pct": 32,
+      "swap_used_mb": 7824.5
+     },
+     "processes": [],
+     "while_answering": null
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 10.5,
+      "memory_free_pct": 54,
+      "swap_used_mb": 9553.12
+     },
+     "processes": [],
+     "while_answering": null
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 13.7,
+      "memory_free_pct": 67,
+      "swap_used_mb": 9155.0
+     },
+     "processes": [],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  },
+  "ref-gemini-3.8-flash": {
+   "agent": "google/gemini-3.8-flash",
+   "openrouter_usd": [
+    {
+     "readings": {
+      "start": 325.6952896,
+      "qa": 325.979785143,
+      "extraction": 326.192208443,
+      "journal": 326.271536693
+     },
+     "parts": {
+      "qa": 0.284496,
+      "extraction": 0.212423,
+      "journal": 0.079328
+     },
+     "total": 0.576247
+    }
+   ],
+   "models": {
+    "chat_model": "google/gemini-3.8-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "reasoning": {
+        "effort": "low",
+        "exclude": true
+       },
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "automatic": {
+    "size": "ref-gemini-3.8-flash",
+    "agent": "google/gemini-3.8-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 7,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 14.9,
+    "qa_p90_s": 25.7,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 136,
+    "ext_extra": 47,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 31,
+    "jnl_code_ok": 11,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 11,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.6,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 247,
+    "max": 248,
+    "domains": {
+     "device": [
+      60,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      47,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      20,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      47,
+      48
+     ],
+     "grounded": [
+      48,
+      48
+     ],
+     "range": [
+      48,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      48,
+      48
+     ],
+     "chart": [
+      8,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 11.5,
+     "first_text_s": 10.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 10.8,
+     "first_text_s": 8.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 12.7,
+     "first_text_s": 11.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 18.0,
+     "first_text_s": 15.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 15.2,
+     "first_text_s": 11.1,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 15.6,
+     "first_text_s": 14.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 26.9,
+     "first_text_s": 24.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 11.5,
+     "first_text_s": 10.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 14.8,
+     "first_text_s": 12.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 11.7,
+     "first_text_s": 8.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 25.1,
+     "first_text_s": 21.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 15.6,
+     "first_text_s": 14.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 14.4,
+     "first_text_s": 10.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 12.9,
+     "first_text_s": 7.6,
+     "points": [
+      11,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 9.2,
+     "first_text_s": 8.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 20.3,
+     "first_text_s": 18.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 17.3,
+     "first_text_s": 10.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 12.2,
+     "first_text_s": 11.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 19.6,
+     "first_text_s": 18.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 26.9,
+     "first_text_s": 21.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 13.4,
+     "first_text_s": 10.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 26.0,
+     "first_text_s": 24.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 15.0,
+     "first_text_s": 10.6,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 11.7,
+     "first_text_s": 8.9,
+     "points": [
+      12,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 13.6,
+      "memory_free_pct": 70,
+      "swap_used_mb": 8955.0
+     },
+     "processes": [],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  },
+  "ref-gpt-6-luna": {
+   "agent": "openai/gpt-6-luna",
+   "openrouter_usd": [
+    {
+     "readings": {
+      "start": 322.775470767,
+      "extraction": 322.795171877,
+      "journal": 322.795171877,
+      "settled_end": 322.800505627
+     },
+     "parts": {
+      "extraction": 0.019701,
+      "journal": 0.0
+     },
+     "total": 0.019701,
+     "settled_total": 0.025035,
+     "note": "OpenRouter books a request's cost up to minutes after the answer, so the readings at each part's end undercount; 'settled_total' is the key's usage at the next settled reading (the start of the next run on this key, nothing else used it between) less this run's start."
+    },
+    {
+     "readings": {
+      "start": 324.509732611,
+      "qa": 324.524795793
+     },
+     "parts": {
+      "qa": 0.015063
+     },
+     "total": 0.015063
+    },
+    {
+     "readings": {
+      "start": 325.293217917,
+      "qa": 325.293217917
+     },
+     "parts": {
+      "qa": 0.0
+     },
+     "total": 0.0
+    }
+   ],
+   "models": {
+    "chat_model": "openai/gpt-6-luna",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "reasoning_effort": "none",
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     }
+    }
+   },
+   "automatic": {
+    "size": "ref-gpt-6-luna",
+    "agent": "openai/gpt-6-luna",
+    "qa_pass": 21,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 23,
+     "facts": 21,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 3,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 0,
+    "qa_median_s": 9.7,
+    "qa_p90_s": 17.2,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 134,
+    "ext_extra": 49,
+    "ext_dates_ok": 12,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 31,
+    "jnl_code_ok": 10,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 1,
+    "jnl_exact": 10,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.5,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+    "date": "2026-10-07",
+    "points": 237,
+    "max": 248,
+    "domains": {
+     "device": [
+      60,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      46,
+      48
+     ],
+     "journal": [
+      16,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      45,
+      50
+     ],
+     "genetics": [
+      20,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      42,
+      48
+     ],
+     "grounded": [
+      48,
+      48
+     ],
+     "range": [
+      48,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      43,
+      48
+     ],
+     "chart": [
+      8,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 9.9,
+     "first_text_s": 9.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 12.5,
+     "first_text_s": 11.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 8.4,
+     "first_text_s": 8.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 17.3,
+     "first_text_s": 17.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 9.5,
+     "first_text_s": 9.0,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 6.0,
+     "first_text_s": 5.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 5.2,
+     "first_text_s": 4.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 8.3,
+     "first_text_s": 7.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 11.1,
+     "first_text_s": 10.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 8.0,
+     "first_text_s": 7.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 17.0,
+     "first_text_s": 15.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 8.5,
+     "first_text_s": 7.4,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 5.5,
+     "first_text_s": 5.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 17.8,
+     "first_text_s": 16.9,
+     "points": [
+      11,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": false,
+     "seconds": 12.3,
+     "first_text_s": 11.7,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 5.4,
+     "first_text_s": 4.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 15.5,
+     "first_text_s": 12.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 27.5,
+     "first_text_s": 26.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 4.7,
+     "first_text_s": 4.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 13.2,
+     "first_text_s": 12.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 6.7,
+     "first_text_s": 5.3,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": false,
+     "seconds": 16.1,
+     "first_text_s": 14.5,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 13.5,
+     "first_text_s": 13.0,
+     "points": [
+      11,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 7.3,
+     "first_text_s": 6.8,
+     "points": [
+      12,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 15.6,
+      "memory_free_pct": 69,
+      "swap_used_mb": 7648.5
+     },
+     "processes": [],
+     "while_answering": null
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 11.5,
+      "memory_free_pct": 56,
+      "swap_used_mb": 9373.88
+     },
+     "processes": [],
+     "while_answering": null
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "loaded": [],
+     "resources": {
+      "disk_free_gb": 13.7,
+      "memory_free_pct": 69,
+      "swap_used_mb": 9139.0
+     },
+     "processes": [],
+     "while_answering": null
+    }
+   ],
+   "stopped": null
+  }
+ },
+ "speed": {
+  "started": "2026-10-06T16:58:00+08:00",
+  "source": "measured before speed.py was added to this directory, by its scratch predecessor: the same request (speed.messages), the same parameters (3 repeats, max_tokens 400, temperature 0, seed 7), on the router started from docker/local-models.ini at f76bcbd (--cache-ram 1024 per answering model, 0 for GLM-OCR), each model alone on a fresh child; the Docker VM was running",
+  "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049)",
+  "router": "http://127.0.0.1:8080",
+  "repeats": 3,
+  "max_tokens": 400,
+  "models": {
+   "minicpm5-1b": {
+    "resources_before": {
+     "disk_free_gb": 13.3,
+     "memory_free_pct": 51
+    },
+    "load_s": 4.0,
+    "memory_loaded": {
+     "rss_mb": 1959.3,
+     "footprint_mb": 850.7
+    },
+    "requests": [
+     {
+      "wall_s": 4.24,
+      "prompt_tokens": 1158,
+      "prompt_tok_s": 1597.1,
+      "generated_tokens": 400,
+      "gen_tok_s": 113.8
+     },
+     {
+      "wall_s": 4.05,
+      "prompt_tokens": 1158,
+      "prompt_tok_s": 2114.5,
+      "generated_tokens": 400,
+      "gen_tok_s": 114.2
+     },
+     {
+      "wall_s": 4.04,
+      "prompt_tokens": 1133,
+      "prompt_tok_s": 2134.0,
+      "generated_tokens": 400,
+      "gen_tok_s": 114.0
+     }
+    ],
+    "memory_after": {
+     "rss_mb": 2065.6,
+     "footprint_mb": 952.2
+    },
+    "gen_tok_s": 114.0,
+    "prompt_tok_s": 2114.5
+   },
+   "minicpm5-2b": {
+    "resources_before": {
+     "disk_free_gb": 13.3,
+     "memory_free_pct": 51
+    },
+    "load_s": 4.0,
+    "memory_loaded": {
+     "rss_mb": 2887.1,
+     "footprint_mb": 1430.2
+    },
+    "requests": [
+     {
+      "wall_s": 7.75,
+      "prompt_tokens": 1158,
+      "prompt_tok_s": 686.7,
+      "generated_tokens": 400,
+      "gen_tok_s": 65.9
+     },
+     {
+      "wall_s": 7.75,
+      "prompt_tokens": 1158,
+      "prompt_tok_s": 694.8,
+      "generated_tokens": 400,
+      "gen_tok_s": 65.9
+     },
+     {
+      "wall_s": 7.69,
+      "prompt_tokens": 1133,
+      "prompt_tok_s": 695.2,
+      "generated_tokens": 400,
+      "gen_tok_s": 66.1
+     }
+    ],
+    "memory_after": {
+     "rss_mb": 2997.8,
+     "footprint_mb": 1594.3
+    },
+    "gen_tok_s": 65.9,
+    "prompt_tok_s": 694.8
+   },
+   "glm-ocr": {
+    "resources_before": {
+     "disk_free_gb": 7.5,
+     "memory_free_pct": 14
+    },
+    "load_s": 4.0,
+    "memory_loaded": {
+     "rss_mb": 2368.7,
+     "footprint_mb": 1640.7
+    }
+   }
+  },
+  "finished": "2026-10-06T17:03:00+08:00"
+ },
+ "not_measured_here": {
+  "large": {
+   "agent": "qwen3.8-27b",
+   "memory_gb": 20,
+   "answer_s": 134,
+   "measured_on": "Apple M4 Pro, 48 GB"
+  }
+ },
+ "dropped": {
+  "ref-gpt-6.1-sol": "dropped 2026-10-07: rate-limited upstream even pinned to Azure, at about 20 times GPT-6 Luna's price"
+ }
+}

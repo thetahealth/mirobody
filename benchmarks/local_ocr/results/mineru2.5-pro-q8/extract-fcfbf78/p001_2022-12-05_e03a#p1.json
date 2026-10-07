@@ -1,0 +1,64 @@
+{
+ "id": "p001_2022-12-05_e03a#p1",
+ "llm": false,
+ "seconds": 0.02,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "促甲状腺激素",
+   "value": "2.873",
+   "unit": "mIU/L",
+   "reference_range": "(0.270 - 4.200)",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "游离三碘甲状腺原氨酸",
+   "value": "3.88",
+   "unit": "pmol/L",
+   "reference_range": "(3.10 - 6.80)",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "游离甲状腺素",
+   "value": "15.27",
+   "unit": "pmol/L",
+   "reference_range": "(12.00 - 22.00)",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总三碘甲状腺原氨酸",
+   "value": "1.63",
+   "unit": "nmol/L",
+   "reference_range": "(1.30 - 3.10)",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总甲状腺素",
+   "value": "114.5",
+   "unit": "nmol/L",
+   "reference_range": "(66.0 - 181.0)",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "甲状腺过氧化物酶抗体",
+   "value": "10.1",
+   "unit": "IU/mL",
+   "reference_range": "≤34.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "",
+ "content_type": null
+}

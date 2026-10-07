@@ -1,0 +1,56 @@
+{
+ "model": "glm-ocr-q8",
+ "spec": {
+  "name": "GLM-OCR 0.9B",
+  "repo": "ggml-org/GLM-OCR-GGUF",
+  "model_file": "GLM-OCR-Q8_0.gguf",
+  "mmproj_file": "mmproj-GLM-OCR-Q8_0.gguf",
+  "quant": "Q8_0, projector Q8_0",
+  "upstream": "zai-org/GLM-OCR",
+  "license": "MIT",
+  "llama_cpp": "upstream since PR #19677 (2026-02-18)",
+  "passes": {
+   "text": "Text Recognition:",
+   "tables": "Table Recognition:"
+  },
+  "sampling": {
+   "temperature": 0
+  },
+  "convert": null,
+  "why": "the shipped reader (config.llm.yaml `local-ocr`); prompts from its model card"
+ },
+ "files": {
+  "model_file": {
+   "name": "GLM-OCR-Q8_0.gguf",
+   "bytes": 950433408,
+   "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+  },
+  "mmproj_file": {
+   "name": "mmproj-GLM-OCR-Q8_0.gguf",
+   "bytes": 484403648,
+   "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+  }
+ },
+ "server": {
+  "ctx": 16384,
+  "slots": 1,
+  "cache_ram": 0,
+  "max_tokens": 8192
+ },
+ "load_seconds": 2.0,
+ "memory_idle": {
+  "rss_mib": 2316.4,
+  "phys_footprint_mib": 1644.1,
+  "phys_footprint_peak_mib": 1644.1
+ },
+ "memory_final": {
+  "rss_mib": 2495.0,
+  "phys_footprint_mib": 1836.8,
+  "phys_footprint_peak_mib": 1838.4
+ },
+ "memory_max_rss_mib": 2513.3,
+ "memory_max_footprint_mib": 1836.8,
+ "run_at": "2026-10-07T01:17:07+08:00",
+ "pages_run": 17,
+ "command": "benchmarks/local_ocr/run.py --model glm-ocr-q8 --corpus <scratch>/handwriting/corpus --sample <scratch>/handwriting/corpus/handwriting_sample.json --set handwriting --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10"
+}

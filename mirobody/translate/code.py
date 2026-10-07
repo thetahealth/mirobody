@@ -90,6 +90,20 @@ def axes_for(loinc: str) -> tuple[Axes, str] | None:
     return Axes(component, prop, time, system, scale, method), display
 
 
+def series_of(loinc: str) -> str:
+    """The series a reading coded `loinc` is filed under, `""` for a code the
+    shipped bundle does not hold.
+
+    The writer's own rule (`series_id` over `axes_for`, as `_coded` applies
+    it), so a reader asking "which readings does this code name" gets every
+    sibling the writer filed together: 2571-8 (triglyceride, mass) and
+    14927-8 (moles) are one series, and so are 20567-4 (ferritin by
+    immunoassay) and 2276-4 (no method).
+    """
+    found = axes_for(loinc)
+    return series_id(found[0]) if found else ""
+
+
 #: What a person wrote that is not a reading, a complaint or a diagnosis: a
 #: meal, a mood, a walk. It is kept as written and not coded, by design rather
 #: than for want of a match: there is no open vocabulary for meals or moods
@@ -235,4 +249,4 @@ def _coded(
     )
 
 
-__all__ = ["RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "release"]
+__all__ = ["RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "release", "series_of"]

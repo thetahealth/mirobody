@@ -1,0 +1,42 @@
+{
+ "id": "p004_2023-11-12_e01a#p1",
+ "tier": "T0",
+ "image_sha256": "2c3f0f57325f736a8dd0aea4346ae00e6732a4696f35d2ee104faad77ddf2e78",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检查项目名称</th><th>化验结果</th><th>医生建议</th><th>参考值(范围)</th></tr></thead><tbody><tr><td>姓名</td><td>贺瑶欣</td><td></td><td></td></tr><tr><td>性别</td><td>男</td><td></td><td></td></tr><tr><td>总胆固醇</td><td>6.49↑</td><td></td><td>&lt;5.18 mmol/L</td></tr><tr><td>甘油三酯</td><td>0.97</td><td></td><td>&lt;1.70 mmol/L</td></tr><tr><td>高密度脂蛋白胆固醇</td><td>0.99↓</td><td></td><td>&gt;1.04 mmol/L</td></tr><tr><td>低密度脂蛋白胆固醇</td><td>5.06↑</td><td></td><td>&lt;3.37 mmol/L</td></tr><tr><td>载脂蛋白A1</td><td>1.23</td><td></td><td>1.20-1.60 g/L</td></tr><tr><td>载脂蛋白B</td><td>0.82</td><td></td><td>0.60-1.10 g/L</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 10.07,
+   "usage": {
+    "completion_tokens": 354,
+    "prompt_tokens": 2156,
+    "total_tokens": 2510,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7153.555,
+    "prompt_per_token_ms": 3.3256880520688052,
+    "prompt_per_second": 300.68965710056045,
+    "predicted_n": 354,
+    "predicted_ms": 2847.693,
+    "predicted_per_token_ms": 8.067118980169973,
+    "predicted_per_second": 123.9599914738
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2286.2,
+  "phys_footprint_mib": 1798.0,
+  "phys_footprint_peak_mib": 1888.2
+ }
+}

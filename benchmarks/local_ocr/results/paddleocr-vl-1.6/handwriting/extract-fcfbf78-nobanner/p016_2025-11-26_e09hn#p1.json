@@ -1,0 +1,100 @@
+{
+ "id": "p016_2025-11-26_e09hn#p1",
+ "llm": true,
+ "seconds": 12.31,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Temperature",
+   "value": "37.0",
+   "reference_range": "",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "68",
+   "reference_range": "",
+   "unit": "bpm",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Liver length",
+   "value": "68",
+   "reference_range": "",
+   "unit": "mm",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Liver length",
+   "value": "17",
+   "reference_range": "",
+   "unit": "mm",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "126",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "71",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Blood pressure",
+   "value": "100%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "90.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Heart sounds",
+   "value": "normal",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  }
+ ],
+ "date_time": "26.11.2025",
+ "content_type": "medical_report"
+}

@@ -1,0 +1,1541 @@
+{
+ "p004_hlog01#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 47.75,
+  "error": null,
+  "truth_rows": 16,
+  "stored": 26,
+  "matched": 8,
+  "value_ok": 8,
+  "value_ok_flag_forgiven": 8,
+  "unit_ok": 8,
+  "range_ok": 8,
+  "wrong_value": 0,
+  "false": 18,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "Blood pressure",
+    "item_value": "109/70",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "109/70",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "119/70",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "113/74",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "111/76",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "116/83",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "107/71",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "116/76",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "110/67",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "120/73",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "73",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "73",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "77",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "73",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "77",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "73",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "71",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart rate",
+    "item_value": "70",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_hlog02#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 0.23,
+  "error": null,
+  "truth_rows": 7,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_hlog01#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 0.21,
+  "error": null,
+  "truth_rows": 17,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_hlog02#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 9.74,
+  "error": null,
+  "truth_rows": 7,
+  "stored": 7,
+  "matched": 7,
+  "value_ok": 7,
+  "value_ok_flag_forgiven": 7,
+  "unit_ok": 0,
+  "range_ok": 7,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "67.0",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "67.0",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "66.5",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "66.5",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "66.6",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "66.6",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "66.9",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "66.9",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "66.9",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "66.9",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "66.9",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "66.9",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Weight (kg)",
+     "item_value": "67.1",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Date Weight (kg)",
+     "item_value": "67.1",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p014_2026-08-21_e09hf#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 5.15,
+  "error": null,
+  "truth_rows": 9,
+  "stored": 9,
+  "matched": 9,
+  "value_ok": 9,
+  "value_ok_flag_forgiven": 9,
+  "unit_ok": 9,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Body mass index",
+     "item_value": "26.0",
+     "item_unit": "kg/m²",
+     "item_range": "(18.5-23.9)"
+    },
+    "stored": {
+     "item_name": "Body mass index",
+     "item_value": "26.0",
+     "item_unit": "kg/m^2",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Heart rate",
+     "item_value": "67",
+     "item_unit": "/min",
+     "item_range": "(60-100)"
+    },
+    "stored": {
+     "item_name": "Heart rate",
+     "item_value": "67",
+     "item_unit": "/min",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Fasting plasma glucose",
+     "item_value": "5.42",
+     "item_unit": "mmol/L",
+     "item_range": "(3.90-6.10)"
+    },
+    "stored": {
+     "item_name": "Fasting plasma glucose",
+     "item_value": "5.42",
+     "item_unit": "mmol/L",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Glycated hemoglobin",
+     "item_value": "5.1",
+     "item_unit": "%",
+     "item_range": "(4.0-6.0)"
+    },
+    "stored": {
+     "item_name": "Glycated hemoglobin",
+     "item_value": "5.1",
+     "item_unit": "%",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Fasting insulin",
+     "item_value": "10.38",
+     "item_unit": "μIU/mL",
+     "item_range": "(2.60-24.90)"
+    },
+    "stored": {
+     "item_name": "Fasting insulin",
+     "item_value": "10.38",
+     "item_unit": "μIU/mL",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "C-peptide",
+     "item_value": "3.51",
+     "item_unit": "ng/mL",
+     "item_range": "(1.10-4.40)"
+    },
+    "stored": {
+     "item_name": "C-peptide",
+     "item_value": "3.51",
+     "item_unit": "ng/mL",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2022-11-19_e01hf#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 7.08,
+  "error": null,
+  "truth_rows": 8,
+  "stored": 10,
+  "matched": 8,
+  "value_ok": 8,
+  "value_ok_flag_forgiven": 8,
+  "unit_ok": 8,
+  "range_ok": 8,
+  "wrong_value": 0,
+  "false": 2,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "体重指数",
+    "item_value": "37.4",
+    "item_unit": "kg/m^2",
+    "item_range": "27.4"
+   },
+   {
+    "item_name": "体重指数",
+    "item_value": "18.5—23.9",
+    "item_unit": "kg/m^2",
+    "item_range": "18.5—23.9"
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p010_2024-05-31_e03hn#p1": {
+  "tier": "H1",
+  "llm": true,
+  "seconds": 142.7,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 5,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "R",
+     "item_value": "16",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "R",
+     "item_value": "16",
+     "item_unit": "次/分",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p018_hlog01#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 11.52,
+  "error": null,
+  "truth_rows": 16,
+  "stored": 8,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 8,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "Blood pressure",
+    "item_value": "137/84",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "177/89",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "121/94",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "135/81",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "132/82",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "121/92",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "135/90",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "140/83",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p018_hlog02#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 18.22,
+  "error": null,
+  "truth_rows": 14,
+  "stored": 14,
+  "matched": 14,
+  "value_ok": 14,
+  "value_ok_flag_forgiven": 14,
+  "unit_ok": 14,
+  "range_ok": 14,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p013_2023-04-25_e07hn#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 10.13,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 7,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 3,
+  "elsewhere": 1,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "Heart Rate",
+    "item_value": "86",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Respiratory Rate",
+    "item_value": "17",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood Pressure",
+    "item_value": "109/80",
+    "item_unit": "mmHg",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [
+   {
+    "item_name": "Imp: Hypothyroidism",
+    "item_value": "Hypothyroidism",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p003_hlog01#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 0.27,
+  "error": null,
+  "truth_rows": 33,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p007_hlog01#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 27.77,
+  "error": null,
+  "truth_rows": 19,
+  "stored": 14,
+  "matched": 13,
+  "value_ok": 13,
+  "value_ok_flag_forgiven": 13,
+  "unit_ok": 13,
+  "range_ok": 13,
+  "wrong_value": 0,
+  "false": 1,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "餐后2小时血糖",
+    "item_value": "4.6",
+    "item_unit": "mmol/L",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p008_hlog01#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 27.29,
+  "error": null,
+  "truth_rows": 20,
+  "stored": 17,
+  "matched": 17,
+  "value_ok": 17,
+  "value_ok_flag_forgiven": 17,
+  "unit_ok": 17,
+  "range_ok": 17,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p008_hlog02#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 0.23,
+  "error": null,
+  "truth_rows": 28,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p015_hlog01#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 0.22,
+  "error": null,
+  "truth_rows": 9,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2025-11-18_e07hf#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 12.72,
+  "error": null,
+  "truth_rows": 8,
+  "stored": 15,
+  "matched": 7,
+  "value_ok": 7,
+  "value_ok_flag_forgiven": 7,
+  "unit_ok": 7,
+  "range_ok": 7,
+  "wrong_value": 0,
+  "false": 5,
+  "elsewhere": 3,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "Height",
+    "item_value": "3.90",
+    "item_unit": "cm",
+    "item_range": ""
+   },
+   {
+    "item_name": "Weight",
+    "item_value": "6.10",
+    "item_unit": "kg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Heart Rate",
+    "item_value": "次/分",
+    "item_unit": "次/分",
+    "item_range": ""
+   },
+   {
+    "item_name": "Fasting Blood Glucose",
+    "item_value": "4.83",
+    "item_unit": "mmol/L",
+    "item_range": "3.90-6.10"
+   },
+   {
+    "item_name": "HbA1c",
+    "item_value": "%",
+    "item_unit": "%",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [
+   {
+    "item_name": "Body Mass Index",
+    "item_value": "kg/m²",
+    "item_unit": "kg/m²",
+    "item_range": ""
+   },
+   {
+    "item_name": "Systolic Blood Pressure",
+    "item_value": "mmHg",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Diastolic Blood Pressure",
+    "item_value": "mmHg",
+    "item_unit": "mmHg",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p007_2025-06-18_e04hn#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 11.79,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 8,
+  "matched": 4,
+  "value_ok": 4,
+  "value_ok_flag_forgiven": 4,
+  "unit_ok": 4,
+  "range_ok": 4,
+  "wrong_value": 0,
+  "false": 4,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "Blood Pressure - Systolic",
+    "item_value": "126",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood Pressure - Diastolic",
+    "item_value": "74",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Weight",
+    "item_value": "78.6",
+    "item_unit": "kg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Diagnostic Result",
+    "item_value": "2型糖尿病",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p008_2024-11-28_e05hn#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 10.55,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 7,
+  "matched": 4,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 2,
+  "range_ok": 4,
+  "wrong_value": 1,
+  "false": 3,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "P",
+     "item_value": "76",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Pulse",
+     "item_value": "76",
+     "item_unit": "次/分",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "R",
+     "item_value": "15",
+     "item_unit": "次/分",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Blood Pressure - Systolic",
+     "item_value": "107",
+     "item_unit": "mmHg",
+     "item_range": ""
+    },
+    "wrong": [
+     "value",
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [
+   {
+    "item_name": "Blood Pressure - Diastolic",
+    "item_value": "83",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Weight",
+    "item_value": "64.6",
+    "item_unit": "kg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Respiratory Exam",
+    "item_value": "Clear",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p012_2025-03-06_e06hn#p1": {
+  "tier": "H2",
+  "llm": true,
+  "seconds": 10.83,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 7,
+  "matched": 4,
+  "value_ok": 4,
+  "value_ok_flag_forgiven": 4,
+  "unit_ok": 3,
+  "range_ok": 4,
+  "wrong_value": 0,
+  "false": 3,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "R",
+     "item_value": "16",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Respiration",
+     "item_value": "16",
+     "item_unit": "次/分",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [
+   {
+    "item_name": "Blood Pressure - Systolic",
+    "item_value": "115",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood Pressure - Diastolic",
+    "item_value": "67",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Weight",
+    "item_value": "59.2",
+    "item_unit": "kg",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p009_hlog01#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 14.91,
+  "error": null,
+  "truth_rows": 11,
+  "stored": 11,
+  "matched": 11,
+  "value_ok": 10,
+  "value_ok_flag_forgiven": 10,
+  "unit_ok": 11,
+  "range_ok": 11,
+  "wrong_value": 1,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Weight",
+     "item_value": "52.4",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Weight",
+     "item_value": "58.452.4kg",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "wrong": [
+     "value"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p018_2025-09-10_e04hf#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 10.94,
+  "error": null,
+  "truth_rows": 7,
+  "stored": 7,
+  "matched": 7,
+  "value_ok": 7,
+  "value_ok_flag_forgiven": 7,
+  "unit_ok": 7,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Body mass index",
+     "item_value": "20.1",
+     "item_unit": "kg/m²",
+     "item_range": "18.5-23.9"
+    },
+    "stored": {
+     "item_name": "Body mass index",
+     "item_value": "20.1",
+     "item_unit": "kg/m^2",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Systolic blood pressure",
+     "item_value": "124",
+     "item_unit": "mmHg",
+     "item_range": "90-139"
+    },
+    "stored": {
+     "item_name": "Systolic blood pressure",
+     "item_value": "124",
+     "item_unit": "mmHg",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Diastolic blood pressure",
+     "item_value": "69",
+     "item_unit": "mmHg",
+     "item_range": "60-89"
+    },
+    "stored": {
+     "item_name": "Diastolic blood pressure",
+     "item_value": "69",
+     "item_unit": "mmHg",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Heart rate",
+     "item_value": "80",
+     "item_unit": "/min",
+     "item_range": "60-100"
+    },
+    "stored": {
+     "item_name": "Heart rate",
+     "item_value": "80",
+     "item_unit": "/min",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Fasting plasma glucose",
+     "item_value": "5.58",
+     "item_unit": "mmol/L",
+     "item_range": "3.90-6.10"
+    },
+    "stored": {
+     "item_name": "Fasting plasma glucose",
+     "item_value": "5.58",
+     "item_unit": "mmol/L",
+     "item_range": ""
+    },
+    "wrong": [
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p012_2024-11-06_e05hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 11.62,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 7,
+  "matched": 4,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 4,
+  "wrong_value": 1,
+  "false": 2,
+  "elsewhere": 1,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Temp",
+     "item_value": "36.6",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "Temp",
+     "item_value": "36.6",
+     "item_unit": "°F",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "BP",
+     "item_value": "132/62",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "BP",
+     "item_value": "132",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "value"
+    ]
+   }
+  ],
+  "false_rows": [
+   {
+    "item_name": "Temp",
+    "item_value": "48.6",
+    "item_unit": "°C",
+    "item_range": ""
+   },
+   {
+    "item_name": "Sato",
+    "item_value": "95%",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [
+   {
+    "item_name": "BP",
+    "item_value": "62",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p016_2025-11-26_e09hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 12.31,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 9,
+  "matched": 2,
+  "value_ok": 2,
+  "value_ok_flag_forgiven": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 6,
+  "elsewhere": 1,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "Heart rate",
+    "item_value": "68",
+    "item_unit": "bpm",
+    "item_range": ""
+   },
+   {
+    "item_name": "Liver length",
+    "item_value": "68",
+    "item_unit": "mm",
+    "item_range": ""
+   },
+   {
+    "item_name": "Liver length",
+    "item_value": "17",
+    "item_unit": "mm",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "126",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "71",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Blood pressure",
+    "item_value": "100%",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [
+   {
+    "item_name": "Heart sounds",
+    "item_value": "normal",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p018_2025-12-14_e05hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 10.31,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 7,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 4,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "RE",
+    "item_value": "17",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Lats",
+    "item_value": "96%",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "Mt",
+    "item_value": "2.8",
+    "item_unit": "kg",
+    "item_range": ""
+   },
+   {
+    "item_name": "Amp",
+    "item_value": "H/N",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p007_2024-12-20_e02hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 12.34,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 8,
+  "matched": 1,
+  "value_ok": 1,
+  "value_ok_flag_forgiven": 1,
+  "unit_ok": 1,
+  "range_ok": 1,
+  "wrong_value": 0,
+  "false": 7,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "体温",
+    "item_value": "36.5",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "脉率",
+    "item_value": "75",
+    "item_unit": "次/分",
+    "item_range": ""
+   },
+   {
+    "item_name": "呼吸",
+    "item_value": "15",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "血压",
+    "item_value": "31/70",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "收缩压",
+    "item_value": "131",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "舒张压",
+    "item_value": "80",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "血氧饱和度",
+    "item_value": "100%",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p008_2025-11-23_e09hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 3.92,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p010_2023-12-03_e01hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 11.31,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 8,
+  "matched": 1,
+  "value_ok": 1,
+  "value_ok_flag_forgiven": 1,
+  "unit_ok": 1,
+  "range_ok": 1,
+  "wrong_value": 0,
+  "false": 7,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [
+   {
+    "item_name": "体温",
+    "item_value": "36.4",
+    "item_unit": "°C",
+    "item_range": ""
+   },
+   {
+    "item_name": "脉搏",
+    "item_value": "83",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "呼吸",
+    "item_value": "17",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "血压",
+    "item_value": "125/74",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "血压收缩压",
+    "item_value": "125",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "血压舒张压",
+    "item_value": "74",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "血氧饱和度",
+    "item_value": "95%",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p012_2025-11-01_e09hn#p1": {
+  "tier": "H3",
+  "llm": true,
+  "seconds": 144.52,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 7,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 5,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 1,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "P",
+     "item_value": "80",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "P",
+     "item_value": "80",
+     "item_unit": "次/分",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "心肺听诊",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ }
+}

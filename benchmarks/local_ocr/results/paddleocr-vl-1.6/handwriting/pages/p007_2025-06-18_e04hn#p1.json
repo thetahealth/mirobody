@@ -1,0 +1,67 @@
+{
+ "id": "p007_2025-06-18_e04hn#p1",
+ "tier": "H2",
+ "image_sha256": "9b9f77f342a8b1dd315d9a57bc00e8763ccd6c3c1653f51bf14f9d96165663c4",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "门诊病历\n科别：全科 日期：2025.6.8\n复诊\n一般情况可\nT: 36.5° C P: 82 R 13次/分 BP: 126/74mmHg\nSpO2 100% Wt 78.6kg\n双下肢无水肿，腹软无压痛\n诊断：2型糖尿病\n处理：监测血糖，不适随诊",
+   "finish_reason": "stop",
+   "seconds": 6.39,
+   "usage": {
+    "completion_tokens": 103,
+    "prompt_tokens": 1273,
+    "total_tokens": 1376,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5708.501,
+    "prompt_per_token_ms": 4.501972397476341,
+    "prompt_per_second": 222.1248625514824,
+    "predicted_n": 103,
+    "predicted_ms": 633.367,
+    "predicted_per_token_ms": 6.209480392156863,
+    "predicted_per_second": 161.04407081518298
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><nl><fcel>科别：全科<fcel>门诊病历日期：2025.6.8<lcel><nl><fcel>复诊一般情况可T: 36.5° C P: 82 R 13次/分 BP: 126/74mmHg<lcel><lcel><nl><fcel>SpO2 100% Wt 78.6kg双下肢无水肿，腹软无压痛诊断：2型糖尿病处理：监测血糖，不适随诊<lcel><lcel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl><ecel><ecel><ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.8,
+   "usage": {
+    "completion_tokens": 163,
+    "prompt_tokens": 1273,
+    "total_tokens": 1436,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 17.188,
+    "prompt_per_token_ms": 2.455428571428571,
+    "prompt_per_second": 407.26087968350015,
+    "predicted_n": 163,
+    "predicted_ms": 1729.317,
+    "predicted_per_token_ms": 10.674796296296297,
+    "predicted_per_second": 93.67860259281554
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2216.1,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ }
+}

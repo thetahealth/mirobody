@@ -13,12 +13,41 @@ prints the unit twice anyway.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from mirobody.collect import observations
+from mirobody.collect.files.services.table_indicators import _split_flag
+from mirobody.utils.coerce import parse_date
 
 logger = logging.getLogger(__name__)
+
+
+def row_time(printed: Any, report_time: datetime) -> datetime:
+    """The time a row's reading was taken: the date the row itself prints
+    (a home log, a table by day), else the document's.
+
+    A log of twelve morning weights used to be filed as twelve readings of one
+    day, or one reading after the name-and-value dedup, because the extraction
+    had one date per document. A printed row date that does not parse, or is
+    more than a day ahead of now (a misread), is not used: the document's date
+    is, as it was for every row before.
+    """
+    at = parse_date(str(printed or ""))
+    if at is None or at > datetime.now() + timedelta(days=1):
+        return report_time
+    return at
+
+
+def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
+    """`(value, flag)` of a model-read row: a flag the report printed after the
+    number (`6.49↑`, `5.6 H`) moved out of the value, the way the table rules
+    move it (`_split_flag`, the same `L`-is-litres guard), and kept as the
+    flag; else the model's `status`. Left in, `6.49↑` was stored as a
+    narrative with no number: all 16 value errors of GLM-OCR's end-to-end run
+    on the OCR benchmark (benchmarks/local_ocr, 2026-10-06)."""
+    value, printed = _split_flag(str(indicator.get("value") or ""), str(indicator.get("reference_range") or ""))
+    return value, printed or str(indicator.get("status") or "")
 
 
 def generate_source_table_id(msg_id: str, file_key: str) -> str:
@@ -69,13 +98,14 @@ async def save_indicators_to_db(
                 continue
             method = str(indicator.get("detection_method") or "")
             kind = observations.KIND_FINDING if method in ("Imaging", "Pathological") else observations.KIND_MEASUREMENT
+            value, flag = value_and_flag(indicator)
             drafts.append(observations.Draft(
                 name_text=str(original_indicator),
-                observed_start=start_time,
-                value_text=str(indicator.get("value") or ""),
+                observed_start=row_time(indicator.get("date_time"), start_time),
+                value_text=value,
                 unit_text=str(indicator.get("unit") or ""),
                 ref_text=str(indicator.get("reference_range") or ""),
-                flag_text=str(indicator.get("status") or ""),
+                flag_text=flag,
                 method_text=method,
                 note_text=str(indicator.get("notes") or ""),
                 kind=kind,

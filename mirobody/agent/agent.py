@@ -15,6 +15,7 @@ switch between. The MCP surface (`mirobody/mcp/`) is the seam for every other
 agent runtime.
 """
 
+import asyncio
 import logging
 import uuid
 from typing import Any, TYPE_CHECKING
@@ -35,7 +36,7 @@ from .errors import AgentError, ConfigError, client_safe_error
 from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
 from .models.clients import build_llm_clients
 from .models.usage import usage_block
-from .prompt import attachment_reminder, build_system_prompt
+from .prompt import attachment_reminder, build_system_prompt, question_language
 from .wire.blocks import ERROR, NOTICE
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
@@ -48,6 +49,17 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
 logger = logging.getLogger(__name__)
+
+
+def _latest_question(messages: list) -> str:
+    """The text of the last user message, whichever form the list holds."""
+    for message in reversed(messages or []):
+        role = message.get("role") if isinstance(message, dict) else getattr(message, "type", "")
+        if role in ("user", "human"):
+            content = message.get("content") if isinstance(message, dict) else message.content
+            return content if isinstance(content, str) else " ".join(
+                b.get("text", "") for b in content or [] if isinstance(b, dict))
+    return ""
 
 
 def _default_provider() -> str:
@@ -84,14 +96,11 @@ class MirobodyAgent:
         # is the real budget, counted in model calls and enforced by
         # ModelCallLimitMiddleware, which ends the run gracefully so the model
         # still writes an answer. RECURSION_LIMIT is a raw LangGraph super-step
-        # ceiling, a last-resort net for a runaway: it must sit WELL above the
-        # call budget or it fires first and hard-fails with GraphRecursionError,
-        # since every middleware compiles its after_model hook as its own node
-        # and one tool round costs several super-steps. Default it to ~6x.
+        # ceiling, a last-resort net for a runaway: it must sit above the call
+        # budget or it fires first and hard-fails with GraphRecursionError.
+        # Unset, `harness.recursion_limit_for` derives it from the built graph.
         self.model_call_limit = int(safe_read_cfg("MODEL_CALL_LIMIT") or 50)
-        self.recursion_limit = int(
-            safe_read_cfg("RECURSION_LIMIT") or max(100, self.model_call_limit * 6)
-        )
+        self.recursion_limit = int(safe_read_cfg("RECURSION_LIMIT") or 0) or None
 
     async def _init_llm_client(self, provider: str | None) -> tuple[Any, str, bool, str]:
         original_provider = provider
@@ -177,6 +186,7 @@ class MirobodyAgent:
         base_prompt: str,
         user_id: str,
         tools: list,
+        question: str = "",
     ) -> str:
         """Build system prompt with tools, time, user context, and health-profile core."""
         from mirobody.user.profile import get_health_profile_core
@@ -191,6 +201,7 @@ class MirobodyAgent:
                 timezone=self.timezone,
                 health_profile=health_profile,
                 tool_round_limit=self.model_call_limit,
+                answer_language=question_language(question),
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -203,7 +214,7 @@ class MirobodyAgent:
     
     async def _build_backend(
         self, session_id: str, user_id: str, file_list: list[dict[str, Any]] | None = None,
-        supports_file_block: bool = False,
+        supports_file_block: bool = False, supports_image: bool = True,
     ) -> tuple[Any, list | None]:
         """Build the deepagents virtual filesystem.
 
@@ -253,10 +264,12 @@ class MirobodyAgent:
         uploads = ThFilesBackend(user_id=user_id, scope="uploads",
                                  file_keys=this_turn_keys,
                                  turn_names=this_turn_names,
-                                 supports_file_block=supports_file_block)
+                                 supports_file_block=supports_file_block,
+                                 supports_image=supports_image)
         library = ThFilesBackend(user_id=user_id, scope="library",
                                  file_keys=this_turn_keys,
-                                 supports_file_block=supports_file_block)
+                                 supports_file_block=supports_file_block,
+                                 supports_image=supports_image)
 
         routes = {
             "/memories/": memory,
@@ -283,10 +296,9 @@ class MirobodyAgent:
         LangGraph does not put `configurable` into checkpoint metadata, so the
         bearer token it held was neither reaching a tool nor reaching Postgres.
         """
-        config: dict[str, Any] = {
-            "recursion_limit": self.recursion_limit,
-            "callbacks": [token_counter],
-        }
+        config: dict[str, Any] = {"callbacks": [token_counter]}
+        if self.recursion_limit:
+            config["recursion_limit"] = self.recursion_limit
         if session_id:
             config["configurable"] = {"thread_id": session_id}
         return config
@@ -296,6 +308,7 @@ class MirobodyAgent:
         user_id: str,
         provider: str | None,
         prompt_name: str,
+        question: str = "",
     ) -> tuple["BaseChatModel", str, str | None, list[BaseTool], str]:
         """
         Prepare LLM client, tools, and system prompt.
@@ -308,7 +321,7 @@ class MirobodyAgent:
         loaded_tools = await self._load_tools(user_id)
 
         base_prompt = self._get_base_prompt(prompt_name)
-        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools)
+        system_prompt = await self._build_system_prompt(base_prompt, user_id, loaded_tools, question)
 
         return llm_client, model_name, (fallback_msg if fallback_used else None), loaded_tools, system_prompt
 
@@ -385,6 +398,25 @@ class MirobodyAgent:
         logger.info(f"file-block support: pdf=False (unrecognised transport {type(llm_client).__name__})")
         return False
 
+    def _supports_image(self, client: Any, provider: str | None) -> bool:
+        """Whether this turn's model is sent an image, or its OCR text.
+
+        The entry that answers is the one `_init_llm_client` picked: the
+        requested provider when it has a client, else the default. A profile
+        or entry `false` is final; a local entry asks its server
+        (`served.sees`), because the entry names the model it was written for
+        and a text-only one may be running instead (MiniCPM5-2B answered an
+        image block with "image input is not supported").
+        """
+        if (getattr(client, "profile", None) or {}).get("image_inputs") is False:
+            return False
+        from mirobody.utils.config.llm import resolve_named
+        from mirobody.utils.config.served import sees
+
+        name = provider if provider and llm_client(provider) else self.default_provider
+        spec = resolve_named(name) if name in chat_entries() else None
+        return sees(spec) if spec is not None else True
+
     #: Read-only tools the `eval` REPL may call as `tools.<name>`; each guards
     #: itself because the PTC bridge bypasses the tool middleware.
     _PTC_TOOLS: tuple[str, ...] = (query.TOOL_NAME,)
@@ -416,6 +448,7 @@ class MirobodyAgent:
         tools: list[BaseTool],
         file_list: list[dict[str, Any]] | None = None,
         supports_file_block: bool = False,
+        supports_image: bool = True,
     ) -> tuple[Any, Any]:
         """The compiled graph and the backend it reads through."""
         try:
@@ -425,7 +458,8 @@ class MirobodyAgent:
             # read_file tool (multimodal for pdf/image/…). No custom file MCP
             # tools, no external sandbox.
             backend, permissions = await self._build_backend(
-                session_id, user_id, file_list, supports_file_block=supports_file_block
+                session_id, user_id, file_list, supports_file_block=supports_file_block,
+                supports_image=supports_image,
             )
 
             # The stack itself (fault containment → retry governance → invalid-call
@@ -441,6 +475,9 @@ class MirobodyAgent:
                 genotype_guard,
                 UniversalPromptCachingMiddleware(ttl="5m", unsupported_model_behavior="ignore")
             ]
+            if not supports_image:
+                from .middleware import NoVisionReadMiddleware
+                tail.insert(0, NoVisionReadMiddleware())
 
             middleware = harness.standard_middleware(
                 retry_limit=self._RETRY_LIMIT,
@@ -479,6 +516,7 @@ class MirobodyAgent:
                 checkpointer=await get_checkpointer(),
                 interrupt_on=ASK_USER_INTERRUPT,
                 recursion_limit=self.recursion_limit,
+                model_call_limit=self.model_call_limit,
                 excluded_native_tools=self._EXCLUDED_NATIVE_TOOLS,
             )
 
@@ -598,6 +636,7 @@ class MirobodyAgent:
                 user_id=user_id,
                 provider=provider,
                 prompt_name=prompt_name,
+                question=_latest_question(messages),
             )
 
             if fallback_msg:
@@ -606,6 +645,7 @@ class MirobodyAgent:
                 yield {"type": NOTICE, "message": fallback_msg}
 
             supports_file_block = self._supports_file_block(llm_client)
+            supports_image = await asyncio.to_thread(self._supports_image, llm_client, provider)
 
             agent, backend = await self._build_agent(
                 session_id=session_id,
@@ -615,6 +655,7 @@ class MirobodyAgent:
                 tools=loaded_tools,
                 file_list=file_list,
                 supports_file_block=supports_file_block,
+                supports_image=supports_image,
             )
 
             token_counter = TokenUsageCallback()

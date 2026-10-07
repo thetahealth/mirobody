@@ -1,0 +1,67 @@
+{
+ "id": "p005_log01#p1",
+ "tier": "T6",
+ "image_sha256": "ff3719449d602aae85c49515b955f1235a9bd27c99530e9317c165544520ec0f",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n霖蘅健康体检中心\n晨起体重\n\n姓名：向伟博\n\n日期 时间 体重(kg) 备注\n2025-12-02 07:43 51.9 晨起\n2025-12-03 07:44 51.2 服药后\n2025-12-04 07:46 51.8\n2025-12-05 08:53 52.2 睡前\n2025-12-06 07:21 51.2 睡前\n2025-12-08 07:37 52.0 服药后\n2025-12-09 07:58 51.1\n2025-12-10 07:57 51.7\n2025-12-11 06:42 51.8 服药后\n2025-12-12 08:17 51.4\n2025-12-13 06:20 51.5 晨起\n2025-12-14 07:51 51.7 服药后",
+   "finish_reason": "stop",
+   "seconds": 11.03,
+   "usage": {
+    "completion_tokens": 320,
+    "prompt_tokens": 2156,
+    "total_tokens": 2476,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 8655.189,
+    "prompt_per_token_ms": 4.023797768479777,
+    "prompt_per_second": 248.52143610035552,
+    "predicted_n": 320,
+    "predicted_ms": 2272.212,
+    "predicted_per_token_ms": 7.122921630094043,
+    "predicted_per_second": 140.39182963561498
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>日期</th><th>时间</th><th>体重(kg)</th><th>备注</th></tr></thead><tbody><tr><td>2025-12-02</td><td>07:43</td><td>51.9</td><td>晨起</td></tr><tr><td>2025-12-03</td><td>07:44</td><td>51.2</td><td>服药后</td></tr><tr><td>2025-12-04</td><td>07:46</td><td>51.8</td><td></td></tr><tr><td>2025-12-05</td><td>08:53</td><td>52.2</td><td>睡前</td></tr><tr><td>2025-12-06</td><td>07:21</td><td>51.2</td><td>睡前</td></tr><tr><td>2025-12-08</td><td>07:37</td><td>52.0</td><td>服药后</td></tr><tr><td>2025-12-09</td><td>07:58</td><td>51.1</td><td></td></tr><tr><td>2025-12-10</td><td>07:57</td><td>51.7</td><td></td></tr><tr><td>2025-12-11</td><td>06:42</td><td>51.8</td><td>服药后</td></tr><tr><td>2025-12-12</td><td>08:17</td><td>51.4</td><td></td></tr><tr><td>2025-12-13</td><td>06:20</td><td>51.5</td><td>晨起</td></tr><tr><td>2025-12-14</td><td>07:51</td><td>51.7</td><td>服药后</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 4.01,
+   "usage": {
+    "completion_tokens": 582,
+    "prompt_tokens": 2156,
+    "total_tokens": 2738,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 19.191,
+    "prompt_per_token_ms": 3.8381999999999996,
+    "prompt_per_second": 260.53879422646037,
+    "predicted_n": 582,
+    "predicted_ms": 3895.516,
+    "predicted_per_token_ms": 6.704846815834768,
+    "predicted_per_second": 149.14583844604925
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2281.8,
+  "phys_footprint_mib": 1696.5,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

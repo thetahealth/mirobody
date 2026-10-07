@@ -200,8 +200,10 @@ SYNONYMS: dict[str, tuple[str, ...]] = _load_synonyms()
 
 
 def _tokens(text: str) -> set[str]:
+    """A name's word tokens, plural-folded (`lexical.fold_plural`) like the
+    query's, so `heartRates` holds `rate` for "heart rate"."""
     base = {t.lower() for t in _CAMEL.split(text or "") if t}
-    return base | {t.lower() for t in lexical.word_tokens(text or "")}
+    return {lexical.fold_plural(t) for t in base | {t.lower() for t in lexical.word_tokens(text or "")}}
 
 
 def _expand(query: str, synonyms: Mapping[str, tuple[str, ...]]) -> set[str]:
@@ -220,13 +222,21 @@ def rank_catalog(
     first, with no network call. Tiers: exact normalised surface (3.0) >
     query tokens all inside the name's tokens (2.0) > normalised substring
     (1.5) > per-token hits (1.0 + 0.2 per hit). Nothing scoring under 1.0 is
-    returned; an empty result means "use a richer recall"."""
+    returned; an empty result means "use a richer recall".
+
+    A query word matches its plural and its singular alike
+    (`lexical.fold_plural` has the miss that made this necessary), synonym
+    words included: the seed maps 甘油三酯 to `triglycerides`, a display
+    says `Triglyceride`. The substring tier tries a word both as written and
+    folded, so folding only ever adds a match: `calories` folds to `calory`,
+    which is not a substring of `activecalories`."""
     q = (query or "").strip()
     if not q or not catalog:
         return ()
     syn = SYNONYMS if synonyms is None else synonyms
     qn = lexical.normalize(q)
-    qtok = {t.lower() for t in lexical.word_tokens(q)} | _expand(q, syn)
+    words = {t.lower() for t in lexical.word_tokens(q)} | _expand(q, syn)
+    qtok = {lexical.fold_plural(t) for t in words}
     scored: list[tuple[float, str]] = []
     for name in catalog:
         nl = name.lower()
@@ -238,7 +248,10 @@ def rank_catalog(
         else:
             if len(qn) >= 2 and qn in nl:
                 s = 1.5
-            hits = sum(1 for t in qtok if len(t) >= 2 and t in nl)
+            hits = sum(
+                1 for t in words
+                if any(len(form) >= 2 and form in nl for form in (t, lexical.fold_plural(t)))
+            )
             if hits:
                 s = max(s, 1.0 + 0.2 * hits)
         if s >= 1.0:
@@ -336,6 +349,13 @@ VIEWS = ("raw", *BUCKETS, "stats", "latest")
 #: that could raise it used to, and got a longer table instead of an answer.
 #: Narrowing the window or asking for `stats` is what a cut row count means.
 ROW_CAP = 50
+#: Points per indicator in a minute…month view: the newest are kept, oldest
+#: first. Uncapped, MiniCPM5-2B asked for `view="day"` with no dates and got
+#: the whole record back, 13,930 and 33,657 characters (2026-10-06); the second
+#: was evicted to a file it paged until the context overflowed. 92 is the
+#: longest three calendar months, so the three-month daily chart that
+#: evaluation asked for is never cut, and a year is.
+BUCKET_CAP = 92
 
 TOOL_NAME = "query_health_indicators"
 
@@ -399,6 +419,12 @@ class QueryRequest:
             return "catalog"
         return DISPATCH[self.view]
 
+    @property
+    def view_unapplied(self) -> bool:
+        """A view was named with nothing selected: the catalogue answers, and
+        the caller should say the view waits for the names it lists."""
+        return self.selection.kind == "catalog" and self.view != "raw"
+
 
 @dataclass(frozen=True)
 class Rejection:
@@ -431,7 +457,14 @@ def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
 def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     """Everything wrong with the raw arguments, in a stable order. Empty
     means :func:`parse_request` will succeed. Checks the enums, the selection
-    rule and the dates."""
+    rule and the dates.
+
+    A view with no selection is not refused: it is a catalogue call
+    (:attr:`QueryRequest.view_unapplied`). Refused, MiniCPM5-2B opened with
+    `view="latest"` and no names 3 times and MiniCPM5-1B 7 times, then
+    repeated it until the harness refused the repeat (`retry_refused`) 6
+    times (2026-10-06), each attempt a model turn on an 8k-token prompt. The
+    catalogue is the list the next call copies its names from."""
     out: list[Rejection] = reject_unknown(args, TOOL_SCHEMA)
     view = args.get("view")
     if view not in (None, "") and view not in VIEWS:
@@ -439,8 +472,6 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     selectors = [p for p in ("keywords", "indicators") if args.get(p) not in (None, "", [], ())]
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
-    if not selectors and view not in (None, "", "raw"):
-        out.append(Rejection("view", "the catalogue has one shape; pick indicators first"))
     out.extend(reject_dates(args))
     return tuple(out)
 
@@ -474,20 +505,22 @@ class HealthQuery(Protocol):
     head. The implementation owns the SQL, the time-zone lookup and any
     read-time refresh. Day-grained values come from the elected daily
     authority: the same numbers a dashboard shows, by construction; raw
-    rows are newest first; ``latest`` is the most recent value *inside the
-    window*."""
+    rows are newest first; buckets are the newest ``limit`` per series,
+    oldest first; both carry ``total`` per series so a cut can say so;
+    ``latest`` is the most recent value *inside the window*."""
 
     def tz(self, subject_id: str) -> str: ...
     def on_read(self, subject_id: str) -> None: ...
     def catalog(self, subject_id: str, window: Window | None) -> Rows: ...
     def readings(self, subject_id: str, sel: Selection, window: Window, *, limit: int) -> Rows: ...
-    def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str) -> Rows: ...
+    def buckets(self, subject_id: str, sel: Selection, window: Window, *, resolution: str, limit: int) -> Rows: ...
     def stats(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
     def latest(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
 
 
 __all__ = [
     "BUCKETS",
+    "BUCKET_CAP",
     "DISPATCH",
     "HealthQuery",
     "QueryRequest",

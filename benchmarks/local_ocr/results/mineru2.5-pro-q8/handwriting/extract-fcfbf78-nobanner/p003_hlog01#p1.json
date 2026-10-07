@@ -1,0 +1,340 @@
+{
+ "id": "p003_hlog01#p1",
+ "llm": true,
+ "seconds": 40.05,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "收缩压",
+   "value": "119",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-06-06 07:02"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-06-06 07:02"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "58",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-06-06 07:02"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "121",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-06-29 07:02"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "81",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-06-29 07:02"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "66",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-06-29 07:02"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "135",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-10 07:31"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-10 07:31"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "66",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-10 07:31"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "119",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-13 07:38"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-13 07:38"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "68",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-13 07:38"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "118",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-29 07:36"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "79",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-29 07:36"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07-29 07:36"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "133",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-01 07:20"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "77",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-01 07:20"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "63",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-01 07:20"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "114",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11 21:33"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11 21:33"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "66",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11 21:33"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "133",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-07 07:38"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "76",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-07 07:38"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "66",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-07 07:38"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "118",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-13 07:11"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-13 07:11"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-13 07:11"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "119",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-20 07:21"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "75",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-20 07:21"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-08-20 07:21"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "115",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-09-08 07:16"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-09-08 07:16"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "67",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-09-08 07:16"
+  }
+ ],
+ "date_time": "2024-06",
+ "content_type": "medical_report"
+}

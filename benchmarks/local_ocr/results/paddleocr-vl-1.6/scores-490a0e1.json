@@ -1,0 +1,1545 @@
+{
+ "p001_2022-12-05_e03a#p1": {
+  "tier": "T3",
+  "truth_rows": 6,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 7,
+  "rules_only": false,
+  "left_chars": 271,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 9.71,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 5,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 0,
+  "tables_alone_value_ok": 0
+ },
+ "p004_2024-07-17_e05a#p1": {
+  "tier": "T3",
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 2,
+  "rules_only": false,
+  "left_chars": 390,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 7.98,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 3,
+  "ocr_complete": 3,
+  "values_found": 3,
+  "values_total": 3,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 3,
+  "tables_alone_value_ok": 3
+ },
+ "p004_2024-11-06_e06a#p1": {
+  "tier": "T3",
+  "truth_rows": 6,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 3,
+  "rules_only": false,
+  "left_chars": 345,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "甘油三酯",
+     "item_value": "0.95",
+     "item_unit": "mmol/L",
+     "item_range": "<1.70"
+    },
+    "stored": {
+     "item_name": "甘油三酯",
+     "item_value": "0.95",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "高密度脂蛋白胆固醇",
+     "item_value": "1.22",
+     "item_unit": "mmol/L",
+     "item_range": ">1.04"
+    },
+    "stored": {
+     "item_name": "高密度脂蛋白胆固醇",
+     "item_value": "1.22",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "载脂蛋白B",
+     "item_value": "0.82",
+     "item_unit": "g/L",
+     "item_range": "0.60–1.10"
+    },
+    "stored": {
+     "item_name": "载脂蛋白B",
+     "item_value": "0.82",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 8.56,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 3,
+  "tables_alone_value_ok": 3
+ },
+ "p004_2025-11-01_e09a#p1": {
+  "tier": "T3",
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 454,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "总胆固醇(TC)",
+     "item_value": "5.18",
+     "item_unit": "mmol/L",
+     "item_range": "<5.18"
+    },
+    "stored": {
+     "item_name": "总胆固醇(TC)",
+     "item_value": "5.18",
+     "item_unit": "",
+     "item_range": "<5.18\\(\\text{mmol/L}\\)"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "甘油三酯(TG)",
+     "item_value": "1.12",
+     "item_unit": "mmol/L",
+     "item_range": "<1.70"
+    },
+    "stored": {
+     "item_name": "甘油三酯(TG)",
+     "item_value": "1.12",
+     "item_unit": "",
+     "item_range": "<1.70\\(\\text{mmol/L}\\)"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "高密度脂蛋白胆固醇(HDL-C)",
+     "item_value": "1.08",
+     "item_unit": "mmol/L",
+     "item_range": ">1.04"
+    },
+    "stored": {
+     "item_name": "高密度脂蛋白胆固醇(HDL-C)",
+     "item_value": "1.08",
+     "item_unit": "",
+     "item_range": ">1.04\\(\\text{mmol/L}\\)"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "低密度脂蛋白胆固醇(LDL-C)",
+     "item_value": "3.59",
+     "item_unit": "mmol/L",
+     "item_range": "<3.37"
+    },
+    "stored": {
+     "item_name": "低密度脂蛋白胆固醇(LDL-C)",
+     "item_value": "3.59",
+     "item_unit": "",
+     "item_range": "<3.37\\(\\text{mmol/L}\\)"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "载脂蛋白A1(ApoA1)",
+     "item_value": "1.23",
+     "item_unit": "g/L",
+     "item_range": "(1.20-1.60)"
+    },
+    "stored": {
+     "item_name": "载脂蛋白A1(ApoA1)",
+     "item_value": "1.23",
+     "item_unit": "",
+     "item_range": "(1.20-1.60)\\(\\text{kg/L}\\)"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "载脂蛋白B(ApoB)",
+     "item_value": "0.82",
+     "item_unit": "g/L",
+     "item_range": "(0.60-1.10)"
+    },
+    "stored": {
+     "item_name": "载脂蛋白B(ApoB)",
+     "item_value": "0.82",
+     "item_unit": "",
+     "item_range": "(0.60-1.10)\\(\\text{kg/L}\\)"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 9.24,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 6,
+  "tables_alone_value_ok": 6
+ },
+ "p001_2026-05-15_e07a#p1": {
+  "tier": "T4",
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 1,
+  "rules_only": false,
+  "left_chars": 91,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 8.75,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 3,
+  "ocr_complete": 3,
+  "values_found": 3,
+  "values_total": 3,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 3,
+  "tables_alone_value_ok": 3
+ },
+ "p003_2024-10-07_e06b#p1": {
+  "tier": "T4",
+  "truth_rows": 2,
+  "stored": 2,
+  "matched": 2,
+  "value_ok": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 26,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 8.4,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 2,
+  "ocr_complete": 2,
+  "values_found": 2,
+  "values_total": 2,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 2,
+  "tables_alone_value_ok": 2
+ },
+ "p005_2026-03-05_e07a#p1": {
+  "tier": "T4",
+  "truth_rows": 21,
+  "stored": 21,
+  "matched": 21,
+  "value_ok": 21,
+  "unit_ok": 21,
+  "range_ok": 21,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 1,
+  "rules_only": false,
+  "left_chars": 231,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 14.11,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 21,
+  "ocr_complete": 21,
+  "values_found": 13,
+  "values_total": 21,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 21,
+  "tables_alone_value_ok": 21
+ },
+ "p006_2025-04-23_e10b#p1": {
+  "tier": "T4",
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 83,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 7.48,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 3,
+  "ocr_complete": 3,
+  "values_found": 3,
+  "values_total": 3,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 3,
+  "tables_alone_value_ok": 3
+ },
+ "p003_2024-04-18_e03a#p1": {
+  "tier": "T6",
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 340,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 9.19,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 3,
+  "ocr_complete": 3,
+  "values_found": 3,
+  "values_total": 3,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 3,
+  "tables_alone_value_ok": 3
+ },
+ "p003_2024-07-12_e04a#p1": {
+  "tier": "T6",
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 1,
+  "rules_only": false,
+  "left_chars": 66,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "超敏促甲状腺激素",
+     "item_value": "2.197",
+     "item_unit": "mIU/L",
+     "item_range": "0.270--4.200"
+    },
+    "stored": {
+     "item_name": "超敏促甲状腺激素",
+     "item_value": "2.197",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "游离T3",
+     "item_value": "3.74",
+     "item_unit": "pmol/L",
+     "item_range": "3.10--6.80"
+    },
+    "stored": {
+     "item_name": "游离T3",
+     "item_value": "3.74",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "游离T4",
+     "item_value": "18.03",
+     "item_unit": "pmol/L",
+     "item_range": "12.00--22.00"
+    },
+    "stored": {
+     "item_name": "游离T4",
+     "item_value": "18.03",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总T3",
+     "item_value": "2.28",
+     "item_unit": "nmol/L",
+     "item_range": "1.30--3.10"
+    },
+    "stored": {
+     "item_name": "总T3",
+     "item_value": "2.28",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总T4",
+     "item_value": "113.6",
+     "item_unit": "nmol/L",
+     "item_range": "66.0--181.0"
+    },
+    "stored": {
+     "item_name": "总T4",
+     "item_value": "113.6",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "抗TPO抗体",
+     "item_value": "9.1",
+     "item_unit": "IU/mL",
+     "item_range": "<34.0"
+    },
+    "stored": {
+     "item_name": "抗TPO抗体",
+     "item_value": "9.1",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 9.47,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 6,
+  "tables_alone_value_ok": 6
+ },
+ "p006_2026-04-18_e13a#p1": {
+  "tier": "T6",
+  "truth_rows": 6,
+  "stored": 5,
+  "matched": 5,
+  "value_ok": 5,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 2,
+  "rules_only": false,
+  "left_chars": 741,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Thyroid stimulating hormone",
+     "item_value": "1.244",
+     "item_unit": "mIU/L",
+     "item_range": "0.270-4.200"
+    },
+    "stored": {
+     "item_name": "Thyroid stimulating hormone",
+     "item_value": "1.244",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Free triiodothyronine",
+     "item_value": "4.48",
+     "item_unit": "pmol/L",
+     "item_range": "3.10-6.80"
+    },
+    "stored": {
+     "item_name": "Free triiodothyronine",
+     "item_value": "4.48",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Free thyroxine",
+     "item_value": "15.89",
+     "item_unit": "pmol/L",
+     "item_range": "12.00-22.00"
+    },
+    "stored": {
+     "item_name": "Free thyroxine",
+     "item_value": "15.89",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Total triiodothyronine",
+     "item_value": "3.10",
+     "item_unit": "nmol/L",
+     "item_range": "1.30-3.10"
+    },
+    "stored": {
+     "item_name": "Total triiodothyronine",
+     "item_value": "3.10",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Total thyroxine",
+     "item_value": "113.1",
+     "item_unit": "nmol/L",
+     "item_range": "66.0-181.0"
+    },
+    "stored": {
+     "item_name": "Total thyroxine",
+     "item_value": "113.1",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 9.91,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 5,
+  "tables_alone_value_ok": 5
+ },
+ "p005_log01#p1": {
+  "tier": "T6",
+  "truth_rows": 12,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 13,
+  "rules_only": false,
+  "left_chars": 776,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 10.2,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 0,
+  "ocr_complete": 0,
+  "values_found": 12,
+  "values_total": 12,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 0,
+  "tables_alone_value_ok": 0
+ },
+ "p003_log01#p1": {
+  "tier": "T2",
+  "truth_rows": 45,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 16,
+  "rules_only": false,
+  "left_chars": 1403,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 12.0,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 0,
+  "ocr_complete": 0,
+  "values_found": 45,
+  "values_total": 45,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 0,
+  "tables_alone_value_ok": 0
+ },
+ "p001_2023-11-27_e04a#p5": {
+  "tier": "T2",
+  "truth_rows": 34,
+  "stored": 34,
+  "matched": 34,
+  "value_ok": 34,
+  "unit_ok": 25,
+  "range_ok": 34,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 1124,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "白细胞计数（WBC）",
+     "item_value": "3.71",
+     "item_unit": "×10^9/L",
+     "item_range": "3.50 - 9.50"
+    },
+    "stored": {
+     "item_name": "白细胞计数 (WBC)",
+     "item_value": "3.71",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "3.50 - 9.50"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "红细胞计数（RBC）",
+     "item_value": "4.83",
+     "item_unit": "×10^12/L",
+     "item_range": "4.30 - 5.80"
+    },
+    "stored": {
+     "item_name": "红细胞计数 (RBC)",
+     "item_value": "4.83",
+     "item_unit": "\\(\\times 10^{12}/L\\)",
+     "item_range": "4.30 - 5.80"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "血小板计数（PLT）",
+     "item_value": "336",
+     "item_unit": "×10^9/L",
+     "item_range": "125 - 350"
+    },
+    "stored": {
+     "item_name": "血小板计数 (PLT)",
+     "item_value": "336",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "125 - 350"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "中性粒细胞绝对值（NEUT#）",
+     "item_value": "2.40",
+     "item_unit": "×10^9/L",
+     "item_range": "1.80 - 6.30"
+    },
+    "stored": {
+     "item_name": "中性粒细胞绝对值 (NEUT#)",
+     "item_value": "2.40",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "1.80 - 6.30"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "淋巴细胞绝对值（LYMPH#）",
+     "item_value": "1.05",
+     "item_unit": "×10^9/L",
+     "item_range": "1.10 - 3.20"
+    },
+    "stored": {
+     "item_name": "淋巴细胞绝对值 (LYMPH#)",
+     "item_value": "1.05",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "1.10 - 3.20"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "单核细胞绝对值（MONO#）",
+     "item_value": "0.17",
+     "item_unit": "×10^9/L",
+     "item_range": "0.10 - 0.60"
+    },
+    "stored": {
+     "item_name": "单核细胞绝对值 (MONO#)",
+     "item_value": "0.17",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "0.10 - 0.60"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "嗜酸性粒细胞绝对值（EO#）",
+     "item_value": "0.07",
+     "item_unit": "×10^9/L",
+     "item_range": "0.02 - 0.52"
+    },
+    "stored": {
+     "item_name": "嗜酸性粒细胞绝对值 (EO#)",
+     "item_value": "0.07",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "0.02 - 0.52"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "嗜碱性粒细胞绝对值（BASO#）",
+     "item_value": "0.01",
+     "item_unit": "×10^9/L",
+     "item_range": "0.00 - 0.06"
+    },
+    "stored": {
+     "item_name": "嗜碱性粒细胞绝对值 (BASO#)",
+     "item_value": "0.01",
+     "item_unit": "\\(\\times 10^{9}/L\\)",
+     "item_range": "0.00 - 0.06"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "血清铁（Fe）",
+     "item_value": "22.6",
+     "item_unit": "μmol/L",
+     "item_range": "11.6 - 31.3"
+    },
+    "stored": {
+     "item_name": "血清铁 (Fe)",
+     "item_value": "22.6",
+     "item_unit": "\\mu mol/L",
+     "item_range": "11.6 - 31.3"
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 19.57,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 34,
+  "ocr_complete": 25,
+  "values_found": 34,
+  "values_total": 34,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 34,
+  "tables_alone_value_ok": 34
+ },
+ "p002_2023-08-08_e01a#p5": {
+  "tier": "T2",
+  "truth_rows": 30,
+  "stored": 8,
+  "matched": 8,
+  "value_ok": 8,
+  "unit_ok": 1,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 22,
+  "rules_only": false,
+  "left_chars": 3505,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Globulin(GLB)",
+     "item_value": "32.8",
+     "item_unit": "",
+     "item_range": "20.0--40.0"
+    },
+    "stored": {
+     "item_name": "Globulin(GLB)",
+     "item_value": "32.8",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Urea(BUN)",
+     "item_value": "4.57",
+     "item_unit": "mmol/L",
+     "item_range": "2.60--7.50"
+    },
+    "stored": {
+     "item_name": "Urea(BUN)",
+     "item_value": "4.57",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Creatinine(CREA)",
+     "item_value": "59",
+     "item_unit": "μmol/L",
+     "item_range": "41--73"
+    },
+    "stored": {
+     "item_name": "Creatinine(CREA)",
+     "item_value": "59",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Uric acid(UA)",
+     "item_value": "216",
+     "item_unit": "μmol/L",
+     "item_range": "155--357"
+    },
+    "stored": {
+     "item_name": "Uric acid(UA)",
+     "item_value": "216",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Potassium(K)",
+     "item_value": "4.26",
+     "item_unit": "mmol/L",
+     "item_range": "3.50--5.30"
+    },
+    "stored": {
+     "item_name": "Potassium(K)",
+     "item_value": "4.26",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Sodium(Na)",
+     "item_value": "144.6",
+     "item_unit": "mmol/L",
+     "item_range": "137.0--147.0"
+    },
+    "stored": {
+     "item_name": "Sodium(Na)",
+     "item_value": "144.6",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Chloride(Cl)",
+     "item_value": "102.9",
+     "item_unit": "mmol/L",
+     "item_range": "99.0--110.0"
+    },
+    "stored": {
+     "item_name": "Chloride(Cl)",
+     "item_value": "102.9",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Calcium(Ca)",
+     "item_value": "2.33",
+     "item_unit": "mmol/L",
+     "item_range": "2.11--2.52"
+    },
+    "stored": {
+     "item_name": "Calcium(Ca)",
+     "item_value": "2.33",
+     "item_unit": "",
+     "item_range": "02"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 19.84,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 30,
+  "ocr_complete": 30,
+  "values_found": 30,
+  "values_total": 30,
+  "strings_total": 11,
+  "strings_found": 11,
+  "tables_alone_matched": 8,
+  "tables_alone_value_ok": 8
+ },
+ "p006_2023-09-11_e04a#p8": {
+  "tier": "T2",
+  "truth_rows": 20,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 20,
+  "rules_only": false,
+  "left_chars": 1590,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 13.83,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 20,
+  "ocr_complete": 20,
+  "values_found": 20,
+  "values_total": 20,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 0,
+  "tables_alone_value_ok": 0
+ },
+ "p004_2024-02-15_e02a#p5": {
+  "tier": "T2",
+  "truth_rows": 32,
+  "stored": 10,
+  "matched": 10,
+  "value_ok": 10,
+  "unit_ok": 10,
+  "range_ok": 10,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 23,
+  "rules_only": false,
+  "left_chars": 1530,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 16.7,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 31,
+  "ocr_complete": 31,
+  "values_found": 32,
+  "values_total": 32,
+  "strings_total": 8,
+  "strings_found": 8,
+  "tables_alone_matched": 10,
+  "tables_alone_value_ok": 10
+ },
+ "p003_2024-08-16_e05a#p3": {
+  "tier": "T2",
+  "truth_rows": 0,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 11,
+  "rules_only": false,
+  "left_chars": 435,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 71.54,
+  "failed_passes": [],
+  "capped_passes": [
+   "text"
+  ],
+  "ocr_found": 0,
+  "ocr_complete": 0,
+  "values_found": 0,
+  "values_total": 0,
+  "strings_total": 33,
+  "strings_found": 33,
+  "tables_alone_matched": 0,
+  "tables_alone_value_ok": 0
+ },
+ "p005_2025-11-05_e06b#p1": {
+  "tier": "T2",
+  "truth_rows": 6,
+  "stored": 5,
+  "matched": 5,
+  "value_ok": 5,
+  "unit_ok": 5,
+  "range_ok": 5,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 1,
+  "rules_only": false,
+  "left_chars": 490,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 9.41,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 5,
+  "tables_alone_value_ok": 5
+ },
+ "p003_2026-03-31_e10a#p1": {
+  "tier": "T2",
+  "truth_rows": 5,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 661,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 9.73,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 5,
+  "ocr_complete": 5,
+  "values_found": 5,
+  "values_total": 5,
+  "strings_total": 9,
+  "strings_found": 9,
+  "tables_alone_matched": 0,
+  "tables_alone_value_ok": 0
+ },
+ "p003_2025-10-02_e09b#p1": {
+  "tier": "T2",
+  "truth_rows": 2,
+  "stored": 2,
+  "matched": 2,
+  "value_ok": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 0,
+  "rules_only": false,
+  "left_chars": 358,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 7.72,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 2,
+  "ocr_complete": 2,
+  "values_found": 2,
+  "values_total": 2,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 2,
+  "tables_alone_value_ok": 2
+ },
+ "p006_2023-05-04_e03b#p1": {
+  "tier": "T2",
+  "truth_rows": 6,
+  "stored": 5,
+  "matched": 5,
+  "value_ok": 5,
+  "unit_ok": 5,
+  "range_ok": 5,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 1,
+  "rules_only": false,
+  "left_chars": 807,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 10.55,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6,
+  "values_found": 6,
+  "values_total": 6,
+  "strings_total": 0,
+  "strings_found": 0,
+  "tables_alone_matched": 5,
+  "tables_alone_value_ok": 5
+ },
+ "p001_2025-11-26_e06a#p6": {
+  "tier": "T0",
+  "truth_rows": 34,
+  "stored": 27,
+  "matched": 27,
+  "value_ok": 27,
+  "unit_ok": 21,
+  "range_ok": 27,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 7,
+  "rules_only": false,
+  "left_chars": 994,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "血清铁（Fe）",
+     "item_value": "25.6",
+     "item_unit": "μmol/L",
+     "item_range": "11.6 - 31.3"
+    },
+    "stored": {
+     "item_name": "血清铁（Fe）",
+     "item_value": "25.6",
+     "item_unit": "\\(\\mu mol/L\\)",
+     "item_range": "11.6 - 31.3"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总胆红素（TBIL）",
+     "item_value": "9.4",
+     "item_unit": "μmol/L",
+     "item_range": "0.0 - 26.0"
+    },
+    "stored": {
+     "item_name": "总胆红素（TBIL）",
+     "item_value": "9.4",
+     "item_unit": "\\(\\mu mol/L\\)",
+     "item_range": "0.0 - 26.0"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "直接胆红素（DBIL）",
+     "item_value": "2.8",
+     "item_unit": "μmol/L",
+     "item_range": "(<8.0)"
+    },
+    "stored": {
+     "item_name": "直接胆红素（DBIL）",
+     "item_value": "2.8",
+     "item_unit": "\\(\\mu mol/L\\)",
+     "item_range": "（<8.0）"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "间接胆红素（IBIL）",
+     "item_value": "6.6",
+     "item_unit": "μmol/L",
+     "item_range": "0.0 - 18.0"
+    },
+    "stored": {
+     "item_name": "间接胆红素（IBIL）",
+     "item_value": "6.6",
+     "item_unit": "\\(\\mu mol/L\\)",
+     "item_range": "0.0 - 18.0"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总胆汁酸（TBA）",
+     "item_value": "4.0",
+     "item_unit": "μmol/L",
+     "item_range": "(<10.0)"
+    },
+    "stored": {
+     "item_name": "总胆汁酸（TBA）",
+     "item_value": "4.0",
+     "item_unit": "\\(\\mu mol/L\\)",
+     "item_range": "（<10.0）"
+    },
+    "wrong": [
+     "unit"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "肌酐（CREA）",
+     "item_value": "93",
+     "item_unit": "μmol/L",
+     "item_range": "57 - 97"
+    },
+    "stored": {
+     "item_name": "肌酐（CREA）",
+     "item_value": "93",
+     "item_unit": "\\(\\mu mol/L\\)",
+     "item_range": "57 - 97"
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "seconds": 12.67,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 33,
+  "ocr_complete": 22
+ },
+ "p002_2024-08-07_e02a#p5": {
+  "tier": "T0",
+  "truth_rows": 36,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 39,
+  "rules_only": false,
+  "left_chars": 4114,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 13.98,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 36,
+  "ocr_complete": 23
+ },
+ "p001_2021-11-27_e01a#p3": {
+  "tier": "T0",
+  "truth_rows": 0,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 13,
+  "rules_only": false,
+  "left_chars": 552,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 7.5,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 0,
+  "ocr_complete": 0
+ },
+ "p006_2024-10-25_e09a#p1": {
+  "tier": "T0",
+  "truth_rows": 6,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 7,
+  "rules_only": false,
+  "left_chars": 742,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 7.34,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6
+ },
+ "p005_2025-11-05_e06a#p2": {
+  "tier": "T0",
+  "truth_rows": 21,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 21,
+  "rules_only": false,
+  "left_chars": 1725,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 9.92,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 20,
+  "ocr_complete": 20
+ },
+ "p004_2023-11-12_e01a#p1": {
+  "tier": "T0",
+  "truth_rows": 6,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "unread": 3,
+  "rules_only": false,
+  "left_chars": 388,
+  "errors": [],
+  "false_rows": [],
+  "seconds": 7.12,
+  "failed_passes": [],
+  "capped_passes": [],
+  "ocr_found": 6,
+  "ocr_complete": 6
+ }
+}

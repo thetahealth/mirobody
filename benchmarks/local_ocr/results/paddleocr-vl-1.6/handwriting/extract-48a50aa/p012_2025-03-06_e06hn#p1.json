@@ -1,0 +1,79 @@
+{
+ "id": "p012_2025-03-06_e06hn#p1",
+ "llm": true,
+ "seconds": 10.96,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体温",
+   "value": "36.9",
+   "reference_range": "",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  },
+  {
+   "original_indicator": "心率",
+   "value": "80",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  },
+  {
+   "original_indicator": "呼吸频率",
+   "value": "16",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "115",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "67",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  },
+  {
+   "original_indicator": "血氧饱和度",
+   "value": "99",
+   "reference_range": "",
+   "unit": "%",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "59.2",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "N/A",
+   "date_time": "2025-03-06"
+  }
+ ],
+ "date_time": "2025-03-06"
+}

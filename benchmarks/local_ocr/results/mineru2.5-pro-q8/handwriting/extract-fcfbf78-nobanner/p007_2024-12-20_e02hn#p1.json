@@ -1,0 +1,80 @@
+{
+ "id": "p007_2024-12-20_e02hn#p1",
+ "llm": true,
+ "seconds": 11.22,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "T36.5",
+   "value": "T36.5",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Body temperature",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "P75次/分",
+   "value": "75",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Heart rate",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "R:15",
+   "value": "15",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Respiration",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "BP+31/70",
+   "value": "31/70",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Blood pressure",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "131/80mmHg",
+   "value": "131/80",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Blood pressure",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "SpO2 100%",
+   "value": "100",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Oxygen saturation",
+   "date_time": "2024-12-20"
+  },
+  {
+   "original_indicator": "伴去79.0kg",
+   "value": "79.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Body weight",
+   "date_time": "2024-12-20"
+  }
+ ],
+ "date_time": "2024-12-20",
+ "content_type": "medical_report"
+}

@@ -1,0 +1,117 @@
+{
+ "size": "ref-gpt-6-luna-rules",
+ "reference": "gpt-6-luna-rules",
+ "agent": "openai/gpt-6-luna",
+ "models": {
+  "chat_model": "openai/gpt-6-luna",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "openai/gpt-6-luna",
+     "default": "openai/gpt-6-luna",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "openai/gpt-6-luna",
+     "default": "openai/gpt-6-luna",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "openai/gpt-6-luna",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "azure"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "openai/gpt-6-luna",
+    "supports_image": false,
+    "reasoning_effort": "none",
+    "extra_body": {
+     "provider": {
+      "order": [
+       "azure"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Azure",
+    "model": "openai/gpt-6-luna",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Azure",
+    "model": "openai/gpt-6-luna",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-07T13:40:10+08:00",
+ "parts": [
+  "extraction"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "extraction"
+   ],
+   "started": "2026-10-07T13:40:41+08:00",
+   "resources": {
+    "disk_free_gb": 9.6,
+    "memory_free_pct": 64,
+    "swap_used_mb": 12536.38
+   },
+   "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+   "mirobody_dirty": false,
+   "loaded": [],
+   "memory": null,
+   "finished": "2026-10-07T13:43:42+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 329.425510401,
+     "extraction": 329.448925741
+    },
+    "parts": {
+     "extraction": 0.023415
+    },
+    "total": 0.023415
+   }
+  }
+ ],
+ "background_tasks_drained_s": 0.1,
+ "finished": "2026-10-07T13:43:42+08:00"
+}

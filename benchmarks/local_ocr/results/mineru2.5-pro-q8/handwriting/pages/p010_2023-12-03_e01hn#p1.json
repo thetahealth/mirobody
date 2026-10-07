@@ -1,0 +1,67 @@
+{
+ "id": "p010_2023-12-03_e01hn#p1",
+ "tier": "H3",
+ "image_sha256": "637219b332e4a5b3bd890004f9c1a1ef5dc06dc4c6edbf6570adc2cc8c562e2d",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：田方西科    日期：2023/23\n\n血脑异旁复诊\n\n自诉无明显不适\n\nT 36.4℃ P 83 R:17 125/74 Sp02 95% 体温 65.6 kg\n\n心肺听诊未见异者\n\n印象： 血脑异旁\n\n建议：监测血糖，适当运动<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.31,
+   "usage": {
+    "completion_tokens": 116,
+    "prompt_tokens": 2115,
+    "total_tokens": 2231,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2100,
+    "prompt_ms": 11201.741,
+    "prompt_per_token_ms": 5.334162380952381,
+    "prompt_per_second": 187.4708583246122,
+    "predicted_n": 116,
+    "predicted_ms": 1050.704,
+    "predicted_per_token_ms": 9.13655652173913,
+    "predicted_per_second": 109.45042561939424
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<fcel>门诊病历<lcel><nl>\n<fcel>科别：田方西科<fcel>日期：2023/23<nl>\n<fcel>血脑异旁复诊<lcel><nl>\n<fcel>自诉无明显不适<lcel><nl>\n<fcel>T 36.4°C P 83 R:17 125/74 Sp02 95% 体温 65.6 kg<lcel><nl>\n<fcel>心肺听诊未见异者<lcel><nl>\n<fcel>印象：血脑异常<lcel><nl>\n<fcel>建议：监测血糖，适当运动<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.26,
+   "usage": {
+    "completion_tokens": 140,
+    "prompt_tokens": 2115,
+    "total_tokens": 2255,
+    "prompt_tokens_details": {
+     "cached_tokens": 2107
+    }
+   },
+   "timings": {
+    "cache_n": 2107,
+    "prompt_n": 8,
+    "prompt_ms": 18.353,
+    "prompt_per_token_ms": 2.294125,
+    "prompt_per_second": 435.8960387947474,
+    "predicted_n": 140,
+    "predicted_ms": 1168.709,
+    "predicted_per_token_ms": 8.407978417266188,
+    "predicted_per_second": 118.93465353650907
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1695.5,
+  "phys_footprint_mib": 1200.0,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

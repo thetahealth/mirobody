@@ -25,6 +25,7 @@ that is not written comes back with its reason:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import unicodedata
@@ -38,7 +39,7 @@ from mirobody.kernel import meds
 
 logger = logging.getLogger(__name__)
 
-EXTRACTOR = "llm:journal-sentence@v2"
+EXTRACTOR = "llm:journal-sentence@v3"
 
 KIND_MEASUREMENT = "measurement"
 KIND_SYMPTOM = "symptom"
@@ -103,16 +104,27 @@ MAX_NAME = 200
 _FUTURE_SLACK = timedelta(minutes=10)
 
 _BP_NAME = re.compile(r"血压|blood\s*pressure|\bbp\b", re.IGNORECASE)
+#: A measurement's value starts with its number (a comparator first is fine).
+#: DeepSeek V4.1 Flash once answered `"value": "收缩压 123"`, the name inside
+#: the value, and it was stored as an uncoded reading nobody could chart
+#: (benchmarks/local_models, 2026-10-06); now it is reported as no value.
+_NUMBER_FIRST = re.compile(r"^\s*[<>≤≥]?\s*[-+]?\d")
 _BP_VALUE = re.compile(r"^\s*(\d{2,3}(?:\.\d+)?)\s*/\s*(\d{2,3}(?:\.\d+)?)\s*$")
 _CJK = re.compile(r"[一-鿿]")
 
+#: Closed at both levels (`additionalProperties: false`, every key required):
+#: OpenAI's json_schema answers HTTP 400 to an open object, so the journal
+#: read nothing on GPT-6 Luna, GPT-6 Sol, GPT-6.1 Sol or GPT-5.6 Terra
+#: (through OpenRouter, 2026-10-06).
 RESPONSE_SCHEMA: dict[str, Any] = {
     "type": "object",
+    "additionalProperties": False,
     "properties": {
         "entries": {
             "type": "array",
             "items": {
                 "type": "object",
+                "additionalProperties": False,
                 "properties": {
                     "quote": {
                         "type": "string",
@@ -202,6 +214,50 @@ the writer included, is "other".
 - If nothing is stated worth an entry, return no entries."""
 
 
+def _entry(**fields: str) -> dict[str, str]:
+    """One answer entry with every required field, as the schema spells it."""
+    blank = dict.fromkeys(RESPONSE_SCHEMA["properties"]["entries"]["items"]["required"], "")
+    return {**blank, "assertion": ASSERT_PRESENT, "subject": SUBJECT_SELF, **fields}
+
+
+#: Two worked answers, sent as earlier turns before the real sentence. Under
+#: a json_schema grammar MiniCPM5-2B closed `entries` at once, `[]` for 30 of
+#: the evaluation's 31 entries (benchmarks/local_models, 2026-10-06), though
+#: unconstrained it found them. With these two turns first it answered all six
+#: repro sentences in 1-4 s, in the writer's language. They show what a small
+#: model needs to see rather than read: one entry per thing, the person's words,
+#: a negation and someone else kept and marked, a time resolved from NOW, and a
+#: meal as an `other` entry.
+_EXAMPLES: tuple[tuple[str, dict[str, Any]], ...] = (
+    (
+        (
+            "NOW: 2026-03-02 09:00 (CST)\n"
+            "SENTENCE: Sore throat since yesterday, temp 38.2 this morning, my son has a cough too."
+        ),
+        {"entries": [
+            _entry(quote="Sore throat since yesterday", kind=KIND_SYMPTOM, name="Sore throat", when="2026-03-01 09:00"),
+            _entry(quote="temp 38.2 this morning", kind=KIND_MEASUREMENT, name="temp", value="38.2", unit="℃",
+                   when="2026-03-02 08:00"),
+            _entry(quote="my son has a cough too", kind=KIND_SYMPTOM, name="cough", subject=SUBJECT_OTHER),
+        ]},
+    ),
+    (
+        "NOW: 2026-03-02 21:00 (CST)\nSENTENCE: 没发烧，晚饭吃了一碗面，有点头晕",
+        {"entries": [
+            _entry(quote="没发烧", kind=KIND_SYMPTOM, name="发烧", assertion=ASSERT_NEGATED),
+            _entry(quote="晚饭吃了一碗面", kind=KIND_OTHER, name="晚饭吃了一碗面"),
+            _entry(quote="有点头晕", kind=KIND_SYMPTOM, name="头晕", detail="有点"),
+        ]},
+    ),
+)
+
+
+#: The `when` values the worked examples answer with; see `_when`.
+_EXAMPLE_WHENS = frozenset(
+    e["when"] for _asked, answered in _EXAMPLES for e in answered["entries"] if e["when"]
+)
+
+
 @dataclass(frozen=True)
 class Part:
     """One entry as the model stated it, before any check."""
@@ -243,8 +299,15 @@ def messages_for(sentence: str, now: datetime, *, record_of: str | None = None) 
     head = f"NOW: {now:%Y-%m-%d %H:%M} ({now.tzname() or ''})\n"
     if record_of is not None:
         head += f"RECORD OF: {record_of or 'the person the writer is logging for'}\n"
+    shown: list[dict[str, str]] = []
+    for asked, answered in _EXAMPLES:
+        shown += [
+            {"role": "user", "content": asked},
+            {"role": "assistant", "content": json.dumps(answered, ensure_ascii=False)},
+        ]
     return [
         {"role": "system", "content": _PROMPT},
+        *shown,
         {"role": "user", "content": f"{head}SENTENCE: {sentence}"},
     ]
 
@@ -383,11 +446,25 @@ def _skip_reason(part: Part, haystack: str) -> str:
         return SKIP_HYPOTHETICAL
     if part.assertion == ASSERT_STOPPED and part.kind != KIND_MEDICATION:
         return SKIP_NOT_A_RECORD
-    if part.kind == KIND_MEASUREMENT and not part.value:
+    if part.kind == KIND_MEASUREMENT and not _NUMBER_FIRST.match(part.value):
         return SKIP_NO_VALUE
     if part.kind != KIND_OTHER and len(part.name) > MAX_NAME:
         return SKIP_TOO_LONG
     return ""
+
+
+def blood_pressure(name: str, value: str) -> tuple[tuple[str, str], ...] | None:
+    """`((systolic name, number), (diastolic name, number))` when `name` says
+    blood pressure and `value` is a pair (`150/95`), else None. The names are
+    in the script `name` is in, and the vocabulary codes them 8480-6 and
+    8462-4. The table rules split a printed pair with this too, so a pair
+    typed into the journal and one printed in a report are the same two
+    readings."""
+    m = _BP_VALUE.match(value)
+    if not (m and _BP_NAME.search(name)):
+        return None
+    names = ("收缩压", "舒张压") if _CJK.search(name) else ("Systolic blood pressure", "Diastolic blood pressure")
+    return tuple(zip(names, m.groups(), strict=True))
 
 
 def _split_blood_pressure(parts: Sequence[Part]) -> list[Part]:
@@ -395,21 +472,23 @@ def _split_blood_pressure(parts: Sequence[Part]) -> list[Part]:
     Split here, so a blood pressure never lands as one narrative value."""
     out: list[Part] = []
     for part in parts:
-        m = _BP_VALUE.match(part.value) if part.kind == KIND_MEASUREMENT else None
-        if not (m and _BP_NAME.search(part.name)):
+        pair = blood_pressure(part.name, part.value) if part.kind == KIND_MEASUREMENT else None
+        if pair is None:
             out.append(part)
             continue
-        zh = bool(_CJK.search(part.name))
-        names = ("收缩压", "舒张压") if zh else ("Systolic blood pressure", "Diastolic blood pressure")
         unit = part.unit or "mmHg"
-        out.extend(Part(**{**part.__dict__, "name": n, "value": v, "unit": unit}) for n, v in zip(names, m.groups(), strict=True))
+        out.extend(Part(**{**part.__dict__, "name": n, "value": v, "unit": unit}) for n, v in pair)
     return out
 
 
 def _when(text: str, *, now: datetime, zone: Any) -> datetime | None:
     """A local 'YYYY-MM-DD HH:MM' (or a bare date) as an instant in the
-    person's zone; `None` when it does not parse or is in the future."""
-    if not text:
+    person's zone; `None` when it does not parse, is in the future, or is a
+    time the worked examples state (`_EXAMPLE_WHENS`): a small model copies
+    an example's date onto a sentence that names none, as MiniCPM5-2B copied
+    the extraction prompt's 2024-10-30 onto undated documents
+    (benchmarks/local_models, qa3, 2026-10-07)."""
+    if not text or text.strip() in _EXAMPLE_WHENS:
         return None
     for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
         try:
@@ -436,6 +515,7 @@ __all__ = [
     "RESPONSE_SCHEMA",
     "Skip",
     "available",
+    "blood_pressure",
     "mentions",
     "messages_for",
     "parts_from",

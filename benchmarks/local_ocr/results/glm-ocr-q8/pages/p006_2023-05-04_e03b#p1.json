@@ -1,0 +1,67 @@
+{
+ "id": "p006_2023-05-04_e03b#p1",
+ "tier": "T2",
+ "image_sha256": "0000f5fb23650c84cf6c859870a07f4e1758e90c57f369d4cef91652000425b0",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n麓穗妇幼保健院\n\n检验报告单\n\n姓名：董英 性别：男 年龄：44岁 病历号：9840231059\n标本号：826771080 科室：内分泌科\n\n采样时间：2023-05-04 报告时间：2023-05-05\n\n检查项目 数值 上次结果 参考 单位\n促甲状腺激素(TSH) 3.901 3.987 0.270-4.200 mIU/L\n游离三碘甲状腺原氨酸(FT3) 4.00 4.20 3.10-6.80 pmol/L\n游离甲状腺素(FT4) 12.86 11.72 12.00-22.00 pmol/L\n总三碘甲状腺原氨酸(TT3) 2.45 3.08 1.30-3.10 nmol/L\n总甲状腺素(TT4) 106.7 102.3 66.0-181.0 nmol/L\n甲状腺过氧化物酶抗体(TPOAb) 38.4↑ 34.9 ≤34.0 IU/mL\n\n打印时间：2023-05-05 08:57:26",
+   "finish_reason": "stop",
+   "seconds": 5.79,
+   "usage": {
+    "completion_tokens": 325,
+    "prompt_tokens": 1375,
+    "total_tokens": 1700,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1370,
+    "prompt_ms": 3663.624,
+    "prompt_per_token_ms": 2.674178102189781,
+    "prompt_per_second": 373.94667138330794,
+    "predicted_n": 325,
+    "predicted_ms": 2078.897,
+    "predicted_per_token_ms": 6.416348765432098,
+    "predicted_per_second": 155.8518772214304
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检查项目</th><th>数值</th><th>上次结果</th><th>参考</th><th>单位</th></tr></thead><tbody><tr><td>促甲状腺激素(TSH)</td><td>3.901</td><td>3.987</td><td>0.270-4.200</td><td>mIU/L</td></tr><tr><td>游离三碘甲状腺原氨酸(FT3)</td><td>4.00</td><td>4.20</td><td>3.10-6.80</td><td>pmol/L</td></tr><tr><td>游离甲状腺素(FT4)</td><td>12.86</td><td>11.72</td><td>12.00-22.00</td><td>pmol/L</td></tr><tr><td>总三碘甲状腺原氨酸(TT3)</td><td>2.45</td><td>3.08</td><td>1.30-3.10</td><td>nmol/L</td></tr><tr><td>总甲状腺素(TT4)</td><td>106.7</td><td>102.3</td><td>66.0-181.0</td><td>nmol/L</td></tr><tr><td>甲状腺过氧化物酶抗体(TPOAb)</td><td>38.4↑</td><td>34.9</td><td>≤34.0</td><td>IU/mL</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.69,
+   "usage": {
+    "completion_tokens": 404,
+    "prompt_tokens": 1375,
+    "total_tokens": 1779,
+    "prompt_tokens_details": {
+     "cached_tokens": 1370
+    }
+   },
+   "timings": {
+    "cache_n": 1370,
+    "prompt_n": 5,
+    "prompt_ms": 9.557,
+    "prompt_per_token_ms": 1.9114,
+    "prompt_per_second": 523.1767290990897,
+    "predicted_n": 404,
+    "predicted_ms": 2633.463,
+    "predicted_per_token_ms": 6.534647642679901,
+    "predicted_per_second": 153.0304393872251
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2298.4,
+  "phys_footprint_mib": 1796.2,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

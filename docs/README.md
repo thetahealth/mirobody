@@ -23,16 +23,21 @@ notes to PyPI under a filename that told open-source readers to ignore it.
 | | [pipeline.md](pipeline.md) | the eleven stages a reading passes through, the invariant each holds, and what is deliberately NOT done |
 | ① | [provider-setup.md](provider-setup.md) | turning ON Garmin / Oura / Whoop — credentials, callback URLs, boot-log truth |
 | ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
-| ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then LLM extraction |
+| ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then the table rules, and a model for what they leave |
 | ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
 | ② | [standardization.md](standardization.md) | the long form of ② Translate: the alias tiers, which LOINC release and what the cut contains — moved out of the README in 1.4.1 |
 | ② | [device-crosswalk.md](device-crosswalk.md) | thirteen wearable vendors' fields to LOINC, with a confidence and a source per row, the 71 quantities no code fits, and the normalisation traps between vendors |
-| ② | [benchmarks/README.md](../benchmarks/README.md) | the coding decisions: how a resolver change is scored, what the three benchmark suites prove, and how to run each from a clone |
+| ② | [benchmarks/README.md](../benchmarks/README.md) | the coding decisions: how a resolver change is scored, what each benchmark suite proves, and how to run it from a clone |
 | ③ | [answers.md](answers.md) | one tool per data class: the matrix, the envelope, the governance, and the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
 | ①②③ | [genetics.md](genetics.md) | raw genotype uploads, active sets, migration, bounded queries, VCF and FHIR export, pinned CPIC coverage, and the scope of each |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 | ③ | [walkthrough.md](walkthrough.md) | the four-minute care-circle walkthrough, all four scenes |
+| | [local-models.md](local-models.md) | running every model on your own machine with llama.cpp: the two sizes and what each needs, how long an answer takes without a GPU, the start command per platform, the document reader, and what each model can read in a photo |
+| | [local-models-roadmap.md](local-models-roadmap.md) | the local models measured side by side, what GLM-OCR can and cannot read, which harness steps 1.5.4 took, and the plan for the ~3 GB post-trained pair 1.6.0 ships |
+| | [model-choice.md](model-choice.md) | which model to run: the local models beside five cloud ones (DeepSeek V4.1 Flash, Claude Sonnet 5.5, Claude Opus 5.5, Gemini 3.8 Flash, GPT-6 Luna) on the same evaluation, what each costs, what leaves the machine in each mode, OpenRouter with zero data retention, and the 1.6.0 Mirobody model |
+| | [benchmarks/local_models/](../benchmarks/local_models/README.md) | the evaluation behind it: 24 questions, 12 documents and 15 journal sentences through the product's API on a synthetic record, every grade with its reason, and how to rerun it |
+| | [benchmarks/local_ocr/](../benchmarks/local_ocr/README.md) | GLM-OCR, PaddleOCR-VL-1.6 and MinerU2.5 end to end on synthetic printed and handwritten pages, and why GLM-OCR stays the document reader |
 | | [repository-layout.md](repository-layout.md) | the directory map and the two forms the code ships in (library vs application) |
 | | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
 | | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
@@ -42,13 +47,14 @@ Start at [quickstart.md](quickstart.md) if you have not run it yet,
 specific subsystem, and [roadmap.md](roadmap.md) for known gaps and deferred
 work — each entry states the measurement that motivated it.
 
-The five guides `README.zh-CN.md` links also have Chinese editions, named
+The six guides `README.zh-CN.md` links also have Chinese editions, named
 `<guide>.zh-CN.md`: [provider-setup](provider-setup.zh-CN.md),
 [standardization](standardization.zh-CN.md), [walkthrough](walkthrough.zh-CN.md),
-[repository-layout](repository-layout.zh-CN.md) and
-[genetics](genetics.zh-CN.md). Edit the pair together, the
-way the two READMEs are. Everything else here is English: these pages track the
-code closely, and a stale translation of a contributor guide is worse than none.
+[repository-layout](repository-layout.zh-CN.md),
+[genetics](genetics.zh-CN.md) and [model-choice](model-choice.zh-CN.md); [local-models-roadmap](local-models-roadmap.zh-CN.md),
+which model-choice links, has one too. Edit the pair together, the way the two
+READMEs are. Everything else here is English: these pages track the code
+closely, and a stale translation of a contributor guide is worse than none.
 
 ## Package READMEs
 

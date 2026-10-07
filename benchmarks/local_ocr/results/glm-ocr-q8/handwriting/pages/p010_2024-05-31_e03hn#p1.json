@@ -1,0 +1,67 @@
+{
+ "id": "p010_2024-05-31_e03hn#p1",
+ "tier": "H1",
+ "image_sha256": "3769d521f1bea7bad8325dea460b9bd431315305abdc4fd40a27980389102dff",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：全科 日期：2024.5.31\n\n复诊\n\n近期无特殊不适\n\nT: 36.4℃ P: 81次/分 R: 16 BP 126/73 mmHg SpO2 97% Wt 64.9kg\n\n心律齐，心肺听诊未见异常\n\n诊断：血脂异常\n\n建议：多饮水，注意休息，定期复查，继续原方案治疗",
+   "finish_reason": "stop",
+   "seconds": 16.39,
+   "usage": {
+    "completion_tokens": 132,
+    "prompt_tokens": 2156,
+    "total_tokens": 2288,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 14177.058,
+    "prompt_per_token_ms": 6.590914923291493,
+    "prompt_per_second": 151.72400366846207,
+    "predicted_n": 132,
+    "predicted_ms": 2116.051,
+    "predicted_per_token_ms": 16.15306106870229,
+    "predicted_per_second": 61.90777065392091
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td colspan=\"2\">门诊病历</td></tr><tr><td>科别：全科</td><td>日期：2024.5.31</td></tr><tr><td colspan=\"2\">复诊</td></tr><tr><td colspan=\"2\">近期无特殊不适</td></tr><tr><td colspan=\"2\">T: 36.4℃ P: 81次/分 R: 16 BP 126/73 mmHg SpO2 97% Wt 64.9kg</td></tr><tr><td colspan=\"2\">心律齐，心肺听诊未见异常</td></tr><tr><td colspan=\"2\">诊断：血脂异常</td></tr><tr><td colspan=\"2\">建议：多饮水，注意休息，定期复查，继续原方案治疗</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 3.38,
+   "usage": {
+    "completion_tokens": 202,
+    "prompt_tokens": 2156,
+    "total_tokens": 2358,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 28.709,
+    "prompt_per_token_ms": 5.7418,
+    "prompt_per_second": 174.1614127973806,
+    "predicted_n": 202,
+    "predicted_ms": 3260.808,
+    "predicted_per_token_ms": 16.222925373134327,
+    "predicted_per_second": 61.64116378517227
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2231.1,
+  "phys_footprint_mib": 1764.0,
+  "phys_footprint_peak_mib": 1880.0
+ }
+}

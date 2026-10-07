@@ -1,0 +1,120 @@
+{
+ "size": "ref-deepseek-v4.1-flash-rules",
+ "reference": "deepseek-v4.1-flash-rules",
+ "agent": "deepseek/deepseek-v4.1-flash",
+ "models": {
+  "chat_model": "deepseek/deepseek-v4.1-flash",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "deepseek/deepseek-v4.1-flash",
+     "default": "deepseek/deepseek-v4.1-flash",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "deepseek/deepseek-v4.1-flash",
+     "default": "deepseek/deepseek-v4.1-flash",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "together"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "supports_image": false,
+    "response_format": "json_object",
+    "extra_body": {
+     "reasoning": {
+      "enabled": false
+     },
+     "provider": {
+      "order": [
+       "together"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Together",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Together",
+    "model": "deepseek/deepseek-v4.1-flash",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-07T13:32:04+08:00",
+ "parts": [
+  "extraction"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "extraction"
+   ],
+   "started": "2026-10-07T13:32:35+08:00",
+   "resources": {
+    "disk_free_gb": 7.6,
+    "memory_free_pct": 64,
+    "swap_used_mb": 13730.62
+   },
+   "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+   "mirobody_dirty": false,
+   "loaded": [],
+   "memory": null,
+   "finished": "2026-10-07T13:35:05+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 329.151943893,
+     "extraction": 329.178531441
+    },
+    "parts": {
+     "extraction": 0.026588
+    },
+    "total": 0.026588
+   }
+  }
+ ],
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-07T13:35:05+08:00"
+}

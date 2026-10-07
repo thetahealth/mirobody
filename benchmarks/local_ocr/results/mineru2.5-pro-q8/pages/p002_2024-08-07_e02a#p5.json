@@ -1,0 +1,42 @@
+{
+ "id": "p002_2024-08-07_e02a#p5",
+ "tier": "T0",
+ "image_sha256": "36a9aef01072c3e51de6ac7cfebc06a29cc3eab5f35b34bf6ae30b429fd35b00",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>4<fcel>Hematocrit(HCT)<fcel>42.4<lcel><lcel><lcel><fcel>%<fcel>35.0--45.0<fcel>02<nl>\n<fcel>5<fcel>Mean corpuscular volume(MCV)<fcel>93.3<lcel><lcel><lcel><fcel>fl<fcel>82.0--100.0<fcel>02<nl>\n<fcel>6<fcel>Mean corpuscular hemoglobin(MCH)<fcel>29.5<lcel><lcel><lcel><fcel>pg<fcel>27.0--34.0<fcel>02<nl>\n<fcel>7<fcel>Mean corpuscular hemoglobin concentration(MCHC)<fcel>316<lcel><lcel><lcel><fcel>g/l<fcel>316--354<fcel>02<nl>\n<fcel>8<fcel>Red cell distribution width(RDW-CV)<fcel>13.6<lcel><lcel><lcel><fcel>%<fcel>11.5--14.5<fcel>02<nl>\n<fcel>9<fcel>Platelet count(PLT)<fcel>179<lcel><lcel><lcel><fcel>10^9/L<fcel>125--350<fcel>02<nl>\n<fcel>10<fcel>Mean platelet volume(MPV)<fcel>12.6<lcel><lcel><lcel><fcel>fl<fcel>7.6--13.2<fcel>02<nl>\n<fcel>11<fcel>Platelet distribution width(PDW)<fcel>13.3<lcel><lcel><lcel><fcel>fl<fcel>9.0--17.0<fcel>02<nl>\n<fcel>12<fcel>Plateletcrit(PCT)<fcel>0.194<lcel><lcel><lcel><fcel>%<fcel>0.108--0.282<fcel>02<nl>\n<fcel>13<fcel>Neutrophil percentage(NEUT%)<fcel>53.6<lcel><lcel><lcel><fcel>%<fcel>40.0--75.0<fcel>02<nl>\n<fcel>14<fcel>Lymphocyte percentage(LYMPH%)<fcel>33.7<lcel><lcel><lcel><fcel>%<fcel>20.0--50.0<fcel>02<nl>\n<fcel>15<fcel>Monocyte percentage(MONO%)<fcel>4.2<lcel><lcel><lcel><fcel>%<fcel>3.0--10.0<fcel>02<nl>\n<fcel>16<fcel>Eosinophil percentage(EO%)<fcel>7.9<lcel><lcel><lcel><fcel>%<fcel>0.4--8.0<fcel>02<nl>\n<fcel>17<fcel>Basophil percentage(BASO%)<fcel>0.6<lcel><lcel><lcel><fcel>%<fcel>0.0--1.0<fcel>02<nl>\n<fcel>18<fcel>Neutrophil count(NEUT#)<fcel>4.45<lcel><lcel><lcel><fcel>10^9/L<fcel>1.80--6.30<fcel>02<nl>\n<fcel>19<fcel>Lymphocyte count(LYMPH#)<fcel>2.80<lcel><lcel><lcel><fcel>10^9/L<fcel>1.10--3.20<fcel>02<nl>\n<fcel>20<fcel>Monocyte count(MONO#)<fcel>0.35<lcel><lcel><lcel><fcel>10^9/L<fcel>0.10--0.60<fcel>02<nl>\n<fcel>21<fcel>Eosinophil count(EO#)<fcel>0.66<lcel><lcel><fcel>↑<fcel>10^9/L<fcel>0.02--0.52<fcel>02<nl>\n<fcel>22<fcel>Basophil count(BASO#)<fcel>0.05<lcel><lcel><lcel><fcel>10^9/L<fcel>0.00--0.06<fcel>02<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 17.87,
+   "usage": {
+    "completion_tokens": 711,
+    "prompt_tokens": 2170,
+    "total_tokens": 2881,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11689.933,
+    "prompt_per_token_ms": 5.424562877030163,
+    "prompt_per_second": 184.34665108859048,
+    "predicted_n": 711,
+    "predicted_ms": 6120.792,
+    "predicted_per_token_ms": 8.620833802816902,
+    "predicted_per_second": 115.99806038172837
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1636.0,
+  "phys_footprint_mib": 1204.7,
+  "phys_footprint_peak_mib": 1206.1
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p018_hlog02#p1",
+ "tier": "H2",
+ "image_sha256": "1594f76b499a5f9a7d4a396e1db2dcbd7c643c4fc9e60f8f868339f9fdc78945",
+ "image_size": [
+  901,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nMorning weight\n\nJanuary 2026\n\nDate Weight (kg) Notes\n\nJan 15 42.9 big dinner\n\nJan 16 42.6\n\nJan 17 42.4\n\nJan 18 42.5\n\nJan 19 42.9\n\nJan 20 42.2 big dinner\n\nJan 21 43.0\n\nJan 22 42.6 in pyjamas\n\nJan 23 42.7\n\nJan 24 42.7\n\nJan 26 42.8 in pyjamas\n\nJan 27 42.8\n\nJan 28 43.5 in pyjamas\n\nJan 29 43.0",
+   "finish_reason": "stop",
+   "seconds": 7.01,
+   "usage": {
+    "completion_tokens": 210,
+    "prompt_tokens": 1273,
+    "total_tokens": 1483,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5717.274,
+    "prompt_per_token_ms": 4.508891167192429,
+    "prompt_per_second": 221.7840180477619,
+    "predicted_n": 210,
+    "predicted_ms": 1250.762,
+    "predicted_per_token_ms": 5.9845071770334926,
+    "predicted_per_second": 167.09813697569962
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><nl><ecel><fcel>Morning weight<lcel><nl><ecel><fcel>January 2026<lcel><nl><ecel><fcel>Date<fcel>Weight (kg)<fcel>Notes<nl><ecel><fcel>Jan 15<fcel>42.9<fcel>big dinner<nl><ecel><fcel>Jan 16<fcel>42.6<ecel><nl><ecel><fcel>Jan 17<fcel>42.4 42.4<ecel><nl><ecel><fcel>Jan 18<fcel>42.5<ecel><nl><ecel><fcel>Jan 19<fcel>42.9<ecel><nl><ecel><fcel>Jan 20<fcel>42.2<fcel>big dinner<nl><ecel><fcel>Jan 21<fcel>43.0<ecel><nl><ecel><fcel>Jan 22<fcel>42.6<fcel>in pyjamas<nl><ecel><fcel>Jan 23<fcel>42.7<ecel><nl><ecel><fcel>Jan 24<fcel>42.7<ecel><nl><ecel><fcel>Jan 26<fcel>42.8<fcel>in pyjamas<nl><ecel><fcel>Jan 27<fcel>42.8<ecel><nl><ecel><fcel>Jan 28<fcel>43.5<fcel>in pyjamas<nl><ecel><fcel>Jan 29<fcel>43.0<ecel><nl><ecel><ecel><lcel><lcel><nl><ecel><ecel><lcel><lcel><nl><ecel><ecel><lcel><lcel><nl><ecel><ecel><lcel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.7,
+   "usage": {
+    "completion_tokens": 274,
+    "prompt_tokens": 1273,
+    "total_tokens": 1547,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.492,
+    "prompt_per_token_ms": 1.641714285714286,
+    "prompt_per_second": 609.1193873999302,
+    "predicted_n": 274,
+    "predicted_ms": 1653.773,
+    "predicted_per_token_ms": 6.057776556776556,
+    "predicted_per_second": 165.07706922292238
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2266.2,
+  "phys_footprint_mib": 1387.6,
+  "phys_footprint_peak_mib": 1389.0
+ }
+}

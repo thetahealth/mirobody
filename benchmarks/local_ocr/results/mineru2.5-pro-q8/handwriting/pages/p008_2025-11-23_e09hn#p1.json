@@ -1,0 +1,67 @@
+{
+ "id": "p008_2025-11-23_e09hn#p1",
+ "tier": "H3",
+ "image_sha256": "781fb538bf9184e1749ab9856963d62ee13ee806427ee3a58b618e7ae61a1770",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD\n门诊病历\n科别：内科    日期：2025年11月23日\n工型糖尿病诊治\n点致血糖筛查，饮食睡眠可\nT35.9 P68 R15V31分 BP: 113/71 SP02 9906\n体重59.5kg\n致敏其要病，姜伟呼吸青洁\n改善：工型糖尿病\n建议：多邻多，注意信息，完药检查，营收合格<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.28,
+   "usage": {
+    "completion_tokens": 129,
+    "prompt_tokens": 2115,
+    "total_tokens": 2244,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2100,
+    "prompt_ms": 11195.023,
+    "prompt_per_token_ms": 5.330963333333333,
+    "prompt_per_second": 187.58335735442438,
+    "predicted_n": 129,
+    "predicted_ms": 1023.627,
+    "predicted_per_token_ms": 7.9970859375,
+    "predicted_per_second": 125.04554881807535
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>门诊病历<lcel><nl>\n<fcel>科别：内科<fcel>日期：2025年11月23日<nl>\n<fcel>工型糖尿病诊治<lcel><nl>\n<fcel>点致血糖筛查，饮食睡眠可<lcel><nl>\n<fcel>T 35.9 P68 R 15 V31 分 BP: 113/71 SP02 9906<lcel><nl>\n<fcel>体重59.5kg<lcel><nl>\n<fcel>纹鼓止塞病，姜伟呼吸清洁<lcel><nl>\n<fcel>双房：工型糖尿病<lcel><nl>\n<fcel>建议：多邻多，注意信息，完药检查，营收合格<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.19,
+   "usage": {
+    "completion_tokens": 140,
+    "prompt_tokens": 2115,
+    "total_tokens": 2255,
+    "prompt_tokens_details": {
+     "cached_tokens": 2107
+    }
+   },
+   "timings": {
+    "cache_n": 2107,
+    "prompt_n": 8,
+    "prompt_ms": 17.044,
+    "prompt_per_token_ms": 2.1305,
+    "prompt_per_second": 469.3733865289838,
+    "predicted_n": 140,
+    "predicted_ms": 1115.495,
+    "predicted_per_token_ms": 8.025143884892085,
+    "predicted_per_second": 124.60835772459761
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1693.0,
+  "phys_footprint_mib": 1197.5,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

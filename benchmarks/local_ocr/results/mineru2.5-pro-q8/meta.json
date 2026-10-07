@@ -1,0 +1,62 @@
+{
+ "model": "mineru2.5-pro-q8",
+ "spec": {
+  "name": "MinerU2.5-Pro-2605 1.2B",
+  "repo": "jinzhenj/MinerU2.5-Pro-2605-1.2B-GGUF",
+  "model_file": "MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+  "mmproj_file": "mmproj-MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+  "quant": "Q8_0, projector Q8_0; a community conversion (no official GGUF exists), the most downloaded one; its projector is byte-identical to mradermacher's",
+  "upstream": "opendatalab/MinerU2.5-Pro-2605-1.2B",
+  "license": "Apache-2.0 (the earlier MinerU2.5-2509 is AGPL-3.0)",
+  "llama_cpp": "upstream: a Qwen2-VL architecture. Its OTSL cell tokens are special tokens, which llama-server drops from the text unless it runs with --special (-sp); without it the tables pass comes back as cells run together with no separator",
+  "passes": {
+   "text": "\nText Recognition:",
+   "tables": "\nTable Recognition:"
+  },
+  "sampling": {
+   "temperature": 0,
+   "presence_penalty": 1.0,
+   "frequency_penalty": 0.005
+  },
+  "convert": "otsl",
+  "why": "the other document-OCR model of this size with a permissive license; prompts and penalties from mineru-vl-utils (`DEFAULT_PROMPTS`, `DEFAULT_SAMPLING_PARAMS`)",
+  "server_args": [
+   "--special"
+  ],
+  "special_tokens": true
+ },
+ "files": {
+  "model_file": {
+   "name": "MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+   "bytes": 531066496,
+   "sha256": "3f3523429c880d675c0330cb3de78240452bc40a961d037e24f91ab8488f03e7"
+  },
+  "mmproj_file": {
+   "name": "mmproj-MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+   "bytes": 709409600,
+   "sha256": "b6c08ab50352677f7396af45ee60682f353f55488e26911d8154bfc37514d3f8"
+  }
+ },
+ "server": {
+  "ctx": 16384,
+  "slots": 1,
+  "cache_ram": 0,
+  "max_tokens": 8192
+ },
+ "load_seconds": 1.0,
+ "memory_idle": {
+  "rss_mib": 1569.4,
+  "phys_footprint_mib": 991.8,
+  "phys_footprint_peak_mib": 991.8
+ },
+ "memory_final": {
+  "rss_mib": 1606.8,
+  "phys_footprint_mib": 1272.7,
+  "phys_footprint_peak_mib": 1274.1
+ },
+ "memory_max_rss_mib": 1686.6,
+ "memory_max_footprint_mib": 1272.7,
+ "run_at": "2026-10-07T00:03:03+08:00",
+ "pages_run": 28,
+ "command": "benchmarks/local_ocr/run.py --model mineru2.5-pro-q8 --corpus <scratch>/ocrbench/corpus --models-dir <scratch>/ocr-models --min-free-gb 5 --min-free-mem 10"
+}

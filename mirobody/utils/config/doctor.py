@@ -22,9 +22,9 @@ from .llm import (
     RouteSpec,
     chat_default,
     chat_entries,
+    entry_ready,
     keys_present,
     no_provider_message,
-    read_api_key,
     resolve_route,
     retired_model_keys,
     route_candidates,
@@ -52,14 +52,15 @@ class SurfaceStatus:
 def _chat_status() -> SurfaceStatus:
     what = SURFACES[0][1]
     entries = chat_entries()
-    usable = [n for n, e in entries.items() if not (e or {}).get("api_key") or read_api_key(str((e or {}).get("api_key")))]
+    usable = [n for n, e in entries.items() if entry_ready(e)]
     default = chat_default()
     if default:
         others = [n for n in usable if n != default]
         picked = default + (f" (also {', '.join(others)})" if others else "")
         return SurfaceStatus("chat", what, picked, str((entries.get(default) or {}).get("model") or "") or None, "")
     hint = "MODELS is empty — no chat entry is configured at all." if not entries else (
-        "none of the MODELS entries has its key: " + ", ".join(f"{n} ({(e or {}).get('api_key')})" for n, e in entries.items())
+        "none of the MODELS entries has its key: "
+        + ", ".join(f"{n} ({(e or {}).get('api_key') or (e or {}).get('base_url')})" for n, e in entries.items())
     )
     return SurfaceStatus("chat", what, None, None, hint)
 
@@ -75,18 +76,24 @@ def _route_status(surface: str, what: str) -> SurfaceStatus:
 def provider_report(cfg=None) -> list[SurfaceStatus]:
     """One row per surface, against the current configuration. `cfg` is
     accepted for the callers that pass one; the routes read the global."""
-    return [
+    rows = [
         _chat_status(),
         _route_status("vision", SURFACES[1][1]),
         _route_status("text", SURFACES[2][1]),
     ]
+    # Optional: shown when it reads documents, silent when the vision entry does.
+    if resolve_route("ocr") is not None:
+        rows.append(_route_status("ocr", "report images and pages, text and tables (UTILS_OCR_MODEL)"))
+    return rows
 
 
 def format_report(rows: list[SurfaceStatus]) -> str:
     """The `mirobody doctor` table."""
     lines = ["LLM models by surface (config.llm.yaml)", "-" * 72]
     keys = keys_present()
-    lines.append("keys present   : " + (", ".join(keys) if keys else "none — put ONE in .env"))
+    # A local server needs no key, so "none" is advice only when nothing works.
+    advice = "" if any(r.provider for r in rows) else " — choose a model on the setup page, or put ONE key in .env"
+    lines.append("keys present   : " + (", ".join(keys) if keys else "none" + advice))
     lines.append("")
     width = max(len(r.surface) for r in rows)
     for r in rows:
@@ -124,7 +131,8 @@ def log_report(rows: list[SurfaceStatus], log: logging.Logger) -> None:
         # keeps the container's old environment: the key they had just added
         # was never read, and this line came back unchanged.
         reason = (
-            "no LLM API key is set; put ONE in .env (see config.llm.yaml), then run "
+            "no LLM API key is set; choose one on the setup page (the server prints its link once "
+            "it listens), or put ONE in .env (see config.llm.yaml), then run "
             "`docker compose up -d` (a plain `restart` keeps the old environment), "
             "or start `mirobody serve` again"
         )

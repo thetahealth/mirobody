@@ -1,0 +1,67 @@
+{
+ "id": "p007_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "d1306cb70af636717187a1f93b4657872fd8fb4b05b0cf6ce32e019275b5b06f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n测血糖记录(mmol/L)\n2026年1月\n日期 空腹 餐后2小時 备注\n1/17 4.9 6.8 按時服 药\n1/18 4.5 7.5\n1/19 4.9 7.0\n1/20 4.5\n1/21 5.2 4.7\n1/22 5.0 6.4\n1/23 4.8\n1/24 4.6 加餐\n1/25 4.9\n1/26 4.8 5.7 运动后\n1/27 4.7 加餐\n1/28 5.1 5.5 感冒了",
+   "finish_reason": "stop",
+   "seconds": 8.77,
+   "usage": {
+    "completion_tokens": 204,
+    "prompt_tokens": 2156,
+    "total_tokens": 2360,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 2156,
+    "prompt_ms": 7275.447,
+    "prompt_per_token_ms": 3.3745115955473097,
+    "prompt_per_second": 296.3391802593023,
+    "predicted_n": 204,
+    "predicted_ms": 1430.589,
+    "predicted_per_token_ms": 7.04723645320197,
+    "predicted_per_second": 141.89959520169666
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td colspan=\"4\">测血糖记录(mmol/L)</td></tr><tr><td colspan=\"4\">2026年1月</td></tr><tr><td>日期</td><td>空腹</td><td>餐后2小时</td><td>备注</td></tr><tr><td>1/17</td><td>4.9</td><td>6.8</td><td>按时服药</td></tr><tr><td>1/18</td><td>4.5</td><td>7.5</td><td></td></tr><tr><td>1/19</td><td>4.9</td><td>7.0</td><td></td></tr><tr><td>1/20</td><td>4.5</td><td></td><td></td></tr><tr><td>1/21</td><td>5.2</td><td>4.7</td><td></td></tr><tr><td>1/22</td><td>5.0</td><td>6.4</td><td></td></tr><tr><td>1/23</td><td>4.8</td><td></td><td></td></tr><tr><td>1/24</td><td>4.6</td><td></td><td>加餐</td></tr><tr><td>1/25</td><td>4.9</td><td></td><td></td></tr><tr><td>1/26</td><td>4.8</td><td>5.7</td><td>运动后</td></tr><tr><td>1/27</td><td>4.7</td><td></td><td>加餐</td></tr><tr><td>1/28</td><td>5.1</td><td>5.5</td><td>感冒了</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 3.38,
+   "usage": {
+    "completion_tokens": 468,
+    "prompt_tokens": 2156,
+    "total_tokens": 2624,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 16.634,
+    "prompt_per_token_ms": 3.3268,
+    "prompt_per_second": 300.58915474329683,
+    "predicted_n": 468,
+    "predicted_ms": 3306.846,
+    "predicted_per_token_ms": 7.081040685224839,
+    "predicted_per_second": 141.22217968420665
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2478.2,
+  "phys_footprint_mib": 1797.8,
+  "phys_footprint_peak_mib": 1797.8
+ }
+}

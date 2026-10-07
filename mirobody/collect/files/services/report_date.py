@@ -108,7 +108,7 @@ async def resolve_report_date(user_id: str, exam_date: str) -> tuple[datetime, s
         start_time = parse_date(exam_date)
         if start_time is not None:
             return start_time, "extracted"
-        logger.warning(f"Unparseable report date {exam_date!r} for user_id {user_id}; filing under the upload time")
+        logger.warning(f"Unparseable report date ({len(exam_date)} chars) for user_id {user_id}; filing under the upload time")
     return await get_user_current_time_with_timezone(user_id), "upload_time"
 
 async def manual_report_date(file_key: str) -> datetime | None:

@@ -1,0 +1,349 @@
+{
+ "id": "p004_2024-02-15_e02a#p5",
+ "llm": true,
+ "seconds": 43.73,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "白细胞计数",
+   "value": "6.27",
+   "reference_range": "3.50~9.50",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "红细胞计数",
+   "value": "5.00",
+   "reference_range": "4.30~5.80",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "血红蛋白",
+   "value": "169",
+   "reference_range": "130~175",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "红细胞压积",
+   "value": "51.1↑",
+   "reference_range": "40.0~50.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "偏高",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "平均红细胞体积",
+   "value": "102.2↑",
+   "reference_range": "82.0~100.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "偏高",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "平均红细胞血红蛋白量",
+   "value": "33.7",
+   "reference_range": "27.0~34.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "平均红细胞血红蛋白浓度",
+   "value": "330",
+   "reference_range": "316~354",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "红细胞分布宽度",
+   "value": "12.5",
+   "reference_range": "11.5~14.5",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "血小板计数",
+   "value": "332",
+   "reference_range": "125~350",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "平均血小板体积",
+   "value": "11.1",
+   "reference_range": "7.6~13.2",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "血小板分布宽度",
+   "value": "12.3",
+   "reference_range": "9.0~17.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "血小板压积",
+   "value": "0.186",
+   "reference_range": "0.108~0.282",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "中性粒细胞百分比",
+   "value": "56.8",
+   "reference_range": "40.0~75.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "淋巴细胞百分比",
+   "value": "25.8",
+   "reference_range": "20.0~50.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "单核细胞百分比",
+   "value": "7.7",
+   "reference_range": "3.0~10.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "嗜酸性粒细胞百分比",
+   "value": "9.3↑",
+   "reference_range": "0.4~8.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "偏高",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "嗜碱性粒细胞百分比",
+   "value": "0.4",
+   "reference_range": "0.0~1.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "中性粒细胞绝对值",
+   "value": "3.56",
+   "reference_range": "1.80~6.30",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "淋巴细胞绝对值",
+   "value": "1.62",
+   "reference_range": "1.10~3.20",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "单核细胞绝对值",
+   "value": "0.48",
+   "reference_range": "0.10~0.60",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "嗜酸性粒细胞绝对值",
+   "value": "0.58↑",
+   "reference_range": "0.02~0.52",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "偏高",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "嗜碱性粒细胞绝对值",
+   "value": "0.03",
+   "reference_range": "0.00~0.06",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "丙氨酸氨基转移酶",
+   "value": "40",
+   "reference_range": "9~50",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "天门冬氨酸氨基转移酶",
+   "value": "37",
+   "reference_range": "15~40",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "碱性磷酸酶",
+   "value": "69",
+   "reference_range": "45~125",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "γ-谷氨酰基转移酶",
+   "value": "19",
+   "reference_range": "10~60",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "总蛋白",
+   "value": "79.0",
+   "reference_range": "65.0~85.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "白蛋白",
+   "value": "51.4",
+   "reference_range": "40.0~55.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "球蛋白",
+   "value": "27.6",
+   "reference_range": "20.0~40.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "总胆红素",
+   "value": "20.5",
+   "reference_range": "0.0~26.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "直接胆红素",
+   "value": "3.4",
+   "reference_range": "<8.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "间接胆红素",
+   "value": "17.1",
+   "reference_range": "0.0~18.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "幽门螺杆菌碳13尿素呼气试验",
+   "value": "3.1‰",
+   "reference_range": "<4.0‰",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "阴性",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "超声提示",
+   "value": "前列腺未见明显异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  }
+ ],
+ "date_time": ""
+}

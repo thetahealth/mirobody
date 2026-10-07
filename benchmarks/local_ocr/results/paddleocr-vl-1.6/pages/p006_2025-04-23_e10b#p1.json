@@ -1,0 +1,67 @@
+{
+ "id": "p006_2025-04-23_e10b#p1",
+ "tier": "T4",
+ "image_sha256": "16d7021f8666edf3b108b6551482824b76e0b6e33604ac33da254356e2e20fd6",
+ "image_size": [
+  1536,
+  1084
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n渚砚中医医院\n\n检验报告单\n\n姓名：董英 性别：男 年龄：46岁 门诊号：4652732123\n标本号：586549539\n\n初审日期：2025-04-24 13:52\n\n项目\nC反应蛋白\n超敏C反应蛋白\n红细胞沉降率\n异常项目数\n\n检测结果\n1.63\n0.29\n7\n0\n\n参考值(范围)\n<8.00&mg/L\n<3.00&mg/L\n0-15&mm/h\n\n审核者：马海峰\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 6.95,
+   "usage": {
+    "completion_tokens": 189,
+    "prompt_tokens": 1273,
+    "total_tokens": 1462,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5709.129,
+    "prompt_per_token_ms": 4.502467665615142,
+    "prompt_per_second": 222.10042897962194,
+    "predicted_n": 189,
+    "predicted_ms": 1200.92,
+    "predicted_per_token_ms": 6.387872340425532,
+    "predicted_per_second": 156.54664757019617
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>项目<fcel>检测结果<fcel>参考值(范围)<nl><fcel>C反应蛋白<fcel>1.63<fcel><8.00&mg/L<nl><fcel>超敏C反应蛋白<fcel>0.29<fcel><3.00&mg/L<nl><fcel>红细胞沉降率<fcel>7<fcel>0-15&mm/h<nl><fcel>异常项目数<fcel>0<ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 0.53,
+   "usage": {
+    "completion_tokens": 79,
+    "prompt_tokens": 1273,
+    "total_tokens": 1352,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.683,
+    "prompt_per_token_ms": 1.669,
+    "prompt_per_second": 599.1611743559017,
+    "predicted_n": 79,
+    "predicted_ms": 474.647,
+    "predicted_per_token_ms": 6.085217948717949,
+    "predicted_per_second": 164.33265142305754
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2216.4,
+  "phys_footprint_mib": 1335.6,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

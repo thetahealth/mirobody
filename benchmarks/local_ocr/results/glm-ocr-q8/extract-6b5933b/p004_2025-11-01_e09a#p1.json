@@ -1,0 +1,69 @@
+{
+ "id": "p004_2025-11-01_e09a#p1",
+ "llm": true,
+ "seconds": 12.92,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "总胆固醇(TC)",
+   "value": "5.18",
+   "reference_range": "<5.18&mmol/L",
+   "unit": "&lt;5.18&mmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2025-11-02 00:00:00"
+  },
+  {
+   "original_indicator": "甘油三酯(TG)",
+   "value": "1.12",
+   "reference_range": "<1.70&mmol/L",
+   "unit": "&lt;1.70&mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-02 00:00:00"
+  },
+  {
+   "original_indicator": "高密度脂蛋白胆固醇(HDL-C)",
+   "value": "1.08",
+   "reference_range": "&gt;1.04&mmol/L",
+   "unit": "&gt;1.04&mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-02 00:00:00"
+  },
+  {
+   "original_indicator": "低密度脂蛋白胆固醇(LDL-C)",
+   "value": "3.59",
+   "reference_range": "<3.37&mmol/L",
+   "unit": "<3.37&mmol/L",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2025-11-02 00:00:00"
+  },
+  {
+   "original_indicator": "载脂蛋白A1(ApoA1)",
+   "value": "1.23",
+   "reference_range": "(1.20-1.60)&g/L",
+   "unit": "(1.20-1.60)&g/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-02 00:00:00"
+  },
+  {
+   "original_indicator": "载脂蛋白B(ApoB)",
+   "value": "0.82",
+   "reference_range": "(0.60-1.10)&g/L",
+   "unit": "(0.60-1.10)&g/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-02 00:00:00"
+  }
+ ],
+ "date_time": "2025-11-02 00:00:00"
+}

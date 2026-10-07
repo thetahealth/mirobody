@@ -1,0 +1,67 @@
+{
+ "id": "p003_2025-11-18_e07hf#p1",
+ "tier": "H2",
+ "image_sha256": "dcdb7915dce7c954c8c908f09c20fc46e7c3a51265e2e49aadab4e3432ed14c5",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n沅桐区健康管理中心\n\n健康体检表\n\n姓名：闫柏超 性别：女 年龄：37岁\nID号：2452311583 标本号：838021666\n\n报告日期：2025-11-18 20:24:45 接收时间：2025-11-18 09:56:45 打印时间：2025-11-22 10:24:45 检验日期：2025-11-18 09:24:45\n\n检查名称\n身高\n体重\n体重指数\n收缩压\n舒张压\n心率\n空腹血糖\n糖化血红蛋白\n\n测量值\n163.0\n77.9\n29.3\n127\n68\n82\n4.9\n\n单位(Unit)\ncm\nkg\nkg/m²\nmmHg\nmmHg\n次/分\nmmol/L\n%\n\n参考值\n18.5-23.9\n90-139\n60-89\n60-100\n3.90-6.10\n4.0-6.0\n\n检查者：钟涛 检验者：吴敏蕾\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 7.94,
+   "usage": {
+    "completion_tokens": 339,
+    "prompt_tokens": 1273,
+    "total_tokens": 1612,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5711.456,
+    "prompt_per_token_ms": 4.504302839116719,
+    "prompt_per_second": 222.00993932195223,
+    "predicted_n": 339,
+    "predicted_ms": 2177.807,
+    "predicted_per_token_ms": 6.44321597633136,
+    "predicted_per_second": 155.20199907521652
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>检查名称<fcel>测量值<fcel>单位(Unit)<fcel>参考值<nl><fcel>身高<fcel>163.0<fcel>cm<ecel><nl><fcel>体重<fcel>77.9<fcel>kg<ecel><nl><fcel>体重指数<fcel>29.3<fcel>\\(kg/m^{{2}}\\)<fcel>18.5-23.9<nl><fcel>收缩压<fcel>127<fcel>mmHg<fcel>90-139<nl><fcel>舒张压<fcel>68<fcel>mmHg<fcel>60-89<nl><fcel>心率<fcel>82<fcel>次/分<fcel>60-100<nl><fcel>空腹血糖<fcel>4.83<fcel>mmol/L<fcel>3.90-6.10<nl><fcel>糖化血红蛋白<fcel>4.9<fcel>%<fcel>4.0-6.0<nl>",
+   "finish_reason": "stop",
+   "seconds": 1.09,
+   "usage": {
+    "completion_tokens": 163,
+    "prompt_tokens": 1273,
+    "total_tokens": 1436,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 17.729,
+    "prompt_per_token_ms": 2.5327142857142855,
+    "prompt_per_second": 394.83332393253994,
+    "predicted_n": 163,
+    "predicted_ms": 996.977,
+    "predicted_per_token_ms": 6.154179012345679,
+    "predicted_per_second": 162.49121093064332
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2207.3,
+  "phys_footprint_mib": 1388.1,
+  "phys_footprint_peak_mib": 1389.5
+ }
+}

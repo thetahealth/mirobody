@@ -1,0 +1,67 @@
+{
+ "id": "p018_2025-09-10_e04hf#p1",
+ "tier": "H3",
+ "image_sha256": "8737b17815ff9e1498de2f585baa9b5d5afe8d756ae895ba94e969709b03d58c",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nFernstead Health Screening Centre\n\nGeneral examination record\n\nName: Xin Palmer  Sex: Female  Age: 66 Y\nMRN: 7197900602  Lab No.: 840625880  Specimen: Serum\n\nPrinted: 2025-09-11  Reported: 2025-09-11  Collected: 2025-09-10\n\nTEST  Value  UNIT  Ref.\nHeight  145.8  cm\nBody weight  42.8  kg\nBody mass index  20.1  kg/m²  18.5-23.9\nSystolic blood pressure  124  mmHg  90-139\nDiastolic blood pressure  69  mmHg  60-89\nHeart rate  80  /min  60-100\nFasting plasma glucose  5.58  mmol/L  3.90-6.10",
+   "finish_reason": "stop",
+   "seconds": 8.82,
+   "usage": {
+    "completion_tokens": 255,
+    "prompt_tokens": 2156,
+    "total_tokens": 2411,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7055.938,
+    "prompt_per_token_ms": 3.2803059042305907,
+    "prompt_per_second": 304.84961744278365,
+    "predicted_n": 255,
+    "predicted_ms": 1702.543,
+    "predicted_per_token_ms": 6.702925196850393,
+    "predicted_per_second": 149.18859611768983
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>TEST</th><th>Value</th><th>UNIT</th><th>Ref.</th></tr></thead><tbody><tr><td>Height</td><td>145.8</td><td>cm</td><td></td></tr><tr><td>Body weight</td><td>42.8</td><td>kg</td><td></td></tr><tr><td>Body mass index</td><td>20.1</td><td>kg/m²</td><td>18.5-23.9</td></tr><tr><td>Systolic blood pressure</td><td>124</td><td>mmHg</td><td>90-139</td></tr><tr><td>Diastolic blood pressure</td><td>69</td><td>mmHg</td><td>60-89</td></tr><tr><td>Heart rate</td><td>80</td><td>/min</td><td>60-100</td></tr><tr><td>Fasting plasma glucose</td><td>5.58</td><td>mmol/L</td><td>3.90-6.10</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.15,
+   "usage": {
+    "completion_tokens": 303,
+    "prompt_tokens": 2156,
+    "total_tokens": 2459,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 13.373,
+    "prompt_per_token_ms": 2.6746,
+    "prompt_per_second": 373.88768413968444,
+    "predicted_n": 303,
+    "predicted_ms": 2075.8,
+    "predicted_per_token_ms": 6.873509933774835,
+    "predicted_per_second": 145.486077656807
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2503.7,
+  "phys_footprint_mib": 1829.1,
+  "phys_footprint_peak_mib": 1830.7
+ }
+}

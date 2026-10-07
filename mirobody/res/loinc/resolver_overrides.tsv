@@ -79,6 +79,11 @@ erythrocyte count	RBC # Bld
 hematocrit	HCT Fr Sg Auto
 haematocrit	HCT Fr Sg Auto
 packed cell volume	HCT Fr Sg Auto
+# The British spelling is an index key on 403 rows, and the commonness prior
+# picked 4548-4 Hemoglobin A1c from them: the 血红蛋白 failure at the top of
+# this file, in English. `Haemoglobin (Hb)` was refused as two analytes for the
+# same reason. Found by a keyword-recall probe on 2026-10-06.
+haemoglobin	Hemoglobin
 
 # ── metabolic panel ──────────────────────────────────────────────────────
 fasting glucose	Fasting glucose [Mass/volume] in Serum or Plasma
@@ -588,6 +593,39 @@ CREA	Creatinine
 UA	Urate
 TP	Protein
 CK	Creatine kinase
+# `FER` is ferritin on a lab slip, and the index answered 2498-4 Iron
+# [Mass/volume]. No English designation holds the letters: LOINC's French
+# variants (frFR, frBE, frCA) name the iron COMPONENT `Fer`, and folded keys
+# are case-blind. The printed ng/mL agreed with the iron code too, so a March
+# ferritin was filed as iron and a ferritin query left it out (1.5.4 local-model
+# evaluation). This answers a French report's bare `Fer` with ferritin as well;
+# French is not a language this file covers.
+FER	Ferritin
+# The thyroid panel, as Chinese and English slips print it. `TT4` answered
+# 3024-7, FREE thyroxine: a total T4 of 114.5 nmol/L would have been stored as
+# free T4, and `总甲状腺素 TT4` was refused as naming two analytes, since its
+# halves disagreed (found reading the OCR benchmark's corpus, 1.5.4). The
+# antibody names and `TT3` resolved to nothing, and `TRAb` answered 63363-6,
+# the antibody in blood FROM A FETUS, which no adult's slip reports. Each
+# target is a key the index answers correctly. `Tg` (thyroglobulin) still
+# answers TG, triglycerides: keys are case-blind and TG is the far commoner
+# reading.
+TT4	Thyroxine (T4) [Mass/volume] in Serum or Plasma
+Total thyroxine	Thyroxine (T4) [Mass/volume] in Serum or Plasma
+TT3	Triiodothyronine
+Total triiodothyronine	Triiodothyronine
+超敏促甲状腺激素	TSH
+抗TPO抗体	Thyroperoxidase Ab
+TPO抗体	Thyroperoxidase Ab
+抗甲状腺过氧化物酶抗体	Thyroperoxidase Ab
+Thyroid peroxidase antibody	Thyroperoxidase Ab
+抗TG抗体	Thyroglobulin Ab
+TG-Ab	Thyroglobulin Ab
+抗甲状腺球蛋白抗体	Thyroglobulin Ab
+Thyroglobulin antibody	Thyroglobulin Ab
+TRAb	Thyrotropin receptor Ab [Units/volume] in Serum
+促甲状腺素受体抗体	Thyrotropin receptor Ab [Units/volume] in Serum
+促甲状腺激素受体抗体	Thyrotropin receptor Ab [Units/volume] in Serum
 # Abbreviations that name more than one test resolve to the WIDESPREAD
 # reading rather than refusing. A panel name is a different case and stays
 # blocked (see the non-answers section): there, no single observation code

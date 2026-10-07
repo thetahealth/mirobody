@@ -1,0 +1,28 @@
+{
+ "id": "p003_2025-10-02_e09b#p1",
+ "llm": true,
+ "seconds": 4.22,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Fasting plasma glucose",
+   "value": "5.45",
+   "unit": "mmol/L",
+   "reference_range": "3.90 - 6.10",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Glycated hemoglobin",
+   "value": "6.0",
+   "unit": "%",
+   "reference_range": "4.0 - 6.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "2025-10-03 11:13:26",
+ "content_type": "medical_report"
+}

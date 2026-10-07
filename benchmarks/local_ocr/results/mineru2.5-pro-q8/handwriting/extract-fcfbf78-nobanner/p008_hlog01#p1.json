@@ -1,0 +1,220 @@
+{
+ "id": "p008_hlog01#p1",
+ "llm": true,
+ "seconds": 28.24,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "109/81",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Systolic and diastolic both elevated",
+   "date_time": "2025-01 01.5"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "77",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 01.5"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "120/79",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Systolic elevated",
+   "date_time": "2025-01 01.9"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "74",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 01.9"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "107/75",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 01.18"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "79",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 01.18"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "118/76",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 01.24"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "74",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 01.24"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "110/77",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Systolic elevated",
+   "date_time": "2025-01 02.7"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "72",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 02.7"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "107/82",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Diastolic elevated",
+   "date_time": "2025-01 02.27"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "74",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 02.27"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "107/90",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Diastolic elevated",
+   "date_time": "2025-01 03.1"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "72",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 03.1"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "130/88",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "Both elevated",
+   "date_time": "2025-01 03.25"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "76",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 11"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "106/79",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 11"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "113/71",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 4.25"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "73",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 4.25"
+  },
+  {
+   "original_indicator": "血压(mmHg)",
+   "value": "118/76",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 1.24"
+  },
+  {
+   "original_indicator": "心率(次/分)",
+   "value": "74",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-01 1.24"
+  }
+ ],
+ "date_time": "2025-01",
+ "content_type": "medical_report"
+}

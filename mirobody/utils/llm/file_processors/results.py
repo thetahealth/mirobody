@@ -29,6 +29,47 @@ def clean_json_response(response: str) -> str:
     return response.strip()
 
 
+def salvage_truncated_json(text: str) -> Any | None:
+    """The complete part of a JSON answer cut off at max_tokens, or None.
+
+    A model that loops (MiniCPM5-2B repeated rows of a handwritten blood-
+    pressure log for 30,067 tokens until its context was full) is cut mid-
+    value, and the whole answer used to be discarded with every good row
+    written before the loop began (benchmarks/local_ocr, 2026-10-07). This
+    keeps everything up to the last value that closed inside a container,
+    and closes what is still open. A repeated row is the caller's to drop.
+    """
+    stack: list[str] = []
+    cuts: list[tuple[int, tuple[str, ...]]] = []
+    in_string = escaped = False
+    for i, ch in enumerate(text):
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in "{[":
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack:
+                return None
+            stack.pop()
+            if stack:
+                cuts.append((i + 1, tuple(stack)))
+    for end, open_ in reversed(cuts[-64:]):
+        closing = "".join("}" if c == "{" else "]" for c in reversed(open_))
+        try:
+            return json.loads(text[:end] + closing)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def _build_prompt_with_schema(prompt: str, response_schema: Any | None = None) -> str:
     """Embed response_schema into prompt for providers without native schema support."""
     if not response_schema:

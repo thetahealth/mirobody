@@ -131,7 +131,6 @@ mirobody/collect/files/services/list_my_data.py	interpolation	str(e)
 mirobody/collect/files/services/list_my_data.py	interpolation	total_categories
 mirobody/collect/files/services/list_my_data.py	interpolation	total_records
 mirobody/collect/files/services/report_date.py	interpolation	e
-mirobody/collect/files/services/report_date.py	interpolation	exam_date
 mirobody/collect/files/services/report_date.py	interpolation	file_key
 mirobody/collect/files/services/temp_file_manager.py	interpolation	filename
 mirobody/collect/files/services/temp_file_manager.py	interpolation	str(ex)

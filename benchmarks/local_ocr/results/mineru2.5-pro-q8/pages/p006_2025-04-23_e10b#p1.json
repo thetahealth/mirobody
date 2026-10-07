@@ -1,0 +1,67 @@
+{
+ "id": "p006_2025-04-23_e10b#p1",
+ "tier": "T4",
+ "image_sha256": "16d7021f8666edf3b108b6551482824b76e0b6e33604ac33da254356e2e20fd6",
+ "image_size": [
+  1536,
+  1084
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "项目\t检测结果\t参考值(范围)\nC反应蛋白\t1.63\t<8.00&mg/L\n超敏C反应蛋白\t0.29\t<3.00&mg/L\n红细胞沉降率\t7\t0-15&mm/h\n异常项目数\t0 \n\n审核者：马海峰<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.38,
+   "usage": {
+    "completion_tokens": 78,
+    "prompt_tokens": 2170,
+    "total_tokens": 2248,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11694.606,
+    "prompt_per_token_ms": 5.4267313225058,
+    "prompt_per_second": 184.27298876080135,
+    "predicted_n": 78,
+    "predicted_ms": 630.026,
+    "predicted_per_token_ms": 8.182155844155844,
+    "predicted_per_second": 122.21717833867176
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>项目<fcel>检测结果<fcel>参考值(范围)<nl>\n<fcel>C反应蛋白<fcel>1.63<fcel><8.00mg/L<nl>\n<fcel>超敏C反应蛋白<fcel>0.29<fcel><3.00mg/L<nl>\n<fcel>红细胞沉降率<fcel>7<fcel>0-15&mm/h<nl>\n<fcel>异常项目数<fcel>0<ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 0.74,
+   "usage": {
+    "completion_tokens": 81,
+    "prompt_tokens": 2170,
+    "total_tokens": 2251,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 19.068,
+    "prompt_per_token_ms": 2.3835,
+    "prompt_per_second": 419.55108034403185,
+    "predicted_n": 81,
+    "predicted_ms": 652.757,
+    "predicted_per_token_ms": 8.1594625,
+    "predicted_per_second": 122.5570924555386
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1603.5,
+  "phys_footprint_mib": 1196.8,
+  "phys_footprint_peak_mib": 1198.0
+ }
+}
