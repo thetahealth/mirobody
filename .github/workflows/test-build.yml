@@ -94,6 +94,11 @@ jobs:
     - name: Comment style gate
       run: python scripts/check_comment_style.py mirobody
 
+    # The four files a release cut bumps name one version (the script's
+    # docstring lists them).
+    - name: Version gate
+      run: python scripts/check_versions.py
+
     - name: Set test version
       run: |
         VERSION="${{ github.event.inputs.test_version || '0.0.0a1' }}"
