@@ -14,6 +14,7 @@ from typing import Any
 
 from mirobody.agent.wire.blocks import answer_text, upgrade
 from mirobody.collect import regenerate_file_url
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -209,106 +210,106 @@ async def get_chat_history(user_id: str, session_id: str) -> list[dict[str, Any]
     inverted: passing True removed the filter, while the default False applied
     it. No caller ever passed it, so the flag was a trap with one live branch:
     dropped along with the branch.
+
+    Raises on a database failure: an empty history would read as a
+    conversation with nothing in it.
     """
     history = []
-    try:
-        # `input_prompt` used to be selected here and surfaced on the response
-        # when truthy. Nothing in the project ever writes that column (not
-        # save_message, not the one UPDATE path (collect/files's
-        # update_message_content, which can set content/reasoning/message_type)
-        #) so it is NULL on every row and the branch never fired.
-        session_sql = """
-            SELECT
-                id, decrypt_content(content) AS content, reasoning, role, agent, provider,
-                created_at, rating, question_id, message_type
-            FROM th_messages
-            WHERE user_id = :user_id AND session_id = :session_id
-              AND message_type in ('text', 'file', 'pdf', 'image')
-            ORDER BY created_at ASC
-        """
-        db_messages = await execute_query(
-            session_sql,
-            params={"user_id": user_id, "session_id": session_id}
-        )
+    # `input_prompt` used to be selected here and surfaced on the response
+    # when truthy. Nothing in the project writes that column (neither
+    # save_message nor collect/files's update_message_content, which sets
+    # content, reasoning and message_type), so the branch never fired.
+    session_sql = """
+        SELECT
+            id, decrypt_content(content) AS content, reasoning, role, agent, provider,
+            created_at, rating, question_id, message_type
+        FROM th_messages
+        WHERE user_id = :user_id AND session_id = :session_id
+          AND message_type in ('text', 'file', 'pdf', 'image')
+        ORDER BY created_at ASC
+    """
+    db_messages = await execute_query(
+        session_sql,
+        params={"user_id": user_id, "session_id": session_id}
+    )
 
-        if db_messages:
-            user_messages = []
-            agent_responses = {}
+    if db_messages:
+        user_messages = []
+        agent_responses = {}
 
-            for msg in db_messages:
-                content = msg.get("content", "")
-                # Upgraded on the way out: a row written before 1.4.4 holds the
-                # old block names, and a type the client does not know renders
-                # as nothing at all.
-                content_json_obj = upgrade(parse_stored_content(msg.get("content", "")))
-                if isinstance(content_json_obj, list) and msg.get("message_type") == "text":
-                    content = answer_text(content_json_obj)
+        for msg in db_messages:
+            content = msg.get("content", "")
+            # Upgraded on the way out: a row written before 1.4.4 holds the
+            # old block names, and a type the client does not know renders
+            # as nothing at all.
+            content_json_obj = upgrade(parse_stored_content(msg.get("content", "")))
+            if isinstance(content_json_obj, list) and msg.get("message_type") == "text":
+                content = answer_text(content_json_obj)
 
-                try:
-                    await _refresh_file_urls_in_content(content_json_obj)
-                except Exception as e:
-                    logger.error(f"Error regenerating file URLs: {str(e)}")
+            try:
+                await _refresh_file_urls_in_content(content_json_obj)
+            except Exception as e:
+                message_id = msg.get("id")
+                logger.error("re-signing file URLs failed: message_id=%s error_type=%s", message_id,
+                             type(e).__name__, exc_info=not is_driver_exception(e))
 
-                message = {
-                    "role": msg.get("role", "assistant"),
-                    "content": content,
-                    "content_dict": content_json_obj if content_json_obj else [],
-                    "timestamp": (
-                        msg.get("created_at").isoformat() if msg.get("created_at") else datetime.now().isoformat()
-                    ),
-                    "id": msg.get("id"),
-                    "provider": msg.get("provider", ""),  # Always include provider field
-                }
+            message = {
+                "role": msg.get("role", "assistant"),
+                "content": content,
+                "content_dict": content_json_obj if content_json_obj else [],
+                "timestamp": (
+                    msg.get("created_at").isoformat() if msg.get("created_at") else datetime.now().isoformat()
+                ),
+                "id": msg.get("id"),
+                "provider": msg.get("provider", ""),  # Always include provider field
+            }
 
-                if msg.get("reasoning"):
-                    message["reasoning"] = msg.get("reasoning")
+            if msg.get("reasoning"):
+                message["reasoning"] = msg.get("reasoning")
 
-                if msg.get("agent"):
-                    message["agent"] = msg.get("agent")
+            if msg.get("agent"):
+                message["agent"] = msg.get("agent")
 
-                if msg.get("rating") is not None:
-                    message["rating"] = msg.get("rating")
+            if msg.get("rating") is not None:
+                message["rating"] = msg.get("rating")
 
-                if msg.get("message_type"):
-                    message["messageType"] = msg.get("message_type")
+            if msg.get("message_type"):
+                message["messageType"] = msg.get("message_type")
 
-                question_id = msg.get("question_id")
-                if question_id:
-                    message["questionId"] = question_id
+            question_id = msg.get("question_id")
+            if question_id:
+                message["questionId"] = question_id
 
-                if message["role"] == "user":
-                    user_messages.append(message)
-                else:
-                    key = question_id if question_id else msg.get("id")
-                    if key not in agent_responses:
-                        agent_responses[key] = []
-                    agent_responses[key].append(message)
+            if message["role"] == "user":
+                user_messages.append(message)
+            else:
+                key = question_id if question_id else msg.get("id")
+                if key not in agent_responses:
+                    agent_responses[key] = []
+                agent_responses[key].append(message)
 
-            user_messages.sort(key=lambda x: x["timestamp"])
+        user_messages.sort(key=lambda x: x["timestamp"])
 
-            # Every user message is returned. There used to be a
-            # `if not user_msg.get("provider"): continue` here, labelled
-            # "filter duplicate messages": a workaround for a historical
-            # duplicate-write bug, which dropped any user message whose
-            # `provider` was empty. The bug is gone; the workaround was not,
-            # and it silently hid every user message written by a path that
-            # does not set `provider`: a filter on the wrong field for a
-            # problem that no longer exists.
-            for user_msg in user_messages:
-                history.append(user_msg)
+        # Every user message is returned. There used to be a
+        # `if not user_msg.get("provider"): continue` here, labelled
+        # "filter duplicate messages": a workaround for a historical
+        # duplicate-write bug, which dropped any user message whose
+        # `provider` was empty. The bug is gone; the workaround was not,
+        # and it silently hid every user message written by a path that
+        # does not set `provider`: a filter on the wrong field for a
+        # problem that no longer exists.
+        for user_msg in user_messages:
+            history.append(user_msg)
 
-                question_id = user_msg.get("questionId")
-                msg_id = user_msg.get("id")
+            question_id = user_msg.get("questionId")
+            msg_id = user_msg.get("id")
 
-                if question_id and question_id in agent_responses:
-                    history.extend(agent_responses[question_id])
-                elif msg_id in agent_responses:
-                    history.extend(agent_responses[msg_id])
+            if question_id and question_id in agent_responses:
+                history.extend(agent_responses[question_id])
+            elif msg_id in agent_responses:
+                history.extend(agent_responses[msg_id])
 
-            logger.info(f"session:{session_id}\tmessage_cnt:{len(history)} Successfully loaded")
-
-    except Exception as e:
-        logger.error(f"Error loading conversation history: {str(e)}", exc_info=True)
+        logger.info("history read: session_id=%s message_count=%d", session_id, len(history))
 
     return history
 

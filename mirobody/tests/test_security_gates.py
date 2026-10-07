@@ -425,3 +425,59 @@ def test_a_date_answer_is_filed_only_with_the_askers_write_grant_on_that_record(
     assert filed == [] and "Nothing was filed" in out
     out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum", "k-other"], "2026-01-06", may_write=True))
     assert filed == [("9", "k-mum")] and "k-other: no such file" in out
+
+
+def test_a_share_link_that_is_not_a_uuid_never_reaches_the_database(monkeypatch):
+    from mirobody.agent.chat import session
+
+    async def execute_query(*args, **kwargs):
+        raise AssertionError("an id that cannot be a share link must not be looked up")
+
+    monkeypatch.setattr(session, "execute_query", execute_query)
+    answer = asyncio.run(session.get_shared_session_history("x' OR '1'='1"))
+    assert answer == {"code": -1, "msg": "Share session not found", "data": {}}
+
+
+def test_a_failed_read_of_a_shared_conversation_answers_with_a_sentence(monkeypatch):
+    from mirobody.agent.chat import session
+
+    async def execute_query(*args, **kwargs):
+        raise RuntimeError("SELECT session_id FROM th_session_share WHERE share_session_id = 'leak-7.31415'")
+
+    monkeypatch.setattr(session, "execute_query", execute_query)
+    answer = asyncio.run(session.get_shared_session_history("2f1c7a52-3c4e-4c5e-9a40-9d6c2c1d8b11"))
+    assert answer["code"] == -4 and "7.31415" not in answer["msg"] and "SELECT" not in answer["msg"]
+
+
+def _request(body: bytes = b"", query: bytes = b""):
+    from starlette.requests import Request
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return Request({"type": "http", "method": "POST", "path": "/api/x", "headers": [], "query_string": query,
+                    "client": ("127.0.0.1", 1)}, receive)
+
+
+def _reply(response) -> dict:
+    import json
+
+    return json.loads(response.body)
+
+
+def test_the_chat_service_replies_with_sentences_not_exception_text(monkeypatch):
+    from mirobody.agent.chat import service
+
+    _, response = asyncio.run(service._json_body(_request(b"{not json")))
+    assert _reply(response)["msg"] == "The request body is not valid JSON."
+
+    async def fails(*args, **kwargs):
+        raise RuntimeError("relation th_sessions: leak-7.31415")
+
+    monkeypatch.setattr(service, "get_session_summaries", fails)
+    monkeypatch.setattr(service, "beneficiary_users", fails)
+    chat = object.__new__(service.ChatService)
+    history = asyncio.run(service.ChatService.history_handler.__wrapped__(chat, _request(), "7"))
+    members = asyncio.run(service.ChatService.beneficiary_user_handler.__wrapped__(chat, _request(), "7"))
+    for response in (history, members):
+        assert _reply(response)["code"] == -1 and "7.31415" not in _reply(response)["msg"]

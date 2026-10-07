@@ -2,7 +2,9 @@ import logging
 import uuid
 
 from datetime import datetime
+from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 
@@ -15,16 +17,11 @@ async def create_session(
     query_user_id: str,
     session_id: str | None = None,
 ) -> dict:
-    """
-    Create a row in th_sessions.
+    """Create a row in th_sessions, as the `{code, msg, data}` envelope.
 
-    `session_id` is optional. When omitted the function behaves as before
-    (mints a uuid4). When supplied: e.g. by a client that needs to
-    encode pane/group metadata directly into the id (compare mode):
-    the supplied id is used verbatim, after a safety check rejects
-    obvious abuse (too long / unsupported chars). Other callers that
-    don't send the param continue to get backend-minted uuids, so this
-    is a backward-compatible parameter addition.
+    `session_id` is optional: without it a uuid4 is minted. A client that
+    encodes pane metadata into the id (compare mode) sends its own, used
+    verbatim once it fits the column and the characters such an id uses.
     """
     try:
         # `user_id` is the caller, `query_user_id` the record the session is
@@ -32,8 +29,8 @@ async def create_session(
         # call site passed them swapped to compensate.
         try:
             await resolve_subject(user_id, query_user_id)
-        except CareCircleDenied as denied:
-            return {"code": -1, "msg": str(denied), "data": {}}
+        except CareCircleDenied:
+            return {"code": -1, "msg": "You cannot open a conversation on this person's record.", "data": {}}
 
         #-------------------------------------------------
 
@@ -83,107 +80,86 @@ async def create_session(
         }
         
     except Exception as e:
-        logger.error(f"Error creating empty session: {str(e)}", exc_info=True)
-
-        return {
-            "code"  : -2,
-            "msg"   : str(e),
-            "data"  : {},
-        }
+        logger.error("creating a session failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return {"code": -2, "msg": "Could not create the session.", "data": {}}
 
 #-----------------------------------------------------------------------------
 
-async def get_session_summaries(user_id: str) -> list[dict[str, any]]:
-    """Get all conversation summaries for user from database, only including sessions with text messages"""
-    logger.info(f"get_session_summaries: {user_id}")
-    try:
-        # Modified SQL to only return sessions that contain text messages
-        summary_sql = """
-            SELECT DISTINCT ts.session_id, ts.summary, ts.created_at, ts.query_user_id
-            FROM th_sessions ts
-            INNER JOIN th_messages tm ON ts.session_id = tm.session_id 
-                AND ts.user_id = tm.user_id
-            WHERE ts.user_id = :user_id 
-                AND ts.category IS NULL
-                AND tm.message_type = 'text'
-            ORDER BY ts.created_at DESC
+async def get_session_summaries(user_id: str) -> list[dict[str, Any]]:
+    """The user's conversations that hold a text message, newest first.
+
+    Raises on a database failure: an empty list would tell the client the
+    user has no conversations."""
+    result = await execute_query(
         """
-        result = await execute_query(
-            summary_sql,
-            params={"user_id": user_id}
-        )
-
-        formatted_summaries = []
-        for summary in result:
-            formatted_summary = {
-                "session_id": summary.get("session_id"),
-                "timestamp": (
-                    summary.get("created_at").isoformat() if summary.get("created_at") else datetime.now().isoformat()
-                ),
-                "summary": summary.get("summary", ""),
-                "query_user_id": summary.get("query_user_id", ""),
-            }
-            formatted_summaries.append(formatted_summary)
-
-        logger.info(f"Retrieved {len(formatted_summaries)} text conversation summaries for user {user_id}")
-        return formatted_summaries
-    
-    except Exception as e:
-        logger.error(f"Error loading conversation summaries: {str(e)}", exc_info=True)
-        return []
+        SELECT DISTINCT ts.session_id, ts.summary, ts.created_at, ts.query_user_id
+        FROM th_sessions ts
+        INNER JOIN th_messages tm ON ts.session_id = tm.session_id
+            AND ts.user_id = tm.user_id
+        WHERE ts.user_id = :user_id
+            AND ts.category IS NULL
+            AND tm.message_type = 'text'
+        ORDER BY ts.created_at DESC
+        """,
+        params={"user_id": user_id},
+    )
+    summaries = [
+        {
+            "session_id": row.get("session_id"),
+            "timestamp": row.get("created_at").isoformat() if row.get("created_at") else datetime.now().isoformat(),
+            "summary": row.get("summary", ""),
+            "query_user_id": row.get("query_user_id", ""),
+        }
+        for row in result
+    ]
+    logger.info("conversation summaries read: user_id=%s count=%d", user_id, len(summaries))
+    return summaries
 
 #-----------------------------------------------------------------------------
 
-async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
-    """Get session summaries by person"""
-    logger.info(f"get_session_summaries_by_person: {user_id}")
+async def get_session_summaries_by_person(user_id: str) -> dict[str, Any]:
+    """The user's conversations grouped by the person each is about, as the
+    `{code, msg, data}` envelope `/api/history_by_person` answers with."""
+    from mirobody.user.profile import BasicInfoService
+
     try:
-        
-        summary_sql = """
+        result = await execute_query(
+            """
             SELECT ts.session_id, ts.summary, ts.created_at, ts.query_user_id, tu.name, tu.gender, tu.birth, tu.blood
             FROM th_sessions ts
             INNER JOIN health_app_user tu ON ts.query_user_id::integer = tu.id
             WHERE ts.user_id = :user_id
             ORDER BY created_at DESC
-        """
-        result = await execute_query(
-            summary_sql,
-            params={"user_id": user_id}
+            """,
+            params={"user_id": user_id},
         )
-        
-        session_by_person = {
-            
-        }
-        
-        nickname_map = {}
-        
+
+        session_by_person: dict[tuple, list[dict[str, Any]]] = {}
+        # Asked once per person, misses included: a person with no label in
+        # any shared circle was asked again for every one of their sessions.
+        nicknames: dict[str, str | None] = {}
+
         for _session in result:
             user_name = _session.get("name", "No name")
             user_gender = "Male" if _session.get("gender") == 1 else "Female" if _session.get("gender") == 2 else "Other"
-            user_birth = _session.get("birth", "")
-            user_age = ""
             query_user_id = _session.get("query_user_id")
 
-            # Subtracting birth year from current year (which is what stood here) 
+            # Subtracting birth year from current year (which is what stood here)
             # is wrong for everyone whose birthday has not happened yet this year:
             # roughly half of all users at any moment, each reported one year too
             # old, in the profile block that goes into the agent's context.
-            # `_calculate_age` compares (month, day) and already existed; this path
-            # simply wasn't using it.
-            from mirobody.user.profile import BasicInfoService
-            user_age = BasicInfoService._calculate_age(user_birth)
+            user_age = BasicInfoService._calculate_age(_session.get("birth", ""))
             if user_age is None:
                 user_age = ""
 
             user_blood = _session.get("blood", "")
-            
+
             if query_user_id != user_id:
-                if query_user_id not in nickname_map:
+                if query_user_id not in nicknames:
                     # The label this person carries in a circle the caller
-                    # shares with them. It used to come from
-                    # `th_share_user_config` keyed by (setter, target), i.e. a
-                    # nickname per viewer; it is now one label per member, on
-                    # the membership row.
+                    # shares with them: one label per member, on the
+                    # membership row.
                     rows = await execute_query(
                         "SELECT m.nickname FROM care_circle_members m"
                         " JOIN care_circle_members mine"
@@ -194,12 +170,9 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
                         " LIMIT 1",
                         params={"user_id": int(user_id), "query_user_id": int(query_user_id)},
                     )
-                    if rows:
-                        user_name = rows[0].get("nickname")
-                        nickname_map[query_user_id] = user_name
-                else:
-                    user_name = nickname_map[query_user_id]
-            
+                    nicknames[query_user_id] = rows[0].get("nickname") if rows else None
+                user_name = nicknames[query_user_id] or user_name
+
             session_by_person.setdefault((user_name, user_gender, user_age, user_blood), []).append(
                 {
                     "session_id": _session.get("session_id"),
@@ -208,7 +181,7 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
                     "summary": _session.get("summary", ""),
                 }
             )
-            
+
         return {
             "code": 0,
             "msg": "ok",
@@ -225,17 +198,15 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
         }
 
     except Exception as e:
-        logger.error(f"Error loading conversation summaries: {str(e)}", exc_info=True)
-
-        return {
-            "code": 1,
-            "msg": str(e),
-            "data": []
-        }
+        logger.error("reading conversations by person failed: user_id=%s error_type=%s", user_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
+        return {"code": 1, "msg": "Could not load the conversations.", "data": []}
 
 #-----------------------------------------------------------------------------
 
 async def delete_session(user_id: str, session_id: str) -> str | None:
+    """Delete one conversation everywhere it is kept. Returns None, or the
+    sentence to show when it could not be deleted."""
     try:
         # First delete all messages in the session
         delete_messages_sql = """
@@ -271,7 +242,9 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
         return None
 
     except Exception as e:
-        return str(e)
+        logger.error("deleting a session failed: user_id=%s session_id=%s error_type=%s",
+                     user_id, session_id, type(e).__name__, exc_info=not is_driver_exception(e))
+        return "Could not delete the conversation."
 
 #-----------------------------------------------------------------------------
 # Public session sharing (th_session_share): owner-created share links whose
@@ -285,7 +258,6 @@ async def create_or_get_share_session(user_id: str, session_id: str) -> dict:
     """Create a share link for a session the caller owns, or return the
     existing active one (idempotent: one active share link per session)."""
     try:
-        # Check if user owns this session
         session_result = await execute_query(
             "SELECT user_id FROM th_sessions WHERE session_id = :session_id",
             params={"session_id": session_id}
@@ -297,68 +269,64 @@ async def create_or_get_share_session(user_id: str, session_id: str) -> dict:
         if str(session_result[0].get("user_id")) != user_id:
             return {"code": -2, "msg": "Unauthorized: You don't own this session", "data": {}}
 
-        # Check if share session already exists
-        result = await execute_query(
-            """
-            SELECT share_session_id, created_at, is_active
-            FROM th_session_share
-            WHERE session_id = :session_id AND is_active = TRUE
-            """,
-            params={"session_id": session_id}
-        )
+        existing = await _active_share(session_id)
+        if existing:
+            return _share_answer(existing, session_id, is_new=False)
 
-        if result:
-            share_session_id = str(result[0].get("share_session_id"))
-            created_at = result[0].get("created_at")
-
-            logger.info(f"Returning existing share session {share_session_id} for session {session_id}")
-
-            return {
-                "code": 0,
-                "msg": "ok",
-                "data": {
-                    "share_session_id": share_session_id,
-                    "session_id": session_id,
-                    "created_at": created_at.isoformat() if created_at else None,
-                    "is_new": False
-                }
-            }
-
-        # Create new share session
-        share_session_id = str(uuid.uuid4())
-        created_at = datetime.now()
-        await execute_query(
+        # `session_id` is UNIQUE, so a link that was turned off still holds the
+        # session's row, and a plain INSERT of a new link failed on it: once
+        # stopped, a conversation could never be shared again. The row gets a
+        # fresh id instead, so the old link stays dead. An active row is left
+        # alone: that is another request having just shared it.
+        created = await execute_query(
             """
             INSERT INTO th_session_share (
                 share_session_id, session_id, user_id, created_at, updated_at, is_active
             )
-            VALUES (:share_session_id, :session_id, :user_id, :created_at, :updated_at, TRUE)
+            VALUES (:share_session_id, :session_id, :user_id, :now, :now, TRUE)
+            ON CONFLICT (session_id) DO UPDATE
+               SET share_session_id = EXCLUDED.share_session_id,
+                   created_at = EXCLUDED.created_at,
+                   updated_at = EXCLUDED.updated_at,
+                   is_active = TRUE
+             WHERE th_session_share.is_active = FALSE
+            RETURNING share_session_id, created_at
             """,
-            params={
-                "share_session_id": share_session_id,
-                "session_id": session_id,
-                "user_id": user_id,
-                "created_at": created_at,
-                "updated_at": created_at
-            }
+            params={"share_session_id": str(uuid.uuid4()), "session_id": session_id,
+                    "user_id": user_id, "now": datetime.now()},
         )
-
-        logger.info(f"Created new share session {share_session_id} for session {session_id}")
-
-        return {
-            "code": 0,
-            "msg": "ok",
-            "data": {
-                "share_session_id": share_session_id,
-                "session_id": session_id,
-                "created_at": created_at.isoformat(),
-                "is_new": True
-            }
-        }
+        if created:
+            logger.info("share link created: session_id=%s", session_id)
+            return _share_answer(created[0], session_id, is_new=True)
+        return _share_answer(await _active_share(session_id) or {}, session_id, is_new=False)
 
     except Exception as e:
-        logger.error(f"Error creating/getting share session: {str(e)}", exc_info=True)
-        return {"code": -3, "msg": f"Internal error: {str(e)}", "data": {}}
+        logger.error("creating a share link failed: session_id=%s error_type=%s", session_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
+        return {"code": -3, "msg": "Could not create the share link.", "data": {}}
+
+
+async def _active_share(session_id: str) -> dict | None:
+    rows = await execute_query(
+        "SELECT share_session_id, created_at FROM th_session_share"
+        " WHERE session_id = :session_id AND is_active = TRUE",
+        params={"session_id": session_id},
+    )
+    return rows[0] if rows else None
+
+
+def _share_answer(row: dict, session_id: str, *, is_new: bool) -> dict:
+    created_at = row.get("created_at")
+    return {
+        "code": 0,
+        "msg": "ok",
+        "data": {
+            "share_session_id": str(row.get("share_session_id") or ""),
+            "session_id": session_id,
+            "created_at": created_at.isoformat() if created_at else None,
+            "is_new": is_new,
+        },
+    }
 
 #-----------------------------------------------------------------------------
 
@@ -369,6 +337,12 @@ async def get_shared_session_history(share_session_id: str) -> dict:
     same ``get_chat_history``) so the frontend renders shared and own sessions
     with one code path.
     """
+    # The column is a UUID: anything else is no link, and used to reach the
+    # database and come back as its error text, to an unauthenticated caller.
+    try:
+        uuid.UUID(str(share_session_id))
+    except ValueError:
+        return {"code": -1, "msg": "Share session not found", "data": {}}
     try:
         share_result = await execute_query(
             """
@@ -391,14 +365,13 @@ async def get_shared_session_history(share_session_id: str) -> dict:
         from .message import get_chat_history
 
         history = await get_chat_history(user_id, session_id)
-
-        logger.info(f"Retrieved {len(history)} messages for share session {share_session_id}")
-
+        logger.info("shared history read: session_id=%s message_count=%d", session_id, len(history))
         return {"code": 0, "msg": "ok", "data": {"history": history}}
 
     except Exception as e:
-        logger.error(f"Error getting shared session history: {str(e)}", exc_info=True)
-        return {"code": -4, "msg": f"Internal error: {str(e)}", "data": {}}
+        logger.error("reading a shared history failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return {"code": -4, "msg": "Could not load the shared conversation.", "data": {}}
 
 #-----------------------------------------------------------------------------
 
@@ -426,12 +399,13 @@ async def deactivate_share_session(user_id: str, session_id: str) -> dict:
             params={"session_id": session_id, "updated_at": datetime.now()}
         )
 
-        logger.info(f"Deactivated share session for session {session_id}")
+        logger.info("share link deactivated: session_id=%s", session_id)
 
         return {"code": 0, "msg": "Share session deactivated successfully", "data": {}}
 
     except Exception as e:
-        logger.error(f"Error deactivating share session: {str(e)}", exc_info=True)
-        return {"code": -3, "msg": f"Internal error: {str(e)}", "data": {}}
+        logger.error("deactivating a share link failed: session_id=%s error_type=%s", session_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
+        return {"code": -3, "msg": "Could not stop sharing the conversation.", "data": {}}
 
 #-----------------------------------------------------------------------------
