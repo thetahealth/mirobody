@@ -503,3 +503,40 @@ def test_the_attachment_note_reads_report_dates_of_the_records_own_files_only(mo
     note = asyncio.run(report_date_status("7", ["k-own", "k-someone-elses"]))
     assert len(queries) == 1
     assert note == "Report dates:\n- file_key=k-own: report date 2026-01-06 (found on the document)"
+
+
+class _DeclaresOneTool:
+    __tools__ = ("a_tool",)
+
+    def a_tool(self, q: str) -> dict:
+        """The tool.
+
+        Args:
+            q: what.
+        """
+        return {}
+
+    def zz_helper(self, x: str) -> dict:
+        """A public helper the allow-list keeps off `tools/list`."""
+        return {}
+
+
+class _DeclaresOneToolWithASchema:
+    __tools__ = ("a_tool",)
+    input_schema = {"type": "object", "properties": {"q": {"type": "string"}}}
+
+    async def a_tool(self, **kw) -> dict:
+        """The tool."""
+        return {}
+
+    async def type(self, **kw) -> dict:
+        """Not a tool."""
+        return {}
+
+
+@pytest.mark.parametrize("klass", [_DeclaresOneTool, _DeclaresOneToolWithASchema])
+def test_a_tool_class_publishes_exactly_the_methods_it_declares(klass):
+    pytest.importorskip("mcp")
+    from mirobody.mcp.tool import load_tools_from_class
+
+    assert sorted(load_tools_from_class(klass, __name__)) == ["a_tool"]

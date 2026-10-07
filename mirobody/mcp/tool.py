@@ -268,6 +268,9 @@ def load_tools_from_class(klass, module_name: str) -> dict:
     tools           = {}
     class_instance  = klass()
     declared        = _declared_tool_names(klass)
+    # A class-level `input_schema` is the whole class's contract; it is handed
+    # to `parse_function` the same way a function-level one arrives.
+    class_schema    = getattr(klass, "input_schema", None)
 
     for function_name, function in functions:
         if inspect.isabstract(function) or inspect.isbuiltin(function):
@@ -303,11 +306,8 @@ def load_tools_from_class(klass, module_name: str) -> dict:
 
         #-------------------------------------
 
-        # A class-level `input_schema` is the whole class's contract; hand it
-        # to `parse_function` the same way a function-level one arrives.
-        declared = getattr(klass, "input_schema", None)
-        if isinstance(declared, dict) and not hasattr(function, "input_schema"):
-            function.input_schema = declared
+        if isinstance(class_schema, dict) and not hasattr(function, "input_schema"):
+            function.input_schema = class_schema
 
         tool_description, require_user_info, parameters = parse_function(function)
 
