@@ -13,7 +13,7 @@ import io
 import logging
 import re
 from collections.abc import Iterable, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
@@ -552,14 +552,7 @@ class OfflineResolver:
         chosen = stem_hit or inside_hit
         if chosen is None:
             return Resolution(term=term)
-        return Resolution(
-            term=term,
-            canonical=chosen.canonical,
-            loinc=chosen.loinc,
-            candidates=chosen.candidates,
-            resolved=True,
-            method="lexical",
-        )
+        return replace(chosen, term=term)
 
     def _component_index(self) -> dict[bytes, list[int]]:
         """component -> its rows, built on first use and then cached.

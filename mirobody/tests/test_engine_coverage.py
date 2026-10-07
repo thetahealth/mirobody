@@ -1171,6 +1171,19 @@ def test_evidence_reads_the_same_whichever_entry_point_produced_it():
     )
 
 
+def test_a_parenthetical_name_describes_its_answer_like_its_stem_does():
+    """`空腹血糖(GLU)` answers through its stem, and came back with the stem's
+    code but empty `evidence` and `axes`: by the field's own definition,
+    nothing had corroborated a code the alias table chose."""
+    from mirobody.engine import resolve
+
+    whole, stem = resolve("空腹血糖(GLU)"), resolve("空腹血糖")
+    assert whole.term == "空腹血糖(GLU)"
+    assert whole.loinc == stem.loinc
+    assert whole.evidence == stem.evidence == ("name",)
+    assert whole.axes == stem.axes != ("", "", "")
+
+
 # ── what the resolver takes on trust from the bundle ────────────────────────
 
 
