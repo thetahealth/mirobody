@@ -67,6 +67,12 @@ _VALUE_QN_RE = re.compile(
     r"(?:\s*[^\d].*)?$"              # any trailing unit/text
 )
 
+# A signed whole number and nothing else. "+1" and "+2" are how many reports
+# print a dipstick grade, and read as a quantity they coded 尿蛋白 +1 to the
+# mass-concentration code; with a decimal or a unit ("-2.5", "-2 mmol/L") a
+# signed number is a quantity.
+_SIGNED_WHOLE_RE = re.compile(r"^\s*[-+]\s*\d+\s*$")
+
 # Nominal tokens, short categorical labels: blood-type letters (A/B/AB/O ±
 # Rh), positive/negative, reactive/non-reactive serology. Multilingual because
 # the report is.
@@ -106,7 +112,7 @@ def classify_value(value: str | None) -> str | None:
         return "ord"
     if s.lower() in VALUE_NOM_TOKENS:
         return "nom"
-    if _VALUE_QN_RE.match(s):
+    if _VALUE_QN_RE.match(s) and not _SIGNED_WHOLE_RE.match(s):
         return "qn"
     return "nar"
 

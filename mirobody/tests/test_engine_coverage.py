@@ -978,10 +978,23 @@ def test_a_signed_number_is_a_quantity_and_prose_corroborates_no_scale():
     from mirobody.engine import resolve_reading
     from mirobody.value_scale import classify_value, scales_for_value
 
-    assert classify_value("-2.5") == classify_value("+1") == classify_value("<-1") == "qn"
+    assert classify_value("-2.5") == classify_value("-2 mmol/L") == classify_value("<-1") == "qn"
     assert scales_for_value("-2.5") == scales_for_value("2.5")
     assert resolve_reading("total cholesterol", "见报告", "mg/dL").evidence == ("name", "property")
     assert resolve_reading("total cholesterol", "193", "mg/dL").evidence == ("name", "property", "scale")
+
+
+def test_a_signed_dipstick_grade_is_not_a_quantity():
+    """`+1` and `+2` are dipstick grades as often as numbers. Read as a
+    quantity once signs counted, 尿蛋白 +1 left Protein [Presence] for the
+    mass-concentration code and its series averaged 1 with real mg/L values."""
+    from mirobody.engine import resolve_reading
+    from mirobody.value_scale import classify_value
+
+    assert classify_value("+1") == classify_value("+2") == classify_value("-1") == "nar"
+    assert classify_value("1+") == "ord"
+    for name, value, loinc in (("尿蛋白", "+1", "2887-8"), ("Urine protein", "+2", "2887-8"), ("隐血", "+1", "2335-8")):
+        assert resolve_reading(name, value, None).loinc == loinc
 
 
 def test_a_category_word_never_lands_on_a_specific_analyte():
