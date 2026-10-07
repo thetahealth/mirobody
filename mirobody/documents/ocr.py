@@ -28,6 +28,8 @@ import html
 import logging
 import re
 
+from mirobody.utils.llm_output import means_nothing_to_say
+
 logger = logging.getLogger(__name__)
 
 #: The longest answer an OCR pass may write. Measured on the OCR benchmark
@@ -56,7 +58,13 @@ Requirements:
    - Keep name, age, gender, and medical-related dates (examination date, report date) as is
 
 Return ONLY the extracted text content. Do not add any explanations, summaries, or commentary.
-If there is no text, return an empty response."""
+If the image contains no text at all, reply with exactly NO_TEXT and nothing else."""
+
+#: What `OCR_PROMPT` asks for when the image holds no text. It asked for an
+#: empty response, and an empty answer is also how a model that cannot read
+#: images answers, which the vision surface raises on: a photo of a meal
+#: failed its upload as if no vision model were configured.
+NO_TEXT = "NO_TEXT"
 
 
 def _ocr_route():
@@ -74,18 +82,32 @@ async def _extract(image: bytes, mime: str, prompt: str, provider: str | None = 
     return await asyncio.to_thread(clean_answer, answer)
 
 
+async def _ocr_pass(image: bytes, mime: str, prompt: str, alias: str) -> str:
+    """One pass of the routed OCR model. Its route asked the server whether
+    the model sees images (`served.sees`), so an empty answer is an image with
+    no text, not a model that cannot read one: a photo of a meal."""
+    from mirobody.utils.llm import ImageNotRead
+
+    try:
+        return await _extract(image, mime, prompt, alias, OCR_MAX_TOKENS)
+    except ImageNotRead:
+        return ""
+
+
 async def vision_ocr(image: bytes, mime: str, *, prompt: str = OCR_PROMPT) -> str:
     """Text of one image: the OCR entry's passes when one is routed, else the
-    vision provider. A pass that fails costs only itself: the text pass of a
-    photo is still a document when its tables pass times out. When every pass
-    fails, the last error is raised."""
+    vision provider, whose answer `NO_TEXT` (or a spelling of "nothing" a
+    model writes instead, `means_nothing_to_say`) is "". A pass that fails
+    costs only itself: the text pass of a photo is still a document when its
+    tables pass times out. When every pass fails, the last error is raised."""
     spec = _ocr_route()
     if spec is None:
-        return await _extract(image, mime, prompt)
+        text = await _extract(image, mime, prompt)
+        return "" if means_nothing_to_say(text, sentinel=NO_TEXT) else text
     parts, failure = [], None
     for name, task in spec.ocr_prompts.items():
         try:
-            parts.append(await _extract(image, mime, task, spec.alias, OCR_MAX_TOKENS))
+            parts.append(await _ocr_pass(image, mime, task, spec.alias))
         except Exception as exc:
             logger.warning("ocr pass failed: pass=%s error_type=%s", name, type(exc).__name__)
             failure = exc
@@ -102,7 +124,7 @@ def table_ocr():
         return None
 
     async def tables(image: bytes, mime: str) -> str:
-        return (await _extract(image, mime, spec.ocr_prompts["tables"], spec.alias, OCR_MAX_TOKENS)).strip()
+        return (await _ocr_pass(image, mime, spec.ocr_prompts["tables"], spec.alias)).strip()
 
     return tables
 
