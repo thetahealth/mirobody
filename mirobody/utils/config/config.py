@@ -206,7 +206,7 @@ class Config:
                 return []
 
         elif isinstance(file, io.StringIO):
-            # File content from StringIO (e.g., remote config)
+            # An overlay built in memory (`mirobody dev`).
             stream = file
 
         if stream is None:
@@ -439,7 +439,7 @@ class Config:
         operation only for ASCII. A passphrase with any CJK, accented or emoji
         character produced 33-96 bytes, `ljust(32)` padded nothing, `Fernet()`
         rejected the result, and the encrypter silently became a no-op: see
-        `FernetEncrypter.__init__`, and `_load_data` for what a no-op encrypter
+        `FernetEncrypter.__init__`, and `load_yaml` for what a no-op encrypter
         then did to the config file.
 
         Slicing the ENCODED bytes fixes it and changes nothing for an ASCII
@@ -765,8 +765,8 @@ class Config:
         # Which files to look for: each requested `x.yaml` also brings its
         # `x.key.yaml` secret sibling and their `{env}` variants. That
         # expansion is pure and lives in `yaml_files.py`, where it is tested;
-        # existence is checked below because one entry (the remote config) has
-        # no path.
+        # existence is checked below because a stream (an overlay built in
+        # memory) has no path.
 
         from .yaml_files import expand_yaml_filenames
 

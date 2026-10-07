@@ -11,8 +11,8 @@ preference. The CPython docs are explicit:
 
 This repo had 15 such call sites, and they run the work a user would most
 notice losing: file processing after upload, OAuth callback token exchange,
-vendor data pulls, embedding updates. A collected task fails silently, no
-exception, no log, just a job that never happened.
+vendor data pulls. A collected task fails silently, no exception, no log,
+just a job that never happened.
 
 The same docs note the second half of the problem: nobody awaits these, so a
 failure surfaces only as "Task exception was never retrieved" at GC time, if at

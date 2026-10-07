@@ -4,8 +4,9 @@ Nothing in this module names a model. `config.llm.yaml` does: `MODELS` is a
 table of entries (alias → llm_type / api_key NAME / base_url / model /
 capabilities; "providers" in this project are devices), and three keys say
 which entry each utility surface uses: `UTILS_VISION_MODEL` (report photos,
-scanned pages) and `UTILS_TEXT_MODEL` (indicator extraction from text, titles,
-summaries).
+scanned pages), `UTILS_TEXT_MODEL` (indicator extraction from text, titles,
+summaries) and the optional `UTILS_OCR_MODEL` (a document reader that takes
+photos and pages over from the vision entry).
 A value is an entry name, a list of them (the FIRST whose key is present wins,
 that is how one key runs everything), a `provider/model` string, or an inline
 spec shaped like an entry. The chat picker is the `MODELS` table itself,
