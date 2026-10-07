@@ -459,8 +459,6 @@ def records(lines: Iterable[str], fmt: GenotypeFormat, *, sample: str | None = N
             if result:
                 yield result
             continue
-        if _declared_format(line, fmt.vendor, fmt.build):
-            continue
         if fmt.shape == SHAPE_REPORT:
             rsid = cells[1] if len(cells) > 1 else ""
             chrom = _value(cells, fmt.columns, "chromosome")
