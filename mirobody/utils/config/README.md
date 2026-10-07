@@ -44,7 +44,7 @@ Valid values are [IANA timezone names](https://en.wikipedia.org/wiki/List_of_tz_
 | `LOG_DIR`   | Directory for log files                          | *(empty)* |
 | `LOG_LEVEL` | Log level: `debug`, `info`, `warning`, `error`   | `INFO`   |
 
-By default (no `LOG_NAME`), logs go to **console only** (stdout). To enable file logging, set both `LOG_NAME` and `LOG_DIR` in your `config.{env}.yaml`:
+By default (no `LOG_NAME`), logs go to **console only** (stderr). To enable file logging, set both `LOG_NAME` and `LOG_DIR` in your `config.{env}.yaml`:
 
 ```yaml
 LOG_NAME: mirobody
@@ -52,6 +52,11 @@ LOG_DIR: ./logs
 ```
 
 Log files are created as `{date}_{name}_{time}.log` in the specified directory. Console logging remains active alongside file logging.
+
+Every handler runs the PHI filter (`mirobody.kernel.ops`): a line carries ids,
+counts, durations, status codes and type names, and a message longer than 300
+characters is cut. SQL statements are logged at `debug`, as text without their
+values.
 
 ## 🏗️ Infrastructure
 
@@ -66,6 +71,7 @@ Core system settings found in `config.yaml`.
 | `PG_USER`     | Username                                        |
 | `PG_PASSWORD` | Password                                        |
 | `PG_DBNAME`   | Database name                                   |
+| `PG_TIMEOUT`  | Seconds to wait for a connection (Default:`10`) |
 
 ### Temporary state
 
@@ -243,9 +249,11 @@ DISALLOWED_TOOLS:
 
 ### Credential Encryption
 
-Sensitive keys in `config.yaml` (ending in `_KEY`, `_PASSWORD`, etc.) can be encrypted.
+Sensitive keys (ending in `_KEY`, `_PASSWORD`, etc.) can be stored encrypted.
 
 - Use the `CONFIG_ENCRYPTION_KEY` from your `.env` file to encrypt/decrypt values.
+- A plaintext secret in a file you name (`-c`, `config.{env}.yaml`, a `.key.yaml`) is encrypted in that file when it loads. The defaults are read, never rewritten: `config.yaml` and the files it INCLUDEs.
+- The `config.yaml` in the working directory is the defaults only with its `config.llm.yaml` beside it; otherwise the copy installed with the package is used, so another project's `config.yaml` is neither read nor touched.
 - If a value matches `REPLACE_THIS_VALUE_IN_PRODUCTION`, it must be set via environment variable or override file.
 
 ### Environment Variables
