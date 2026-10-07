@@ -21,9 +21,14 @@ which router answered.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from mirobody.kernel.ops import is_driver_exception
+
+logger = logging.getLogger(__name__)
 
 
 class StandardResponse(BaseModel):
@@ -49,3 +54,16 @@ def ok(data: dict[str, Any] | None = None, msg: str = "ok") -> StandardResponse:
 
 def err(code: int, msg: str) -> ErrorResponse:
     return ErrorResponse(code=code, msg=msg)
+
+
+def failed(action: str, exc: Exception, msg: str, *, code: int = 500) -> ErrorResponse:
+    """`err(code, msg)` for a request that raised, logged by the house rule.
+
+    The log names the action and the exception's type, never its text, and
+    keeps the traceback only when the exception is not a database driver's,
+    whose message quotes the SQL with its bound parameters. The reply is the
+    fixed `msg`: an exception's text is not a sentence for a client.
+    """
+    logger.error("%s failed: error_type=%s", action, type(exc).__name__,
+                 exc_info=not is_driver_exception(exc))
+    return err(code, msg)

@@ -38,9 +38,8 @@ from pydantic import BaseModel, Field
 from mirobody.collect import RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
-from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import subject_for, verify_token
-from mirobody.server.envelope import ErrorResponse, StandardResponse
+from mirobody.server.envelope import ErrorResponse, StandardResponse, failed
 
 logger = logging.getLogger(__name__)
 
@@ -98,14 +97,6 @@ def _instant(value: str, name: str = "since") -> datetime:
 
 def _denied() -> ErrorResponse:
     return ErrorResponse(code=403, msg="Not permitted to read this member's health data.")
-
-
-def _failed(action: str, exc: Exception, msg: str) -> ErrorResponse:
-    # `exc_info` only for our own bugs: a driver exception's message quotes
-    # the SQL with its bound parameters.
-    logger.error("health %s failed: error_type=%s", action, type(exc).__name__,
-                 exc_info=not is_driver_exception(exc))
-    return ErrorResponse(code=500, msg=msg)
 
 
 def _record_filters(kind: str, modality: str | None, start_time: str | None, end_time: str | None,
@@ -187,7 +178,7 @@ async def health_indicator_records(
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("records", exc, "This query could not complete.")
+        return failed("health records", exc, "This query could not complete.")
     return StandardResponse(data=data)
 
 
@@ -221,7 +212,7 @@ async def export_health_indicators(
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("export", exc, "This export could not complete.")
+        return failed("health export", exc, "This export could not complete.")
     rows = [{k: r.get(k) for k in RECORD_EXPORT_COLUMNS} for r in page["rows"][:EXPORT_MAX]]
     truncated = len(page["rows"]) > EXPORT_MAX
     if format == "json":
@@ -257,7 +248,7 @@ async def data_delta(
     except ValueError as exc:
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
-        return _failed("delta", exc, "This query could not complete.")
+        return failed("health delta", exc, "This query could not complete.")
     return StandardResponse(data=data)
 
 
