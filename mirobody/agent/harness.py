@@ -112,9 +112,10 @@ def standard_middleware(
        this feeds the parse error back instead of ending the turn empty;
     4. empty-answer repair: a reply with no text and no call (a reasoning
        model that answered only in its reasoning channel) is asked for once;
-    5. the per-turn model-call budget, ending the run *gracefully* so the model
-       still writes its answer: a legitimate multi-step task runs to
-       completion while a pathological loop still terminates;
+    5. the per-turn model-call budget, whose last call is made with tool
+       calls off and an instruction to answer from what the model has
+       (`ModelCallBudgetMiddleware`): a legitimate multi-step task runs to
+       completion, and a pathological loop ends with an answer;
     6. one cap per named tool (``exit_behavior="continue"``: the tool is
        removed for the rest of the turn, the turn goes on);
     7. the code interpreter, if given;
@@ -123,11 +124,12 @@ def standard_middleware(
     A fresh stack per build is a fresh retry ledger per turn, which is what
     "already tried that" has to mean.
     """
-    from langchain.agents.middleware import ModelCallLimitMiddleware, ToolCallLimitMiddleware
+    from langchain.agents.middleware import ToolCallLimitMiddleware
 
     from .middleware import (
         EmptyAnswerRepairMiddleware,
         InvalidToolCallRepairMiddleware,
+        ModelCallBudgetMiddleware,
         RetryGovernanceMiddleware,
         ToolFaultMiddleware,
     )
@@ -137,7 +139,7 @@ def standard_middleware(
         RetryGovernanceMiddleware(limit=retry_limit),
         InvalidToolCallRepairMiddleware(),
         EmptyAnswerRepairMiddleware(),
-        ModelCallLimitMiddleware(run_limit=model_call_limit, exit_behavior="end"),
+        ModelCallBudgetMiddleware(run_limit=model_call_limit),
     ]
     for tool_name, limit in (tool_call_limits or {}).items():
         stack.append(ToolCallLimitMiddleware(tool_name=tool_name, run_limit=limit, exit_behavior="continue"))

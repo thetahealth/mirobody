@@ -118,9 +118,9 @@ class MirobodyAgent:
         # names a real entry and its missing key.
         self.default_model = default_model() or next(iter(chat_entries()), "")
         # Two layers, not interchangeable (see `_build_agent`). MODEL_CALL_LIMIT
-        # is the real budget, counted in model calls and enforced by
-        # ModelCallLimitMiddleware, which ends the run gracefully so the model
-        # still writes an answer. RECURSION_LIMIT is a raw LangGraph super-step
+        # is the real budget, counted in model calls by ModelCallBudgetMiddleware,
+        # whose last call is made without tools so the model answers from what
+        # it has. RECURSION_LIMIT is a raw LangGraph super-step
         # ceiling, a last-resort net for a runaway: it must sit above the call
         # budget or it fires first and hard-fails with GraphRecursionError.
         # Unset, `harness.recursion_limit_for` derives it from the built graph.

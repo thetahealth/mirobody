@@ -269,7 +269,9 @@ strategy.
 
 ## Governance: what stops a loop
 
-Four middlewares, outermost first:
+The harness's own middleware, outermost first (`harness.standard_middleware`;
+deepagents runs its filesystem, summarisation and tool-call patching before
+them, and the `ask_user` pause after):
 
 1. **`ToolFaultMiddleware`** — a crashing tool becomes an error result instead
    of a dead turn. The text carries the tool name, the error kind and the
@@ -283,11 +285,19 @@ Four middlewares, outermost first:
 3. **`InvalidToolCallRepairMiddleware`** — arguments that never parsed as JSON
    reach no tool at all; this feeds the parse error back, and salvages the
    narrow deterministic cases (`none` for `null`, an unquoted date).
-4. **`ModelCallLimitMiddleware`** + **`ToolCallLimitMiddleware`** — the turn's
-   budget, and a cap on how often the data tool may run.
-   `exit_behavior="continue"` on the second: hitting the cap removes the tool
-   for the rest of the turn rather than ending the turn, so the model still
-   writes its answer from what it has.
+4. **`EmptyAnswerRepairMiddleware`** — a reply with neither text nor a tool
+   call is asked for once more instead of ending the turn blank.
+5. **`ModelCallBudgetMiddleware`** + **`ToolCallLimitMiddleware`** — the turn's
+   budget of model calls, and a cap on how often the data tool may run. The
+   budget's last call is made with tool calls off (`tool_choice` none, the
+   tools still declared) after one instruction to answer from what the model
+   has; a model that calls a tool anyway is stopped there. The cap uses
+   `exit_behavior="continue"`: hitting it removes the tool for the rest of
+   the turn rather than ending the turn, so the model still writes its answer
+   from what it has.
+6. the `eval` interpreter, then the tail: a model that cannot see gets
+   images as their OCR text, genotype rows are kept to the turn that read
+   them, and prompt caching marks the request last.
 
 The data tool itself **never raises**. The `eval` REPL can call it directly
 (PTC), and a PTC call bypasses the tool middleware entirely — there is nothing

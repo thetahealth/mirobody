@@ -267,10 +267,13 @@ async def _agent_kwargs(params: ChatStreamRequest, *, may_write: bool) -> dict[s
 async def _agent_blocks(params: ChatStreamRequest, *, may_write: bool) -> AsyncGenerator[dict[str, Any], None]:
     """The agent's blocks for this turn, always closed with `end`.
 
-    Why a turn ENDED is a fact about the run, and a client had no way to tell
-    "the model finished" from "the budget ran out" from "it crashed": all three
-    arrived as the same empty `end`, and a reader that cannot distinguish them
-    shows "Answer Completed" over a truncated reply.
+    Why a turn ENDED is a fact about the run: `stop` after an answer, `error`
+    when a block said the turn failed, `unavailable` with no agent, and
+    `_accumulate` reads a `stop` without answer text as `empty`. A turn whose
+    model-call budget ran out is a `stop`, because the budget's last call is
+    the answer (`ModelCallBudgetMiddleware`). They used to arrive as one
+    empty `end`, and a reader that cannot tell them apart shows "Answer
+    Completed" over a truncated reply.
     """
     try:
         kwargs = await _agent_kwargs(params, may_write=may_write)
