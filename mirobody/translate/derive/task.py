@@ -22,7 +22,6 @@ class DerivedCalculationTask(PullTask):
             schedule_type=ScheduleType.INTERVAL,
             interval_minutes=360,  # Check every 6 hours
             execution_interval_hours=6.0,
-            lock_duration_hours=1.0,
         )
         self.aggregator = DerivedAggregator()
 

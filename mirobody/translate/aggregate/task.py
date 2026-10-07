@@ -30,7 +30,6 @@ class AggregateIndicatorTask(PullTask):
             schedule_type=ScheduleType.INTERVAL,
             interval_minutes=4,  # Check every 4 minutes
             execution_interval_hours=4 / 60,  # Execute every 4 minutes
-            lock_duration_hours=12 / 60  # Lock for 12 minutes
         )
 
         self.service = AggregateIndicatorService()

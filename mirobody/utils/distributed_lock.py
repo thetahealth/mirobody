@@ -31,11 +31,11 @@ class PullTaskLockManager:
     def _last_run_key(provider_slug: str) -> str:
         return f"pull_task:last_run:{provider_slug}"
 
-    async def try_acquire_execution_lock(
-        self, provider_slug: str, lock_duration_hours: float = 23.5, force: bool = False
-    ) -> str | None:
-        # Force bypasses the scheduler interval, but never mutual exclusion.
-        del lock_duration_hours, force
+    async def try_acquire_execution_lock(self, provider_slug: str) -> str | None:
+        """An execution id while this instance holds the provider's lock, or
+        None when another session holds it or the database is unreachable.
+        The lock lasts until `release_execution_lock`: a session lock has no
+        duration, and a run longer than any fixed one must not lose it."""
         conn = None
         try:
             conn = await global_config().get_postgresql().get_async_client()

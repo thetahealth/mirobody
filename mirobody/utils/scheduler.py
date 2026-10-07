@@ -27,8 +27,7 @@ class PullTask:
         provider_slug: str,
         schedule_type: ScheduleType = ScheduleType.HOURLY,
         interval_minutes: int = 30,
-        execution_interval_hours: float = 1.0,  # New: actual execution interval
-        lock_duration_hours: float | None = None,  # New: lock duration
+        execution_interval_hours: float = 1.0,
     ):
         """
         Initialize Pull Task
@@ -38,18 +37,11 @@ class PullTask:
             schedule_type: Schedule type (hourly/interval)
             interval_minutes: Schedule check interval in minutes (only effective when schedule_type=INTERVAL)
             execution_interval_hours: Actual execution interval (hours), determines task real execution frequency
-            lock_duration_hours: Distributed lock duration (hours), defaults to execution_interval_hours - 0.5
         """
         self.provider_slug = provider_slug
         self.schedule_type = schedule_type
         self.interval_minutes = interval_minutes
         self.execution_interval_hours = execution_interval_hours
-
-        # Lock duration defaults to execution interval minus 0.5 hours buffer time
-        if lock_duration_hours is None:
-            self.lock_duration_hours = max(0.1, execution_interval_hours - 0.5)
-        else:
-            self.lock_duration_hours = lock_duration_hours
 
         self.last_run: datetime | None = None
         self.next_run: datetime | None = None
@@ -82,31 +74,27 @@ class PullTask:
 
         return schedule_ready and execution_ready
 
-    async def try_execute_with_lock(self, force: bool = False) -> bool:
-        """
-        Execute task with distributed lock
+    async def try_execute_with_lock(self) -> bool:
+        """Run the task once across every instance; True if it ran and succeeded.
 
-        Args:
-            force: Whether to force execution (ignore locks)
-
-        Returns:
-            True if executed successfully, False if skipped or failed
-        """
-        # Try to acquire distributed lock
-        execution_id = await pull_task_lock_manager.try_acquire_execution_lock(
-            self.provider_slug,
-            lock_duration_hours=self.lock_duration_hours,
-            force=force,
-        )
+        The advisory lock is held only while a run lasts, so it alone did not
+        stop a second instance, whose in-memory `last_run` was older, from
+        taking it a minute later and pulling everything again. Under the lock
+        the persisted `last_run` decides: inside `execution_interval_hours`
+        of it, this instance adopts it and skips."""
+        execution_id = await pull_task_lock_manager.try_acquire_execution_lock(self.provider_slug)
 
         if execution_id is None:
-            if not force:
-                logger.info(f"Skipping execution for {self.provider_slug} - lock held by another instance")
-                return False
-            logger.error(f"Failed to acquire lock for {self.provider_slug} even in force mode")
+            logger.info(f"Skipping execution for {self.provider_slug} - lock held by another instance")
             return False
 
         try:
+            persisted = await pull_task_lock_manager.get_last_run(self.provider_slug)
+            if persisted is not None and datetime.now() < persisted + timedelta(hours=self.execution_interval_hours):
+                self.last_run = persisted
+                self._calculate_next_run()
+                logger.info(f"Skipping execution for {self.provider_slug} - another instance ran it")
+                return False
             logger.info(f"Starting execution for {self.provider_slug} (execution: {execution_id})")
             return await self._execute_internal()
         finally:
@@ -240,7 +228,7 @@ class Scheduler:
                     if task.should_run():
                         logger.info(f"Executing scheduled task: {task.provider_slug}")
                         # Execute task with distributed lock
-                        spawn(task.try_execute_with_lock(force=False))
+                        spawn(task.try_execute_with_lock())
 
                 # Wait 1 minute before next check
                 await asyncio.sleep(60)
