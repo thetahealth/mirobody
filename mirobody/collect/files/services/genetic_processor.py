@@ -318,10 +318,12 @@ async def process_genetic_file(
         target_user_id: Data owner ID (for th_series_data_genetic.user_id)
         ... other params
     """
+    # Imported here: the upload manager imports this module's handler.
+    from mirobody.collect.files.file_upload_manager import get_websocket_file_upload_manager
+
+    websocket_file_upload_manager = get_websocket_file_upload_manager()
     temp_file_path = Path(temp_file_path)
     try:
-        # Import websocket manager locally to avoid circular import
-        from mirobody.collect.files.file_upload_manager import websocket_file_upload_manager
 
         # 🔧 Fix: Use original filename, or temporary filename if not provided
         display_filename = original_filename or temp_file_path.name

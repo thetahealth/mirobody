@@ -1,32 +1,7 @@
-"""
-WebSocket file upload manager
-Supports file upload through WebSocket with real-time progress synchronization
-
-SECTION INDEX (line numbers are approximate):
-    ~50   WebSocketFileUploadManager   main orchestrator class
-    (MemoryUploadFile lives in .memory_upload_file: shared with the
-     chat-attachment path in services/file_processing_service.py)
-    ~82     connect()                  establish WebSocket connection
-    ~120    disconnect()               clean up connection state
-    ~135    send_message()             send JSON message to client
-    ~191    handle_upload_start()      initialize file upload session
-    ~307    handle_file_chunk()        receive and buffer file chunks
-    ~445    start_file_processing()    kick off processing after upload
-    ~475    process_files_async()      main file processing pipeline
-    ~667    update_genetic_processing_complete()
-    ~680  ---- Helper Methods for process_files_async ----
-    ~682    _save_files_to_database()
-    ~813    _normalize_raw_data()
-    ~828    _calculate_progress_allocation()
-    ~851    _create_progress_callback()
-    ~934    _send_final_completion_status()
-    ~1010   _start_profile_refresh()
-    ~1048   _build_return_info_for_failed()
-    ~1127 ---- End Helper Methods ----
-    ~1129   _build_return_info()       build response info for completed files
-    ~1326   update_progress()          send progress update to client
-    ~1377   handle_upload_end()        finalize upload session
-    ~1445   get_upload_status()        query upload status
+"""The WebSocket upload the web client uses: a session per upload
+(`upload_start`), its files received in base64 chunks, then processed one by
+one through `FileProcessor`, with progress pushed to the socket that started
+it and every file filed in `th_files` when the batch is done.
 """
 
 from __future__ import annotations
@@ -36,6 +11,7 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
@@ -60,13 +36,10 @@ logger = logging.getLogger(__name__)
 class WebSocketFileUploadManager:
     """WebSocket file upload manager"""
 
-    def __init__(self):
-        self.active_connections: dict[str, WebSocket] = {}  # user_id -> websocket
+    def __init__(self) -> None:
+        self.active_connections: dict[str, WebSocket] = {}  # connection_id -> websocket
         self.upload_sessions: dict[str, dict] = {}  # message_id -> session_info
-        self._file_processor = None  # Lazy initialization
-        self.instance_id = f"ws_upload_{datetime.now().timestamp()}"
-        # Database service will be initialized when needed
-        self.db_service = None
+        self._file_processor: FileProcessor | None = None
 
     def _session_for(self, message_id: str | None, user_id: str | None) -> dict | None:
         """The upload `message_id` names, if `user_id` started it, else None.
@@ -82,8 +55,8 @@ class WebSocketFileUploadManager:
         return session
 
     @property
-    def file_processor(self):
-        """Lazy initialization of FileProcessor to allow ExcelProcessor injection"""
+    def file_processor(self) -> FileProcessor:
+        """Built on first use: the manager is constructed at import time."""
         if self._file_processor is None:
             self._file_processor = FileProcessor()
         return self._file_processor
@@ -916,9 +889,9 @@ class WebSocketFileUploadManager:
         end_prog: int,
         file_index: int,
         file_name: str,
-        user_id: str,
+        connection_id: str,
         message_id: str,
-    ):
+    ) -> Callable[[int, str], Awaitable[None]]:
         """
         Create a file-specific progress callback function.
         Maps internal file progress (30-100) to the allocated progress range.
@@ -940,7 +913,7 @@ class WebSocketFileUploadManager:
             # this one, which was the "seven times" the entry was written about.
             logger.info(f"File{file_index} of {message_id}: internal progress {progress}% -> mapped progress {mapped_progress}%")
             await self.update_progress(
-                user_id,
+                connection_id,
                 message_id,
                 "processing",
                 mapped_progress,
@@ -952,7 +925,7 @@ class WebSocketFileUploadManager:
 
     async def _send_final_completion_status(
         self,
-        user_id: str,
+        connection_id: str,
         message_id: str,
         session: dict,
         return_info: dict,
@@ -972,7 +945,7 @@ class WebSocketFileUploadManager:
             session["results"] = return_info
 
             await self.send_message(
-                user_id,
+                connection_id,
                 {
                     "type": "upload_progress",
                     "messageId": message_id,
@@ -1000,19 +973,19 @@ class WebSocketFileUploadManager:
                 final_status = "completed"
 
             # Smooth 90-100% progress transition
-            logger.info(f"Starting final completion transition: user_id={user_id}, message_id={message_id}")
+            logger.info("upload finishing: message_id=%s", message_id)
 
-            await self.update_progress(user_id, message_id, "processing", 92, "Completing final processing...")
+            await self.update_progress(connection_id, message_id, "processing", 92, "Completing final processing...")
             await asyncio.sleep(0.1)
 
-            await self.update_progress(user_id, message_id, "processing", 96, "Almost complete...")
+            await self.update_progress(connection_id, message_id, "processing", 96, "Almost complete...")
             await asyncio.sleep(0.1)
 
-            await self.update_progress(user_id, message_id, final_status, 100, final_message)
+            await self.update_progress(connection_id, message_id, final_status, 100, final_message)
 
             # Send final completion message
             await self.send_message(
-                user_id,
+                connection_id,
                 {
                     "type": "upload_completed",
                     "messageId": message_id,
@@ -1181,8 +1154,7 @@ class WebSocketFileUploadManager:
         for i in range(len(uploaded_files)):
             file_size = uploaded_files[i].get("size", 0)
             
-            # Check if this file was successfully processed
-            # Since results only contains successful files, we need to check by filename
+            # `results` holds only the files that succeeded, in upload order.
             is_failed_file = i in failed_results_map
             
             if is_failed_file:
@@ -1323,7 +1295,8 @@ class WebSocketFileUploadManager:
             "is_uploaded_for_others": is_uploaded_for_others,
         }
 
-    async def update_progress(self, user_id: str, message_id: str, status: str, progress: int, message: str, filename: str = None):
+    async def update_progress(self, connection_id: str, message_id: str, status: str, progress: int, message: str,
+                              filename: str | None = None) -> None:
         """Update progress and sync to WebSocket
         
         NOTE: No longer writes to th_messages table - progress is tracked in session and sent via WebSocket only.
@@ -1360,7 +1333,7 @@ class WebSocketFileUploadManager:
                     # Use the first file's original filename as display name
                     websocket_data["filename"] = files[0].get("filename", "")
             
-            await self.send_message(user_id, websocket_data)
+            await self.send_message(connection_id, websocket_data)
 
         except Exception as e:
             logger.error(f"Failed to update progress: {e}", stack_info=True)
@@ -1447,17 +1420,13 @@ class WebSocketFileUploadManager:
             }
 
 
-# Singleton pattern to ensure only one WebSocket manager instance
-_websocket_file_upload_manager_instance = None
+_websocket_file_upload_manager_instance: WebSocketFileUploadManager | None = None
 
 
-def get_websocket_file_upload_manager():
-    """Get the singleton WebSocket file upload manager instance"""
+def get_websocket_file_upload_manager() -> WebSocketFileUploadManager:
+    """The process's one upload manager: its sessions are what a background
+    task finds a client's socket by."""
     global _websocket_file_upload_manager_instance
     if _websocket_file_upload_manager_instance is None:
         _websocket_file_upload_manager_instance = WebSocketFileUploadManager()
     return _websocket_file_upload_manager_instance
-
-
-# Create global instance for backward compatibility
-websocket_file_upload_manager = get_websocket_file_upload_manager()
