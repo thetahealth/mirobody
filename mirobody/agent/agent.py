@@ -206,10 +206,10 @@ class MirobodyAgent:
             logger.info("Built system prompt successfully")
             return system_prompt
         except Exception as e:
-            logger.error(f"Failed to build system prompt: {str(e)}")
+            logger.error("system prompt failed to render: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             raise AgentError(
-                f"System prompt construction failed: {str(e)}",
-                user_message=f"Failed to build the agent's system prompt. Details: {str(e)}"
+                f"The system prompt could not be rendered ({type(e).__name__}); check PROMPTS in the configuration."
             ) from e
     
     async def _build_backend(
@@ -526,9 +526,10 @@ class MirobodyAgent:
         except AgentError:
             raise
         except Exception as e:
-            logger.error(f"Agent building failed: {str(e)}")
-            raise AgentError(f"Failed to build agent: {str(e)}")
-            
+            logger.error("agent build failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            raise AgentError(f"The agent could not be built ({type(e).__name__}).") from e
+
     async def _stream_agent_response(
         self,
         agent: Any,
@@ -588,6 +589,12 @@ class MirobodyAgent:
                     continue
 
             logger.info("agent stream completed")
+
+        except AgentError as e:
+            # Raised by our own middleware (a model that keeps sending malformed
+            # calls): its message is ours, and says more than a type name.
+            logger.error("agent stream stopped: error_type=%s", type(e).__name__)
+            yield {"type": ERROR, "message": str(e)}
 
         except Exception as e:
             # Type name only, in the log and to the client: provider error bodies

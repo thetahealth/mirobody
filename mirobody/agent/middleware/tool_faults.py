@@ -33,7 +33,9 @@ from langchain.agents.middleware import AgentMiddleware, hook_config
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.errors import GraphBubbleUp
 
+from mirobody.agent.errors import AgentError
 from mirobody.kernel import tools as tool_kernel
+
 logger = logging.getLogger(__name__)
 
 
@@ -196,12 +198,11 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
             )
             # Returning None here ended the turn with a ZERO-character reply
             # and no error event: the client paid for the whole run and saw
-            # blank. Raise instead: the streaming loop's exception handler
-            # turns this into an `error` event the client actually renders.
-            raise RuntimeError(
-                f"the model kept producing malformed tool calls after "
-                f"{repairs} repair attempts — please retry, or switch "
-                f"provider/model"
+            # blank. An `AgentError` reaches the client as its own sentence;
+            # a RuntimeError read "internal error (RuntimeError)".
+            raise AgentError(
+                f"The model kept sending tool calls that were not valid JSON after "
+                f"{repairs} repair attempts. Please retry, or choose another model."
             )
 
         # Salvage first. A call we can coerce into valid JSON is promoted onto

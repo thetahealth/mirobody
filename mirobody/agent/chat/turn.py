@@ -303,9 +303,10 @@ async def _pump(
             if block is None:
                 return
             if block.get("type") == ERROR:
-                # Already `client_safe_error`: every producer of an `error`
-                # block passes provider and driver text through it first.
-                logger.error("error on the wire: %s", block.get("message", ""))  # phi: ok client-safe by construction
+                # The producer logged the failure with its type; the message
+                # is `client_safe_error` or an `AgentError`'s own sentence,
+                # and it can name a client-chosen model, so it stays out.
+                logger.warning("turn sent an error block")
             yield block
     except (GeneratorExit, asyncio.CancelledError):
         logger.warning("Client disconnected; the background turn continues")

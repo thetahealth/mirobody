@@ -5,9 +5,9 @@ that announces this turn's attachments.
 tool descriptions, the time in the user's zone and the user context.
 Rendering is strict: a variable the template names and the harness does not
 supply raises, and `MirobodyAgent._build_system_prompt` turns that into the
-`AgentError` the client sees. The alternative: falling back to the raw
-template: handed the model `{{ tools_description }}` as literal text and
-called it a warning.
+`AgentError` the client sees, naming the exception's type. The alternative,
+falling back to the raw template, handed the model `{{ tools_description }}`
+as literal text and called it a warning.
 
 `attachment_reminder` names the files a turn attached and where the virtual
 filesystem serves them, so the model reads them without an `ls /uploads/`
