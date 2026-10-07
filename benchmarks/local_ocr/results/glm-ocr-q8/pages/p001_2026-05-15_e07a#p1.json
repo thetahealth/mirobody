@@ -1,0 +1,67 @@
+{
+ "id": "p001_2026-05-15_e07a#p1",
+ "tier": "T4",
+ "image_sha256": "47bb28de9dccd7948ea09a7b083f1ec2ed94359b8945ca63c4b1059f0633c011",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n桐渚社区卫生服务中心\n\n炎症指标\n\n姓名：黎宇海 性别：男 年龄：40岁\nID号：1553296126 标本号：861283792 科室：心内科\n标本类型：静脉血\n\n打印时间：2026-05-16 09:31 报告时间：2026-05-15 13:31 接收时间：2026-05-15 09:18\n\n检验项目名称 检测结果 正常值\nC反应蛋白 0.85mg/L <8.00\n超敏C反应蛋白 0.74mg/L <3.00\n红细胞沉降率 8mm/h 男:0-15 女:0-20\n\n审核者：郝岚安\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 8.72,
+   "usage": {
+    "completion_tokens": 230,
+    "prompt_tokens": 2156,
+    "total_tokens": 2386,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7100.047,
+    "prompt_per_token_ms": 3.300812180381218,
+    "prompt_per_second": 302.9557409972075,
+    "predicted_n": 230,
+    "predicted_ms": 1559.274,
+    "predicted_per_token_ms": 6.809056768558952,
+    "predicted_per_second": 146.86321967787575
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检验项目名称</th><th>检测结果</th><th>正常值</th></tr></thead><tbody><tr><td>C反应蛋白</td><td>0.85mg/L</td><td>&lt;8.00</td></tr><tr><td>超敏C反应蛋白</td><td>0.74mg/L</td><td>&lt;3.00</td></tr><tr><td>红细胞沉降率</td><td>8mm/h</td><td>男:0-15 女:0-20</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 1.1,
+   "usage": {
+    "completion_tokens": 154,
+    "prompt_tokens": 2156,
+    "total_tokens": 2310,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 10.58,
+    "prompt_per_token_ms": 2.116,
+    "prompt_per_second": 472.5897920604915,
+    "predicted_n": 154,
+    "predicted_ms": 1029.46,
+    "predicted_per_token_ms": 6.728496732026144,
+    "predicted_per_second": 148.62160744467974
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2417.9,
+  "phys_footprint_mib": 1796.3,
+  "phys_footprint_peak_mib": 1797.0
+ }
+}

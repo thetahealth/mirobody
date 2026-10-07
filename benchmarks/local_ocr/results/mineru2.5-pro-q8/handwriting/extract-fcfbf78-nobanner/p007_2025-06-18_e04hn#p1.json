@@ -1,0 +1,70 @@
+{
+ "id": "p007_2025-06-18_e04hn#p1",
+ "llm": true,
+ "seconds": 8.72,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体温",
+   "value": "365°",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "High temperature",
+   "date_time": "2025.618"
+  },
+  {
+   "original_indicator": "心率",
+   "value": "82",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025.618"
+  },
+  {
+   "original_indicator": "呼吸频率",
+   "value": "13",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025.618"
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "126",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025.618"
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "74",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025.618"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "78.6",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025.618"
+  }
+ ],
+ "date_time": "2025.618",
+ "content_type": "medical_report"
+}

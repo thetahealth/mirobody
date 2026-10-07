@@ -1,0 +1,574 @@
+{
+ "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric",
+ "date": "2026-10-06",
+ "grades": [
+  {
+   "id": "p002-weight-latest",
+   "correct": [
+    0,
+    "gives the LOINC code 29463-7 as the weight"
+   ],
+   "grounded": [
+    0,
+    "\"29463-7 (mmol/L)\" is a code with an invented unit, not a reading"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "does not answer"
+   ]
+  },
+  {
+   "id": "p002-rhr-monthly",
+   "correct": [
+    0,
+    "no means"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "asks the person which indicators they have instead of looking"
+   ]
+  },
+  {
+   "id": "p002-sleep-july",
+   "correct": [
+    0,
+    "gives one night (425 min, the latest) as the July average"
+   ],
+   "grounded": [
+    1,
+    "425 is a tool value, but not the average it is called"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    1,
+    "answers with a wrong figure"
+   ]
+  },
+  {
+   "id": "p002-checkup-summary",
+   "correct": [
+    0,
+    "lists LOINC codes as body weight, heart rate, steps and sleep"
+   ],
+   "grounded": [
+    0,
+    "\"29,463-7 mg\", \"40,443-4 bpm\" are codes turned into values"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "does not open the report"
+   ]
+  },
+  {
+   "id": "p002-steps-chart",
+   "correct": [
+    0,
+    "no daily counts; per-indicator row counts called steps per day"
+   ],
+   "grounded": [
+    0,
+    "\"27 steps/day\" etc. are row counts"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "nothing usable"
+   ],
+   "chart": [
+    0,
+    "the chart block does not parse, and its points are row counts"
+   ]
+  },
+  {
+   "id": "p002-headache-journal",
+   "correct": [
+    0,
+    "no count, no date"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "asks the person what to search for"
+   ]
+  },
+  {
+   "id": "p002-vitd-none",
+   "correct": [
+    2,
+    "says no vitamin D result"
+   ],
+   "grounded": [
+    2,
+    "no value given"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    2,
+    "plain"
+   ]
+  },
+  {
+   "id": "p003-bp-latest",
+   "correct": [
+    0,
+    "lists 2026-01-07 systolic readings as the latest; misses 124/73 on 2026-08-22"
+   ],
+   "grounded": [
+    1,
+    "values are cuff readings, but the \"latest\" date is wrong"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    1,
+    "Chinese prose, English table"
+   ],
+   "useful": [
+    0,
+    "does not answer the question asked"
+   ]
+  },
+  {
+   "id": "p003-weight-change",
+   "correct": [
+    0,
+    "no January or August mean; an overall average of 81.2 kg and \"no change\""
+   ],
+   "grounded": [
+    0,
+    "81.2 kg is in no tool result and follows from none"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    0,
+    "a table of raw readings and a wrong conclusion"
+   ]
+  },
+  {
+   "id": "p003-hba1c-series",
+   "correct": [
+    1,
+    "6.6, 6.1, 6.1 on the right dates, but the trend is reversed (\"rising from 6.1 to 6.6\")"
+   ],
+   "grounded": [
+    1,
+    "unit given as mmol/L; the tool gives none and HbA1c is a percentage"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    1,
+    "adds causes (diet, weight) the record does not support"
+   ]
+  },
+  {
+   "id": "p003-fpg-range",
+   "correct": [
+    0,
+    "invents 5.4 mmol/L on 2025-10-06"
+   ],
+   "grounded": [
+    0,
+    "no tool was called; value, date and range are invented"
+   ],
+   "range": [
+    0,
+    "judges against a remembered 3.9-6.1"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    0,
+    "confidently wrong"
+   ]
+  },
+  {
+   "id": "p003-clinic-note",
+   "correct": [
+    0,
+    "no diagnosis, no plan"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    0,
+    "answers a Chinese question in English"
+   ],
+   "useful": [
+    0,
+    "asks for the person's name instead of opening the record"
+   ]
+  },
+  {
+   "id": "p003-genotype",
+   "correct": [
+    2,
+    "TT"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    2,
+    "direct (calls gt 3/3 \"zygosity\", a small mislabel)"
+   ]
+  },
+  {
+   "id": "p003-bp-chart",
+   "correct": [
+    0,
+    "no chart, no values"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    0,
+    "asks which blood-pressure indicator to show"
+   ],
+   "chart": [
+    0,
+    "no chart"
+   ]
+  },
+  {
+   "id": "p003-numbness-journal",
+   "correct": [
+    0,
+    "no count, no date"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    0,
+    "answers a Chinese question in English"
+   ],
+   "useful": [
+    0,
+    "asks which view to use"
+   ]
+  },
+  {
+   "id": "p003-vitd-none",
+   "correct": [
+    0,
+    "no answer (empty turn)"
+   ],
+   "grounded": [
+    0,
+    "empty"
+   ],
+   "range": [
+    0,
+    "empty"
+   ],
+   "language": [
+    0,
+    "empty"
+   ],
+   "useful": [
+    0,
+    "empty"
+   ]
+  },
+  {
+   "id": "p004-statin-pgx",
+   "correct": [
+    0,
+    "no SLCO1B1 result"
+   ],
+   "grounded": [
+    2,
+    "states no genotype"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    0,
+    "answers a Chinese question in English"
+   ],
+   "useful": [
+    0,
+    "asks the person for rsIDs"
+   ]
+  },
+  {
+   "id": "p004-weight-latest",
+   "correct": [
+    0,
+    "no weight"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "asks for a date range"
+   ]
+  },
+  {
+   "id": "p004-bp-september-none",
+   "correct": [
+    0,
+    "does not say there is none"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "asks for the time of day"
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-range",
+   "correct": [
+    0,
+    "no values"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "Chinese"
+   ],
+   "useful": [
+    0,
+    "asks the person for the dates"
+   ]
+  },
+  {
+   "id": "p005-ferritin-change",
+   "correct": [
+    0,
+    "\"37.1 to 37.1, stable\"; the March 42.3 is missing (the query did not return it) and the change is wrong"
+   ],
+   "grounded": [
+    2,
+    "37.1 is the tool's"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    1,
+    "calls it stable on one reading"
+   ]
+  },
+  {
+   "id": "p005-lipids-range",
+   "correct": [
+    0,
+    "no lipid values"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "asks what shape of report the person wants"
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-chart",
+   "correct": [
+    1,
+    "two of the three results (153, 134), with their printed ranges"
+   ],
+   "grounded": [
+    2,
+    "from the tool"
+   ],
+   "range": [
+    2,
+    "quotes the printed ranges only"
+   ],
+   "language": [
+    0,
+    "answers a Chinese question in English"
+   ],
+   "useful": [
+    0,
+    "asks for more data instead of drawing"
+   ],
+   "chart": [
+    0,
+    "no chart"
+   ]
+  },
+  {
+   "id": "p005-weight-chart",
+   "correct": [
+    0,
+    "no values"
+   ],
+   "grounded": [
+    2,
+    "states no number"
+   ],
+   "range": [
+    2,
+    "no judgement"
+   ],
+   "language": [
+    2,
+    "English"
+   ],
+   "useful": [
+    0,
+    "one sentence of preamble, then nothing"
+   ],
+   "chart": [
+    0,
+    "no chart"
+   ]
+  }
+ ]
+}

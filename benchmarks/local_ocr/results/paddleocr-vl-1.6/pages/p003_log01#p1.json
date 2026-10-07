@@ -1,0 +1,67 @@
+{
+ "id": "p003_log01#p1",
+ "tier": "T2",
+ "image_sha256": "426e280efd2a09ca8fd7d29b63bd6a7494b6c9f5ff910d5859480c058dfe818f",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n霖蘅健康体检中心\n血压日记\n\n日期        时间        收缩压        舒张压        脉搏        备注\n2024/09/05    07:12        112        70        55        运动后\n2024/09/19    07:23        115        63        55\n2024/09/19    21:26        115        67        52        服药后\n2024/11/01    07:14        113        78        57\n2024/11/01    21:39        104        64        57\n2024/11/05    07:28        128        73        60        睡前\n2024/11/19    07:06        119        64        56        运动后\n2024/11/28    07:37        104        64        55\n2024/11/28    21:28        118        67        57\n2024/12/13    07:38        119        66        57\n2024/12/27    07:10        118        64        54        睡前\n2025/01/07    07:05        116        67        57\n2025/01/07    21:30        106        72        60\n2025/01/14    07:16        127        71        56\n2025/01/14    21:38        123        62        55",
+   "finish_reason": "stop",
+   "seconds": 9.05,
+   "usage": {
+    "completion_tokens": 467,
+    "prompt_tokens": 1273,
+    "total_tokens": 1740,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5704.763,
+    "prompt_per_token_ms": 4.499024447949527,
+    "prompt_per_second": 222.27040807830227,
+    "predicted_n": 467,
+    "predicted_ms": 3303.04,
+    "predicted_per_token_ms": 7.088068669527897,
+    "predicted_per_second": 141.08215462119745
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>日期<fcel>时间<fcel>收缩压<fcel>舒张压<fcel>脉搏<fcel>备注<nl><fcel>2024/09/05<fcel>07:12<fcel>112<fcel>70<fcel>55<fcel>运动后<nl><fcel>2024/09/19<fcel>07:23<fcel>115<fcel>63<fcel>55<ecel><nl><fcel>2024/09/19<fcel>21:26<fcel>115<fcel>67<fcel>52<fcel>服药后<nl><fcel>2024/11/01<fcel>07:14<fcel>113<fcel>78<fcel>57<ecel><nl><fcel>2024/11/01<fcel>21:39<fcel>104<fcel>64<fcel>57<ecel><nl><fcel>2024/11/05<fcel>07:28<fcel>128<fcel>73<fcel>60<fcel>睡前<nl><fcel>2024/11/19<fcel>07:06<fcel>119<fcel>64<fcel>56<fcel>运动后<nl><fcel>2024/11/28<fcel>07:37<fcel>104<fcel>64<fcel>55<ecel><nl><fcel>2024/11/28<fcel>21:28<fcel>118<fcel>67<fcel>57<ecel><nl><fcel>2024/12/13<fcel>07:38<fcel>119<fcel>66<fcel>57<ecel><nl><fcel>2024/12/27<fcel>07:10<fcel>118<fcel>64<fcel>54<fcel>睡前<nl><fcel>2025/01/07<fcel>07:05<fcel>116<fcel>67<fcel>57<ecel><nl><fcel>2025/01/07<fcel>21:30<fcel>106<fcel>72<fcel>60<ecel><nl><fcel>2025/01/14<fcel>07:16<fcel>127<fcel>71<fcel>56<fcel>晨起<nl><fcel>2025/01/14<fcel>21:38<fcel>123<fcel>62<fcel>55<ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 2.95,
+   "usage": {
+    "completion_tokens": 463,
+    "prompt_tokens": 1273,
+    "total_tokens": 1736,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 16.992,
+    "prompt_per_token_ms": 2.4274285714285715,
+    "prompt_per_second": 411.95856873822976,
+    "predicted_n": 463,
+    "predicted_ms": 2864.839,
+    "predicted_per_token_ms": 6.200950216450217,
+    "predicted_per_second": 161.26560689797927
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2208.4,
+  "phys_footprint_mib": 1327.0,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

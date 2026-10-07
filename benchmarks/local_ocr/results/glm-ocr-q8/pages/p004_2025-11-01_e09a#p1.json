@@ -1,0 +1,67 @@
+{
+ "id": "p004_2025-11-01_e09a#p1",
+ "tier": "T3",
+ "image_sha256": "c9b53dd4bcfd3065d64e94a8e3aac8c282d505520f13b9548ae88ac39f9d8370",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n湄溪市第六人民医院\n临床检验报告\n\n姓名：贺瑶欣\n报告时间：20251102\n\n编号 检查名称 化验结果 参考值范围\n姓名 贺瑶欣\n性别 男\n年龄 68岁\n1 总胆固醇(TC) 5.18 <5.18&mmol/L\n2 甘油三酯(TG) 1.12 <1.70&mmol/L\n3 高密度脂蛋白胆固醇(HDL-C) 1.08 >1.04&mmol/L\n4 低密度脂蛋白胆固醇(LDL-C) 3.59 <3.37&mmol/L\n5 载脂蛋白A1(ApoA1) 1.23 (1.20-1.60)&g/L\n6 载脂蛋白B(ApoB) 0.82 (0.60-1.10)&g/L\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 9.19,
+   "usage": {
+    "completion_tokens": 221,
+    "prompt_tokens": 2156,
+    "total_tokens": 2377,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 2156,
+    "prompt_ms": 7653.463,
+    "prompt_per_token_ms": 3.549843692022263,
+    "prompt_per_second": 281.70254432535967,
+    "predicted_n": 221,
+    "predicted_ms": 1471.382,
+    "predicted_per_token_ms": 6.6881,
+    "predicted_per_second": 149.51929546507978
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>编号</th><th>检查名称</th><th>化验结果</th><th>参考值范围</th></tr></thead><tbody><tr><td></td><td>姓名</td><td>贺瑶欣</td><td></td></tr><tr><td></td><td>性别</td><td>男</td><td></td></tr><tr><td></td><td>年龄</td><td>68岁</td><td></td></tr><tr><td>1</td><td>总胆固醇(TC)</td><td>5.18</td><td>&lt;5.18&mmol/L</td></tr><tr><td>2</td><td>甘油三酯(TG)</td><td>1.12</td><td>&lt;1.70&mmol/L</td></tr><tr><td>3</td><td>高密度脂蛋白胆固醇(HDL-C)</td><td>1.08</td><td>&gt;1.04&mmol/L</td></tr><tr><td>4</td><td>低密度脂蛋白胆固醇(LDL-C)</td><td>3.59</td><td>&lt;3.37&mmol/L</td></tr><tr><td>5</td><td>载脂蛋白A1(ApoA1)</td><td>1.23</td><td>(1.20-1.60)&g/L</td></tr><tr><td>6</td><td>载脂蛋白B(ApoB)</td><td>0.82</td><td>(0.60-1.10)&g/L</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.86,
+   "usage": {
+    "completion_tokens": 409,
+    "prompt_tokens": 2156,
+    "total_tokens": 2565,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 10.715,
+    "prompt_per_token_ms": 2.143,
+    "prompt_per_second": 466.63555762949136,
+    "predicted_n": 409,
+    "predicted_ms": 2784.04,
+    "predicted_per_token_ms": 6.823627450980392,
+    "predicted_per_second": 146.54961853996352
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2330.2,
+  "phys_footprint_mib": 1791.4,
+  "phys_footprint_peak_mib": 1791.4
+ }
+}

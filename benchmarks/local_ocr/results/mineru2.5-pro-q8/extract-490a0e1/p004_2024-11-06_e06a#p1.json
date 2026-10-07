@@ -1,0 +1,63 @@
+{
+ "id": "p004_2024-11-06_e06a#p1",
+ "llm": true,
+ "seconds": 3.02,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "总胆固醇",
+   "value": "5.73",
+   "unit": "mmol/L",
+   "reference_range": "<5.18",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": ""
+  },
+  {
+   "original_indicator": "甘油三酯",
+   "value": "0.95",
+   "unit": "mmol/L",
+   "reference_range": "<1.70",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "高密度脂蛋白胆固醇",
+   "value": "1.22",
+   "unit": "mmol/L",
+   "reference_range": ">1.04",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "低密度脂蛋白胆固醇",
+   "value": "4.08",
+   "unit": "mmol/L",
+   "reference_range": "<3.37",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": ""
+  },
+  {
+   "original_indicator": "载脂蛋白A1",
+   "value": "1.18",
+   "unit": "g/L",
+   "reference_range": "1.20-1.60",
+   "detection_method": "laboratory",
+   "status": "low",
+   "notes": ""
+  },
+  {
+   "original_indicator": "载脂蛋白B",
+   "value": "0.82",
+   "unit": "g/L",
+   "reference_range": "0.60-1.10",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": ""
+}

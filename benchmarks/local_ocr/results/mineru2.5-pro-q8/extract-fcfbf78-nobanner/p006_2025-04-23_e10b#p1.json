@@ -1,0 +1,37 @@
+{
+ "id": "p006_2025-04-23_e10b#p1",
+ "llm": false,
+ "seconds": 0.01,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "C反应蛋白",
+   "value": "1.63",
+   "unit": "mg/L",
+   "reference_range": "<8.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "超敏C反应蛋白",
+   "value": "0.29",
+   "unit": "mg/L",
+   "reference_range": "<3.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "红细胞沉降率",
+   "value": "7",
+   "unit": "mm/h",
+   "reference_range": "0-15",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "",
+ "content_type": null
+}

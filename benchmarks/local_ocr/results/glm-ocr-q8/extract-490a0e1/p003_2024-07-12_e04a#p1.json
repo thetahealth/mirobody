@@ -1,0 +1,83 @@
+{
+ "id": "p003_2024-07-12_e04a#p1",
+ "llm": true,
+ "seconds": 5.1,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "超敏促甲状腺激素",
+   "value": "2.197",
+   "unit": "mIU/L",
+   "reference_range": "0.270--4.200",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": ""
+  },
+  {
+   "original_indicator": "游离T3",
+   "value": "3.74",
+   "unit": "pmol/L",
+   "reference_range": "3.10--6.80",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": ""
+  },
+  {
+   "original_indicator": "游离T4",
+   "value": "18.03",
+   "unit": "pmol/L",
+   "reference_range": "12.00--22.00",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总T3",
+   "value": "2.28",
+   "unit": "nmol/L",
+   "reference_range": "1.30--3.10",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总T4",
+   "value": "113.6",
+   "unit": "nmol/L",
+   "reference_range": "66.0--181.0",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": ""
+  },
+  {
+   "original_indicator": "抗TPO抗体",
+   "value": "9.1",
+   "unit": "IU/mL",
+   "reference_range": "<34.0",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": ""
+  },
+  {
+   "original_indicator": "抗TPO抗体 TPOAb",
+   "value": "9.1",
+   "reference_range": "<34.0",
+   "unit": "IU/mL",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "异常",
+   "date_time": "2024-07"
+  },
+  {
+   "original_indicator": "接收时间",
+   "value": "2024年07月",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-07"
+  }
+ ],
+ "date_time": "2024-07"
+}

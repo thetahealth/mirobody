@@ -1,0 +1,67 @@
+{
+ "id": "p008_2025-11-23_e09hn#p1",
+ "tier": "H3",
+ "image_sha256": "781fb538bf9184e1749ab9856963d62ee13ee806427ee3a58b618e7ae61a1770",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：内科\n日期：2025年11月23日\n\n工蜜糖原病饮食\n患者血糖偏高，食欲睡眠可\nT 35.9 P 68 H 15 V1/分 BP: 113/71 SPO2 99%\n体重 59.5kg\n放起蜜病，姜肺呼吸青洁\n取象：工蜜糖原病\n建渠：多饮水，注意休息，宅卧休息，禁泌白\n糖",
+   "finish_reason": "stop",
+   "seconds": 7.74,
+   "usage": {
+    "completion_tokens": 144,
+    "prompt_tokens": 2101,
+    "total_tokens": 2245,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2096,
+    "prompt_ms": 6761.515,
+    "prompt_per_token_ms": 3.225913645038168,
+    "prompt_per_second": 309.9896990541321,
+    "predicted_n": 144,
+    "predicted_ms": 917.393,
+    "predicted_per_token_ms": 6.4153356643356645,
+    "predicted_per_second": 155.87648913824282
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td colspan=\"2\">门诊病历</td></tr><tr><td>科别：内科</td><td>日期：2025年11月23日</td></tr><tr><td colspan=\"2\">工蜜糖原病饮食</td></tr><tr><td colspan=\"2\">共效白糖偏高，适合睡眠可</td></tr><tr><td colspan=\"2\">T35.9 P68卫15V1分 BP:113/71 SPO2 99℃</td></tr><tr><td colspan=\"2\">体重59.5kg</td></tr><tr><td colspan=\"2\">放轻些蜜病，姜肺呼吸清</td></tr><tr><td colspan=\"2\">取象：工蜜糖原病</td></tr><tr><td colspan=\"2\">建渠：多饮水，注意休息，宅卧休息，禁泌白糖</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 1.49,
+   "usage": {
+    "completion_tokens": 221,
+    "prompt_tokens": 2101,
+    "total_tokens": 2322,
+    "prompt_tokens_details": {
+     "cached_tokens": 2096
+    }
+   },
+   "timings": {
+    "cache_n": 2096,
+    "prompt_n": 5,
+    "prompt_ms": 16.552,
+    "prompt_per_token_ms": 3.3104,
+    "prompt_per_second": 302.0782986950218,
+    "predicted_n": 221,
+    "predicted_ms": 1411.817,
+    "predicted_per_token_ms": 6.41735,
+    "predicted_per_second": 155.82756122075313
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2494.6,
+  "phys_footprint_mib": 1836.8,
+  "phys_footprint_peak_mib": 1838.4
+ }
+}

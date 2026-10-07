@@ -1,0 +1,37 @@
+{
+ "id": "p003_2024-04-18_e03a#p1",
+ "llm": true,
+ "seconds": 23.21,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "甲胎蛋白",
+   "value": "2.45",
+   "unit": "ng/mL",
+   "reference_range": "<7.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "癌胚抗原",
+   "value": "1.88",
+   "unit": "ng/mL",
+   "reference_range": "<5.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "前列腺特异性抗原",
+   "value": "0.78",
+   "unit": "ng/mL",
+   "reference_range": "<4.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "",
+ "content_type": "medical_report"
+}

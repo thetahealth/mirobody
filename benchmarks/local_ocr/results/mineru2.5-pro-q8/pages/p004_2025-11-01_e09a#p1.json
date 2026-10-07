@@ -1,0 +1,67 @@
+{
+ "id": "p004_2025-11-01_e09a#p1",
+ "tier": "T3",
+ "image_sha256": "c9b53dd4bcfd3065d64e94a8e3aac8c282d505520f13b9548ae88ac39f9d8370",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "编号\t检查名称\t化验结果\t参考值范围\n\t\t\t姓名\t贺瑶欣\n\t\t\t性别\t男\n\t\t\t年龄\t68岁\n1\t总胆固醇(TC)\t5.18\t<5.18&mmol/L\n2\t甘油三酯(TG)\t1.12\t<1.70&mmol/L\n3\t高密度脂蛋白胆固醇(HDL-C)\t1.08\t>1.04&mmol/L\n4\t低密度脂蛋白胆固醇(LDL-C)\t3.59\t<3.37&mmol/L\n5\t载脂蛋白A1(ApoA1)\t1.23\t(1.20-1.60)&g/L\n6\t载脂蛋白B(ApoB)\t0.82\t(0.60-1.10)&g/L<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.47,
+   "usage": {
+    "completion_tokens": 199,
+    "prompt_tokens": 2170,
+    "total_tokens": 2369,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11696.616,
+    "prompt_per_token_ms": 5.42766403712297,
+    "prompt_per_second": 184.24132244744976,
+    "predicted_n": 199,
+    "predicted_ms": 1720.077,
+    "predicted_per_token_ms": 8.687257575757576,
+    "predicted_per_second": 115.11112583913393
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>编号<fcel>检查名称<fcel>化验结果<fcel>参考值范围<nl>\n<ecel><fcel>姓名<fcel>贺瑶欣<ecel><nl>\n<ecel><fcel>性别<fcel>男<ecel><nl>\n<ecel><fcel>年龄<fcel>68岁<ecel><nl>\n<fcel>1<fcel>总胆固醇(TC)<fcel>5.18<fcel><5.18&mmol/L<nl>\n<fcel>2<fcel>甘油三酯(TG)<fcel>1.12<fcel><1.70&mmol/L<nl>\n<fcel>3<fcel>高密度脂蛋白胆固醇(HDL-C)<fcel>1.08<fcel>>1.04&mmol/L<nl>\n<fcel>4<fcel>低密度脂蛋白胆固醇(LDL-C)<fcel>3.59<fcel><3.37&mmol/L<nl>\n<fcel>5<fcel>载脂蛋白A1(ApoA1)<fcel>1.23<fcel>(1.20-1.60)&g/L<nl>\n<fcel>6<fcel>载脂蛋白B(ApoB)<fcel>0.82<fcel>(0.60-1.10)&g/L<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.97,
+   "usage": {
+    "completion_tokens": 220,
+    "prompt_tokens": 2170,
+    "total_tokens": 2390,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 20.982,
+    "prompt_per_token_ms": 2.62275,
+    "prompt_per_second": 381.27919168811366,
+    "predicted_n": 220,
+    "predicted_ms": 1880.373,
+    "predicted_per_token_ms": 8.58617808219178,
+    "predicted_per_second": 116.46625430167313
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1685.0,
+  "phys_footprint_mib": 1195.4,
+  "phys_footprint_peak_mib": 1196.8
+ }
+}

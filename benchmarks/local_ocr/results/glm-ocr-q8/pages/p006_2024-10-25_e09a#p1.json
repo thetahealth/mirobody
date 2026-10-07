@@ -1,0 +1,42 @@
+{
+ "id": "p006_2024-10-25_e09a#p1",
+ "tier": "T0",
+ "image_sha256": "ff296e89b04cc767b460da37a7c39c14123667f350df0c08b65d0a53bc11d3c0",
+ "image_size": [
+  1186,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>Items</th><th>In Range</th><th>Out of Range</th><th>REFERENCE INTERVAL</th></tr></thead><tbody><tr><td>TSH</td><td>2.242</td><td></td><td>0.270-4.200&mIU/L</td></tr><tr><td>FT3</td><td>4.30</td><td></td><td>3.10-6.80&pmol/L</td></tr><tr><td>FT4</td><td>16.03</td><td></td><td>12.00-22.00&pmol/L</td></tr><tr><td>TT3</td><td>2.81</td><td></td><td>1.30-3.10&nmol/L</td></tr><tr><td>TT4</td><td>116.0</td><td></td><td>66.0-181.0&nmol/L</td></tr><tr><td>TPOAb</td><td></td><td>35.1</td><td>&lt;34.0&IU/mL</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 10.9,
+   "usage": {
+    "completion_tokens": 309,
+    "prompt_tokens": 2321,
+    "total_tokens": 2630,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2316,
+    "prompt_ms": 8429.637,
+    "prompt_per_token_ms": 3.6397396373057,
+    "prompt_per_second": 274.7449267388382,
+    "predicted_n": 309,
+    "predicted_ms": 2408.767,
+    "predicted_per_token_ms": 7.820672077922078,
+    "predicted_per_second": 127.86624858278117
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2397.3,
+  "phys_footprint_mib": 1779.4,
+  "phys_footprint_peak_mib": 1888.2
+ }
+}

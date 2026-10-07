@@ -1,0 +1,67 @@
+{
+ "id": "p008_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "04c51cab2964a5243088ad53548cef9e538f3bef7c61051691e17dddad55219f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n家庭血压记录\n\n2025年1月\n\n日期 时间 血压(mmHg) 心率(次/分)备注\n\n1.5 早 109/81 77\n\n1.9 早 120/79 74\n\n1.18 早 107/75 79\n\n1.24 早 118/76 74\n\n2.7 早 110/77 72\n\n2.27 早 107/82 74\n\n3.1 早 107/90 72\n\n3.25 早 130/88 80\n\n11 晚 106/79 76\n\n4.25 早 113/71 73<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.47,
+   "usage": {
+    "completion_tokens": 213,
+    "prompt_tokens": 2170,
+    "total_tokens": 2383,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11677.737,
+    "prompt_per_token_ms": 5.418903480278422,
+    "prompt_per_second": 184.53917912348942,
+    "predicted_n": 213,
+    "predicted_ms": 1740.056,
+    "predicted_per_token_ms": 8.207811320754717,
+    "predicted_per_second": 121.83515932820553
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><nl>\n<ecel><fcel>家庭血压记录<lcel><lcel><nl>\n<ecel><fcel>2025年1月<lcel><lcel><nl>\n<ecel><fcel>日期<fcel>时间<fcel>血压(mmHg) 心率(次/分)备注<nl>\n<ecel><fcel>1.5<fcel>早<fcel>109/81 77<nl>\n<ecel><fcel>1.9<fcel>早<fcel>120/79 74<nl>\n<ecel><fcel>1.18<fcel>早<fcel>107/75 79<nl>\n<ecel><fcel>1.24<fcel>早<fcel>118/76 74<nl>\n<ecel><fcel>2.7<fcel>早<fcel>110/77 72<nl>\n<ecel><fcel>2.27<fcel>早<fcel>107/82 74<nl>\n<ecel><fcel>3.1<fcel>早<fcel>107/90 72<nl>\n<ecel><fcel>3.25<fcel>早<fcel>130/88 80<nl>\n<ecel><fcel>11<fcel>晚<fcel>106/79 76<nl>\n<ecel><fcel>4.25<fcel>早<fcel>113/71 73<nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.57,
+   "usage": {
+    "completion_tokens": 303,
+    "prompt_tokens": 2170,
+    "total_tokens": 2473,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 13.031,
+    "prompt_per_token_ms": 1.628875,
+    "prompt_per_second": 613.9206507558898,
+    "predicted_n": 303,
+    "predicted_ms": 2506.665,
+    "predicted_per_token_ms": 8.30021523178808,
+    "predicted_per_second": 120.47880350984276
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1751.6,
+  "phys_footprint_mib": 1263.2,
+  "phys_footprint_peak_mib": 1264.3
+ }
+}

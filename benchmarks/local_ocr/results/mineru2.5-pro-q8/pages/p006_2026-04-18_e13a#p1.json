@@ -1,0 +1,67 @@
+{
+ "id": "p006_2026-04-18_e13a#p1",
+ "tier": "T6",
+ "image_sha256": "607a35d34d65f308286dcdc6807bb66adbe0f0bb1c6eb3013c0c96812c97f227",
+ "image_size": [
+  773,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "Item\tMeasured Value\tREF.RANGE\nThyroid stimulating hormone\t1.244\t0.270-4.200&mIU/L\nFree triiodothyronine\t4.48\t3.10-6.80&pmol/L\nFree thyroxine\t15.89\t12.00-22.00&pmol/L\nTotal triiodothyronine\t3.10\t1.30-3.10&nmol/L\nTotal thyroxine\t113.1\t66.0-181.0&nmol/L\nThyroid peroxidase antibody\t36.4↑\t(<34.0)&IU/mL<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 6.6,
+   "usage": {
+    "completion_tokens": 165,
+    "prompt_tokens": 1313,
+    "total_tokens": 1478,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 1298,
+    "prompt_ms": 5256.082,
+    "prompt_per_token_ms": 4.049369799691834,
+    "prompt_per_second": 246.95200721754338,
+    "predicted_n": 165,
+    "predicted_ms": 1313.736,
+    "predicted_per_token_ms": 8.01058536585366,
+    "predicted_per_second": 124.83482221694464
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>Item<fcel>Measured Value<fcel>REF.RANGE<nl>\n<fcel>Thyroid stimulating hormone<fcel>1.244<fcel>0.270-4.200&mIU/L<nl>\n<fcel>Free triiodothyronine<fcel>4.48<fcel>3.10-6.80&pmol/L<nl>\n<fcel>Free thyroxine<fcel>15.89<fcel>12.00-22.00&pmol/L<nl>\n<fcel>Total triiodothyronine<fcel>3.10<fcel>1.30-3.10&nmol/L<nl>\n<fcel>Total thyroxine<fcel>113.1<fcel>66.0-181.0&nmol/L<nl>\n<fcel>Thyroid peroxidase antibody<fcel>36.4↑<fcel>(<34.0)&IU/mL<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.52,
+   "usage": {
+    "completion_tokens": 180,
+    "prompt_tokens": 1313,
+    "total_tokens": 1493,
+    "prompt_tokens_details": {
+     "cached_tokens": 1305
+    }
+   },
+   "timings": {
+    "cache_n": 1305,
+    "prompt_n": 8,
+    "prompt_ms": 11.654,
+    "prompt_per_token_ms": 1.45675,
+    "prompt_per_second": 686.4595846919512,
+    "predicted_n": 180,
+    "predicted_ms": 1477.853,
+    "predicted_per_token_ms": 8.256162011173185,
+    "predicted_per_second": 121.12165418346751
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1645.1,
+  "phys_footprint_mib": 1197.0,
+  "phys_footprint_peak_mib": 1198.1
+ }
+}

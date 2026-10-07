@@ -1,0 +1,67 @@
+{
+ "id": "p018_hlog02#p1",
+ "tier": "H2",
+ "image_sha256": "1594f76b499a5f9a7d4a396e1db2dcbd7c643c4fc9e60f8f868339f9fdc78945",
+ "image_size": [
+  901,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nMorning weight\nJanuary 2026\nDate Weight (kg) Notes\nJan 15 42.9 big dinner\nJan 16 42.6\nJan 17 ¥4.4 42.4\nJan 18 42.5\nJan 19 42.9\nJan 20 42.2 big dinner\nJan 21 43.0\nJan 22 42.6 in pyjamas\nJan 23 42.7\nJan 24 42.7\nJan 26 42.8 in pyjamas\nJan 27 42.8\nJan 28 43.5 in pyjamas\nJan 29 43.0",
+   "finish_reason": "stop",
+   "seconds": 9.57,
+   "usage": {
+    "completion_tokens": 180,
+    "prompt_tokens": 1483,
+    "total_tokens": 1663,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1478,
+    "prompt_ms": 6812.345,
+    "prompt_per_token_ms": 4.609164411366712,
+    "prompt_per_second": 216.95906475670273,
+    "predicted_n": 180,
+    "predicted_ms": 2692.656,
+    "predicted_per_token_ms": 15.042770949720671,
+    "predicted_per_second": 66.47711404650278
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>Date</th><th>Weight (kg)</th><th>Notes</th></tr></thead><tbody><tr><td>Jan 15</td><td>42.9</td><td>big dinner</td></tr><tr><td>Jan 16</td><td>42.6</td><td></td></tr><tr><td>Jan 17</td><td>42.4</td><td></td></tr><tr><td>Jan 18</td><td>42.5</td><td></td></tr><tr><td>Jan 19</td><td>42.9</td><td></td></tr><tr><td>Jan 20</td><td>42.2</td><td>big dinner</td></tr><tr><td>Jan 21</td><td>43.0</td><td></td></tr><tr><td>Jan 22</td><td>42.6</td><td>in pyjamas</td></tr><tr><td>Jan 23</td><td>42.7</td><td></td></tr><tr><td>Jan 24</td><td>42.7</td><td></td></tr><tr><td>Jan 26</td><td>42.8</td><td>in pyjamas</td></tr><tr><td>Jan 27</td><td>42.8</td><td></td></tr><tr><td>Jan 28</td><td>43.5</td><td>in pyjamas</td></tr><tr><td>Jan 29</td><td>43.0</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 6.67,
+   "usage": {
+    "completion_tokens": 429,
+    "prompt_tokens": 1483,
+    "total_tokens": 1912,
+    "prompt_tokens_details": {
+     "cached_tokens": 1478
+    }
+   },
+   "timings": {
+    "cache_n": 1478,
+    "prompt_n": 5,
+    "prompt_ms": 21.716,
+    "prompt_per_token_ms": 4.3432,
+    "prompt_per_second": 230.24498065942163,
+    "predicted_n": 429,
+    "predicted_ms": 6589.034,
+    "predicted_per_token_ms": 15.394939252336448,
+    "predicted_per_second": 64.95641090939887
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2211.0,
+  "phys_footprint_mib": 1771.1,
+  "phys_footprint_peak_mib": 1880.0
+ }
+}

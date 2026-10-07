@@ -1,0 +1,67 @@
+{
+ "id": "p006_hlog01#p1",
+ "tier": "H1",
+ "image_sha256": "39c20ebff7666e594f4530134f1b220bd53d74eaf30918fb82a1e00a7a7b99db",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\nBlood glucose diary (mmol/L)\nApril 2024\nDate Fasting After breakfast After lunch After dinner Notes\n21/4 6.1 9.6 8.6\n22/4 6.3 6.5\n23/4 5.5 7.1 6.8 7.3\n24/4 5.4 7.9 6.9\n25/4 5.8 6.8\n26/4 5.7 8.3\n27/4 5.9 5.2\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.23,
+   "usage": {
+    "completion_tokens": 191,
+    "prompt_tokens": 2170,
+    "total_tokens": 2361,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11676.298,
+    "prompt_per_token_ms": 5.418235730858469,
+    "prompt_per_second": 184.56192193792927,
+    "predicted_n": 191,
+    "predicted_ms": 1501.328,
+    "predicted_per_token_ms": 7.901726315789474,
+    "predicted_per_second": 126.55462363987084
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>Blood glucose diary (mmol/L)<lcel><lcel><lcel><nl>\n<ecel><fcel>April 2024<lcel><lcel><lcel><nl>\n<ecel><fcel>Date Fasting After breakfast After lunch After dinner Notes<lcel><lcel><lcel><nl>\n<ecel><fcel>21/4 6.1<lcel><fcel>9.6 8.6<lcel><nl>\n<ecel><fcel>22/4 6.3<lcel><fcel>6.5<lcel><nl>\n<ecel><fcel>23/4 5.5<fcel>7.1<fcel>6.8<fcel>7.3<nl>\n<ecel><fcel>24/4 5.4<fcel>7.9<fcel>6.9<lcel><nl>\n<ecel><fcel>25/4 5.8<lcel><fcel>6.8<lcel><nl>\n<ecel><fcel>26/4 5.7<lcel><fcel>8.3<lcel><nl>\n<ecel><fcel>27/4 5.9<lcel><fcel>5.2<lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.69,
+   "usage": {
+    "completion_tokens": 313,
+    "prompt_tokens": 2170,
+    "total_tokens": 2483,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 13.939,
+    "prompt_per_token_ms": 1.742375,
+    "prompt_per_second": 573.9292632183084,
+    "predicted_n": 313,
+    "predicted_ms": 2623.961,
+    "predicted_per_token_ms": 8.41013141025641,
+    "predicted_per_second": 118.90420627440729
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1673.8,
+  "phys_footprint_mib": 1188.7,
+  "phys_footprint_peak_mib": 1188.7
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p006_2026-04-18_e13a#p1",
+ "tier": "T6",
+ "image_sha256": "607a35d34d65f308286dcdc6807bb66adbe0f0bb1c6eb3013c0c96812c97f227",
+ "image_size": [
+  773,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nKestwick Medical Centre\n\nThyroid Function Report\n\nName: Daniel Lau  Sex: Male  Age: 47 Y\nMRN: 7188749866  Lab No.: 812161604  Specimen: Serum\n\nCollected: 20260418  Printed: 20260504  Time: 20260419\n\nItem  Measured Value  REF.RANGE\nThyroid stimulating hormone 1.244 0.270-4.200&mIU/L\nFree triiodothyronine 4.48 3.10-6.80&pmol/L\nFree thyroxine 15.89 12.00-22.00&pmol/L\nTotal triiodothyronine 3.10 1.30-3.10&nmol/L\nTotal thyroxine 113.1 66.0-181.0&nmol/L\nThyroid peroxidase antibody 36.4↑ (<34.0)&IU/mL\n\nThis report relates only to the specimen received.",
+   "finish_reason": "stop",
+   "seconds": 5.28,
+   "usage": {
+    "completion_tokens": 289,
+    "prompt_tokens": 1299,
+    "total_tokens": 1588,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1294,
+    "prompt_ms": 3336.988,
+    "prompt_per_token_ms": 2.5788160741885626,
+    "prompt_per_second": 387.77484366140965,
+    "predicted_n": 289,
+    "predicted_ms": 1911.937,
+    "predicted_per_token_ms": 6.638670138888888,
+    "predicted_per_second": 150.63257837470587
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>Item</th><th>Measured Value</th><th>REF.RANGE</th></tr></thead><tbody><tr><td>Thyroid stimulating hormone</td><td>1.244</td><td>0.270-4.200&amp;mIU/L</td></tr><tr><td>Free triiodothyronine</td><td>4.48</td><td>3.10-6.80&amp;pmol/L</td></tr><tr><td>Free thyroxine</td><td>15.89</td><td>12.00-22.00&amp;pmol/L</td></tr><tr><td>Total triiodothyronine</td><td>3.10</td><td>1.30-3.10&amp;nmol/L</td></tr><tr><td>Total thyroxine</td><td>113.1</td><td>66.0-181.0&amp;nmol/L</td></tr><tr><td>Thyroid peroxidase antibody</td><td>36.4↑</td><td>(&lt;34.0)&amp;IU/mL</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.78,
+   "usage": {
+    "completion_tokens": 309,
+    "prompt_tokens": 1299,
+    "total_tokens": 1608,
+    "prompt_tokens_details": {
+     "cached_tokens": 1294
+    }
+   },
+   "timings": {
+    "cache_n": 1294,
+    "prompt_n": 5,
+    "prompt_ms": 9.534,
+    "prompt_per_token_ms": 1.9068,
+    "prompt_per_second": 524.4388504300398,
+    "predicted_n": 309,
+    "predicted_ms": 2729.901,
+    "predicted_per_token_ms": 8.863314935064935,
+    "predicted_per_second": 112.82460426220585
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2215.9,
+  "phys_footprint_mib": 1689.8,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

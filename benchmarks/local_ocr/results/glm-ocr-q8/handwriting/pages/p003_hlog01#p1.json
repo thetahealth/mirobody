@@ -1,0 +1,67 @@
+{
+ "id": "p003_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "341289eb46c5f9e3be7a3557c761deffea273d66ca8360ad541deedb0cc6138f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n家庭血压记录\n2024年6月\n日期 时间 收缩压 舒张压 脉搏 备注\n6/25 7:02 119 74 58 服药前\n6/29 7:02 121 81 66\n7/10 7:31 135 74 66\n7/13 7:38 119 71 68 运动后\n7/29 7:36 118 79 65 戴觉还好\n8/1 7:20 133 77 63\n11 21:33 114 76 66\n8/7 7:38 133 76 66\n8/13 7:11 118 71 65\n8/20 7:21 119 75 65\n9/8 7:16 115 71 67",
+   "finish_reason": "stop",
+   "seconds": 17.69,
+   "usage": {
+    "completion_tokens": 279,
+    "prompt_tokens": 2156,
+    "total_tokens": 2435,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 13454.066,
+    "prompt_per_token_ms": 6.254795908879591,
+    "prompt_per_second": 159.87731887148465,
+    "predicted_n": 279,
+    "predicted_ms": 4157.836,
+    "predicted_per_token_ms": 14.956244604316547,
+    "predicted_per_second": 66.86170402103401
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>日期</th><th>时间</th><th>收缩压</th><th>舒张压</th><th>脉搏</th><th>备注</th></tr></thead><tbody><tr><td>6/25</td><td>7:02</td><td>119</td><td>74</td><td>58</td><td>服药前</td></tr><tr><td>6/29</td><td>7:02</td><td>121</td><td>81</td><td>66</td><td></td></tr><tr><td>7/10</td><td>7:31</td><td>135</td><td>74</td><td>66</td><td></td></tr><tr><td>7/13</td><td>7:38</td><td>119</td><td>71</td><td>68</td><td>运动后</td></tr><tr><td>7/29</td><td>7:36</td><td>118</td><td>79</td><td>65</td><td>戴觉还好</td></tr><tr><td>8/1</td><td>7:20</td><td>133</td><td>77</td><td>63</td><td></td></tr><tr><td>11</td><td>21:33</td><td>114</td><td>76</td><td>66</td><td></td></tr><tr><td>8/7</td><td>7:38</td><td>133</td><td>76</td><td>66</td><td></td></tr><tr><td>8/13</td><td>7:11</td><td>118</td><td>71</td><td>65</td><td></td></tr><tr><td>8/20</td><td>7:21</td><td>119</td><td>75</td><td>65</td><td></td></tr><tr><td>9/8</td><td>7:16</td><td>115</td><td>71</td><td>67</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 8.76,
+   "usage": {
+    "completion_tokens": 599,
+    "prompt_tokens": 2156,
+    "total_tokens": 2755,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 28.449,
+    "prompt_per_token_ms": 5.6898,
+    "prompt_per_second": 175.75310204225104,
+    "predicted_n": 599,
+    "predicted_ms": 8628.311,
+    "predicted_per_token_ms": 14.428613712374581,
+    "predicted_per_second": 69.30672758550313
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2211.5,
+  "phys_footprint_mib": 1687.9,
+  "phys_footprint_peak_mib": 1880.0
+ }
+}

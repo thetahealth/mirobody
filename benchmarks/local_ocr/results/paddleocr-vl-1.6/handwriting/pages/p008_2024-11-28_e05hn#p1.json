@@ -1,0 +1,67 @@
+{
+ "id": "p008_2024-11-28_e05hn#p1",
+ "tier": "H2",
+ "image_sha256": "00538f31b446dfe24d8724aa54c48d0650c69ec90a5a40ac1dba0ceada2f62f0",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n门诊记录\n科别：全科\n日期：2024.11.28\n2型糖尿病复诊\n空腹血糖偏高，饮食睡眠可\nT 36.9°C P: 76 R 15次/分 BP: 107/83\nSpO2 96% wt 64.6 kg\n双肺呼吸音清\n印象：2型糖尿病\n处理：不适随诊，监测血糖",
+   "finish_reason": "stop",
+   "seconds": 6.68,
+   "usage": {
+    "completion_tokens": 120,
+    "prompt_tokens": 1231,
+    "total_tokens": 1351,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1226,
+    "prompt_ms": 5899.059,
+    "prompt_per_token_ms": 4.811630505709625,
+    "prompt_per_second": 207.82975725450447,
+    "predicted_n": 120,
+    "predicted_ms": 729.852,
+    "predicted_per_token_ms": 6.133210084033613,
+    "predicted_per_second": 163.04675468451137
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><nl><fcel>科别<fcel>门诊记录日期：2024.11.28<lcel><nl><fcel>2型糖尿病复诊<lcel><lcel><nl><fcel>空腹血糖偏高，饮食睡眠可<lcel><lcel><nl><fcel>T 36.9°C P：76 R 15次/分 BP：107/83<lcel><lcel><nl><fcel>SpO2 96% wt 64.6 kg<lcel><lcel><nl><fcel>双肺呼吸音清<lcel><lcel><nl><fcel>印象：2型糖尿病<lcel><lcel><nl><fcel>处理：不适随诊，监测血糖<lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl><ecel><lcel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.15,
+   "usage": {
+    "completion_tokens": 177,
+    "prompt_tokens": 1231,
+    "total_tokens": 1408,
+    "prompt_tokens_details": {
+     "cached_tokens": 1224
+    }
+   },
+   "timings": {
+    "cache_n": 1224,
+    "prompt_n": 7,
+    "prompt_ms": 16.324,
+    "prompt_per_token_ms": 2.3320000000000003,
+    "prompt_per_second": 428.81646655231555,
+    "predicted_n": 177,
+    "predicted_ms": 1079.791,
+    "predicted_per_token_ms": 6.135176136363636,
+    "predicted_per_second": 162.99450541817816
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2218.4,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p018_2025-12-14_e05hn#p1",
+ "tier": "H3",
+ "image_sha256": "c423d7c47bfb8d403299f6b14a2d0d699f3f62724e411893134cfdc29c78c59e",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nClinic notes\n\nDate: 14 Dec 2025\n\nReview\nHome BP readings higher. Feels well.\nTemp 36.4 P 85 CC 17 BP 115/71 Lata 96%\nMt+2.8kg\nAbdomen soft, non-tender.\nImp: HM\nPlan: check sugars at home, continue\ncurrent media",
+   "finish_reason": "stop",
+   "seconds": 7.71,
+   "usage": {
+    "completion_tokens": 92,
+    "prompt_tokens": 2156,
+    "total_tokens": 2248,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7051.101,
+    "prompt_per_token_ms": 3.278057182705718,
+    "prompt_per_second": 305.0587418900963,
+    "predicted_n": 92,
+    "predicted_ms": 596.093,
+    "predicted_per_token_ms": 6.550472527472527,
+    "predicted_per_second": 152.66074253514134
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td>Clinic notes</td></tr><tr><td>Date: 14 Dec 2025</td></tr><tr><td>Review</td></tr><tr><td>Home BP readings higher. Feels well.</td></tr><tr><td>Temp 36.4 P 85 CC 17 BP 115/71 Lata 96%</td></tr><tr><td>Mt+2.8kg</td></tr><tr><td>Abdomen soft, non-tender.</td></tr><tr><td>Imp: HM</td></tr><tr><td>Plan: check sugars at home, continue current media</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 1.17,
+   "usage": {
+    "completion_tokens": 168,
+    "prompt_tokens": 2156,
+    "total_tokens": 2324,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 17.753,
+    "prompt_per_token_ms": 3.5506,
+    "prompt_per_second": 281.6425392891342,
+    "predicted_n": 168,
+    "predicted_ms": 1086.135,
+    "predicted_per_token_ms": 6.503802395209581,
+    "predicted_per_second": 153.7562089427189
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2513.3,
+  "phys_footprint_mib": 1836.8,
+  "phys_footprint_peak_mib": 1838.4
+ }
+}

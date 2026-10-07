@@ -1,0 +1,92 @@
+{
+ "id": "p014_2026-08-21_e09hf#p1",
+ "llm": true,
+ "seconds": 5.14,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Height",
+   "value": "172.6",
+   "unit": "cm",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Body weight",
+   "value": "77.5",
+   "unit": "kg",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Body mass index",
+   "value": "26.0",
+   "unit": "kg/m²",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "67",
+   "unit": "/min",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Fasting plasma glucose",
+   "value": "5.42",
+   "unit": "mmol/L",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Glycated hemoglobin",
+   "value": "5.1",
+   "unit": "%",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Fasting insulin",
+   "value": "10.38",
+   "unit": "μIU/mL",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "C-peptide",
+   "value": "3.51",
+   "unit": "ng/mL",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Blood Pressure",
+   "value": "109/74",
+   "reference_range": "90-139/60-89",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-09-07 12:06"
+  }
+ ],
+ "date_time": "2026-09-07 12:06",
+ "content_type": "medical_report"
+}

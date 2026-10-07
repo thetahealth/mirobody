@@ -1,0 +1,80 @@
+{
+ "id": "p018_2025-12-14_e05hn#p1",
+ "llm": true,
+ "seconds": 9.69,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Jemp",
+   "value": "36.4",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "P",
+   "value": "85",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "RE",
+   "value": "17",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "115/71",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Satc",
+   "value": "96%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Mt",
+   "value": "+2.8kg",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  },
+  {
+   "original_indicator": "Aldomen",
+   "value": "soft, non-tender",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "Normal",
+   "date_time": "2025-12-14"
+  }
+ ],
+ "date_time": "2025-12-14",
+ "content_type": "medical_report"
+}

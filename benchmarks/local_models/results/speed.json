@@ -1,0 +1,102 @@
+{
+ "started": "2026-10-06T16:58:00+08:00",
+ "source": "measured before speed.py was added to this directory, by its scratch predecessor: the same request (speed.messages), the same parameters (3 repeats, max_tokens 400, temperature 0, seed 7), on the router started from docker/local-models.ini at f76bcbd (--cache-ram 1024 per answering model, 0 for GLM-OCR), each model alone on a fresh child; the Docker VM was running",
+ "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049)",
+ "router": "http://127.0.0.1:8080",
+ "repeats": 3,
+ "max_tokens": 400,
+ "models": {
+  "minicpm5-1b": {
+   "resources_before": {
+    "disk_free_gb": 13.3,
+    "memory_free_pct": 51
+   },
+   "load_s": 4.0,
+   "memory_loaded": {
+    "rss_mb": 1959.3,
+    "footprint_mb": 850.7
+   },
+   "requests": [
+    {
+     "wall_s": 4.24,
+     "prompt_tokens": 1158,
+     "prompt_tok_s": 1597.1,
+     "generated_tokens": 400,
+     "gen_tok_s": 113.8
+    },
+    {
+     "wall_s": 4.05,
+     "prompt_tokens": 1158,
+     "prompt_tok_s": 2114.5,
+     "generated_tokens": 400,
+     "gen_tok_s": 114.2
+    },
+    {
+     "wall_s": 4.04,
+     "prompt_tokens": 1133,
+     "prompt_tok_s": 2134.0,
+     "generated_tokens": 400,
+     "gen_tok_s": 114.0
+    }
+   ],
+   "memory_after": {
+    "rss_mb": 2065.6,
+    "footprint_mb": 952.2
+   },
+   "gen_tok_s": 114.0,
+   "prompt_tok_s": 2114.5
+  },
+  "minicpm5-2b": {
+   "resources_before": {
+    "disk_free_gb": 13.3,
+    "memory_free_pct": 51
+   },
+   "load_s": 4.0,
+   "memory_loaded": {
+    "rss_mb": 2887.1,
+    "footprint_mb": 1430.2
+   },
+   "requests": [
+    {
+     "wall_s": 7.75,
+     "prompt_tokens": 1158,
+     "prompt_tok_s": 686.7,
+     "generated_tokens": 400,
+     "gen_tok_s": 65.9
+    },
+    {
+     "wall_s": 7.75,
+     "prompt_tokens": 1158,
+     "prompt_tok_s": 694.8,
+     "generated_tokens": 400,
+     "gen_tok_s": 65.9
+    },
+    {
+     "wall_s": 7.69,
+     "prompt_tokens": 1133,
+     "prompt_tok_s": 695.2,
+     "generated_tokens": 400,
+     "gen_tok_s": 66.1
+    }
+   ],
+   "memory_after": {
+    "rss_mb": 2997.8,
+    "footprint_mb": 1594.3
+   },
+   "gen_tok_s": 65.9,
+   "prompt_tok_s": 694.8
+  },
+  "glm-ocr": {
+   "resources_before": {
+    "disk_free_gb": 7.5,
+    "memory_free_pct": 14
+   },
+   "load_s": 4.0,
+   "memory_loaded": {
+    "rss_mb": 2368.7,
+    "footprint_mb": 1640.7
+   }
+  }
+ },
+ "finished": "2026-10-06T17:03:00+08:00"
+}

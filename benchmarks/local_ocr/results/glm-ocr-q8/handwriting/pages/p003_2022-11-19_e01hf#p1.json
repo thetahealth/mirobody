@@ -1,0 +1,67 @@
+{
+ "id": "p003_2022-11-19_e01hf#p1",
+ "tier": "H1",
+ "image_sha256": "bfe92fad72ba0775438c879577469c3268ab61c444d655680bf3be12468df42b",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n沅桐区健康管理中心\n\n一般检查记录表\n\n姓名：闫柏超 性别：女 年龄：34岁\nID号：2452311583 标本号：131790199 科室：体检中心\n标本类型：静脉血 送检医生：于伟\n\n报告日期：2022-11-19 18:02:51 接收时间：2022-11-19 11:34:51 打印时间：2022-11-21 18:02:51 检验\n日期：2022-11-19 15:02:51\n\n一般检查\n\n检查名称 测量值 单位(Unit) 参考值\n身高 163.0 cm\n体重 72.8 kg\n体重指数 37.4 27.4 kg/m² 18.5—23.9\n收缩压 113 mmHg 90—139\n舒张压 74 mmHg 60—89\n心率 68 次/分 60—100\n\n血糖\n\n检查名称 测量值 单位(Unit) 参考值\n空腹血糖 4.90 mmol/L 3.90—6.10\n糖化血红蛋白 5.0 % 4.0—6.0\n\n检查者：贾勇磊 检验者：唐乐",
+   "finish_reason": "stop",
+   "seconds": 17.19,
+   "usage": {
+    "completion_tokens": 344,
+    "prompt_tokens": 2156,
+    "total_tokens": 2500,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 12257.067,
+    "prompt_per_token_ms": 5.698311018131101,
+    "prompt_per_second": 175.49059656767807,
+    "predicted_n": 344,
+    "predicted_ms": 4833.203,
+    "predicted_per_token_ms": 14.090970845481051,
+    "predicted_per_second": 70.96743091486121
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td>检查名称</td><td colspan=\"2\">测量值</td><td>单位(Unit)</td><td>参考值</td></tr><tr><td>身高</td><td colspan=\"2\">163.0</td><td>cm</td><td></td></tr><tr><td>体重</td><td colspan=\"2\">72.8</td><td>kg</td><td></td></tr><tr><td>体重指数</td><td colspan=\"2\">37.4 27.4</td><td>kg/m²</td><td>18.5-23.9</td></tr><tr><td>收缩压</td><td colspan=\"2\">113</td><td>mmHg</td><td>90-139</td></tr><tr><td>舒张压</td><td colspan=\"2\">74</td><td>mmHg</td><td>60-89</td></tr><tr><td>心率</td><td colspan=\"2\">68</td><td>次/分</td><td>60-100</td></tr><tr><td colspan=\"2\">血糖</td><td>测量值</td><td>单位(Unit)</td><td>参考值</td></tr><tr><td colspan=\"2\">空腹血糖</td><td>4.90</td><td>mmol/L</td><td>3.90-6.10</td></tr><tr><td colspan=\"2\">糖化血红蛋白</td><td>5.0</td><td>%</td><td>4.0-6.0</td></tr><tr><td colspan=\"5\">检查者：贾勇磊 检验者：唐乐</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 6.9,
+   "usage": {
+    "completion_tokens": 423,
+    "prompt_tokens": 2156,
+    "total_tokens": 2579,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 30.177,
+    "prompt_per_token_ms": 6.0354,
+    "prompt_per_second": 165.6891009709381,
+    "predicted_n": 423,
+    "predicted_ms": 6767.51,
+    "predicted_per_token_ms": 16.03675355450237,
+    "predicted_per_second": 62.35676046285857
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2211.4,
+  "phys_footprint_mib": 1801.4,
+  "phys_footprint_peak_mib": 1880.0
+ }
+}

@@ -1,0 +1,42 @@
+{
+ "id": "p005_2025-11-05_e06a#p2",
+ "tier": "T0",
+ "image_sha256": "d0449e4eca69ef7168addd48989433e2c94e619376fa60fb2702b1c069f5df72",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>6</th><th>平均红细胞血红蛋白量（MCH）</th><th>27.3</th><th>27.0~34.0&amp;pg</th></tr></thead><tbody><tr><td>7</td><td>平均红细胞血红蛋白浓度（MCHC）</td><td>323</td><td>316~354&amp;g/l</td></tr><tr><td>8</td><td>红细胞分布宽度（RDW-CV）</td><td>13.6</td><td>11.5~14.5&amp;%</td></tr><tr><td>9</td><td>血小板总数（PLT）</td><td>199</td><td>125~350&amp;x10^9/L</td></tr><tr><td>10</td><td>平均血小板体积（MPV）</td><td>11.2</td><td>7.6~13.2&amp;fl</td></tr><tr><td>11</td><td>血小板分布宽度（PDW）</td><td>14.6</td><td>9.0~17.0&amp;fl</td></tr><tr><td>12</td><td>血小板压积（PCT）</td><td>0.204</td><td>0.108~0.282&amp;%</td></tr><tr><td>13</td><td>中性粒细胞百分比（NEUT%）</td><td>49.6</td><td>40.0~75.0&amp;%</td></tr><tr><td>14</td><td>淋巴细胞百分比（LYMPH%）</td><td>38.8</td><td>20.0~50.0&amp;%</td></tr><tr><td>15</td><td>单核细胞百分比（MONO%）</td><td>5.3</td><td>3.0~10.0&amp;%</td></tr><tr><td>16</td><td>嗜酸性粒细胞百分比（EO%）</td><td>5.1</td><td>0.4~8.0&amp;%</td></tr><tr><td>17</td><td>嗜碱性粒细胞百分比（BASO%）</td><td>1.1↑</td><td>0.0~1.0&amp;%</td></tr><tr><td>18</td><td>中性粒细胞绝对值（NEUT#）</td><td>2.62</td><td>1.80~6.30&amp;x10^9/L</td></tr><tr><td>19</td><td>淋巴细胞绝对值（LYMPH#）</td><td>2.05</td><td>1.10~3.20&amp;x10^9/L</td></tr><tr><td>20</td><td>单核细胞绝对值（MONO#）</td><td>0.28</td><td>0.10~0.60&amp;x10^9/L</td></tr><tr><td>21</td><td>嗜酸性粒细胞绝对值（EO#）</td><td>0.27</td><td>0.02~0.52&amp;x10^9/L</td></tr><tr><td>22</td><td>嗜碱性粒细胞绝对值（BASO#）</td><td>0.06</td><td>0.00~0.06&amp;x10^9/L</td></tr><tr><td>23</td><td>铁蛋白（FER）</td><td>30.6</td><td>13.0~150.0&amp;ng/mL</td></tr><tr><td>24</td><td>血清铁（Fe）</td><td>10.7</td><td>9.0~30.4&amp;μmol/l</td></tr><tr><td>25</td><td>维生素B12（VB12）</td><td>291</td><td>145~569&amp;pmol/L</td></tr><tr><td>26</td><td>叶酸（FA）</td><td>22.4</td><td>7.0~46.4&amp;nmol/L</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 10.88,
+   "usage": {
+    "completion_tokens": 1099,
+    "prompt_tokens": 1375,
+    "total_tokens": 2474,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1370,
+    "prompt_ms": 3632.771,
+    "prompt_per_token_ms": 2.6516576642335767,
+    "prompt_per_second": 377.12258768857157,
+    "predicted_n": 1099,
+    "predicted_ms": 7208.418,
+    "predicted_per_token_ms": 6.565043715846994,
+    "predicted_per_second": 152.32191029987442
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2338.5,
+  "phys_footprint_mib": 1796.5,
+  "phys_footprint_peak_mib": 1888.2
+ }
+}

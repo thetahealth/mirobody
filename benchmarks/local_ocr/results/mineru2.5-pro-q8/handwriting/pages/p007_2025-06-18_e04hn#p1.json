@@ -1,0 +1,67 @@
+{
+ "id": "p007_2025-06-18_e04hn#p1",
+ "tier": "H2",
+ "image_sha256": "9b9f77f342a8b1dd315d9a57bc00e8763ccd6c3c1653f51bf14f9d96165663c4",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE—GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：金科    日期：2025.618\n\n复诊\n\n一般情况可\n\nT: 365° CP: 82 R13次/分 BP: 126/74mmHg\nSP02 100% wt 78.6kg\n\n双下肢无水肿，腹软无压痛\n\n诊断：2型糖尿病\n\n处理：监测血糖，不适随诊<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.75,
+   "usage": {
+    "completion_tokens": 121,
+    "prompt_tokens": 2170,
+    "total_tokens": 2291,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11676.835,
+    "prompt_per_token_ms": 5.418484918793503,
+    "prompt_per_second": 184.5534342139801,
+    "predicted_n": 121,
+    "predicted_ms": 1008.52,
+    "predicted_per_token_ms": 8.404333333333334,
+    "predicted_per_second": 118.9862372585571
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>门诊病历<lcel><nl>\n<fcel>科别:全科<fcel>日期:2025.618<nl>\n<fcel>复诊<lcel><nl>\n<fcel>一般情况可<lcel><nl>\n<fcel>T: 365° CP: 82 R13次/分 BP: 126/74mmHg<lcel><nl>\n<fcel>SP02 100% wt 78.6kg<lcel><nl>\n<fcel>双下肢无水肿,腹软无压痛<lcel><nl>\n<fcel>诊断:2型糖尿病<lcel><nl>\n<fcel>处理:监测血糖,不适随诊<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.13,
+   "usage": {
+    "completion_tokens": 129,
+    "prompt_tokens": 2170,
+    "total_tokens": 2299,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 16.454,
+    "prompt_per_token_ms": 2.05675,
+    "prompt_per_second": 486.20396256229486,
+    "predicted_n": 129,
+    "predicted_ms": 1058.684,
+    "predicted_per_token_ms": 8.27096875,
+    "predicted_per_second": 120.9048214575832
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1752.2,
+  "phys_footprint_mib": 1263.3,
+  "phys_footprint_peak_mib": 1264.4
+ }
+}

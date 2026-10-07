@@ -1,0 +1,63 @@
+{
+ "id": "p006_2026-04-18_e13a#p1",
+ "llm": false,
+ "seconds": 0.02,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Thyroid stimulating hormone",
+   "value": "1.244",
+   "unit": "mIU/L",
+   "reference_range": "0.270-4.200",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Free triiodothyronine",
+   "value": "4.48",
+   "unit": "pmol/L",
+   "reference_range": "3.10-6.80",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Free thyroxine",
+   "value": "15.89",
+   "unit": "pmol/L",
+   "reference_range": "12.00-22.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total triiodothyronine",
+   "value": "3.10",
+   "unit": "nmol/L",
+   "reference_range": "1.30-3.10",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total thyroxine",
+   "value": "113.1",
+   "unit": "nmol/L",
+   "reference_range": "66.0-181.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Thyroid peroxidase antibody",
+   "value": "36.4",
+   "unit": "IU/mL",
+   "reference_range": "(<34.0)",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": ""
+  }
+ ],
+ "date_time": ""
+}

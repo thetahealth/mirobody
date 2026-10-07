@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-08-16_e05a#p3",
+ "tier": "T2",
+ "image_sha256": "3266b8139b1648bbbcfc60f51699922f98e87a81d0796a02d78e9244111e2cf5",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n外眼 未见异常\n结膜 未见异常\n\n耳鼻喉科\n外耳道 未见异常\n鼓膜 未见异常\n听力 粗测正常\n鼻腔 通畅\n咽部 无充血\n扁桃体 未见异常\n\n口腔科\n唇颊腭 未见异常\n牙齿 缺牙（26）\n牙龈 未见异常\n\n辅助检查\n\n心电图\n\n心电图诊断：窦性心律，大致正常心电图\n\n胸部X线摄影（正位）\n影像所见：两肺野清晰，肺纹理走行自然。心影不大。膈面光滑，肋膈角锐利。\n影像诊断：心肺膈未见明显异常\n\n腹部超声（肝、胆、胰、脾、双肾）\n\n超声所见：肝脏：肝脏形态大小正常，实质回声细密增强，远场回声轻度衰减，肝内管道显示尚清晰。\n胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。\n胰腺：胰腺形态大小正常，回声均匀，胰管无扩张。\n脾脏：脾脏形态大小正常，回声均匀。\n双肾：双肾形态大小正常，皮髓质分界清，集合系统无分离，未见明显异常回声。",
+   "finish_reason": "stop",
+   "seconds": 9.53,
+   "usage": {
+    "completion_tokens": 270,
+    "prompt_tokens": 2156,
+    "total_tokens": 2426,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7576.659,
+    "prompt_per_token_ms": 3.522389121338912,
+    "prompt_per_second": 283.89821951865594,
+    "predicted_n": 270,
+    "predicted_ms": 1901.879,
+    "predicted_per_token_ms": 7.0701821561338285,
+    "predicted_per_second": 141.4390715707992
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>外眼</th><th>未见异常</th></tr></thead><tbody><tr><td>结膜</td><td>未见异常</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 0.44,
+   "usage": {
+    "completion_tokens": 56,
+    "prompt_tokens": 2156,
+    "total_tokens": 2212,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 11.726,
+    "prompt_per_token_ms": 2.3452,
+    "prompt_per_second": 426.4028654272556,
+    "predicted_n": 56,
+    "predicted_ms": 366.927,
+    "predicted_per_token_ms": 6.6714,
+    "predicted_per_second": 149.89357556135144
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2384.9,
+  "phys_footprint_mib": 1795.3,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

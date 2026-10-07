@@ -1,0 +1,265 @@
+{
+ "corpus": {
+  "generator": "mirobody-gen",
+  "command": "mirobody-gen build --seed 7 --people 6 --render",
+  "seed": 7,
+  "people": 6,
+  "files_jsonl_sha256": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+  "mirobody_gen_commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+  "note": "built 2026-10-06 16:36 with clean_pdfs.py at that commit; byte-identical (all 70 files and files.jsonl) to the coordinator's own build of the same seed"
+ },
+ "pages": [
+  {
+   "id": "p001_2022-12-05_e03a#p1",
+   "doc_id": "p001_2022-12-05_e03a",
+   "page": 1,
+   "tier": "T3",
+   "file": "files/p001/p001_2022-12-05_e03a.jpg",
+   "sha256": "13a9a6a3c098e28b347272f75b1adcc504e37e305fcc0d2bba8dece0f4606fcc",
+   "why": "phone photo, flat and top-down: five columns with an abbreviation column"
+  },
+  {
+   "id": "p004_2024-07-17_e05a#p1",
+   "doc_id": "p004_2024-07-17_e05a",
+   "page": 1,
+   "tier": "T3",
+   "file": "files/p004/p004_2024-07-17_e05a.jpg",
+   "sha256": "3c6d3cc54749c66ccb9fd57c8d79d8abe4ef7bef4cb9d9cb3a34095cb9202840",
+   "why": "phone photo of a bent page, English, two columns, units glued to values, no range column"
+  },
+  {
+   "id": "p004_2024-11-06_e06a#p1",
+   "doc_id": "p004_2024-11-06_e06a",
+   "page": 1,
+   "tier": "T3",
+   "file": "files/p004/p004_2024-11-06_e06a.jpg",
+   "sha256": "4e5b2bb56a851e0352019c79fc6f6152f7d53a3ce667c2e98102beef9e6000f5",
+   "why": "WeChat-compressed photo (904x1280): arrows glued to values, a doctor's-advice column"
+  },
+  {
+   "id": "p004_2025-11-01_e09a#p1",
+   "doc_id": "p004_2025-11-01_e09a",
+   "page": 1,
+   "tier": "T3",
+   "file": "files/p004/p004_2025-11-01_e09a.jpg",
+   "sha256": "bbbae9b8c40a7c8b997c9ff7361c175a34563e115c2b68d2616e76ad1ae309ef",
+   "why": "oblique phone photo: units glued to values, a patient field printed like a row"
+  },
+  {
+   "id": "p001_2026-05-15_e07a#p1",
+   "doc_id": "p001_2026-05-15_e07a",
+   "page": 1,
+   "tier": "T4",
+   "file": "files/p001/p001_2026-05-15_e07a.jpg",
+   "sha256": "559cb48e08c41b24413a4018266190d567c40848651b7bc2a5f9cb0968cb9b9b",
+   "why": "low-quality print: sex-partitioned ranges, units glued to values"
+  },
+  {
+   "id": "p003_2024-10-07_e06b#p1",
+   "doc_id": "p003_2024-10-07_e06b",
+   "page": 1,
+   "tier": "T4",
+   "file": "files/p003/p003_2024-10-07_e06b.jpg",
+   "sha256": "e420f23630b60c94a96d78e303b892ccdf357b5bac6e74bb1649d60192ca4758",
+   "why": "photocopy, no unit column"
+  },
+  {
+   "id": "p005_2026-03-05_e07a#p1",
+   "doc_id": "p005_2026-03-05_e07a",
+   "page": 1,
+   "tier": "T4",
+   "file": "files/p005/p005_2026-03-05_e07a.jpg",
+   "sha256": "c5132ae18e0c190313dfef79fcbc195735038b2fe72131371d4588984019aabf",
+   "why": "thermal fax (severe): 22 rows, one unreadable, a narrative block"
+  },
+  {
+   "id": "p006_2025-04-23_e10b#p1",
+   "doc_id": "p006_2025-04-23_e10b",
+   "page": 1,
+   "tier": "T4",
+   "file": "files/p006/p006_2025-04-23_e10b.jpg",
+   "sha256": "9e9517466427f5671644c43395971dfbdfb3f802745fcb618481c0742b64e211",
+   "why": "aged archive copy: a flag row printed as data"
+  },
+  {
+   "id": "p003_2024-04-18_e03a#p1",
+   "doc_id": "p003_2024-04-18_e03a",
+   "page": 1,
+   "tier": "T6",
+   "file": "files/p003/p003_2024-04-18_e03a.jpg",
+   "sha256": "8b76b3ed47dcb43fe6d030823666a5f7ddecc187ec5456934a5fb328873f24f5",
+   "why": "photo of a screen (severe moire): units glued to ranges"
+  },
+  {
+   "id": "p003_2024-07-12_e04a#p1",
+   "doc_id": "p003_2024-07-12_e04a",
+   "page": 1,
+   "tier": "T6",
+   "file": "files/p003/p003_2024-07-12_e04a.png",
+   "sha256": "9363536884b0d09a2dc72e61a3f033a4dda3103bdcc93c4062aeb64b478aadd2",
+   "why": "desktop screenshot (severe): six columns with a code and a flag column, metadata mixed into rows"
+  },
+  {
+   "id": "p006_2026-04-18_e13a#p1",
+   "doc_id": "p006_2026-04-18_e13a",
+   "page": 1,
+   "tier": "T6",
+   "file": "files/p006/p006_2026-04-18_e13a.png",
+   "sha256": "d91e7c4315e57cb2fa58c7209aca6823a8647e53a43c665ea1f51b297e5672fb",
+   "why": "phone screenshot (773x1280), English, arrows glued to values"
+  },
+  {
+   "id": "p005_log01#p1",
+   "doc_id": "p005_log01",
+   "page": 1,
+   "tier": "T6",
+   "file": "files/p005/p005_log01.jpg",
+   "sha256": "cebb0ff540d16042a22347039bc43261f3aea1c9824da14d6690dbb9622a10ad",
+   "why": "home weight log, photo of a screen: one row per day, a series (the reader leaves series to the model)"
+  },
+  {
+   "id": "p003_log01#p1",
+   "doc_id": "p003_log01",
+   "page": 1,
+   "tier": "T2",
+   "file": "files/p003/p003_log01.jpg",
+   "sha256": "e5eab8d80088e6a37c4bfc97eceba4fbd2db9e9ed334ce342b91ef165dce880b",
+   "why": "home blood-pressure log, grayscale scan (severe): 15 days x systolic/diastolic/pulse, a series"
+  },
+  {
+   "id": "p001_2023-11-27_e04a#p5",
+   "doc_id": "p001_2023-11-27_e04a",
+   "page": 5,
+   "tier": "T2",
+   "file": "files/p001/p001_2023-11-27_e04a.pdf",
+   "sha256": "0ea9828e1c214c35544fdb86573715bbaacf75c247016d5eef9c473c74554c3c",
+   "why": "check-up book, flatbed scan: a multi-panel lab page, 34 rows under repeated headers"
+  },
+  {
+   "id": "p002_2023-08-08_e01a#p5",
+   "doc_id": "p002_2023-08-08_e01a",
+   "page": 5,
+   "tier": "T2",
+   "file": "files/p002/p002_2023-08-08_e01a.pdf",
+   "sha256": "055ac36734f7685e5c3d3f37fc4c2bfe0755727ca35529fa2c5c52ceb37def4c",
+   "why": "English check-up book, flatbed scan: seven columns (methodology, status, lab)"
+  },
+  {
+   "id": "p006_2023-09-11_e04a#p8",
+   "doc_id": "p006_2023-09-11_e04a",
+   "page": 8,
+   "tier": "T2",
+   "file": "files/p006/p006_2023-09-11_e04a.pdf",
+   "sha256": "9f90f2759a7c2bc0c2979140bfcc48c16784604087c6abf55c7183e59e6f6197",
+   "why": "check-up book, phone-app scan: this result and the previous result side by side in two columns"
+  },
+  {
+   "id": "p004_2024-02-15_e02a#p5",
+   "doc_id": "p004_2024-02-15_e02a",
+   "page": 5,
+   "tier": "T2",
+   "file": "files/p004/p004_2024-02-15_e02a.pdf",
+   "sha256": "ba4b51b238bc3c005caaf75d97e5cc41ba4ce15c9c538ce6b0410c11d6d898a9",
+   "why": "check-up book, low-resolution scan: Chinese and English name columns, no unit column"
+  },
+  {
+   "id": "p003_2024-08-16_e05a#p3",
+   "doc_id": "p003_2024-08-16_e05a",
+   "page": 3,
+   "tier": "T2",
+   "file": "files/p003/p003_2024-08-16_e05a.pdf",
+   "sha256": "ac035a62df808cb0ae20c2f91220641aa24a636c77cfae42c6aa1d5a7009e657",
+   "why": "check-up book, flatbed scan: the narrative page (ENT, dental, ECG, chest X-ray, abdominal/thyroid/prostate ultrasound), no table rows"
+  },
+  {
+   "id": "p005_2025-11-05_e06b#p1",
+   "doc_id": "p005_2025-11-05_e06b",
+   "page": 1,
+   "tier": "T2",
+   "file": "files/p005/p005_2025-11-05_e06b.pdf",
+   "sha256": "2f9b1044ab44b0d61dba96b8566a8186156fdb03a0d1ecb937dc6ee969179309",
+   "why": "Traditional Chinese lab slip, phone-app scan (severe): arrows glued to values"
+  },
+  {
+   "id": "p003_2026-03-31_e10a#p1",
+   "doc_id": "p003_2026-03-31_e10a",
+   "page": 1,
+   "tier": "T2",
+   "file": "files/p003/p003_2026-03-31_e10a.pdf",
+   "sha256": "de0148ad8163b4e78304c6f31e7125a6ccbbb526cebc70f7f2ef8434cc75e990",
+   "why": "outpatient record, low-resolution scan: vitals in running text (T/P/R/BP)"
+  },
+  {
+   "id": "p003_2025-10-02_e09b#p1",
+   "doc_id": "p003_2025-10-02_e09b",
+   "page": 1,
+   "tier": "T2",
+   "file": "files/p003/p003_2025-10-02_e09b.pdf",
+   "sha256": "28965c6ea8543689b890a00ee9e84cd8ff16f100fcdf0fef0ddfabfaf2108e0a",
+   "why": "English lab slip, phone-app scan: units glued to values"
+  },
+  {
+   "id": "p006_2023-05-04_e03b#p1",
+   "doc_id": "p006_2023-05-04_e03b",
+   "page": 1,
+   "tier": "T2",
+   "file": "files/p006/p006_2023-05-04_e03b.pdf",
+   "sha256": "73b8879c6615c813e14cbdfd9bddf30def6f21c39943c674f5d9f60a5cd0f876",
+   "why": "lab slip, phone-app scan: a current and a previous value per row, arrows glued"
+  },
+  {
+   "id": "p001_2025-11-26_e06a#p6",
+   "doc_id": "p001_2025-11-26_e06a",
+   "page": 6,
+   "tier": "T0",
+   "file": "files/p001/p001_2025-11-26_e06a.pdf",
+   "sha256": "9d80da6371edbbfe5d59fea4d7c55f55cf4d9cb1eab13616612002f3c43d97b9",
+   "why": "check-up book, text-layer PDF: a multi-panel lab page (text layer plus the tables pass, as the product reads it)"
+  },
+  {
+   "id": "p002_2024-08-07_e02a#p5",
+   "doc_id": "p002_2024-08-07_e02a",
+   "page": 5,
+   "tier": "T0",
+   "file": "files/p002/p002_2024-08-07_e02a.pdf",
+   "sha256": "8cf1dc2a3f7127101f4add968a889bd8779a5c029116ca16e000ab0eb8b9c545",
+   "why": "English check-up book, text-layer PDF: eight columns, 36 rows"
+  },
+  {
+   "id": "p001_2021-11-27_e01a#p3",
+   "doc_id": "p001_2021-11-27_e01a",
+   "page": 3,
+   "tier": "T0",
+   "file": "files/p001/p001_2021-11-27_e01a.pdf",
+   "sha256": "008f9864793ddb7a41bc7e5c4212b9d204f052048b0463281cf7dd5abe03cdc7",
+   "why": "check-up book, text-layer PDF: the narrative ECG and ultrasound page, no table rows"
+  },
+  {
+   "id": "p006_2024-10-25_e09a#p1",
+   "doc_id": "p006_2024-10-25_e09a",
+   "page": 1,
+   "tier": "T0",
+   "file": "files/p006/p006_2024-10-25_e09a.pdf",
+   "sha256": "56c18a62179454963ebcec31f66f2a7d5cb901c1ce0d45833bbf6d152f2fe8ed",
+   "why": "English lab slip, text-layer PDF: In Range and Out of Range as two result columns"
+  },
+  {
+   "id": "p005_2025-11-05_e06a#p2",
+   "doc_id": "p005_2025-11-05_e06a",
+   "page": 2,
+   "tier": "T0",
+   "file": "files/p005/p005_2025-11-05_e06a.pdf",
+   "sha256": "3f5ccfa88ae961da7b91e00b4e946a3076181919a9ce59e10b6ca674d75be9ef",
+   "why": "Traditional Chinese lab slip, text-layer PDF: bilingual header, 21 rows"
+  },
+  {
+   "id": "p004_2023-11-12_e01a#p1",
+   "doc_id": "p004_2023-11-12_e01a",
+   "page": 1,
+   "tier": "T0",
+   "file": "files/p004/p004_2023-11-12_e01a.pdf",
+   "sha256": "061e786f95e077d87323e5da24266b8ede671b7063553422a6c4908db52ae9e2",
+   "why": "lab slip, text-layer PDF: a doctor's-advice column, a narrative block, a patient field printed like a row"
+  }
+ ]
+}

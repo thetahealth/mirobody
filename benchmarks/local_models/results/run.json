@@ -1,0 +1,2098 @@
+{
+ "mirobody_commit": "bb3af91c685473c1a1385340d591a4b1aac17704",
+ "mirobody_dirty": true,
+ "mirobody_gen": {
+  "seed": 7,
+  "people": 6,
+  "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+  "repo_head_at_run": "b195fde5ed5e4ee562b9742304fa17dacf6f803c",
+  "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+  "corpus": "<scratch>/gen6",
+  "sha256": {
+   "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+   "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+   "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+   "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+   "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+   "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+  }
+ },
+ "llama_cpp": "version: 0.6.0 (build 11429, commit d81235049) built with AppleClang 21.0.0.21000334 for Darwin arm64",
+ "router": {
+  "preset": "docker/local-models.ini",
+  "models_max": 2
+ },
+ "machine": {
+  "chip": "Apple M1 Pro",
+  "memory_gb": 16,
+  "os": "Darwin 26.6.2",
+  "docker_vm": "colima 4 CPU, 8 GB"
+ },
+ "timeouts": {
+  "question_s": 600,
+  "late_wait_s": 900,
+  "upload_s": 1800,
+  "journal_s": 900,
+  "settle_s": 35
+ },
+ "sizes": {
+  "small": {
+   "started": "2026-10-06T17:21:21+08:00",
+   "finished": "2026-10-06T19:25:29+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-06T17:22:03+08:00",
+     "finished": "2026-10-06T17:53:37+08:00",
+     "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+     "mirobody_dirty": true
+    },
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "started": "2026-10-06T19:21:36+08:00",
+     "finished": "2026-10-06T19:25:29+08:00",
+     "mirobody_commit": "9a1271f5db765f9fc08e13de3dd431421144ab49",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small",
+    "agent": "minicpm5-2b",
+    "qa_pass": 16,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 21,
+     "tool": 24,
+     "facts": 17,
+     "language": 22,
+     "chart": 21
+    },
+    "qa_unsupported_numbers": 16,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 28.4,
+    "qa_p90_s": 99.0,
+    "ext_rows": 140,
+    "ext_found": 45,
+    "ext_unit_ok": 27,
+    "ext_range_ok": 16,
+    "ext_extra": 0,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 18.7,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 3,
+    "jnl_exact": 0,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 0.2,
+    "memory_idle_rss_mb": 4985.0,
+    "memory_idle_footprint_mb": 2970.8,
+    "memory_peak_rss_mb": 5657.6,
+    "memory_peak_footprint_mb": 4353.4
+   }
+  },
+  "tiny": {
+   "started": "2026-10-06T19:28:27+08:00",
+   "finished": "2026-10-06T19:56:40+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-1b",
+     "hf_repo": "openbmb/MiniCPM5-1B-GGUF:Q8_0",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-1B-Q8_0.gguf",
+       "bytes": 1153529216,
+       "sha256": "0dc7638539067268774c275a14a6ec9c7e01f7eeb2cff606c8590361fa527e4c"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-06T19:29:13+08:00",
+     "finished": "2026-10-06T19:56:40+08:00",
+     "mirobody_commit": "9a1271f5db765f9fc08e13de3dd431421144ab49",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "tiny",
+    "agent": "minicpm5-1b",
+    "qa_pass": 3,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 12,
+     "facts": 4,
+     "language": 19,
+     "chart": 20
+    },
+    "qa_unsupported_numbers": 11,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 6.2,
+    "qa_p90_s": 156.3,
+    "ext_rows": 140,
+    "ext_found": 37,
+    "ext_unit_ok": 35,
+    "ext_range_ok": 10,
+    "ext_extra": 6,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 17.6,
+    "ext_failed": 2,
+    "jnl_expected": 31,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.3,
+    "memory_idle_rss_mb": 4183.5,
+    "memory_idle_footprint_mb": 2496.5,
+    "memory_peak_rss_mb": 4662.9,
+    "memory_peak_footprint_mb": 3831.3
+   }
+  },
+  "small-v2": {
+   "started": "2026-10-07T10:39:23+08:00",
+   "finished": "2026-10-07T11:23:25+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-07T10:40:11+08:00",
+     "finished": "2026-10-07T11:23:25+08:00",
+     "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-v2",
+    "agent": "minicpm5-2b",
+    "qa_pass": 19,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 22,
+     "tool": 24,
+     "facts": 20,
+     "language": 22,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 2,
+    "qa_median_s": 27.6,
+    "qa_p90_s": 101.6,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 137,
+    "ext_extra": 32,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 24,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.7,
+    "memory_idle_rss_mb": 5008.5,
+    "memory_idle_footprint_mb": 2995.3,
+    "memory_peak_rss_mb": 5117.6,
+    "memory_peak_footprint_mb": 4294.4
+   }
+  },
+  "small-v3": {
+   "started": "2026-10-07T12:53:26+08:00",
+   "finished": "2026-10-07T13:28:40+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-07T12:54:12+08:00",
+     "finished": "2026-10-07T13:28:40+08:00",
+     "mirobody_commit": "958fae53987f5fcfbd5bd5058213ce35ab3f6be3",
+     "mirobody_dirty": false
+    }
+   ],
+   "summary": {
+    "size": "small-v3",
+    "agent": "minicpm5-2b",
+    "qa_pass": 19,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 24,
+     "facts": 19,
+     "language": 23,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 28.9,
+    "qa_p90_s": 79.3,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 140,
+    "ext_extra": 9,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 12.4,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 22,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.7,
+    "memory_idle_rss_mb": 5003.0,
+    "memory_idle_footprint_mb": 2982.5,
+    "memory_peak_rss_mb": 5696.5,
+    "memory_peak_footprint_mb": 4484.3
+   }
+  }
+ },
+ "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",
+ "references": {
+  "ref-deepseek-v4.1-flash": {
+   "started": "2026-10-06T20:38:56+08:00",
+   "finished": "2026-10-06T20:51:55+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "deepseek/deepseek-v4.1-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "anthropic/claude-sonnet-5",
+       "env": "OPENROUTER_CHAT_MODEL",
+       "in_env_file": true
+      },
+      "utils_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "OPENROUTER_UTILS_MODEL",
+       "in_env_file": true
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "qwen3.5-9b",
+      "utils": "qwen3.5-9b",
+      "ocr": "glm-ocr"
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-06T20:38:56+08:00",
+     "finished": "2026-10-06T20:51:55+08:00",
+     "mirobody_commit": "357bd2a108c8991f17387758d448f1048fd8e01b",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-deepseek-v4.1-flash",
+    "agent": "deepseek/deepseek-v4.1-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 7,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 11.1,
+    "qa_p90_s": 20.6,
+    "ext_rows": 140,
+    "ext_found": 86,
+    "ext_unit_ok": 86,
+    "ext_range_ok": 80,
+    "ext_extra": 40,
+    "ext_dates_ok": 9,
+    "ext_docs": 12,
+    "ext_median_s": 28.8,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 26,
+    "jnl_code_ok": 12,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 3,
+    "jnl_exact": 9,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 4.6,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-deepseek-v4.1-flash-v2": {
+   "started": "2026-10-06T22:03:29+08:00",
+   "finished": "2026-10-07T11:26:08+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "deepseek/deepseek-v4.1-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "response_format": "json_object",
+      "extra_body": {
+       "reasoning": {
+        "enabled": false
+       },
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "started": "2026-10-06T22:03:33+08:00",
+     "finished": "2026-10-06T22:06:07+08:00",
+     "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T01:15:33+08:00",
+     "finished": "2026-10-07T01:18:19+08:00",
+     "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T11:24:52+08:00",
+     "finished": "2026-10-07T11:26:08+08:00",
+     "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-deepseek-v4.1-flash-v2",
+    "agent": "deepseek/deepseek-v4.1-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 8,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 4.2,
+    "qa_p90_s": 10.1,
+    "ext_rows": 140,
+    "ext_found": 138,
+    "ext_unit_ok": 138,
+    "ext_range_ok": 133,
+    "ext_extra": 48,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 9.1,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 11,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 9,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 0.8,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gpt-6-luna": {
+   "started": "2026-10-06T22:09:10+08:00",
+   "finished": "2026-10-07T11:28:30+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "openai/gpt-6-luna",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "reasoning_effort": "none",
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "started": "2026-10-06T22:09:35+08:00",
+     "finished": "2026-10-06T22:18:11+08:00",
+     "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T01:19:07+08:00",
+     "finished": "2026-10-07T01:23:17+08:00",
+     "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T11:26:55+08:00",
+     "finished": "2026-10-07T11:28:30+08:00",
+     "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gpt-6-luna",
+    "agent": "openai/gpt-6-luna",
+    "qa_pass": 21,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 23,
+     "facts": 21,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 3,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 0,
+    "qa_median_s": 9.7,
+    "qa_p90_s": 17.2,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 134,
+    "ext_extra": 49,
+    "ext_dates_ok": 12,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 31,
+    "jnl_code_ok": 10,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 1,
+    "jnl_exact": 10,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.5,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-claude-sonnet-5.5": {
+   "started": "2026-10-06T22:18:47+08:00",
+   "finished": "2026-10-07T11:30:44+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "anthropic/claude-sonnet-5.5",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "started": "2026-10-06T22:19:19+08:00",
+     "finished": "2026-10-06T22:25:00+08:00",
+     "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T01:24:04+08:00",
+     "finished": "2026-10-07T01:28:06+08:00",
+     "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T11:29:18+08:00",
+     "finished": "2026-10-07T11:30:44+08:00",
+     "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-claude-sonnet-5.5",
+    "agent": "anthropic/claude-sonnet-5.5",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 7,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 9.0,
+    "qa_p90_s": 16.0,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 134,
+    "ext_extra": 48,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 17.4,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 30,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 9,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.4,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gpt-6.1-sol": {
+   "started": "2026-10-06T22:52:31+08:00",
+   "finished": "2026-10-07T11:41:58+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "openai/gpt-6.1-sol",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "openai/gpt-6.1-sol",
+       "default": "openai/gpt-6.1-sol",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "openai/gpt-6.1-sol",
+       "default": "openai/gpt-6.1-sol",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gpt-6.1-sol.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6.1-sol",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6.1-sol",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Azure",
+      "model": "openai/gpt-6.1-sol",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Azure",
+      "model": "openai/gpt-6.1-sol",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal"
+     ],
+     "started": "2026-10-06T22:53:07+08:00",
+     "finished": "2026-10-07T00:36:14+08:00",
+     "mirobody_commit": "4e3c06fc6863e4b7ef8987304741a91c4e446c0e",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T01:34:29+08:00",
+     "finished": null,
+     "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T01:41:17+08:00",
+     "finished": null,
+     "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T02:04:54+08:00",
+     "finished": "2026-10-07T02:38:46+08:00",
+     "mirobody_commit": "490a0e16c3d3f8e5b835c741268d2e502edfdda0",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T03:00:26+08:00",
+     "finished": null,
+     "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+     "mirobody_dirty": false
+    },
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-07T11:32:03+08:00",
+     "finished": "2026-10-07T11:41:58+08:00",
+     "mirobody_commit": "321aa2c69979653ba13373b0c6f0fa149645c073",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gpt-6.1-sol",
+    "agent": "openai/gpt-6.1-sol",
+    "qa_pass": 21,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 22,
+     "facts": 21,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 6,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 11.1,
+    "qa_p90_s": 18.8,
+    "ext_rows": 140,
+    "ext_found": 90,
+    "ext_unit_ok": 90,
+    "ext_range_ok": 90,
+    "ext_extra": 25,
+    "ext_dates_ok": 10,
+    "ext_docs": 12,
+    "ext_median_s": 19.9,
+    "ext_failed": 1,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 14,
+    "jnl_extra": 2,
+    "jnl_exact": 8,
+    "jnl_n": 15,
+    "jnl_errors": 1,
+    "jnl_median_s": 5.4,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "dropped": "2026-10-07: rate-limited upstream even pinned to Azure, at about 20 times GPT-6 Luna's price; raw results kept"
+  },
+  "ref-gemini-3.8-flash": {
+   "started": "2026-10-07T11:58:20+08:00",
+   "finished": "2026-10-07T12:11:58+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "google/gemini-3.8-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "reasoning": {
+        "effort": "low",
+        "exclude": true
+       },
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-07T11:58:52+08:00",
+     "finished": "2026-10-07T12:11:58+08:00",
+     "mirobody_commit": "29804fc414d4580ebc21146d808349a0e40dc241",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gemini-3.8-flash",
+    "agent": "google/gemini-3.8-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 7,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 14.9,
+    "qa_p90_s": 25.7,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 136,
+    "ext_extra": 47,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 31,
+    "jnl_code_ok": 11,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 11,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.6,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "code_note": "application code as 321aa2c; the checkout was at 29804fc/e696cb8, which differ only in docs and in config.llm.yaml entries no reference uses"
+  },
+  "ref-claude-opus-5.5": {
+   "started": "2026-10-07T12:13:16+08:00",
+   "finished": "2026-10-07T12:26:49+08:00",
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": {
+    "chat_model": "anthropic/claude-opus-5.5",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "anthropic/claude-opus-5.5",
+       "default": "anthropic/claude-opus-5.5",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "anthropic/claude-opus-5.5",
+       "default": "anthropic/claude-opus-5.5",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/claude-opus-5.5.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-opus-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-opus-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "anthropic/claude-opus-5.5",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "anthropic/claude-opus-5.5",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-07T12:13:49+08:00",
+     "finished": "2026-10-07T12:26:49+08:00",
+     "mirobody_commit": "e696cb85e578479b13d44c83a0e7892fb333f83c",
+     "mirobody_dirty": false
+    }
+   ],
+   "summary": {
+    "size": "ref-claude-opus-5.5",
+    "agent": "anthropic/claude-opus-5.5",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 15,
+    "qa_answers_with_unsupported": 8,
+    "qa_timeouts": 0,
+    "qa_median_s": 14.8,
+    "qa_p90_s": 25.0,
+    "ext_rows": 140,
+    "ext_found": 139,
+    "ext_unit_ok": 139,
+    "ext_range_ok": 136,
+    "ext_extra": 47,
+    "ext_dates_ok": 12,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 1,
+    "jnl_exact": 8,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 3.2,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   },
+   "code_note": "application code as 321aa2c; the checkout was at 29804fc/e696cb8, which differ only in docs and in config.llm.yaml entries no reference uses"
+  },
+  "ref-deepseek-v4.1-flash-rules": {
+   "started": "2026-10-07T13:32:04+08:00",
+   "finished": "2026-10-07T13:35:05+08:00",
+   "parts": [
+    "extraction"
+   ],
+   "models": {
+    "chat_model": "deepseek/deepseek-v4.1-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "response_format": "json_object",
+      "extra_body": {
+       "reasoning": {
+        "enabled": false
+       },
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction"
+     ],
+     "started": "2026-10-07T13:32:35+08:00",
+     "finished": "2026-10-07T13:35:05+08:00",
+     "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+     "mirobody_dirty": false
+    }
+   ],
+   "summary": {
+    "size": "ref-deepseek-v4.1-flash-rules",
+    "agent": "deepseek/deepseek-v4.1-flash",
+    "qa_pass": 0,
+    "qa_n": 0,
+    "qa_checks": {
+     "answered": 0,
+     "tool": 0,
+     "facts": 0,
+     "language": 0,
+     "chart": 0
+    },
+    "qa_unsupported_numbers": 0,
+    "qa_answers_with_unsupported": 0,
+    "qa_timeouts": 0,
+    "qa_median_s": null,
+    "qa_p90_s": null,
+    "ext_rows": 140,
+    "ext_found": 138,
+    "ext_unit_ok": 138,
+    "ext_range_ok": 138,
+    "ext_extra": 28,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 7.2,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gemini-3.8-flash-rules": {
+   "started": "2026-10-07T13:35:24+08:00",
+   "finished": "2026-10-07T13:39:53+08:00",
+   "parts": [
+    "extraction"
+   ],
+   "models": {
+    "chat_model": "google/gemini-3.8-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "reasoning": {
+        "effort": "low",
+        "exclude": true
+       },
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction"
+     ],
+     "started": "2026-10-07T13:35:55+08:00",
+     "finished": "2026-10-07T13:39:53+08:00",
+     "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+     "mirobody_dirty": false
+    }
+   ],
+   "summary": {
+    "size": "ref-gemini-3.8-flash-rules",
+    "agent": "google/gemini-3.8-flash",
+    "qa_pass": 0,
+    "qa_n": 0,
+    "qa_checks": {
+     "answered": 0,
+     "tool": 0,
+     "facts": 0,
+     "language": 0,
+     "chart": 0
+    },
+    "qa_unsupported_numbers": 0,
+    "qa_answers_with_unsupported": 0,
+    "qa_timeouts": 0,
+    "qa_median_s": null,
+    "qa_p90_s": null,
+    "ext_rows": 140,
+    "ext_found": 139,
+    "ext_unit_ok": 139,
+    "ext_range_ok": 139,
+    "ext_extra": 41,
+    "ext_dates_ok": 10,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gpt-6-luna-rules": {
+   "started": "2026-10-07T13:40:10+08:00",
+   "finished": "2026-10-07T13:43:42+08:00",
+   "parts": [
+    "extraction"
+   ],
+   "models": {
+    "chat_model": "openai/gpt-6-luna",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "reasoning_effort": "none",
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction"
+     ],
+     "started": "2026-10-07T13:40:41+08:00",
+     "finished": "2026-10-07T13:43:42+08:00",
+     "mirobody_commit": "c396b4fe73620c2dec3d805612ffcb9f79faeec0",
+     "mirobody_dirty": false
+    }
+   ],
+   "summary": {
+    "size": "ref-gpt-6-luna-rules",
+    "agent": "openai/gpt-6-luna",
+    "qa_pass": 0,
+    "qa_n": 0,
+    "qa_checks": {
+     "answered": 0,
+     "tool": 0,
+     "facts": 0,
+     "language": 0,
+     "chart": 0
+    },
+    "qa_unsupported_numbers": 0,
+    "qa_answers_with_unsupported": 0,
+    "qa_timeouts": 0,
+    "qa_median_s": null,
+    "qa_p90_s": null,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 139,
+    "ext_extra": 26,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 12.2,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-claude-sonnet-5.5-rules": {
+   "started": "2026-10-07T13:43:58+08:00",
+   "finished": "2026-10-07T13:48:03+08:00",
+   "parts": [
+    "extraction"
+   ],
+   "models": {
+    "chat_model": "anthropic/claude-sonnet-5.5",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "extraction"
+     ],
+     "started": "2026-10-07T13:44:29+08:00",
+     "finished": "2026-10-07T13:48:03+08:00",
+     "mirobody_commit": "bb3af91c685473c1a1385340d591a4b1aac17704",
+     "mirobody_dirty": false
+    }
+   ],
+   "summary": {
+    "size": "ref-claude-sonnet-5.5-rules",
+    "agent": "anthropic/claude-sonnet-5.5",
+    "qa_pass": 0,
+    "qa_n": 0,
+    "qa_checks": {
+     "answered": 0,
+     "tool": 0,
+     "facts": 0,
+     "language": 0,
+     "chart": 0
+    },
+    "qa_unsupported_numbers": 0,
+    "qa_answers_with_unsupported": 0,
+    "qa_timeouts": 0,
+    "qa_median_s": null,
+    "qa_p90_s": null,
+    "ext_rows": 140,
+    "ext_found": 138,
+    "ext_unit_ok": 138,
+    "ext_range_ok": 138,
+    "ext_extra": 28,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 12.2,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  }
+ },
+ "qa_records": {
+  "qa2": {
+   "accounts": "qa2-p002, qa2-p003, qa2-p004, qa2-p005 (results/load.json)",
+   "loaded": "2026-10-06 16:48-17:21 +08:00",
+   "extracted_by": "minicpm5-2b (the small size) with glm-ocr: the shared record's document readings were read by the small pair, whichever size later answers questions about them",
+   "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+   "mirobody_dirty": true
+  },
+  "qa3": {
+   "accounts": "qa3-p002, qa3-p003, qa3-p004, qa3-p005 (results/load.json)",
+   "loaded_at_commit": "490a0e1",
+   "extracted_by": "minicpm5-2b with glm-ocr (the small pair)",
+   "re_read_at_commit": "321aa2c",
+   "re_read": [
+    "files/p002/p002_2026-08-07_e04a.pdf",
+    "files/p005/p005_2026-08-28_e09a.pdf"
+   ],
+   "why": "at 490a0e1 the text model copied the extraction prompt's example date (2024-10-30) onto 24 readings of these two documents; after the re-read no file reading is dated 2024-10-30",
+   "used_by": [
+    "small-v2",
+    "ref-deepseek-v4.1-flash-v2",
+    "ref-claude-sonnet-5.5",
+    "ref-gpt-6-luna",
+    "ref-gpt-6.1-sol"
+   ]
+  }
+ },
+ "openrouter": {
+  "account": "requires zero data retention; OpenRouter's guardrail removes hosts without it (DeepSeek's own host among them)",
+  "pinning": "provider.order = [host], allow_fallbacks = false (refs/overlays.py); require_parameters not used: the app sends a temperature on every utility call and OpenRouter lists none for GPT-6 Luna or 6.1 Sol",
+  "hosts": {
+   "ref-deepseek-v4.1-flash-v2": [
+    "together",
+    "Together"
+   ],
+   "ref-claude-sonnet-5.5": [
+    "google-vertex",
+    "Google"
+   ],
+   "ref-gpt-6-luna": [
+    "azure",
+    "Azure"
+   ],
+   "ref-gpt-6.1-sol": [
+    "azure",
+    "Azure"
+   ],
+   "ref-gemini-3.8-flash": [
+    "google-vertex",
+    "Google"
+   ],
+   "ref-claude-opus-5.5": [
+    "google-vertex",
+    "Google"
+   ]
+  },
+  "quantization_listed": "unknown for all four pinned hosts",
+  "spend_usd": {
+   "total": 6.44,
+   "ref-deepseek-v4.1-flash-v2": 0.11,
+   "ref-gpt-6-luna": 0.047,
+   "ref-claude-sonnet-5.5": "about 1.77 (estimate: its question pass overlapped Sol's)",
+   "ref-gpt-6.1-sol": "about 1.05 (estimate, with every rate-limited retry and two discarded extraction tries)",
+   "ref-gemini-3.8-flash": 0.585,
+   "ref-claude-opus-5.5": 2.88
+  },
+  "sol_rate_limited_left": {
+   "questions": [
+    "p003-fpg-range"
+   ],
+   "documents": [
+    "p006_2026-04-18_e13a.png (0/6)",
+    "p002_2026-08-07_e04a.pdf (one page, 35/78)"
+   ],
+   "journal": [
+    "眼睛干了，可能是换季。"
+   ]
+  },
+  "hosts_probed_and_refused": {
+   "ref-claude-opus-5.5": "anthropic, azure, amazon-bedrock: no endpoint for json_schema with a temperature (Bedrock routed chat only)",
+   "ref-gemini-3.8-flash": "google-ai-studio: ZDR violation (account settings)"
+  },
+  "prices_usd_per_million": {
+   "anthropic/claude-opus-5.5": [
+    4,
+    20
+   ],
+   "google/gemini-3.8-flash": [
+    0.75,
+    3.75
+   ]
+  }
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p004_2024-02-15_e02a#p5",
+ "tier": "T2",
+ "image_sha256": "d801fb3fc4f31b786b269ab52948c70dc287b9a42d302907a1baffa0bfb93623",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n超声提示：前列腺未见明显异常\n\n碳13尿素呼气试验\n检测结果：DOB值 3.1‰（参考值 <4.0‰）\n结论：幽门螺杆菌阴性\n\n人体成分分析\n结论：体成分构成正常\n\n实验室检查\n\n血常规\n检查项目 英文名称 化验结果 参考值\n白细胞计数 WBC 6.27 3.50~9.50\n红细胞计数 RBC 5.00 4.30~5.80\n血红蛋白 HGB 169 130~175\n红细胞压积 HCT 51.1↑ 40.0~50.0\n平均红细胞体积 MCV 102.2↑ 82.0~100.0\n平均红细胞血红蛋白量 MCH 33.7 27.0~34.0\n平均红细胞血红蛋白浓度 MCHC 330 316~354\n红细胞分布宽度 RDW-CV 12.5 11.5~14.5\n血小板计数 PLT 332 125~350\n平均血小板体积 MPV 11.1 7.6~13.2\n血小板分布宽度 PDW 12.3 9.0~17.0\n血小板压积 PCT 0.186 0.108~0.282\n中性粒细胞百分比 NEUT% 56.8 40.0~75.0\n淋巴细胞百分比 LYMPH% 25.8 20.0~50.0\n单核细胞百分比 MONO% 7.7 3.0~10.0\n嗜酸性粒细胞百分比 EO% 9.3↑ 0.4~8.0\n嗜碱性粒细胞百分比 BASO% 0.4 0.0~1.0\n中性粒细胞绝对值 NEUT# 3.56 1.80~6.30\n淋巴细胞绝对值 LYMPH# 1.62 1.10~3.20\n单核细胞绝对值 MONO# 0.48 0.10~0.60\n嗜酸性粒细胞绝对值 EO# 0.58↑ 0.02~0.52\n嗜碱性粒细胞绝对值 BASO# 0.03 0.00~0.06\n\n肝功能\n检查项目 英文名称 化验结果 参考值\n丙氨酸氨基转移酶 ALT 40 9~50\n天门冬氨酸氨基转移酶 AST 37 15~40\n碱性磷酸酶 ALP 69 45~125\nγ-谷氨酰基转移酶 GGT 19 10~60\n总蛋白 TP 79.0 65.0~85.0\n白蛋白 ALB 51.4 40.0~55.0\n球蛋白 GLB 27.6 20.0~40.0\n总胆红素 TBIL 20.5 0.0~26.0\n直接胆红素 DBIL 3.4 (<8.0)\n间接胆红素 IBIL 17.1 0.0~18.0",
+   "finish_reason": "stop",
+   "seconds": 13.57,
+   "usage": {
+    "completion_tokens": 776,
+    "prompt_tokens": 2156,
+    "total_tokens": 2932,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7828.643,
+    "prompt_per_token_ms": 3.6395364946536497,
+    "prompt_per_second": 274.7602617720593,
+    "predicted_n": 776,
+    "predicted_ms": 5668.79,
+    "predicted_per_token_ms": 7.314567741935484,
+    "predicted_per_second": 136.7134785377479
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检查项目</th><th>英文名称</th><th>化验结果</th><th>参考值</th></tr></thead><tbody><tr><td>白细胞计数</td><td>WBC</td><td>6.27</td><td>3.50~9.50</td></tr><tr><td>红细胞计数</td><td>RBC</td><td>5.00</td><td>4.30~5.80</td></tr><tr><td>血红蛋白</td><td>HGB</td><td>169</td><td>130~175</td></tr><tr><td>红细胞压积</td><td>HCT</td><td>51.1↑</td><td>40.0~50.0</td></tr><tr><td>平均红细胞体积</td><td>MCV</td><td>102.2↑</td><td>82.0~100.0</td></tr><tr><td>平均红细胞血红蛋白量</td><td>MCH</td><td>33.7</td><td>27.0~34.0</td></tr><tr><td>平均红细胞血红蛋白浓度</td><td>MCHC</td><td>330</td><td>316~354</td></tr><tr><td>红细胞分布宽度</td><td>RDW-CV</td><td>12.5</td><td>11.5~14.5</td></tr><tr><td>血小板计数</td><td>PLT</td><td>332</td><td>125~350</td></tr><tr><td>平均血小板体积</td><td>MPV</td><td>11.1</td><td>7.6~13.2</td></tr><tr><td>血小板分布宽度</td><td>PDW</td><td>12.3</td><td>9.0~17.0</td></tr><tr><td>血小板压积</td><td>PCT</td><td>0.186</td><td>0.108~0.282</td></tr><tr><td>中性粒细胞百分比</td><td>NEUT%</td><td>56.8</td><td>40.0~75.0</td></tr><tr><td>淋巴细胞百分比</td><td>LYMPH%</td><td>25.8</td><td>20.0~50.0</td></tr><tr><td>单核细胞百分比</td><td>MONO%</td><td>7.7</td><td>3.0~10.0</td></tr><tr><td>嗜酸性粒细胞百分比</td><td>EO%</td><td>9.3↑</td><td>0.4~8.0</td></tr><tr><td>嗜碱性粒细胞百分比</td><td>BASO%</td><td>0.4</td><td>0.0~1.0</td></tr><tr><td>中性粒细胞绝对值</td><td>NEUT#</td><td>3.56</td><td>1.80~6.30</td></tr><tr><td>淋巴细胞绝对值</td><td>LYMPH#</td><td>1.62</td><td>1.10~3.20</td></tr><tr><td>单核细胞绝对值</td><td>MONO#</td><td>0.48</td><td>0.10~0.60</td></tr><tr><td>嗜酸性粒细胞绝对值</td><td>EO#</td><td>0.58↑</td><td>0.02~0.52</td></tr><tr><td>嗜碱性粒细胞绝对值</td><td>BASO#</td><td>0.03</td><td>0.00~0.06</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 7.34,
+   "usage": {
+    "completion_tokens": 1003,
+    "prompt_tokens": 2156,
+    "total_tokens": 3159,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 21.9,
+    "prompt_per_token_ms": 4.38,
+    "prompt_per_second": 228.31050228310502,
+    "predicted_n": 1003,
+    "predicted_ms": 7242.61,
+    "predicted_per_token_ms": 7.22815369261477,
+    "predicted_per_second": 138.34791601370225
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2291.4,
+  "phys_footprint_mib": 1795.3,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

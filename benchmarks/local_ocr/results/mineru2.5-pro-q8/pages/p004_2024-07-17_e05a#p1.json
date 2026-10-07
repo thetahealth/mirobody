@@ -1,0 +1,67 @@
+{
+ "id": "p004_2024-07-17_e05a#p1",
+ "tier": "T3",
+ "image_sha256": "792af2e75bc0af32bdd292398c8fc4c7ee14f9ebf68132c48a12ac2eae5e2f54",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "Item\nResult\nAlpha-fetoprotein\n3.11ng/mL\nCarcinoembryonic antigen\n1.61ng/mL\nProstate specific antigen\n0.86ng/mL\nPerformed By: Nora Lambert  Verified By: Hui Chan<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.31,
+   "usage": {
+    "completion_tokens": 58,
+    "prompt_tokens": 2170,
+    "total_tokens": 2228,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11723.933,
+    "prompt_per_token_ms": 5.440340139211138,
+    "prompt_per_second": 183.81203645568428,
+    "predicted_n": 58,
+    "predicted_ms": 532.168,
+    "predicted_per_token_ms": 9.336280701754387,
+    "predicted_per_second": 107.1090332376242
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>Item<fcel>Result<nl>\n<fcel>Alpha-fetoprotein<fcel>3.11ng/mL<nl>\n<fcel>Carcinoembryonic antigen<fcel>1.61ng/mL<nl>\n<fcel>Prostate specific antigen<fcel>0.86ng/mL<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 0.52,
+   "usage": {
+    "completion_tokens": 53,
+    "prompt_tokens": 2170,
+    "total_tokens": 2223,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 20.693,
+    "prompt_per_token_ms": 2.586625,
+    "prompt_per_second": 386.604165659885,
+    "predicted_n": 53,
+    "predicted_ms": 435.123,
+    "predicted_per_token_ms": 8.36775,
+    "predicted_per_second": 119.50643840936931
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1668.1,
+  "phys_footprint_mib": 1193.0,
+  "phys_footprint_peak_mib": 1194.0
+ }
+}

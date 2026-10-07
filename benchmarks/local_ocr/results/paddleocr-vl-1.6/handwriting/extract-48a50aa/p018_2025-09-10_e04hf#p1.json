@@ -1,0 +1,72 @@
+{
+ "id": "p018_2025-09-10_e04hf#p1",
+ "llm": true,
+ "seconds": 3.12,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Height",
+   "value": "145.8",
+   "unit": "cm",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Body weight",
+   "value": "42.8",
+   "unit": "kg",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Body mass index",
+   "value": "20.1",
+   "unit": "kg/m^2",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Systolic blood pressure",
+   "value": "124",
+   "unit": "mmHg",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Diastolic blood pressure",
+   "value": "69",
+   "unit": "mmHg",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Heart rate",
+   "value": "80",
+   "unit": "/min",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Fasting plasma glucose",
+   "value": "5.58",
+   "unit": "mmol/L",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "2025-09-10 00:00:00"
+}

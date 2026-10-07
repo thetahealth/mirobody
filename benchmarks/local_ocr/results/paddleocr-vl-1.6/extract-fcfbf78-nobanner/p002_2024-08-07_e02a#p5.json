@@ -1,0 +1,345 @@
+{
+ "id": "p002_2024-08-07_e02a#p5",
+ "llm": true,
+ "seconds": 4.75,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Hematocrit(HCT)",
+   "value": "42.4",
+   "unit": "%",
+   "reference_range": "35.0--45.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Mean corpuscular volume(MCV)",
+   "value": "93.3",
+   "unit": "fl",
+   "reference_range": "82.0--100.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Mean corpuscular hemoglobin(MCH)",
+   "value": "29.5",
+   "unit": "pg",
+   "reference_range": "27.0--34.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Mean corpuscular hemoglobin concentration(MCHC)",
+   "value": "316",
+   "unit": "g/l",
+   "reference_range": "316--354",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Red cell distribution width(RDW-CV)",
+   "value": "13.6",
+   "unit": "%",
+   "reference_range": "11.5--14.5",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Platelet count(PLT)",
+   "value": "179",
+   "unit": "10^9/L",
+   "reference_range": "125--350",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Mean platelet volume(MPV)",
+   "value": "12.6",
+   "unit": "fl",
+   "reference_range": "7.6--13.2",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Platelet distribution width(PDW)",
+   "value": "13.3",
+   "unit": "fl",
+   "reference_range": "9.0--17.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Plateletcrit(PCT)",
+   "value": "0.194",
+   "unit": "%",
+   "reference_range": "0.108--0.282",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Neutrophil percentage(NEUT%)",
+   "value": "53.6",
+   "unit": "%",
+   "reference_range": "40.0--75.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Lymphocyte percentage(LYMPH%)",
+   "value": "33.7",
+   "unit": "%",
+   "reference_range": "20.0--50.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Monocyte percentage(MONO%)",
+   "value": "4.2",
+   "unit": "%",
+   "reference_range": "3.0--10.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Eosinophil percentage(EO%)",
+   "value": "7.9",
+   "unit": "%",
+   "reference_range": "0.4--8.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Basophil percentage(BASO%)",
+   "value": "0.6",
+   "unit": "%",
+   "reference_range": "0.0--1.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Neutrophil count(NEUT#)",
+   "value": "4.45",
+   "unit": "10^9/L",
+   "reference_range": "1.80--6.30",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Lymphocyte count(LYMPH#)",
+   "value": "2.80",
+   "unit": "10^9/L",
+   "reference_range": "1.10--3.20",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Monocyte count(MONO#)",
+   "value": "0.35",
+   "unit": "10^9/L",
+   "reference_range": "0.10--0.60",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Basophil count(BASO#)",
+   "value": "0.05",
+   "unit": "10^9/L",
+   "reference_range": "0.00--0.06",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Alanine aminotransferase(ALT)",
+   "value": "24",
+   "unit": "U/l",
+   "reference_range": "7--40",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Aspartate aminotransferase(AST)",
+   "value": "13",
+   "unit": "U/l",
+   "reference_range": "13--35",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Alkaline phosphatase(ALP)",
+   "value": "51",
+   "unit": "U/l",
+   "reference_range": "35--100",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Gamma-glutamyl transferase(GGT)",
+   "value": "17",
+   "unit": "U/l",
+   "reference_range": "7--45",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total protein(TP)",
+   "value": "81.8",
+   "unit": "g/l",
+   "reference_range": "65.0--85.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Albumin(ALB)",
+   "value": "47.1",
+   "unit": "g/l",
+   "reference_range": "40.0--55.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Globulin(GLB)",
+   "value": "34.7",
+   "unit": "g/l",
+   "reference_range": "20.0--40.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total bilirubin(TBIL)",
+   "value": "10.3",
+   "unit": "μmol/l",
+   "reference_range": "0.0--21.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Direct bilirubin(DBIL)",
+   "value": "1.9",
+   "unit": "μmol/l",
+   "reference_range": "< 8.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Indirect bilirubin(IBIL)",
+   "value": "8.4",
+   "unit": "μmol/l",
+   "reference_range": "0.0--18.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Total bile acid(TBA)",
+   "value": "3.8",
+   "unit": "μmol/l",
+   "reference_range": "< 10.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Urea(BUN)",
+   "value": "3.90",
+   "unit": "mmol/l",
+   "reference_range": "2.60--7.50",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Creatinine(CREA)",
+   "value": "53",
+   "unit": "μmol/l",
+   "reference_range": "41--73",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Uric acid(UA)",
+   "value": "199",
+   "unit": "μmol/l",
+   "reference_range": "155--357",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Potassium(K)",
+   "value": "4.44",
+   "unit": "mmol/l",
+   "reference_range": "3.50--5.30",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Sodium(Na)",
+   "value": "135.2",
+   "unit": "",
+   "reference_range": "137.0--147.0",
+   "detection_method": "laboratory",
+   "status": "low",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Chloride(Cl)",
+   "value": "102.7",
+   "unit": "mmol/l",
+   "reference_range": "99.0--110.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "concentration(MCHC)",
+   "value": "21",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "Eosinophil count(EO#)",
+   "value": "0.66",
+   "reference_range": "0.02--0.52",
+   "unit": "10^9/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  }
+ ],
+ "date_time": "",
+ "content_type": "medical_report"
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p007_2024-12-20_e02hn#p1",
+ "tier": "H3",
+ "image_sha256": "b11416bf410af31a237800922e6cdd8cbe8567bb1dbeede3c778f06d1a2d058d",
+ "image_size": [
+  901,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE—GENERATED DATA, NOT A REAL PATIENT RECORD\n门诊病历\n科别：金科    日期：2024-12-20\n\n2型按麻药复诊\n\n血摇栓利尚可，空腹血摇偏高\n\nT36.5 P75次/分 R:15 BP+31/70 131/80mmHg SpO2 100%\n\n伴去 79.0 kg\n\n心肺听诊未见异常\n\n印实：2型按麻药\n\n建议：不适随访，勿饮水，注意休息，定期复查<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 7.67,
+   "usage": {
+    "completion_tokens": 145,
+    "prompt_tokens": 1497,
+    "total_tokens": 1642,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 1482,
+    "prompt_ms": 6382.04,
+    "prompt_per_token_ms": 4.306369770580297,
+    "prompt_per_second": 232.21415096113466,
+    "predicted_n": 145,
+    "predicted_ms": 1248.213,
+    "predicted_per_token_ms": 8.668145833333334,
+    "predicted_per_second": 115.36492569777755
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE—GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<fcel>门诊病历<lcel><nl>\n<fcel>科别:金科<fcel>日期:2024-12-20<nl>\n<fcel>2型按麻房复诊<lcel><nl>\n<fcel>血摇栓利尚可,空腹血摇偏高<lcel><nl>\n<fcel>T36.5P75次/分R:15BP+31/70131/80mmHgSp02100%<lcel><nl>\n<fcel>伴去79.0kg<lcel><nl>\n<fcel>心肺听诊未见异常<lcel><nl>\n<fcel>印卖:2型按麻房<lcel><nl>\n<fcel>建议:不适随访,勿饮水,注意休息,定期复查<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.61,
+   "usage": {
+    "completion_tokens": 172,
+    "prompt_tokens": 1497,
+    "total_tokens": 1669,
+    "prompt_tokens_details": {
+     "cached_tokens": 1489
+    }
+   },
+   "timings": {
+    "cache_n": 1489,
+    "prompt_n": 8,
+    "prompt_ms": 21.595,
+    "prompt_per_token_ms": 2.699375,
+    "prompt_per_second": 370.4561241028016,
+    "predicted_n": 172,
+    "predicted_ms": 1542.531,
+    "predicted_per_token_ms": 9.020649122807017,
+    "predicted_per_second": 110.85676722218226
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1692.9,
+  "phys_footprint_mib": 1197.5,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

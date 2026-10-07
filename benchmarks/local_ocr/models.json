@@ -1,0 +1,145 @@
+{
+  "glm-ocr-q8": {
+    "name": "GLM-OCR 0.9B",
+    "repo": "ggml-org/GLM-OCR-GGUF",
+    "model_file": "GLM-OCR-Q8_0.gguf",
+    "mmproj_file": "mmproj-GLM-OCR-Q8_0.gguf",
+    "quant": "Q8_0, projector Q8_0",
+    "upstream": "zai-org/GLM-OCR",
+    "license": "MIT",
+    "llama_cpp": "upstream since PR #19677 (2026-02-18)",
+    "passes": {
+      "text": "Text Recognition:",
+      "tables": "Table Recognition:"
+    },
+    "sampling": {
+      "temperature": 0
+    },
+    "convert": null,
+    "why": "the shipped reader (config.llm.yaml `local-ocr`); prompts from its model card"
+  },
+  "paddleocr-vl-1.6": {
+    "name": "PaddleOCR-VL-1.6 0.9B",
+    "repo": "PaddlePaddle/PaddleOCR-VL-1.6-GGUF",
+    "model_file": "PaddleOCR-VL-1.6-GGUF.gguf",
+    "mmproj_file": "PaddleOCR-VL-1.6-GGUF-mmproj.gguf",
+    "template_file": "chat_template.jinja",
+    "quant": "the repo's only build (unquantized), projector likewise",
+    "upstream": "PaddlePaddle/PaddleOCR-VL-1.6",
+    "license": "Apache-2.0",
+    "llama_cpp": "upstream since PR #18825 (2026-02-19); the repo ships its chat template beside the GGUF",
+    "passes": {
+      "text": "OCR:",
+      "tables": "Table Recognition:"
+    },
+    "sampling": {
+      "temperature": 0
+    },
+    "convert": "otsl",
+    "why": "asked for by the product owner; Apache-2.0, same size as GLM-OCR; 1.6 is a drop-in successor of 1.5 (same architecture, per its card), so 1.5 is not run separately"
+  },
+  "mineru2.5-pro-q8": {
+    "name": "MinerU2.5-Pro-2605 1.2B",
+    "repo": "jinzhenj/MinerU2.5-Pro-2605-1.2B-GGUF",
+    "model_file": "MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+    "mmproj_file": "mmproj-MinerU2.5-Pro-2605-1.2B-Q8_0.gguf",
+    "quant": "Q8_0, projector Q8_0; a community conversion (no official GGUF exists), the most downloaded one; its projector is byte-identical to mradermacher's",
+    "upstream": "opendatalab/MinerU2.5-Pro-2605-1.2B",
+    "license": "Apache-2.0 (the earlier MinerU2.5-2509 is AGPL-3.0)",
+    "llama_cpp": "upstream: a Qwen2-VL architecture. Its OTSL cell tokens are special tokens, which llama-server drops from the text unless it runs with --special (-sp); without it the tables pass comes back as cells run together with no separator",
+    "passes": {
+      "text": "\nText Recognition:",
+      "tables": "\nTable Recognition:"
+    },
+    "sampling": {
+      "temperature": 0,
+      "presence_penalty": 1.0,
+      "frequency_penalty": 0.005
+    },
+    "convert": "otsl",
+    "why": "the other document-OCR model of this size with a permissive license; prompts and penalties from mineru-vl-utils (`DEFAULT_PROMPTS`, `DEFAULT_SAMPLING_PARAMS`)",
+    "server_args": [
+      "--special"
+    ],
+    "special_tokens": true
+  },
+  "lightonocr-2-q8": {
+    "name": "LightOnOCR-2 1B",
+    "repo": "ggml-org/LightOnOCR-2-1B-GGUF",
+    "model_file": "LightOnOCR-2-1B-Q8_0.gguf",
+    "mmproj_file": "mmproj-LightOnOCR-2-1B-Q8_0.gguf",
+    "quant": "Q8_0, projector Q8_0",
+    "upstream": "lightonai/LightOnOCR-2-1B",
+    "license": "Apache-2.0",
+    "llama_cpp": "upstream (ggml-org publishes the GGUF)",
+    "passes": {
+      "tables": ""
+    },
+    "sampling": {
+      "temperature": 0
+    },
+    "convert": null,
+    "why": "added: Apache-2.0, 1B, an official ggml-org GGUF; it takes no prompt, so it is one pass",
+    "status": "not measured: the owner limited the comparison to small OCR models"
+  },
+  "qwen3-vl-2b-q4": {
+    "name": "Qwen3-VL-2B-Instruct (reference)",
+    "repo": "Qwen/Qwen3-VL-2B-Instruct-GGUF",
+    "model_file": "Qwen3VL-2B-Instruct-Q4_K_M.gguf",
+    "mmproj_file": "mmproj-Qwen3VL-2B-Instruct-Q8_0.gguf",
+    "quant": "Q4_K_M, projector Q8_0",
+    "upstream": "Qwen/Qwen3-VL-2B-Instruct",
+    "license": "Apache-2.0",
+    "llama_cpp": "upstream",
+    "passes": {
+      "text": "Transcribe all the text in this image exactly as printed, in reading order. Output only the text.",
+      "tables": "Convert every table in this image to HTML using <table>, <tr> and <td>. Copy every cell exactly as printed, including empty cells. Output only the HTML."
+    },
+    "sampling": {
+      "temperature": 0
+    },
+    "convert": null,
+    "why": "a general vision model as a reference; no task prompts of its own, so the two passes are written to match the reader's",
+    "status": "not measured: the owner limited the comparison to small OCR models"
+  },
+  "dots-ocr-q8": {
+    "name": "dots.ocr 1.7B",
+    "repo": "ggml-org/dots.ocr-GGUF",
+    "model_file": "dots.ocr-Q8_0.gguf",
+    "mmproj_file": "mmproj-dots.ocr-Q8_0.gguf",
+    "quant": "Q8_0, projector Q8_0",
+    "upstream": "rednote-hilab/dots.ocr",
+    "license": "MIT",
+    "llama_cpp": "upstream since PR #17575 (2026-04-09)",
+    "passes": {
+      "text": "Extract the text content from this image.",
+      "tables": "Please output the layout information from the PDF image, including each layout element's bbox, its category, and the corresponding text content within the bbox.\n\n1. Bbox format: [x1, y1, x2, y2]\n\n2. Layout Categories: The possible categories are ['Caption', 'Footnote', 'Formula', 'List-item', 'Page-footer', 'Page-header', 'Picture', 'Section-header', 'Table', 'Text', 'Title'].\n\n3. Text Extraction & Formatting Rules:\n    - Picture: For the 'Picture' category, the text field should be omitted.\n    - Formula: Format its text as LaTeX.\n    - Table: Format its text as HTML.\n    - All Others (Text, Title, etc.): Format their text as Markdown.\n\n4. Constraints:\n    - The output text must be the original text from the image, with no translation.\n    - All layout elements must be sorted according to human reading order.\n\n5. Final Output: The entire output must be a single JSON object.\n"
+    },
+    "sampling": {
+      "temperature": 0
+    },
+    "convert": "dots_layout",
+    "why": "asked for; prompts are `prompt_ocr` and `prompt_layout_all_en` from dots_ocr/utils/prompts.py (its table-only prompt is commented out there)",
+    "status": "not measured: the owner limited the comparison to small OCR models"
+  },
+  "deepseek-ocr-q8": {
+    "name": "DeepSeek-OCR 3B (MoE, 0.57B active)",
+    "repo": "ggml-org/DeepSeek-OCR-GGUF",
+    "model_file": "DeepSeek-OCR-Q8_0.gguf",
+    "mmproj_file": "mmproj-DeepSeek-OCR-Q8_0.gguf",
+    "quant": "Q8_0, projector Q8_0",
+    "upstream": "deepseek-ai/DeepSeek-OCR",
+    "license": "MIT",
+    "llama_cpp": "upstream since PR #17400 (2026-03-25)",
+    "passes": {
+      "text": "Free OCR.",
+      "tables": "<|grounding|>Convert the document to markdown."
+    },
+    "sampling": {
+      "temperature": 0
+    },
+    "convert": "deepseek",
+    "why": "asked for; prompts from its model card",
+    "status": "not measured: the owner limited the comparison to small OCR models"
+  }
+}

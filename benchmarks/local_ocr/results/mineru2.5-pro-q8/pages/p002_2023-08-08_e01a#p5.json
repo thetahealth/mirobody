@@ -1,0 +1,67 @@
+{
+ "id": "p002_2023-08-08_e01a#p5",
+ "tier": "T2",
+ "image_sha256": "38edee4343b2ab56f8d9eb7f9dd0136bc1381be2673c940ded3ad51d8e3ab0aa",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nBasophil percentage(BASO%)                          0.4                          %      0.0--1.0      02\nNeutrophil count(NEUT#)                         4.61                          10^9/L   1.80--6.30      02\nLymphocyte count(LYMPH#)                         1.96                          10^9/L   1.10--3.20      02\nMonocyte count(MONO#)                         0.30                          10^9/L   0.10--0.60      02\nEosinophil count(EO#)                         0.62                          ↑     10^9/L   0.02--0.52      02\nBasophil count(BASO#)                         0.03                          10^9/L   0.00--0.06      02\n\nLiver Function Tests\n\nTest Item                  Measurement Methodology Status Unit    Normal Range Lab\nAlanine aminotransferase(ALT)          23                          U/L     7--40      02\nAspartate aminotransferase(AST)          16                          U/L     13--35      02\nAlkaline phosphatase(ALP)          55                          U/L     35--100      02\nGamma-glutamyl transferase(GGT)          15                          U/L     7--45      02\nTotal protein(TP)                  78.0                          g/L     65.0--85.0      02\nAlbumin(ALB)                         45.2                          g/L     40.0--55.0      02\nGlobulin(GLB)                         32.8                          20.0--40.0                  02\nTotal bilirubin(TBIL)                  12.2                          μmol/L   0.0--21.0      02\nDirect bilirubin(DBIL)                  2.3                          μmol/L   <8.0      02\nIndirect bilirubin(IBIL)                  9.9                          μmol/L   0.0--18.0      02\nTotal bile acid(TBA)                  3.4                          μmol/L   <10.0      02\n\nRenal Function\n\nTest Item     Measurement Methodology Status Unit    Normal Range       Lab\nUrea(BUN)          4.57                          mmol/L   2.60--7.50                  02\nCreatinine(CREA)      59                          μmol/L   41--73                  02\nUric acid(UA)      216                          μmol/L   155--357                  02\n\nElectrolytes\n\nTest Item     Measurement Methodology Status Unit    Normal Range       Lab\nPotassium(K)      4.26                          mmol/L   3.50--5.30                  02\nSodium(Na)      144.6                          mmol/L   137.0--147.0                  02\nChloride(Cl)      102.9                          mmol/L   99.0--110.0                  02\nCalcium(Ca)      2.33                          mmol/L   2.11--2.52                  02\n\nLipid Profile\n\nTest Item                 Measurement Methodology Status Unit    Normal Range Lab\nTotal cholesterol(TC)          3.68                          mmol/L   <5.18      02\nTriglycerides(TG)          0.70                          mmol/L   <1.70      02\nHDL cholesterol(HDL-C)          1.70                          mmol/L   >1.04      02\nLDL cholesterol(LDL-C)          1.66                          mmol/L   <3.37      02\nApolipoprotein A1(ApoA1)          1.82                          ↑     g/L    1.20--1.60      02\nApolipoprotein B(ApoB)          0.56                          ↓     g/L    0.60--1.10      02\n\nGlucose\n\nTest Item                 Measurement Methodology Status Unit    Normal Range Lab<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 20.21,
+   "usage": {
+    "completion_tokens": 1046,
+    "prompt_tokens": 2170,
+    "total_tokens": 3216,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11687.922,
+    "prompt_per_token_ms": 5.42362969837587,
+    "prompt_per_second": 184.37836939705792,
+    "predicted_n": 1046,
+    "predicted_ms": 8463.584,
+    "predicted_per_token_ms": 8.099123444976078,
+    "predicted_per_second": 123.47015165206606
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>Test Item<fcel>Measurement<fcel>Methodology<fcel>Status<fcel>Unit<fcel>Normal Range<fcel>Lab<nl>\n<fcel>Potassium(K)<fcel>4.26<ecel><fcel>mmol/L<fcel>3.50--5.30<ecel><fcel>02<nl>\n<fcel>Sodium(Na)<fcel>144.6<ecel><fcel>mmol/L<fcel>137.0--147.0<ecel><fcel>02<nl>\n<fcel>Chloride(Cl)<fcel>102.9<ecel><fcel>mmol/L<fcel>99.0--110.0<ecel><fcel>02<nl>\n<fcel>Calcium(Ca)<fcel>2.33<ecel><fcel>mmol/L<fcel>2.11--2.52<ecel><fcel>02<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.3,
+   "usage": {
+    "completion_tokens": 152,
+    "prompt_tokens": 2170,
+    "total_tokens": 2322,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 15.554,
+    "prompt_per_token_ms": 1.94425,
+    "prompt_per_second": 514.3371480005143,
+    "predicted_n": 152,
+    "predicted_ms": 1219.385,
+    "predicted_per_token_ms": 8.075397350993377,
+    "predicted_per_second": 123.83291577311515
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1628.1,
+  "phys_footprint_mib": 1202.8,
+  "phys_footprint_peak_mib": 1204.2
+ }
+}

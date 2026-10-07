@@ -1,0 +1,67 @@
+{
+ "id": "p010_2023-12-03_e01hn#p1",
+ "tier": "H3",
+ "image_sha256": "637219b332e4a5b3bd890004f9c1a1ef5dc06dc4c6edbf6570adc2cc8c562e2d",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n门诊病历\n\n科别：内分泌科 日期：2023/2/23\n\n血脂异常复诊\n\n自诉无明显不适\n\nT 36.4°C P 83 R: 17 B 125/74 SpO2 95% 体重 65.6 kg\n\n心肺听诊未见异常\n\n印象：血脂异常\n\n建议：监测血糖，适当运动",
+   "finish_reason": "stop",
+   "seconds": 6.24,
+   "usage": {
+    "completion_tokens": 118,
+    "prompt_tokens": 1231,
+    "total_tokens": 1349,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1226,
+    "prompt_ms": 5466.269,
+    "prompt_per_token_ms": 4.458620717781403,
+    "prompt_per_second": 224.28460802057126,
+    "predicted_n": 118,
+    "predicted_ms": 719.632,
+    "predicted_per_token_ms": 6.150700854700855,
+    "predicted_per_second": 162.58309802788094
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><fcel>门诊病历<lcel><nl><fcel>科别：内分泌科 日期：2023/2/23<lcel><nl><fcel>血脂异常复诊<lcel><nl><fcel>自诉无明显不适<lcel><nl><fcel>T 36.4°C P 83 R: 17 B 125/74 SpO2 95% 体重 65.6 kg<lcel><nl><fcel>心肺听诊未见异常<lcel><nl><fcel>印象：血脂异常<lcel><nl><fcel>建议：监测血糖，适当运动<lcel><nl><ecel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 0.88,
+   "usage": {
+    "completion_tokens": 132,
+    "prompt_tokens": 1231,
+    "total_tokens": 1363,
+    "prompt_tokens_details": {
+     "cached_tokens": 1224
+    }
+   },
+   "timings": {
+    "cache_n": 1224,
+    "prompt_n": 7,
+    "prompt_ms": 18.1,
+    "prompt_per_token_ms": 2.585714285714286,
+    "prompt_per_second": 386.74033149171265,
+    "predicted_n": 132,
+    "predicted_ms": 801.003,
+    "predicted_per_token_ms": 6.114526717557252,
+    "predicted_per_second": 163.5449555120268
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2220.5,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ }
+}

@@ -1,0 +1,203 @@
+{
+ "size": "small",
+ "agent": "minicpm5-2b",
+ "started": "2026-10-06T17:21:21+08:00",
+ "parts": [
+  "extraction",
+  "journal",
+  "qa"
+ ],
+ "switch": {
+  "agent": "minicpm5-2b",
+  "ocr": "glm-ocr",
+  "switch_s": 45.5,
+  "load_s": 10.2,
+  "local_models": {
+   "agent": "minicpm5-2b",
+   "utils": "minicpm5-2b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "minicpm5-2b",
+   "hf_repo": "openbmb/MiniCPM5-2B-GGUF:Q4_K_M",
+   "ctx_size": "32768",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "MiniCPM5-2B-Q4_K_M.gguf",
+     "bytes": 1561318368,
+     "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "hf_repo": "ggml-org/GLM-OCR-GGUF:Q8_0",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-06T19:21:36+08:00",
+  "processes": [
+   {
+    "pid": 40756,
+    "ppid": 40516,
+    "rss_mb": 13.2,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 34.6
+   },
+   {
+    "pid": 40779,
+    "ppid": 40756,
+    "rss_mb": 2813.4,
+    "alias": "minicpm5-2b",
+    "role": "child",
+    "footprint_mb": 1417.5
+   },
+   {
+    "pid": 40780,
+    "ppid": 40756,
+    "rss_mb": 2171.6,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1553.3
+   }
+  ],
+  "children_rss_mb": 4985.0,
+  "children_footprint_mb": 2970.8,
+  "swap_used_mb": 10117.38
+ },
+ "passes": [
+  {
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "started": "2026-10-06T17:22:03+08:00",
+   "resources": {
+    "disk_free_gb": 10.8,
+    "memory_free_pct": 26,
+    "swap_used_mb": 10379.31
+   },
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-2b"
+   ],
+   "memory": {
+    "at": "2026-10-06T17:22:03+08:00",
+    "processes": [
+     {
+      "pid": 40338,
+      "ppid": 95523,
+      "rss_mb": 2843.7,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1418.5
+     },
+     {
+      "pid": 40339,
+      "ppid": 95523,
+      "rss_mb": 2163.8,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1557.4
+     },
+     {
+      "pid": 95523,
+      "ppid": 95522,
+      "rss_mb": 9.0,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 35.6
+     }
+    ],
+    "children_rss_mb": 5007.5,
+    "children_footprint_mb": 2975.9,
+    "swap_used_mb": 10379.31
+   },
+   "memory_run": {
+    "samples": 69,
+    "peak_rss_mb": 5657.6,
+    "peak_footprint_mb": 4353.4
+   },
+   "finished": "2026-10-06T17:53:37+08:00",
+   "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+   "mirobody_dirty": true
+  },
+  {
+   "parts": [
+    "extraction",
+    "journal"
+   ],
+   "started": "2026-10-06T19:21:36+08:00",
+   "resources": {
+    "disk_free_gb": 9.6,
+    "memory_free_pct": 25,
+    "swap_used_mb": 10117.38
+   },
+   "mirobody_commit": "9a1271f5db765f9fc08e13de3dd431421144ab49",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-2b"
+   ],
+   "memory": {
+    "at": "2026-10-06T19:21:36+08:00",
+    "processes": [
+     {
+      "pid": 40756,
+      "ppid": 40516,
+      "rss_mb": 13.2,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 34.6
+     },
+     {
+      "pid": 40779,
+      "ppid": 40756,
+      "rss_mb": 2813.4,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1417.5
+     },
+     {
+      "pid": 40780,
+      "ppid": 40756,
+      "rss_mb": 2171.6,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1553.3
+     }
+    ],
+    "children_rss_mb": 4985.0,
+    "children_footprint_mb": 2970.8,
+    "swap_used_mb": 10117.38
+   },
+   "finished": "2026-10-06T19:25:29+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 69,
+  "peak_rss_mb": 5657.6,
+  "peak_footprint_mb": 4353.4
+ },
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-06T19:25:29+08:00"
+}

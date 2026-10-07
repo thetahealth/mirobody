@@ -1,0 +1,89 @@
+{
+ "id": "p016_2025-11-26_e09hn#p1",
+ "llm": true,
+ "seconds": 10.56,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Temperature",
+   "value": "37.0",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Complete Blood Count",
+   "value": "68",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Hemoglobin",
+   "value": "17",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Blood Pressure",
+   "value": "126/71",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Blood Pressure Late",
+   "value": "100%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "90.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Heart sounds",
+   "value": "normal",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "26.11.2025"
+  },
+  {
+   "original_indicator": "Imaging",
+   "value": "Fatty liver",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Pathological",
+   "status": "normal",
+   "notes": "Imaging finding",
+   "date_time": "26.11.2025"
+  }
+ ],
+ "date_time": "26.11.2025"
+}

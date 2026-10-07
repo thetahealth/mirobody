@@ -1,0 +1,79 @@
+{
+ "id": "p003_2026-03-31_e10a#p1",
+ "llm": true,
+ "seconds": 13.93,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体温",
+   "value": "36.6",
+   "reference_range": "36.6",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01 00:00:00"
+  },
+  {
+   "original_indicator": "心率",
+   "value": "67",
+   "reference_range": "60-100",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01 00:00:00"
+  },
+  {
+   "original_indicator": "血压",
+   "value": "111/65",
+   "reference_range": "90-140/60-90",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01 00:00:00"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "84.9",
+   "reference_range": "84.9",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01 00:00:00"
+  },
+  {
+   "original_indicator": "SpO2",
+   "value": "97%",
+   "reference_range": "97%",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01 00:00:00"
+  },
+  {
+   "original_indicator": "空腹血糖",
+   "value": "4.76",
+   "reference_range": "3.9-6.1",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01 00:00:00"
+  },
+  {
+   "original_indicator": "HbA1c",
+   "value": "6.1",
+   "reference_range": "4.0-7.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "↑",
+   "date_time": "2026-04-01 00:00:00"
+  }
+ ],
+ "date_time": "2026-04-01"
+}

@@ -1,0 +1,42 @@
+{
+ "id": "p005_2025-11-05_e06a#p2",
+ "tier": "T0",
+ "image_sha256": "d0449e4eca69ef7168addd48989433e2c94e619376fa60fb2702b1c069f5df72",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>6<fcel>平均红细胞血红蛋白量（MCH）<fcel>27.3<fcel>27.0~34.0&pg<nl><fcel>7<fcel>平均红细胞血红蛋白浓度（MCHC）<fcel>323<fcel>316~354&g/l<nl><fcel>8<fcel>红细胞分布宽度（RDW-CV）<fcel>13.6<fcel>11.5~14.5&%<nl><fcel>9<fcel>血小板缎数（PLT）<fcel>199<fcel>125~350&x10^9/L<nl><fcel>10<fcel>平均血小板体积（MPV）<fcel>11.2<fcel>7.6~13.2&fl<nl><fcel>11<fcel>血小板分布宽度（PDW）<fcel>14.6<fcel>9.0~17.0&fl<nl><fcel>12<fcel>血小板压积（PCT）<fcel>0.204<fcel>0.108~0.282&%<nl><fcel>13<fcel>中性粒细胞百分比（NEUT%）<fcel>49.6<fcel>40.0~75.0&%<nl><fcel>14<fcel>淋巴细胞百分比（LYMPH%）<fcel>38.8<fcel>20.0~50.0&%<nl><fcel>15<fcel>单核细胞百分比（MONO%）<fcel>5.3<fcel>3.0~10.0&%<nl><fcel>16<fcel>嗜酸性粒细胞百分比（EO%）<fcel>5.1<fcel>0.4~8.0&%<nl><fcel>17<fcel>嗜碱性粒细胞百分比（BASO%）<fcel>1.1\\uparrow<fcel>0.0~1.0&%<nl><fcel>18<fcel>中性粒细胞绝对值（NEUT#）<fcel>2.62<fcel>1.80~6.30&x10^9/L<nl><fcel>19<fcel>淋巴细胞绝对值（LYMPH#）<fcel>2.05<fcel>1.10~3.20&x10^9/L<nl><fcel>20<fcel>单核细胞绝对值（MONO#）<fcel>0.28<fcel>0.10~0.60&x10^9/L<nl><fcel>21<fcel>嗜酸性粒细胞绝对值（EO#）<fcel>0.27<fcel>0.02~0.52&x10^9/L<nl><fcel>22<fcel>嗜碱性粒细胞绝对值（BASO#）<fcel>0.06<fcel>0.00~0.06&x10^9/L<nl><fcel>23<fcel>铁蛋白（FER）<fcel>30.6<fcel>13.0~150.0&ng/mL<nl><fcel>24<fcel>血清铁（Fe）<fcel>10.7<fcel>9.0~30.4&μmol/l<nl><fcel>25<fcel>维生素B12（VB12）<fcel>291<fcel>145~569&pmol/L<nl><fcel>26<fcel>叶酸（FA）<fcel>22.4<fcel>7.0~46.4&nmol/L<nl>",
+   "finish_reason": "stop",
+   "seconds": 9.92,
+   "usage": {
+    "completion_tokens": 664,
+    "prompt_tokens": 1273,
+    "total_tokens": 1937,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5736.047,
+    "prompt_per_token_ms": 4.523696372239748,
+    "prompt_per_second": 221.05816078564212,
+    "predicted_n": 664,
+    "predicted_ms": 4139.743,
+    "predicted_per_token_ms": 6.243956259426848,
+    "predicted_per_second": 160.15486951726228
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2112.3,
+  "phys_footprint_mib": 1331.4,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

@@ -1,0 +1,170 @@
+{
+ "id": "p018_hlog01#p1",
+ "llm": true,
+ "seconds": 19.79,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "BP",
+   "value": "137/84",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "30/10 7:35"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "64",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "30/10 7:35"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "117/89",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "11 21:15"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "11 21:15"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "121/94",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "31/10 7:29"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "31/10 7:29"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "135/81",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "1/11 7:38"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "1/11 7:38"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "132/82",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "2/11 7:00"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "64",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2/11 7:00"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "121/92",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "3/11 7:29"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "62",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "3/11 7:29"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "135/90",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "4/11 7:32"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "64",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "4/11 7:32"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "140/83",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "high",
+   "notes": "",
+   "date_time": "6/11 7:28"
+  },
+  {
+   "original_indicator": "Pulse",
+   "value": "65",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "poor sleep",
+   "date_time": "6/11 7:28"
+  }
+ ],
+ "date_time": "October 2024",
+ "content_type": "medical_report"
+}

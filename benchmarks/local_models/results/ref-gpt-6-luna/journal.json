@@ -1,0 +1,1383 @@
+{
+ "account": "jnl-ref-gpt-6-luna-202610062208@bench.mirobody.local",
+ "user_id": "105",
+ "sentences": [
+  {
+   "text": "Feeling queasy, probably the aircon.",
+   "lang": "en",
+   "date": "2022-09-09",
+   "seconds": 3.6,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64096,
+      "kind": "symptom",
+      "at": "2022-09-09T04:00:00+00:00",
+      "text": "queasy",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:queasy",
+      "coded": false,
+      "reason": "icpc3:no-match",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "probably the aircon",
+      "kind": "other",
+      "name": "probably the aircon",
+      "reason": "hypothetical"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 0,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "feeling queasy",
+      "found": true,
+      "code_ok": false,
+      "code": null,
+      "written": {
+       "kind": "symptom",
+       "text": "queasy",
+       "value": "",
+       "unit": "",
+       "code": null,
+       "display": ""
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "Dry eye or other abnormal eye sensations for a year now, will see the doctor tomorrow, 6543 steps today.",
+   "lang": "en",
+   "date": "2023-05-28",
+   "seconds": 3.7,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64100,
+      "kind": "measurement",
+      "at": "2026-10-06T14:17:00+00:00",
+      "text": "steps",
+      "value": "6543",
+      "unit": "steps",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:steps|{steps}",
+      "coded": false,
+      "reason": "unit:conflict",
+      "note": ""
+     },
+     {
+      "id": 64097,
+      "kind": "symptom",
+      "at": "2025-10-06T14:17:00+00:00",
+      "text": "Dry eye",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:dry eye",
+      "coded": false,
+      "reason": "icpc3:no-match",
+      "note": "for a year now"
+     },
+     {
+      "id": 64098,
+      "kind": "symptom",
+      "at": "2025-10-06T14:17:00+00:00",
+      "text": "abnormal eye sensations",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:abnormal eye sensations",
+      "coded": false,
+      "reason": "icpc3:no-match",
+      "note": "for a year now"
+     },
+     {
+      "id": 64099,
+      "kind": "note",
+      "at": "2023-05-28T04:00:00+00:00",
+      "text": "will see the doctor tomorrow",
+      "value": "",
+      "unit": "",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:|note",
+      "coded": false,
+      "reason": "note:free-text",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 2,
+    "code_ok": 0,
+    "coded_checked": 1,
+    "extra": 1,
+    "notes": 1,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "Dry eye or other abnormal eye sensations",
+      "found": true,
+      "code_ok": false,
+      "code": null,
+      "written": {
+       "kind": "symptom",
+       "text": "Dry eye",
+       "value": "",
+       "unit": "",
+       "code": null,
+       "display": ""
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "steps 6543",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "steps",
+       "value": "6543",
+       "unit": "steps",
+       "code": null,
+       "display": ""
+      }
+     }
+    ],
+    "extra_entries": [
+     {
+      "kind": "symptom",
+      "text": "abnormal eye sensations",
+      "value": "",
+      "unit": "",
+      "code": null
+     }
+    ]
+   }
+  },
+  {
+   "text": "Been leg cramps for 5 days.",
+   "lang": "en",
+   "date": "2023-09-02",
+   "seconds": 1.9,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64101,
+      "kind": "symptom",
+      "at": "2026-10-01T14:17:00+00:00",
+      "text": "leg cramps",
+      "value": "",
+      "unit": "",
+      "display": "Leg or thigh (or both) symptom or complaint",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "LS13",
+      "series_id": "icpc3:LS13",
+      "coded": true,
+      "reason": "",
+      "note": "for 5 days"
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 0,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "leg cramps",
+      "found": true,
+      "code_ok": false,
+      "code": "LS13",
+      "written": {
+       "kind": "symptom",
+       "text": "leg cramps",
+       "value": "",
+       "unit": "",
+       "code": "LS13",
+       "display": "Leg or thigh (or both) symptom or complaint"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "A bit Headache.",
+   "lang": "en",
+   "date": "2024-05-15",
+   "seconds": 1.8,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64102,
+      "kind": "symptom",
+      "at": "2024-05-15T04:00:00+00:00",
+      "text": "Headache",
+      "value": "",
+      "unit": "",
+      "display": "Headache",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "NS01",
+      "series_id": "icpc3:NS01",
+      "coded": true,
+      "reason": "",
+      "note": "A bit"
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "Headache",
+      "found": true,
+      "code_ok": true,
+      "code": "NS01",
+      "written": {
+       "kind": "symptom",
+       "text": "Headache",
+       "value": "",
+       "unit": "",
+       "code": "NS01",
+       "display": "Headache"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "Feeling anxious or nervous or tense, better than yesterday, 7088 steps today.",
+   "lang": "en",
+   "date": "2024-07-12",
+   "seconds": 1.5,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64104,
+      "kind": "measurement",
+      "at": "2026-10-05T16:00:00+00:00",
+      "text": "steps",
+      "value": "7088",
+      "unit": "",
+      "display": "Number of steps in 24 hour Measured",
+      "code_system": "http://loinc.org",
+      "code": "41950-7",
+      "series_id": "loinc:number of steps|^Patient|24H|Qn|NRat",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64103,
+      "kind": "symptom",
+      "at": "2024-07-12T04:00:00+00:00",
+      "text": "Feeling anxious or nervous or tense",
+      "value": "",
+      "unit": "",
+      "display": "Feeling anxious or nervous or tense",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "PS01",
+      "series_id": "icpc3:PS01",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 2,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "Feeling anxious or nervous or tense",
+      "found": true,
+      "code_ok": true,
+      "code": "PS01",
+      "written": {
+       "kind": "symptom",
+       "text": "Feeling anxious or nervous or tense",
+       "value": "",
+       "unit": "",
+       "code": "PS01",
+       "display": "Feeling anxious or nervous or tense"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "steps 7088",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "steps",
+       "value": "7088",
+       "unit": "",
+       "code": "41950-7",
+       "display": "Number of steps in 24 hour Measured"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "最近1月余总是小腿抽筋，早上体重65.5公斤。",
+   "lang": "zh",
+   "date": "2022-02-24",
+   "seconds": 1.9,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64106,
+      "kind": "measurement",
+      "at": "2026-10-06T00:00:00+00:00",
+      "text": "体重",
+      "value": "65.5",
+      "unit": "公斤",
+      "display": "Body weight",
+      "code_system": "http://loinc.org",
+      "code": "29463-7",
+      "series_id": "loinc:body weight|^Patient|Pt|Qn|Mass",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64105,
+      "kind": "symptom",
+      "at": "2026-09-06T14:17:00+00:00",
+      "text": "小腿抽筋",
+      "value": "",
+      "unit": "",
+      "display": "Leg or thigh (or both) symptom or complaint",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "LS13",
+      "series_id": "icpc3:LS13",
+      "coded": true,
+      "reason": "",
+      "note": "总是"
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 2,
+    "code_ok": 0,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "小腿抽筋",
+      "found": true,
+      "code_ok": false,
+      "code": "LS13",
+      "written": {
+       "kind": "symptom",
+       "text": "小腿抽筋",
+       "value": "",
+       "unit": "",
+       "code": "LS13",
+       "display": "Leg or thigh (or both) symptom or complaint"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "weight 65.5",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "体重",
+       "value": "65.5",
+       "unit": "公斤",
+       "code": "29463-7",
+       "display": "Body weight"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "最近半年余总是便秘，血压123/80，心率79。",
+   "lang": "zh",
+   "date": "2022-12-07",
+   "seconds": 6.0,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64107,
+      "kind": "symptom",
+      "at": "2026-04-06T14:17:00+00:00",
+      "text": "便秘",
+      "value": "",
+      "unit": "",
+      "display": "Constipation",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "DS12",
+      "series_id": "icpc3:DS12",
+      "coded": true,
+      "reason": "",
+      "note": "最近半年余总是"
+     },
+     {
+      "id": 64108,
+      "kind": "measurement",
+      "at": "2022-12-07T04:00:00+00:00",
+      "text": "收缩压",
+      "value": "123",
+      "unit": "mmHg",
+      "display": "Systolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8480-6",
+      "series_id": "loinc:intravascular systolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64109,
+      "kind": "measurement",
+      "at": "2022-12-07T04:00:00+00:00",
+      "text": "舒张压",
+      "value": "80",
+      "unit": "mmHg",
+      "display": "Diastolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8462-4",
+      "series_id": "loinc:intravascular diastolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64110,
+      "kind": "measurement",
+      "at": "2022-12-07T04:00:00+00:00",
+      "text": "心率",
+      "value": "79",
+      "unit": "",
+      "display": "Heart rate",
+      "code_system": "http://loinc.org",
+      "code": "8867-4",
+      "series_id": "loinc:heart rate|XXX|Pt|Qn|NRat",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 4,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "便秘",
+      "found": true,
+      "code_ok": true,
+      "code": "DS12",
+      "written": {
+       "kind": "symptom",
+       "text": "便秘",
+       "value": "",
+       "unit": "",
+       "code": "DS12",
+       "display": "Constipation"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 123",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "收缩压",
+       "value": "123",
+       "unit": "mmHg",
+       "code": "8480-6",
+       "display": "Systolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 80",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "舒张压",
+       "value": "80",
+       "unit": "mmHg",
+       "code": "8462-4",
+       "display": "Diastolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 79",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "心率",
+       "value": "79",
+       "unit": "",
+       "code": "8867-4",
+       "display": "Heart rate"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "又嗳气了，血压117/79，心率81。",
+   "lang": "zh",
+   "date": "2024-01-27",
+   "seconds": 2.0,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64111,
+      "kind": "symptom",
+      "at": "2024-01-27T04:00:00+00:00",
+      "text": "嗳气",
+      "value": "",
+      "unit": "",
+      "display": "Flatulence, gas and belching",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "DS08",
+      "series_id": "icpc3:DS08",
+      "coded": true,
+      "reason": "",
+      "note": "又"
+     },
+     {
+      "id": 64112,
+      "kind": "measurement",
+      "at": "2024-01-27T04:00:00+00:00",
+      "text": "收缩压",
+      "value": "117",
+      "unit": "mmHg",
+      "display": "Systolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8480-6",
+      "series_id": "loinc:intravascular systolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64113,
+      "kind": "measurement",
+      "at": "2024-01-27T04:00:00+00:00",
+      "text": "舒张压",
+      "value": "79",
+      "unit": "mmHg",
+      "display": "Diastolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8462-4",
+      "series_id": "loinc:intravascular diastolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64114,
+      "kind": "measurement",
+      "at": "2024-01-27T04:00:00+00:00",
+      "text": "心率",
+      "value": "81",
+      "unit": "",
+      "display": "Heart rate",
+      "code_system": "http://loinc.org",
+      "code": "8867-4",
+      "series_id": "loinc:heart rate|XXX|Pt|Qn|NRat",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 4,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "嗳气",
+      "found": true,
+      "code_ok": true,
+      "code": "DS08",
+      "written": {
+       "kind": "symptom",
+       "text": "嗳气",
+       "value": "",
+       "unit": "",
+       "code": "DS08",
+       "display": "Flatulence, gas and belching"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 117",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "收缩压",
+       "value": "117",
+       "unit": "mmHg",
+       "code": "8480-6",
+       "display": "Systolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 79",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "舒张压",
+       "value": "79",
+       "unit": "mmHg",
+       "code": "8462-4",
+       "display": "Diastolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 81",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "心率",
+       "value": "81",
+       "unit": "",
+       "code": "8867-4",
+       "display": "Heart rate"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "眼睛干了，可能是换季。",
+   "lang": "zh",
+   "date": "2026-01-01",
+   "seconds": 2.6,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64115,
+      "kind": "symptom",
+      "at": "2026-01-01T04:00:00+00:00",
+      "text": "眼睛干",
+      "value": "",
+      "unit": "",
+      "display": "Dry eye or other abnormal eye sensations",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "FS07",
+      "series_id": "icpc3:FS07",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "可能是换季",
+      "kind": "other",
+      "name": "可能是换季",
+      "reason": "hypothetical"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "眼睛干",
+      "found": true,
+      "code_ok": true,
+      "code": "FS07",
+      "written": {
+       "kind": "symptom",
+       "text": "眼睛干",
+       "value": "",
+       "unit": "",
+       "code": "FS07",
+       "display": "Dry eye or other abnormal eye sensations"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "又口渴了，血压115/66，心率81。",
+   "lang": "zh",
+   "date": "2023-10-13",
+   "seconds": 2.6,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64116,
+      "kind": "symptom",
+      "at": "2023-10-13T04:00:00+00:00",
+      "text": "口渴",
+      "value": "",
+      "unit": "",
+      "display": "Excessive thirst",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "TS01",
+      "series_id": "icpc3:TS01",
+      "coded": true,
+      "reason": "",
+      "note": "又"
+     },
+     {
+      "id": 64117,
+      "kind": "measurement",
+      "at": "2023-10-13T04:00:00+00:00",
+      "text": "收缩压",
+      "value": "115",
+      "unit": "mmHg",
+      "display": "Systolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8480-6",
+      "series_id": "loinc:intravascular systolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64118,
+      "kind": "measurement",
+      "at": "2023-10-13T04:00:00+00:00",
+      "text": "舒张压",
+      "value": "66",
+      "unit": "mmHg",
+      "display": "Diastolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8462-4",
+      "series_id": "loinc:intravascular diastolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64119,
+      "kind": "measurement",
+      "at": "2023-10-13T04:00:00+00:00",
+      "text": "心率",
+      "value": "81",
+      "unit": "",
+      "display": "Heart rate",
+      "code_system": "http://loinc.org",
+      "code": "8867-4",
+      "series_id": "loinc:heart rate|XXX|Pt|Qn|NRat",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 4,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "口渴",
+      "found": true,
+      "code_ok": true,
+      "code": "TS01",
+      "written": {
+       "kind": "symptom",
+       "text": "口渴",
+       "value": "",
+       "unit": "",
+       "code": "TS01",
+       "display": "Excessive thirst"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 115",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "收缩压",
+       "value": "115",
+       "unit": "mmHg",
+       "code": "8480-6",
+       "display": "Systolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 66",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "舒张压",
+       "value": "66",
+       "unit": "mmHg",
+       "code": "8462-4",
+       "display": "Diastolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 81",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "心率",
+       "value": "81",
+       "unit": "",
+       "code": "8867-4",
+       "display": "Heart rate"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "小腿抽筋，比昨天好点了，血压129/64，心率76。",
+   "lang": "zh",
+   "date": "2026-04-17",
+   "seconds": 6.6,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64120,
+      "kind": "symptom",
+      "at": "2026-04-17T04:00:00+00:00",
+      "text": "小腿抽筋",
+      "value": "",
+      "unit": "",
+      "display": "Leg or thigh (or both) symptom or complaint",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "LS13",
+      "series_id": "icpc3:LS13",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64121,
+      "kind": "measurement",
+      "at": "2026-04-17T04:00:00+00:00",
+      "text": "收缩压",
+      "value": "129",
+      "unit": "mmHg",
+      "display": "Systolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8480-6",
+      "series_id": "loinc:intravascular systolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64122,
+      "kind": "measurement",
+      "at": "2026-04-17T04:00:00+00:00",
+      "text": "舒张压",
+      "value": "64",
+      "unit": "mmHg",
+      "display": "Diastolic blood pressure",
+      "code_system": "http://loinc.org",
+      "code": "8462-4",
+      "series_id": "loinc:intravascular diastolic|Arterial system|Pt|Qn|Pres",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     },
+     {
+      "id": 64123,
+      "kind": "measurement",
+      "at": "2026-04-17T04:00:00+00:00",
+      "text": "心率",
+      "value": "76",
+      "unit": "",
+      "display": "Heart rate",
+      "code_system": "http://loinc.org",
+      "code": "8867-4",
+      "series_id": "loinc:heart rate|XXX|Pt|Qn|NRat",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 4,
+    "found": 4,
+    "code_ok": 0,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": false,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "小腿抽筋",
+      "found": true,
+      "code_ok": false,
+      "code": "LS13",
+      "written": {
+       "kind": "symptom",
+       "text": "小腿抽筋",
+       "value": "",
+       "unit": "",
+       "code": "LS13",
+       "display": "Leg or thigh (or both) symptom or complaint"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "sbp 129",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "收缩压",
+       "value": "129",
+       "unit": "mmHg",
+       "code": "8480-6",
+       "display": "Systolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "dbp 64",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "舒张压",
+       "value": "64",
+       "unit": "mmHg",
+       "code": "8462-4",
+       "display": "Diastolic blood pressure"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "pulse 76",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "心率",
+       "value": "76",
+       "unit": "",
+       "code": "8867-4",
+       "display": "Heart rate"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "头痛，比昨天好点了。",
+   "lang": "zh",
+   "date": "2024-01-16",
+   "seconds": 1.9,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64124,
+      "kind": "symptom",
+      "at": "2024-01-16T04:00:00+00:00",
+      "text": "头痛",
+      "value": "",
+      "unit": "",
+      "display": "Headache",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "NS01",
+      "series_id": "icpc3:NS01",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "头痛",
+      "found": true,
+      "code_ok": true,
+      "code": "NS01",
+      "written": {
+       "kind": "symptom",
+       "text": "头痛",
+       "value": "",
+       "unit": "",
+       "code": "NS01",
+       "display": "Headache"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "肩痛了，可能是加班。",
+   "lang": "zh",
+   "date": "2024-10-09",
+   "seconds": 2.7,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64125,
+      "kind": "symptom",
+      "at": "2024-10-09T04:00:00+00:00",
+      "text": "肩痛",
+      "value": "",
+      "unit": "",
+      "display": "Shoulder symptom or complaint",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "LS07",
+      "series_id": "icpc3:LS07",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [
+     {
+      "quote": "可能是加班",
+      "kind": "other",
+      "name": "加班",
+      "reason": "hypothetical"
+     }
+    ],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "肩痛",
+      "found": true,
+      "code_ok": true,
+      "code": "LS07",
+      "written": {
+       "kind": "symptom",
+       "text": "肩痛",
+       "value": "",
+       "unit": "",
+       "code": "LS07",
+       "display": "Shoulder symptom or complaint"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "嗳气，比昨天好点了，今天走了5740步。",
+   "lang": "zh",
+   "date": "2024-05-28",
+   "seconds": 2.5,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64127,
+      "kind": "measurement",
+      "at": "2026-10-05T16:00:00+00:00",
+      "text": "步数",
+      "value": "5740",
+      "unit": "步",
+      "display": "",
+      "code_system": null,
+      "code": null,
+      "series_id": "local:步数|{steps}",
+      "coded": false,
+      "reason": "unit:conflict",
+      "note": ""
+     },
+     {
+      "id": 64126,
+      "kind": "symptom",
+      "at": "2024-05-28T04:00:00+00:00",
+      "text": "嗳气",
+      "value": "",
+      "unit": "",
+      "display": "Flatulence, gas and belching",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "DS08",
+      "series_id": "icpc3:DS08",
+      "coded": true,
+      "reason": "",
+      "note": ""
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 2,
+    "found": 2,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "嗳气",
+      "found": true,
+      "code_ok": true,
+      "code": "DS08",
+      "written": {
+       "kind": "symptom",
+       "text": "嗳气",
+       "value": "",
+       "unit": "",
+       "code": "DS08",
+       "display": "Flatulence, gas and belching"
+      }
+     },
+     {
+      "kind": "measurement",
+      "expected": "steps 5740",
+      "found": true,
+      "written": {
+       "kind": "measurement",
+       "text": "步数",
+       "value": "5740",
+       "unit": "步",
+       "code": null,
+       "display": ""
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  },
+  {
+   "text": "最近3月余总是心慌。",
+   "lang": "zh",
+   "date": "2024-08-18",
+   "seconds": 2.0,
+   "error": "",
+   "response": {
+    "written": [
+     {
+      "id": 64128,
+      "kind": "symptom",
+      "at": "2026-07-06T14:17:00+00:00",
+      "text": "心慌",
+      "value": "",
+      "unit": "",
+      "display": "Palpitations, awareness of heart",
+      "code_system": "http://terminology.hl7.org/CodeSystem/ICPC-3",
+      "code": "KS02",
+      "series_id": "icpc3:KS02",
+      "coded": true,
+      "reason": "",
+      "note": "总是"
+     }
+    ],
+    "medications": [],
+    "medications_failed": false,
+    "skipped": [],
+    "already_logged": 0,
+    "rejected": {}
+   },
+   "score": {
+    "expected": 1,
+    "found": 1,
+    "code_ok": 1,
+    "coded_checked": 1,
+    "extra": 0,
+    "notes": 0,
+    "exact": true,
+    "detail": [
+     {
+      "kind": "symptom",
+      "expected": "心慌",
+      "found": true,
+      "code_ok": true,
+      "code": "KS02",
+      "written": {
+       "kind": "symptom",
+       "text": "心慌",
+       "value": "",
+       "unit": "",
+       "code": "KS02",
+       "display": "Palpitations, awareness of heart"
+      }
+     }
+    ],
+    "extra_entries": []
+   }
+  }
+ ]
+}

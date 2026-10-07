@@ -1,0 +1,42 @@
+{
+ "id": "p001_2025-11-26_e06a#p6",
+ "tier": "T0",
+ "image_sha256": "dd3dc4e23e3b49aa365ef07d67a5a3d5f23e98412e8c8eba9006ee60b4ce0d7d",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>嗜酸性粒细胞百分比(EO%)<lcel><fcel>3.1<fcel>0.4-8.0<lcel><fcel>%<nl>\n<fcel>嗜碱性粒细胞百分比(BASO%)<lcel><fcel>0.4<fcel>0.0-1.0<lcel><fcel>%<nl>\n<fcel>中性粒细胞绝对值(NEUT#)<lcel><fcel>2.65<fcel>1.80-6.30<lcel><fcel>x10^9/L<nl>\n<fcel>淋巴细胞绝对值(LYMPH#)<lcel><fcel>1.24<fcel>1.10-3.20<lcel><fcel>x10^9/L<nl>\n<fcel>单核细胞绝对值(MONO#)<lcel><fcel>0.24<fcel>0.10-0.60<lcel><fcel>x10^9/L<nl>\n<fcel>嗜酸性粒细胞绝对值(EO#)<lcel><fcel>0.13<fcel>0.02-0.52<lcel><fcel>x10^9/L<nl>\n<fcel>嗜碱性粒细胞绝对值(BASO#)<lcel><fcel>0.02<fcel>0.00-0.06<lcel><fcel>x10^9/L<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.92,
+   "usage": {
+    "completion_tokens": 248,
+    "prompt_tokens": 2170,
+    "total_tokens": 2418,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11707.179,
+    "prompt_per_token_ms": 5.4325656612529,
+    "prompt_per_second": 184.07508760223106,
+    "predicted_n": 248,
+    "predicted_ms": 2158.551,
+    "predicted_per_token_ms": 8.739072874493926,
+    "predicted_per_second": 114.42861438066555
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1649.2,
+  "phys_footprint_mib": 1204.7,
+  "phys_footprint_peak_mib": 1206.1
+ }
+}

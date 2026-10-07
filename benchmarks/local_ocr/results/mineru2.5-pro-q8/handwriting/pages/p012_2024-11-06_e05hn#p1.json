@@ -1,0 +1,67 @@
+{
+ "id": "p012_2024-11-06_e05hn#p1",
+ "tier": "H3",
+ "image_sha256": "0a258eb18b6bb49c9455f2ddc923ed2414ce5fd3a52bac714a07505be265bc69",
+ "image_size": [
+  901,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\nProgress notes\nDate: 6/11/2024\n\n7/N Iron deficiency anaemia\nNo complaint. No new symptoms.\nJemp #6.6 36.6 P 86 RP 15 BP 132/62\nDate 95% Weight 60.0 kg\nAldomen soft non-tender.\nImp: Iron deficiency anaemia\nPlan: regular exercise, low salt diet,\nreturn if worse<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 7.33,
+   "usage": {
+    "completion_tokens": 116,
+    "prompt_tokens": 1497,
+    "total_tokens": 1613,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 1482,
+    "prompt_ms": 6362.512,
+    "prompt_per_token_ms": 4.29319298245614,
+    "prompt_per_second": 232.92686913596393,
+    "predicted_n": 116,
+    "predicted_ms": 928.992,
+    "predicted_per_token_ms": 8.078191304347826,
+    "predicted_per_second": 123.79008645930213
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>Progress notes<nl>\n<fcel>Date: 6/11/2024<nl>\n<fcel>7N Iron deficiency anaemia<nl>\n<fcel>No complainta. No new symptoms<nl>\n<fcel>Jemp A6.6 36.6 P 86 RP 15 BP 132/62<nl>\n<fcel>Date 95% Weight 60.0 kg<nl>\n<fcel>Aldomen soft non-tender<nl>\n<fcel>Imp Iron deficiency anaemia<nl>\n<fcel>Plan: regular exercise, low salt diet,<nl>\n<fcel>return if worse<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.03,
+   "usage": {
+    "completion_tokens": 121,
+    "prompt_tokens": 1497,
+    "total_tokens": 1618,
+    "prompt_tokens_details": {
+     "cached_tokens": 1489
+    }
+   },
+   "timings": {
+    "cache_n": 1489,
+    "prompt_n": 8,
+    "prompt_ms": 12.012,
+    "prompt_per_token_ms": 1.5015,
+    "prompt_per_second": 666.000666000666,
+    "predicted_n": 121,
+    "predicted_ms": 975.437,
+    "predicted_per_token_ms": 8.128641666666667,
+    "predicted_per_second": 123.0217840824164
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1654.3,
+  "phys_footprint_mib": 1159.5,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

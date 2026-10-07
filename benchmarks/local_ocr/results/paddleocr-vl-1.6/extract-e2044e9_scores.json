@@ -1,0 +1,1079 @@
+{
+ "p001_2022-12-05_e03a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 6.19,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2024-07-17_e05a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 2.77,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2024-11-06_e06a#p1": {
+  "tier": "T3",
+  "llm": false,
+  "seconds": 0.02,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2025-11-01_e09a#p1": {
+  "tier": "T3",
+  "llm": true,
+  "seconds": 2.69,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 4,
+  "range_ok": 4,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "载脂蛋白A1(ApoA1)",
+     "item_value": "1.23",
+     "item_unit": "g/L",
+     "item_range": "(1.20-1.60)"
+    },
+    "stored": {
+     "item_name": "载脂蛋白A1(ApoA1)",
+     "item_value": "1.23",
+     "item_unit": "",
+     "item_range": "(1.20-1.60)kg/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "载脂蛋白B(ApoB)",
+     "item_value": "0.82",
+     "item_unit": "g/L",
+     "item_range": "(0.60-1.10)"
+    },
+    "stored": {
+     "item_name": "载脂蛋白B(ApoB)",
+     "item_value": "0.82",
+     "item_unit": "",
+     "item_range": "(0.60-1.10)kg/L"
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2026-05-15_e07a#p1": {
+  "tier": "T4",
+  "llm": true,
+  "seconds": 2.92,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-10-07_e06b#p1": {
+  "tier": "T4",
+  "llm": false,
+  "seconds": 0.01,
+  "error": null,
+  "truth_rows": 2,
+  "stored": 2,
+  "matched": 2,
+  "value_ok": 2,
+  "value_ok_flag_forgiven": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_2026-03-05_e07a#p1": {
+  "tier": "T4",
+  "llm": true,
+  "seconds": 3.33,
+  "error": null,
+  "truth_rows": 21,
+  "stored": 21,
+  "matched": 21,
+  "value_ok": 21,
+  "value_ok_flag_forgiven": 21,
+  "unit_ok": 21,
+  "range_ok": 21,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2025-04-23_e10b#p1": {
+  "tier": "T4",
+  "llm": false,
+  "seconds": 0.01,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-04-18_e03a#p1": {
+  "tier": "T6",
+  "llm": false,
+  "seconds": 0.01,
+  "error": null,
+  "truth_rows": 3,
+  "stored": 3,
+  "matched": 3,
+  "value_ok": 3,
+  "value_ok_flag_forgiven": 3,
+  "unit_ok": 3,
+  "range_ok": 3,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-07-12_e04a#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 3.16,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "超敏促甲状腺激素",
+     "item_value": "2.197",
+     "item_unit": "mIU/L",
+     "item_range": "0.270--4.200"
+    },
+    "stored": {
+     "item_name": "超敏促甲状腺激素",
+     "item_value": "2.197",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "游离T3",
+     "item_value": "3.74",
+     "item_unit": "pmol/L",
+     "item_range": "3.10--6.80"
+    },
+    "stored": {
+     "item_name": "游离T3",
+     "item_value": "3.74",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "游离T4",
+     "item_value": "18.03",
+     "item_unit": "pmol/L",
+     "item_range": "12.00--22.00"
+    },
+    "stored": {
+     "item_name": "游离T4",
+     "item_value": "18.03",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总T3",
+     "item_value": "2.28",
+     "item_unit": "nmol/L",
+     "item_range": "1.30--3.10"
+    },
+    "stored": {
+     "item_name": "总T3",
+     "item_value": "2.28",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "总T4",
+     "item_value": "113.6",
+     "item_unit": "nmol/L",
+     "item_range": "66.0--181.0"
+    },
+    "stored": {
+     "item_name": "总T4",
+     "item_value": "113.6",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "抗TPO抗体",
+     "item_value": "9.1",
+     "item_unit": "IU/mL",
+     "item_range": "<34.0"
+    },
+    "stored": {
+     "item_name": "抗TPO抗体",
+     "item_value": "9.1",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2026-04-18_e13a#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 12.35,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 12,
+  "matched": 6,
+  "value_ok": 5,
+  "value_ok_flag_forgiven": 5,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 1,
+  "false": 6,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Thyroid stimulating hormone",
+     "item_value": "1.244",
+     "item_unit": "mIU/L",
+     "item_range": "0.270-4.200"
+    },
+    "stored": {
+     "item_name": "Thyroid stimulating hormone",
+     "item_value": "1.244",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Free triiodothyronine",
+     "item_value": "4.48",
+     "item_unit": "pmol/L",
+     "item_range": "3.10-6.80"
+    },
+    "stored": {
+     "item_name": "Free triiodothyronine",
+     "item_value": "4.48",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Free thyroxine",
+     "item_value": "15.89",
+     "item_unit": "pmol/L",
+     "item_range": "12.00-22.00"
+    },
+    "stored": {
+     "item_name": "Free thyroxine",
+     "item_value": "15.89",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Total triiodothyronine",
+     "item_value": "3.10",
+     "item_unit": "nmol/L",
+     "item_range": "1.30-3.10"
+    },
+    "stored": {
+     "item_name": "Total triiodothyronine",
+     "item_value": "3.10",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Total thyroxine",
+     "item_value": "113.1",
+     "item_unit": "nmol/L",
+     "item_range": "66.0-181.0"
+    },
+    "stored": {
+     "item_name": "Total thyroxine",
+     "item_value": "113.1",
+     "item_unit": "",
+     "item_range": ""
+    },
+    "wrong": [
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "Thyroid peroxidase antibody",
+     "item_value": "36.4",
+     "item_unit": "IU/mL",
+     "item_range": "(<34.0)"
+    },
+    "stored": {
+     "item_name": "Thyroid peroxidase antibody",
+     "item_value": "36.4†",
+     "item_unit": "&IU/mL",
+     "item_range": "<34.0>&IU/mL"
+    },
+    "wrong": [
+     "value",
+     "unit",
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [
+   {
+    "item_name": "Thyroid peroxidase antibody",
+    "item_value": "0.270-4.200&mIU/L",
+    "item_unit": "&mIU/L",
+    "item_range": "0.270-4.200&mIU/L"
+   },
+   {
+    "item_name": "Thyroid peroxidase antibody",
+    "item_value": "3.10-6.80&pmol/L",
+    "item_unit": "&pmol/L",
+    "item_range": "3.10-6.80&pmol/L"
+   },
+   {
+    "item_name": "Thyroid peroxidase antibody",
+    "item_value": "12.00-22.00&pmol/L",
+    "item_unit": "&pmol/L",
+    "item_range": "12.00-22.00&pmol/L"
+   },
+   {
+    "item_name": "Thyroid peroxidase antibody",
+    "item_value": "1.30-3.10&nmU/L",
+    "item_unit": "&nmU/L",
+    "item_range": "1.30-3.10&nmU/L"
+   },
+   {
+    "item_name": "Thyroid peroxidase antibody",
+    "item_value": "66.0-181.0&nmU/L",
+    "item_unit": "&nmU/L",
+    "item_range": "66.0-181.0&nmU/L"
+   },
+   {
+    "item_name": "Thyroid peroxidase antibody",
+    "item_value": "(&lt;34.0)&muL",
+    "item_unit": "&muL",
+    "item_range": "(&lt;34.0)&muL"
+   }
+  ],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_log01#p1": {
+  "tier": "T6",
+  "llm": true,
+  "seconds": 3.77,
+  "error": null,
+  "truth_rows": 12,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_log01#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 50.6,
+  "error": null,
+  "truth_rows": 45,
+  "stored": 43,
+  "matched": 43,
+  "value_ok": 43,
+  "value_ok_flag_forgiven": 43,
+  "unit_ok": 43,
+  "range_ok": 43,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2023-11-27_e04a#p5": {
+  "tier": "T2",
+  "llm": false,
+  "seconds": 0.07,
+  "error": null,
+  "truth_rows": 34,
+  "stored": 34,
+  "matched": 34,
+  "value_ok": 34,
+  "value_ok_flag_forgiven": 34,
+  "unit_ok": 34,
+  "range_ok": 34,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p002_2023-08-08_e01a#p5": {
+  "tier": "T2",
+  "llm": false,
+  "seconds": 0.09,
+  "error": null,
+  "truth_rows": 30,
+  "stored": 30,
+  "matched": 30,
+  "value_ok": 30,
+  "value_ok_flag_forgiven": 30,
+  "unit_ok": 30,
+  "range_ok": 30,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2023-09-11_e04a#p8": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 5.29,
+  "error": null,
+  "truth_rows": 20,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2024-02-15_e02a#p5": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 3.03,
+  "error": null,
+  "truth_rows": 32,
+  "stored": 32,
+  "matched": 32,
+  "value_ok": 32,
+  "value_ok_flag_forgiven": 32,
+  "unit_ok": 32,
+  "range_ok": 32,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2024-08-16_e05a#p3": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 3.42,
+  "error": null,
+  "truth_rows": 0,
+  "stored": 0,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_2025-11-05_e06b#p1": {
+  "tier": "T2",
+  "llm": false,
+  "seconds": 0.01,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p003_2026-03-31_e10a#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 12.21,
+  "error": null,
+  "truth_rows": 5,
+  "stored": 7,
+  "matched": 2,
+  "value_ok": 1,
+  "value_ok_flag_forgiven": 1,
+  "unit_ok": 1,
+  "range_ok": 0,
+  "wrong_value": 1,
+  "false": 4,
+  "elsewhere": 1,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "P",
+     "item_value": "67",
+     "item_unit": "次/分",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "SpO2",
+     "item_value": "97",
+     "item_unit": "%",
+     "item_range": "95-100"
+    },
+    "wrong": [
+     "value",
+     "unit",
+     "range"
+    ]
+   },
+   {
+    "truth": {
+     "item_name": "体重",
+     "item_value": "84.9",
+     "item_unit": "kg",
+     "item_range": ""
+    },
+    "stored": {
+     "item_name": "体重",
+     "item_value": "84.9",
+     "item_unit": "kg",
+     "item_range": "80-100"
+    },
+    "wrong": [
+     "range"
+    ]
+   }
+  ],
+  "false_rows": [
+   {
+    "item_name": "体温",
+    "item_value": "36.6",
+    "item_unit": "°C",
+    "item_range": "36.6"
+   },
+   {
+    "item_name": "心率",
+    "item_value": "67",
+    "item_unit": "次/分",
+    "item_range": "60-100"
+   },
+   {
+    "item_name": "血压",
+    "item_value": "111/65",
+    "item_unit": "mmHg",
+    "item_range": "<140/90"
+   },
+   {
+    "item_name": "空腹血糖",
+    "item_value": "4.76",
+    "item_unit": "mmol/L",
+    "item_range": "3.9-6.1"
+   }
+  ],
+  "elsewhere_rows": [
+   {
+    "item_name": "HbA1c",
+    "item_value": "6.1",
+    "item_unit": "%",
+    "item_range": "4.0-8.0"
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p003_2025-10-02_e09b#p1": {
+  "tier": "T2",
+  "llm": true,
+  "seconds": 4.06,
+  "error": null,
+  "truth_rows": 2,
+  "stored": 2,
+  "matched": 2,
+  "value_ok": 2,
+  "value_ok_flag_forgiven": 2,
+  "unit_ok": 2,
+  "range_ok": 2,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p006_2023-05-04_e03b#p1": {
+  "tier": "T2",
+  "llm": false,
+  "seconds": 0.03,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2025-11-26_e06a#p6": {
+  "tier": "T0",
+  "llm": false,
+  "seconds": 0.07,
+  "error": null,
+  "truth_rows": 34,
+  "stored": 34,
+  "matched": 34,
+  "value_ok": 34,
+  "value_ok_flag_forgiven": 34,
+  "unit_ok": 34,
+  "range_ok": 34,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p002_2024-08-07_e02a#p5": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 3.01,
+  "error": null,
+  "truth_rows": 36,
+  "stored": 35,
+  "matched": 35,
+  "value_ok": 35,
+  "value_ok_flag_forgiven": 35,
+  "unit_ok": 34,
+  "range_ok": 35,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [
+   {
+    "truth": {
+     "item_name": "Sodium(Na)",
+     "item_value": "135.2",
+     "item_unit": "mmol/l",
+     "item_range": "137.0--147.0"
+    },
+    "stored": {
+     "item_name": "Sodium(Na)",
+     "item_value": "135.2",
+     "item_unit": "",
+     "item_range": "137.0--147.0"
+    },
+    "wrong": [
+     "unit"
+    ]
+   }
+  ],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p001_2021-11-27_e01a#p3": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 22.5,
+  "error": null,
+  "truth_rows": 0,
+  "stored": 18,
+  "matched": 0,
+  "value_ok": 0,
+  "value_ok_flag_forgiven": 0,
+  "unit_ok": 0,
+  "range_ok": 0,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 18,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [
+   {
+    "item_name": "外眼",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "结膜",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "眼压",
+    "item_value": "16/14 mmHg",
+    "item_unit": "mmHg",
+    "item_range": ""
+   },
+   {
+    "item_name": "外耳道",
+    "item_value": "右侧外耳道耵聍",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "鼓膜",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "听力",
+    "item_value": "粗测正常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "鼻腔",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "咽部",
+    "item_value": "咽部黏膜慢性充血，咽后壁淋巴滤泡增生",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "扁桃体",
+    "item_value": "无肿大",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "唇颊腭",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "牙齿",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "牙龈",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "牙周",
+    "item_value": "未见异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "心电图诊断",
+    "item_value": "窦性心律 正常心电图",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "胸部X线摄影（正位）影像所见",
+    "item_value": "两肺纹理清晰，未见明显实质性病变。心影大小形态未见异常。双侧膈面光整，肋膈角锐利。",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "胸部X线摄影（正位）影像诊断",
+    "item_value": "胸部平片未见明显异常",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "腹部超声（肝、胆、胰、脾、双肾）超声所见：肝脏：肝脏形态大小正常，包膜光滑，实质回声均匀，肝内管道显示清晰，门静脉内径正常。",
+    "item_value": "肝脏：肝脏形态大小正常，包膜光滑，实质回声均匀，肝内管道显示清晰，门静脉内径正常。",
+    "item_unit": "",
+    "item_range": ""
+   },
+   {
+    "item_name": "腹部超声（肝、胆、胰、脾、双肾）超声所见：胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。",
+    "item_value": "胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。",
+    "item_unit": "",
+    "item_range": ""
+   }
+  ],
+  "repeat_rows": []
+ },
+ "p006_2024-10-25_e09a#p1": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 4.19,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p005_2025-11-05_e06a#p2": {
+  "tier": "T0",
+  "llm": true,
+  "seconds": 2.88,
+  "error": null,
+  "truth_rows": 21,
+  "stored": 21,
+  "matched": 21,
+  "value_ok": 21,
+  "value_ok_flag_forgiven": 21,
+  "unit_ok": 21,
+  "range_ok": 21,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ },
+ "p004_2023-11-12_e01a#p1": {
+  "tier": "T0",
+  "llm": false,
+  "seconds": 0.01,
+  "error": null,
+  "truth_rows": 6,
+  "stored": 6,
+  "matched": 6,
+  "value_ok": 6,
+  "value_ok_flag_forgiven": 6,
+  "unit_ok": 6,
+  "range_ok": 6,
+  "wrong_value": 0,
+  "false": 0,
+  "elsewhere": 0,
+  "repeats": 0,
+  "errors": [],
+  "false_rows": [],
+  "elsewhere_rows": [],
+  "repeat_rows": []
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p001_2026-05-15_e07a#p1",
+ "tier": "T4",
+ "image_sha256": "47bb28de9dccd7948ea09a7b083f1ec2ed94359b8945ca63c4b1059f0633c011",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n桐渚社区卫生服务中心\n\n炎症指标\n\n姓名：黎宇海 性别：男 年龄：40岁\nID号：1553296126 标本号：861283792 科室：心内科\n标本类型：静脉血\n\n打印时间：2026-05-16 09:31 报告时间：2026-05-15 13:31 接收时间：2026-05-15 09:18\n\n检验项目名称 检测结果 正常值\nC反应蛋白 0.85mg/L <8.00\n超敏C反应蛋白 0.74mg/L <3.00\n红细胞沉降率 8mm/h 男:0-15 女:0-20\n\n审核者：郝岚安\n\n第1页/共1页<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.72,
+   "usage": {
+    "completion_tokens": 234,
+    "prompt_tokens": 2170,
+    "total_tokens": 2404,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11686.318,
+    "prompt_per_token_ms": 5.422885382830626,
+    "prompt_per_second": 184.40367616215818,
+    "predicted_n": 234,
+    "predicted_ms": 1979.919,
+    "predicted_per_token_ms": 8.49750643776824,
+    "predicted_per_second": 117.6815819233009
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>检验项目名称<fcel>检测结果<fcel>正常值<nl>\n<fcel>C反应蛋白<fcel>0.85mg/L<fcel><8.00<nl>\n<fcel>超敏C反应蛋白<fcel>0.74mg/L<fcel><3.00<nl>\n<fcel>红细胞沉降率<fcel>8mm/h<fcel>男:0-15 女:0-20<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 0.71,
+   "usage": {
+    "completion_tokens": 80,
+    "prompt_tokens": 2170,
+    "total_tokens": 2250,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 18.772,
+    "prompt_per_token_ms": 2.3465,
+    "prompt_per_second": 426.1666311527808,
+    "predicted_n": 80,
+    "predicted_ms": 634.436,
+    "predicted_per_token_ms": 8.030835443037976,
+    "predicted_per_second": 124.52004615122723
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1686.6,
+  "phys_footprint_mib": 1196.2,
+  "phys_footprint_peak_mib": 1197.2
+ }
+}

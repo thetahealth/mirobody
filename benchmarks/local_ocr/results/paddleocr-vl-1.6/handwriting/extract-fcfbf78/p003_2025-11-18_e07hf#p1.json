@@ -1,0 +1,83 @@
+{
+ "id": "p003_2025-11-18_e07hf#p1",
+ "llm": true,
+ "seconds": 13.16,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "身高",
+   "value": "163.0",
+   "unit": "cm",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "体重",
+   "value": "77.9",
+   "unit": "kg",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "体重指数",
+   "value": "29.3",
+   "unit": "kg/m^2",
+   "reference_range": "18.5-23.9",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "127",
+   "unit": "mmHg",
+   "reference_range": "90-139",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "68",
+   "unit": "mmHg",
+   "reference_range": "60-89",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "心率",
+   "value": "82",
+   "unit": "次/分",
+   "reference_range": "60-100",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "糖化血红蛋白",
+   "value": "4.9",
+   "unit": "%",
+   "reference_range": "4.0-6.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "空腹血糖",
+   "value": "4.83",
+   "reference_range": "3.90-6.10",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-18 09:24:45"
+  }
+ ],
+ "date_time": "2025-11-18 09:24:45",
+ "content_type": "medical_report"
+}

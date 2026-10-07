@@ -1,0 +1,67 @@
+{
+ "id": "p014_2026-08-21_e09hf#p1",
+ "tier": "H1",
+ "image_sha256": "affa7194398bf33468503b86b7f709afbe22737a6ea0f6b51d459eeed8cacbb1",
+ "image_size": [
+  1186,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "TEST VALUE Unit Normal Value\nHeight 172.6 cm \nBody weight 77.5 kg \nBody mass index 26.0 kg/m² (18.5-23.9) \nBlood Pressure 109/74 mmHg 90-139/60-89 \nHeart rate 67 /min (60-100) \nFasting plasma glucose 5.42 mmol/L (3.90-6.10) \nGlycated hemoglobin 5.1 % (4.0-6.0) \nFasting insulin 10.38 μIU/mL (2.60-24.90) \nC-peptide 3.51 ng/mL (1.10-4.40)<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 14.72,
+   "usage": {
+    "completion_tokens": 181,
+    "prompt_tokens": 2335,
+    "total_tokens": 2516,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2320,
+    "prompt_ms": 13169.055,
+    "prompt_per_token_ms": 5.676316810344828,
+    "prompt_per_second": 176.17057564115268,
+    "predicted_n": 181,
+    "predicted_ms": 1494.613,
+    "predicted_per_token_ms": 8.303405555555555,
+    "predicted_per_second": 120.43251329942935
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>TEST<fcel>VALUE<fcel>Unit<fcel>Normal Value<nl>\n<fcel>Height<fcel>172.6<fcel>cm<ecel><nl>\n<fcel>Body weight<fcel>77.5<fcel>kg<ecel><nl>\n<fcel>Body mass index<fcel>26.0<fcel>kg/m2<fcel>(18.5-23.9)<nl>\n<fcel>Blood Pressure<fcel>109/74<fcel>mmHg<fcel>90-139/60-89<nl>\n<fcel>Heart rate<fcel>67<fcel>/min<fcel>(60-100)<nl>\n<fcel>Fasting plasma glucose<fcel>5.42<fcel>mmol/L<fcel>(3.90-6.10)<nl>\n<fcel>Glycated hemoglobin<fcel>5.1<fcel>%<fcel>(4.0-6.0)<nl>\n<fcel>Fasting insulin<fcel>10.38<fcel>μIU/mL<fcel>(2.60-24.90)<nl>\n<fcel>C-peptide<fcel>3.51<fcel>ng/mL<fcel>(1.10-4.40)<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.91,
+   "usage": {
+    "completion_tokens": 221,
+    "prompt_tokens": 2335,
+    "total_tokens": 2556,
+    "prompt_tokens_details": {
+     "cached_tokens": 2327
+    }
+   },
+   "timings": {
+    "cache_n": 2327,
+    "prompt_n": 8,
+    "prompt_ms": 18.763,
+    "prompt_per_token_ms": 2.345375,
+    "prompt_per_second": 426.37104940574534,
+    "predicted_n": 221,
+    "predicted_ms": 1840.424,
+    "predicted_per_token_ms": 8.365563636363635,
+    "predicted_per_second": 119.5376717539002
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1742.5,
+  "phys_footprint_mib": 1256.7,
+  "phys_footprint_peak_mib": 1258.1
+ }
+}

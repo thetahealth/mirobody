@@ -1,0 +1,67 @@
+{
+ "id": "p005_2025-11-05_e06b#p1",
+ "tier": "T2",
+ "image_sha256": "3f7bdb09da79038c241b7f624b96f8a08526c2876bf97ac42b3adc2dd8fa51ed",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n桐樾市中心医院\n肝功能\n\n姓名：向伟博\n\n報告時間：2025-11-06 13:05:49 收樣日期：2025-11-05 09:25:49\n\n序 検驗項目 結果 参考值\nseq TEST Measurement Reference Range\n姓名 向伟博\n性别 女\n1 丙氨酸氨基转移酶（ALT） 11 7~40&U/1\n2 天门冬氨酸氨基转移酶（AST） 19 13~35&U/1\n3 碱性磷酸酶（ALP） 87 35~100&U/1\n4 γ-谷氨酰基转移酶（GGT） 62↑ 7~45&U/1\n5 总蛋白（TP） 77.6 65.0~85.0&g/1\n6 白蛋白（ALB） 48.5 40.0~55.0&g/1\n\n第1页/共2页 打印时间：2025-11-06 13:05:49",
+   "finish_reason": "stop",
+   "seconds": 5.53,
+   "usage": {
+    "completion_tokens": 276,
+    "prompt_tokens": 1375,
+    "total_tokens": 1651,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1370,
+    "prompt_ms": 3638.947,
+    "prompt_per_token_ms": 2.656165693430657,
+    "prompt_per_second": 376.48253739337235,
+    "predicted_n": 276,
+    "predicted_ms": 1846.638,
+    "predicted_per_token_ms": 6.715047272727272,
+    "predicted_per_second": 148.9192792523494
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>序</th><th>檢驗項目</th><th>結果</th><th>参考值</th></tr></thead><tbody><tr><td rowspan=\"2\">seq</td><td>姓名</td><td>向伟博</td><td></td></tr><tr><td>性别</td><td>女</td><td></td></tr><tr><td>1</td><td>丙氨酸氨基转移酶（ALT）</td><td>11</td><td>7~40&amp;U/1</td></tr><tr><td>2</td><td>天门冬氨酸氨基转移酶（AST）</td><td>19</td><td>13~35&amp;U/1</td></tr><tr><td>3</td><td>碱性磷酸酶（ALP）</td><td>87</td><td>35~100&amp;U/1</td></tr><tr><td>4</td><td>γ-谷氨酰基转移酶（GGT）</td><td>62↑</td><td>7~45&amp;U/1</td></tr><tr><td>5</td><td>总蛋白（TP）</td><td>77.6</td><td>65.0~85.0&amp;g/1</td></tr><tr><td>6</td><td>白蛋白（ALB）</td><td>48.5</td><td>40.0~55.0&amp;g/1</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.59,
+   "usage": {
+    "completion_tokens": 388,
+    "prompt_tokens": 1375,
+    "total_tokens": 1763,
+    "prompt_tokens_details": {
+     "cached_tokens": 1370
+    }
+   },
+   "timings": {
+    "cache_n": 1370,
+    "prompt_n": 5,
+    "prompt_ms": 9.524,
+    "prompt_per_token_ms": 1.9047999999999998,
+    "prompt_per_second": 524.9895002099959,
+    "predicted_n": 388,
+    "predicted_ms": 2549.313,
+    "predicted_per_token_ms": 6.587372093023256,
+    "predicted_per_second": 151.80560409804522
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2360.0,
+  "phys_footprint_mib": 1795.8,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p001_2022-12-05_e03a#p1",
+ "tier": "T3",
+ "image_sha256": "66561b8d3bf41217e066f442aa4e63ecb06ea2c26ca5779e05210c62f663a4ff",
+ "image_size": [
+  1085,
+  1535
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "序 检测项目 简称 报告结果 正常值\n1 促甲状腺激素 TSH 2.873 (0.270 - 4.200)&mIU/L\n2 游离三碘甲状腺原氨酸 FT3 3.88 (3.10 - 6.80)&pmol/L\n3 游离甲状腺素 FT4 15.27 (12.00 - 22.00)&pmol/L\n4 总三碘甲状腺原氨酸 TT3 1.63 (1.30 - 3.10)&nmol/L\n5 总甲状腺素 TT4 114.5 (66.0 - 181.0)&nmol/L\n6 甲状腺过氧化物酶抗体 TPOAb 10.1 ≤34.0&IU/mL<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.56,
+   "usage": {
+    "completion_tokens": 200,
+    "prompt_tokens": 2170,
+    "total_tokens": 2370,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 2170,
+    "prompt_ms": 11791.493,
+    "prompt_per_token_ms": 5.433867741935484,
+    "prompt_per_second": 184.03097894388776,
+    "predicted_n": 200,
+    "predicted_ms": 1702.642,
+    "predicted_per_token_ms": 8.555989949748744,
+    "predicted_per_second": 116.87718263733656
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>序<fcel>检测项目<fcel>简称<fcel>报告结果<fcel>正常值<nl>\n<fcel>1<fcel>促甲状腺激素<fcel>TSH<fcel>2.873<fcel>(0.270 - 4.200)&mIU/L<nl>\n<fcel>2<fcel>游离三碘甲状腺原氨酸<fcel>FT3<fcel>3.88<fcel>(3.10 - 6.80)&pmol/L<nl>\n<fcel>3<fcel>游离甲状腺素<fcel>FT4<fcel>15.27<fcel>(12.00 - 22.00)&pmol/L<nl>\n<fcel>4<fcel>总三碘甲状腺原氨酸<fcel>TT3<fcel>1.63<fcel>(1.30 - 3.10)&nmol/L<nl>\n<fcel>5<fcel>总甲状腺素<fcel>TT4<fcel>114.5<fcel>(66.0 - 181.0)&nmol/L<nl>\n<fcel>6<fcel>甲状腺过氧化物酶抗体<fcel>TPOAb<fcel>10.1<fcel>≤34.0&IU/mL<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.9,
+   "usage": {
+    "completion_tokens": 221,
+    "prompt_tokens": 2170,
+    "total_tokens": 2391,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 16.722,
+    "prompt_per_token_ms": 2.09025,
+    "prompt_per_second": 478.4116732448271,
+    "predicted_n": 221,
+    "predicted_ms": 1814.195,
+    "predicted_per_token_ms": 8.24634090909091,
+    "predicted_per_second": 121.2659058149758
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1639.1,
+  "phys_footprint_mib": 1170.1,
+  "phys_footprint_peak_mib": 1170.1
+ }
+}

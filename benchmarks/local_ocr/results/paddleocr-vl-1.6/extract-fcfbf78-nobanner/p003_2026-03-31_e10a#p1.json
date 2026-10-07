@@ -1,0 +1,100 @@
+{
+ "id": "p003_2026-03-31_e10a#p1",
+ "llm": true,
+ "seconds": 13.7,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "T",
+   "value": "36.6",
+   "reference_range": "",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "P",
+   "value": "67",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "R",
+   "value": "16",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "BP",
+   "value": "111/65",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "84.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "SpO2",
+   "value": "97",
+   "reference_range": "",
+   "unit": "%",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "FPG",
+   "value": "4.76",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "HbA1c",
+   "value": "6.1",
+   "reference_range": "",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "↑",
+   "date_time": "2026-04-01"
+  },
+  {
+   "original_indicator": "GA",
+   "value": "13.4",
+   "reference_range": "",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "详见检验报告单",
+   "date_time": "2026-04-01"
+  }
+ ],
+ "date_time": "2026-04-01",
+ "content_type": "medical_report"
+}

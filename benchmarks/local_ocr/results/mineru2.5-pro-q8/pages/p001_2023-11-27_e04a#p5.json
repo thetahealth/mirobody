@@ -1,0 +1,67 @@
+{
+ "id": "p001_2023-11-27_e04a#p5",
+ "tier": "T2",
+ "image_sha256": "3bdd233c44933dcdaea4378474d587e9822412af729be079d18775bdd6dbe382",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n实验室检查\n\n血常规\n检测项目                          测定值      正常范围值          单位(Unit)\n白细胞计数（WBC）                         3.71       3.50 - 9.50           ×10^9/L\n红细胞计数（RBC）                         4.83       4.30 - 5.80           ×10^12/L\n血红蛋白（HGB）                          139       130 - 175               g/L\n红细胞压积（HCT）                         41.0       40.0 - 50.0            %\n平均红细胞体积（MCV）                         84.8       82.0 - 100.0           fL\n平均红细胞血红蛋白量（MCH）                         28.8       27.0 - 34.0             pg\n平均红细胞血红蛋白浓度（MCHC）                         340       316 - 354               g/L\n红细胞分布宽度（RDW-CV）                         11.2 偏低      11.5 - 14.5            %\n血小板计数（PLT）                         336       125 - 350           ×10^9/L\n平均血小板体积（MPV）                         10.7       7.6 - 13.2             fL\n血小板分布宽度（PDW）                         12.0       9.0 - 17.0             fL\n血小板压积（PCT）                         0.215       0.108 - 0.282            %\n中性粒细胞百分比（NEUT%）                         64.8       40.0 - 75.0           %\n淋巴细胞百分比（LYMPH%）                         28.4       20.0 - 50.0             %\n单核细胞百分比（MONO%）                         4.5       3.0 - 10.0             %\n嗜酸性粒细胞百分比（EO%）                         2.0       0.4 - 8.0             %\n嗜碱性粒细胞百分比（BASO%）                         0.3       0.0 - 1.0             %\n中性粒细胞绝对值（NEUT#）                         2.40       1.80 - 6.30           ×10^9/L\n淋巴细胞绝对值（LYMPH#）                         1.05 偏低      1.10 - 3.20           ×10^9/L\n单核细胞绝对值（MONO#）                         0.17       0.10 - 0.60           ×10^9/L\n嗜酸性粒细胞绝对值（EO#）                         0.07       0.02 - 0.52           ×10^9/L\n嗜碱性粒细胞绝对值（BASO#）                         0.01       0.00 - 0.06           ×10^9/L\n\n血型\n检测项目      测定值      正常范围值          单位(Unit)\nABO血型（ABO）      O                   \n\nRh(D)血型（Rh）      阳性                    )\n\n贫血相关检测\n检测项目       测定值      正常范围值           单位(Unit)\n铁蛋白（FER）      210.8       30.0 - 400.0               ng/mL\n血清铁（Fe）      22.6       11.6 - 31.3                   μmol/L\n维生素B12（VB12）      474       145 - 569                   pmol/L\n叶酸（FA）      21.3       7.0 - 46.4                   nmol/L\n\n凝血功能\n检测项目                          测定值      正常范围值      单位(Unit)\n凝血酶原时间（PT）                         11.8       11.0 - 14.0          s\n国际标准化比值（INR）                         0.92       0.80 - 1.20                   \n\n活化部分凝血活酶时间（APTT）                         29.6       25.0 - 37.0          s\n凝血酶时间（TT）                          17.9       14.0 - 21.0           s\n纤维蛋白原（FIB）                         3.72       2.00 - 4.00          g/L\nD-二聚体（D-D）                         0.40       (<0.50)          mg/L FEU<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 21.03,
+   "usage": {
+    "completion_tokens": 1137,
+    "prompt_tokens": 2170,
+    "total_tokens": 3307,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11688.928,
+    "prompt_per_token_ms": 5.424096519721577,
+    "prompt_per_second": 184.3625009923921,
+    "predicted_n": 1137,
+    "predicted_ms": 9286.537,
+    "predicted_per_token_ms": 8.174768485915493,
+    "predicted_per_second": 122.32762331103618
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>检测项目<lcel><fcel>测定值<fcel>正常范围值<lcel><fcel>单位(Unit)<nl>\n<fcel>白细胞计数(WBC)<lcel><fcel>3.71<fcel>3.50-9.50<lcel><fcel>x10^9/L<nl>\n<fcel>红细胞计数(RBC)<lcel><fcel>4.83<fcel>4.30-5.80<lcel><fcel>x10^12/L<nl>\n<fcel>血红蛋白(HGB)<lcel><fcel>139<fcel>130-175<lcel><fcel>g/L<nl>\n<fcel>红细胞压积(HCT)<lcel><fcel>41.0<fcel>40.0-50.0<lcel><fcel>%<nl>\n<fcel>平均红细胞体积(MCV)<lcel><fcel>84.8<fcel>82.0-100.0<lcel><fcel>fL<nl>\n<fcel>平均红细胞血红蛋白量(MCH)<lcel><fcel>28.8<fcel>27.0-34.0<lcel><fcel>pg<nl>\n<fcel>平均红细胞血红蛋白浓度(MCHC)<lcel><fcel>340<fcel>316-354<lcel><fcel>g/L<nl>\n<fcel>红细胞分布宽度(RDW-CV)<lcel><fcel>11.2偏低<fcel>11.5-14.5<lcel><fcel>%<nl>\n<fcel>血小板计数(PLT)<lcel><fcel>336<fcel>125-350<lcel><fcel>x10^9/L<nl>\n<fcel>平均血小板体积(MPV)<lcel><fcel>10.7<fcel>7.6-13.2<lcel><fcel>fL<nl>\n<fcel>血小板分布宽度(PDW)<lcel><fcel>12.0<fcel>9.0-17.0<lcel><fcel>fL<nl>\n<fcel>血小板压积(PCT)<lcel><fcel>0.215<fcel>0.108-0.282<lcel><fcel>%<nl>\n<fcel>中性粒细胞百分比(NEUT%)<lcel><fcel>64.8<fcel>40.0-75.0<lcel><fcel>%<nl>\n<fcel>淋巴细胞百分比(LYMPH%)<lcel><fcel>28.4<fcel>20.0-50.0<lcel><fcel>%<nl>\n<fcel>单核细胞百分比(MONO%)<lcel><fcel>4.5<fcel>3.0-10.0<lcel><fcel>%<nl>\n<fcel>嗜酸性粒细胞百分比(EO%)<lcel><fcel>2.0<fcel>0.4-8.0<lcel><fcel>%<nl>\n<fcel>嗜碱性粒细胞百分比(BASO%)<lcel><fcel>0.3<fcel>0.0-1.0<lcel><fcel>%<nl>\n<fcel>中性粒细胞绝对值(NEUT#)<lcel><fcel>2.40<fcel>1.80-6.30<lcel><fcel>x10^9/L<nl>\n<fcel>淋巴细胞绝对值(LYMPH#)<lcel><fcel>1.05偏低<fcel>1.10-3.20<lcel><fcel>x10^9/L<nl>\n<fcel>单核细胞绝对值(MONO#)<lcel><fcel>0.17<fcel>0.10-0.60<lcel><fcel>x10^9/L<nl>\n<fcel>嗜酸性粒细胞绝对值(EO#)<lcel><fcel>0.07<fcel>0.02-0.52<lcel><fcel>x10^9/L<nl>\n<fcel>嗜碱性粒细胞绝对值(BASO#)<lcel><fcel>0.01<fcel>0.00-0.06<lcel><fcel>x10^9/L<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 6.12,
+   "usage": {
+    "completion_tokens": 734,
+    "prompt_tokens": 2170,
+    "total_tokens": 2904,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 15.536,
+    "prompt_per_token_ms": 1.942,
+    "prompt_per_second": 514.9330587023687,
+    "predicted_n": 734,
+    "predicted_ms": 6051.783,
+    "predicted_per_token_ms": 8.25618417462483,
+    "predicted_per_second": 121.12132903641786
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1622.6,
+  "phys_footprint_mib": 1202.8,
+  "phys_footprint_peak_mib": 1204.1
+ }
+}

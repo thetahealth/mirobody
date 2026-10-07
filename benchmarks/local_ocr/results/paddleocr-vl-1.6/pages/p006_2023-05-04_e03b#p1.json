@@ -1,0 +1,67 @@
+{
+ "id": "p006_2023-05-04_e03b#p1",
+ "tier": "T2",
+ "image_sha256": "0000f5fb23650c84cf6c859870a07f4e1758e90c57f369d4cef91652000425b0",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n麓穗妇幼保健院\n\n检验报告单\n\n姓名：董英 性别：男 年龄：44岁 病历号：9840231059\n标本号：826771080 科室：内分泌科\n\n采样时间：2023-05-04 报告时间：2023-05-05\n\n检查项目 数值 上次结果 参考 单位\n促甲状腺激素(TSH) 3.901 3.987 0.270-4.200 mIU/L\n游离三碘甲状腺原氨酸(FT3) 4.00 4.20 3.10-6.80 pmol/L\n游离甲状腺素(FT4) 12.86 11.72 12.00-22.00 pmol/L\n总三碘甲状腺原氨酸(TT3) 2.45 3.08 1.30-3.10 nmol/L\n总甲状腺素(TT4) 106.7 102.3 66.0-181.0 nmol/L\n甲状腺过氧化物酶抗体(TPOAb) 38.4↑ 34.9 ≤34.0 IU/mL\n打印时间：2023-05-05 08:57:26",
+   "finish_reason": "stop",
+   "seconds": 7.92,
+   "usage": {
+    "completion_tokens": 349,
+    "prompt_tokens": 1273,
+    "total_tokens": 1622,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5720.913,
+    "prompt_per_token_ms": 4.511761041009463,
+    "prompt_per_second": 221.64294405455914,
+    "predicted_n": 349,
+    "predicted_ms": 2165.304,
+    "predicted_per_token_ms": 6.222137931034483,
+    "predicted_per_second": 160.71646290774873
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><lcel><lcel><nl><fcel>麗穗妇幼保健院<lcel><lcel><lcel><lcel><lcel><nl><fcel>检验报告单<lcel><lcel><lcel><lcel><lcel><nl><fcel>姓名：董英 性别：男 年龄：44岁 病历号：9840231059<lcel><lcel><lcel><lcel><lcel><nl><fcel>标本号：826771080 科室：内分泌科<lcel><lcel><lcel><lcel><lcel><nl><fcel>采样时间：2023-05-04 报告时间：2023-05-05<lcel><lcel><lcel><lcel><lcel><nl><fcel>检查项目<fcel>数值<fcel>上次结果<fcel>参考<fcel>单位<ecel><nl><fcel>促甲状腺激素(TSH)<fcel>3.901<fcel>3.987<fcel>0.270-4.200<fcel>mIU/L<ecel><nl><fcel>游离三碘甲状腺原氨酸(FT3)<fcel>4.00<fcel>4.20<fcel>3.10-6.80<fcel>pmol/L<ecel><nl><fcel>游离甲状腺素(FT4)<fcel>12.86<fcel>11.72<fcel>12.00-22.00<fcel>pmol/L<ecel><nl><fcel>总三碘甲状腺原氨酸(TT3)<fcel>2.45<fcel>3.08<fcel>1.30-3.10<fcel>nmol/L<ecel><nl><fcel>总甲状腺素(TT4)<fcel>106.7<fcel>102.3<fcel>66.0-181.0<fcel>nmol/L<ecel><nl><fcel>甲状腺过氧化物酶抗体(TPOAb)<fcel>38.4\\(\\uparrow\\)<fcel>34.9<fcel>≤34.0<fcel>IU/mL<ecel><nl><fcel>打印时间：2023-05-05 08:57:26<lcel><lcel><lcel><lcel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 2.63,
+   "usage": {
+    "completion_tokens": 415,
+    "prompt_tokens": 1273,
+    "total_tokens": 1688,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.551,
+    "prompt_per_token_ms": 1.6501428571428571,
+    "prompt_per_second": 606.0081378235651,
+    "predicted_n": 415,
+    "predicted_ms": 2579.662,
+    "predicted_per_token_ms": 6.231067632850241,
+    "predicted_per_second": 160.4861412076466
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2155.9,
+  "phys_footprint_mib": 1329.1,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

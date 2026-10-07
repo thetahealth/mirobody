@@ -1,0 +1,90 @@
+{
+ "id": "p004_hlog02#p1",
+ "llm": true,
+ "seconds": 10.33,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "25.9",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "27.9",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "29.9",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "30.9",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "1.10",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "2.10",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "3.10",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "September 2021"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "57.7",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "before breakfast",
+   "date_time": "September 2021"
+  }
+ ],
+ "date_time": "September 2021",
+ "content_type": "medical_report"
+}

@@ -1,0 +1,150 @@
+{
+ "id": "p018_hlog02#p1",
+ "llm": true,
+ "seconds": 17.7,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "big dinner",
+   "date_time": "Jan 15"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.6",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 16"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.4",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 17"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.5",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 18"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 19"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.2",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "big dinner",
+   "date_time": "Jan 20"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "43.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 21"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.6",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "in pyjamas",
+   "date_time": "Jan 22"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.7",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 23"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.7",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 24"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "in pyjamas",
+   "date_time": "Jan 26"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "42.8",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 27"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "43.5",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "in pyjamas",
+   "date_time": "Jan 28"
+  },
+  {
+   "original_indicator": "Date Weight (kg)",
+   "value": "43.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Jan 29"
+  }
+ ],
+ "date_time": "January 2026",
+ "content_type": "medical_report"
+}

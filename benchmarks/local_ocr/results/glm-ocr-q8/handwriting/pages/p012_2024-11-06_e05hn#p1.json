@@ -1,0 +1,67 @@
+{
+ "id": "p012_2024-11-06_e05hn#p1",
+ "tier": "H3",
+ "image_sha256": "0a258eb18b6bb49c9455f2ddc923ed2414ce5fd3a52bac714a07505be265bc69",
+ "image_size": [
+  901,
+  1280
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nProgress notes\n\nDate: 6/11/2024\n\nFM Iron deficiency anaemia\nNo complaints. No new symptoms.\nTemp 46.6 36.6 P 86 RL 15 BP 132/62\nSata 95% Weight 60.0 kg\nAbdomen soft, non-tender.\nImp: Iron deficiency anaemia\nPlan: regular exercise, low salt diet,\nreturn if worse",
+   "finish_reason": "stop",
+   "seconds": 4.6,
+   "usage": {
+    "completion_tokens": 102,
+    "prompt_tokens": 1483,
+    "total_tokens": 1585,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1478,
+    "prompt_ms": 3876.874,
+    "prompt_per_token_ms": 2.6230541271989174,
+    "prompt_per_second": 381.2349846809569,
+    "predicted_n": 102,
+    "predicted_ms": 683.03,
+    "predicted_per_token_ms": 6.762673267326733,
+    "predicted_per_second": 147.8705181324393
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td>Progress notes</td></tr><tr><td>Date: 6/11/2024</td></tr><tr><td>FM Iron deficiency anaemia\nNo complaints. No new symptoms.\nTemp 46.6 36.6 P 86 RL 15 BP 132/62\nSata 95% Weight 60.0 kg\nAbdomen soft, non-tender.\nImp: Iron deficiency anaemia\nPlan: regular exercise, low salt diet,\nreturn if worse</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 0.89,
+   "usage": {
+    "completion_tokens": 131,
+    "prompt_tokens": 1483,
+    "total_tokens": 1614,
+    "prompt_tokens_details": {
+     "cached_tokens": 1478
+    }
+   },
+   "timings": {
+    "cache_n": 1478,
+    "prompt_n": 5,
+    "prompt_ms": 9.769,
+    "prompt_per_token_ms": 1.9538,
+    "prompt_per_second": 511.82311393182516,
+    "predicted_n": 131,
+    "predicted_ms": 829.753,
+    "predicted_per_token_ms": 6.382715384615385,
+    "predicted_per_second": 156.67313043761214
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2512.7,
+  "phys_footprint_mib": 1836.8,
+  "phys_footprint_peak_mib": 1837.8
+ }
+}

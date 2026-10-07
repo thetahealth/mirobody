@@ -1,0 +1,67 @@
+{
+ "id": "p005_log01#p1",
+ "tier": "T6",
+ "image_sha256": "ff3719449d602aae85c49515b955f1235a9bd27c99530e9317c165544520ec0f",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n霖蘅健康体检中心\n晨起体重\n\n姓名：向伟博\n\n日期        时间        体重(kg)\n2025-12-02    07:43        51.9\n2025-12-03    07:44        51.2\n2025-12-04    07:46        51.8\n2025-12-05    08:53        52.2\n2025-12-06    07:21        51.2\n2025-12-08    07:37        52.0\n2025-12-09    07:58        51.1\n2025-12-10    07:57        51.7\n2025-12-11    06:42        51.8\n2025-12-12    08:17        51.4\n2025-12-13    06:20        51.5\n2025-12-14    07:51        51.7\n\n备注\n晨起\n服药后\n睡前\n睡前\n服药后\n服药后\n晨起\n服药后\n晨起\n服药后",
+   "finish_reason": "stop",
+   "seconds": 8.17,
+   "usage": {
+    "completion_tokens": 345,
+    "prompt_tokens": 1273,
+    "total_tokens": 1618,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5716.93,
+    "prompt_per_token_ms": 4.508619873817035,
+    "prompt_per_second": 221.79736327014672,
+    "predicted_n": 345,
+    "predicted_ms": 2396.574,
+    "predicted_per_token_ms": 6.966784883720931,
+    "predicted_per_second": 143.53823416260045
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>日期<fcel>时间<fcel>体重(kg)<fcel>备注<nl><fcel>2025-12-02<fcel>07:43<fcel>51.9<fcel>晨起<nl><fcel>2025-12-03<fcel>07:44<fcel>51.2<fcel>服药后<nl><fcel>2025-12-04<fcel>07:46<fcel>51.8<ecel><nl><fcel>2025-12-05<fcel>08:53<fcel>52.2<fcel>睡前<nl><fcel>2025-12-06<fcel>07:21<fcel>51.2<fcel>睡前<nl><fcel>2025-12-08<fcel>07:37<fcel>52.0<fcel>服药后<nl><fcel>2025-12-09<fcel>07:58<fcel>51.1<ecel><nl><fcel>2025-12-10<fcel>07:57<fcel>51.7<ecel><nl><fcel>2025-12-11<fcel>06:42<fcel>51.8<fcel>服药后<nl><fcel>2025-12-12<fcel>08:17<fcel>51.4<ecel><nl><fcel>2025-12-13<fcel>06:20<fcel>51.5<fcel>晨起<nl><fcel>2025-12-14<fcel>07:51<fcel>51.7<fcel>服药后<nl>",
+   "finish_reason": "stop",
+   "seconds": 2.03,
+   "usage": {
+    "completion_tokens": 315,
+    "prompt_tokens": 1273,
+    "total_tokens": 1588,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 18.989,
+    "prompt_per_token_ms": 2.7127142857142856,
+    "prompt_per_second": 368.63447258939385,
+    "predicted_n": 315,
+    "predicted_ms": 1943.624,
+    "predicted_per_token_ms": 6.189885350318471,
+    "predicted_per_second": 161.55388079175808
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2198.3,
+  "phys_footprint_mib": 1322.0,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

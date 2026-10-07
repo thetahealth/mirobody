@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-10-07_e06b#p1",
+ "tier": "T4",
+ "image_sha256": "167baf1db368a41058148bda0086527f2f154b2e3afe4cbbf23e719619572507",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\n芷沅市中心医院\n\n检验报告单\n\n姓名：闫柏超 性别：男 年龄：53岁\n门诊号：5617297173 标本号：699751232 科室：门诊\n标本类型：全血\n\n报告日期：2024-10-08 13:12:31 采样时间：2024-10-07 08:12:31 收样日期：2024-10-07 09:53:31\n\n检查项目 测定值 参考\nFPG 4.67 3.90-6.10\nHbA1c 5.5 4.0-6.0\n\n检查者：韦峰睿 检验者：孙瑶\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 9.58,
+   "usage": {
+    "completion_tokens": 201,
+    "prompt_tokens": 2156,
+    "total_tokens": 2357,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 8095.172,
+    "prompt_per_token_ms": 3.7634458391445835,
+    "prompt_per_second": 265.7139341820038,
+    "predicted_n": 201,
+    "predicted_ms": 1421.319,
+    "predicted_per_token_ms": 7.1065949999999996,
+    "predicted_per_second": 140.71436461484018
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检查项目</th><th>测定值</th><th>参考</th></tr></thead><tbody><tr><td>FPG</td><td>4.67</td><td>3.90-6.10</td></tr><tr><td>HbA1c</td><td>5.5</td><td>4.0-6.0</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 0.84,
+   "usage": {
+    "completion_tokens": 112,
+    "prompt_tokens": 2156,
+    "total_tokens": 2268,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 11.415,
+    "prompt_per_token_ms": 2.283,
+    "prompt_per_second": 438.02014892685065,
+    "predicted_n": 112,
+    "predicted_ms": 759.236,
+    "predicted_per_token_ms": 6.839963963963964,
+    "predicted_per_second": 146.19960065118093
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2424.9,
+  "phys_footprint_mib": 1796.5,
+  "phys_footprint_peak_mib": 1797.9
+ }
+}

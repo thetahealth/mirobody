@@ -1,0 +1,67 @@
+{
+ "id": "p007_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "d1306cb70af636717187a1f93b4657872fd8fb4b05b0cf6ce32e019275b5b06f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "测血糖记录(mmol/L)\n2026年1月\n日期 空腹 餐后2小时 备注\n1/7 4.9 6.8 按时服药\n1/8 4.5 7.5\n1/19 4.9 7.0\n1/20 4.5\n1/21 5.2 4.7\n1/22 5.0 6.4\n1/23 4.8\n1/24 4.6 加餐\n1/25 4.9\n1/26 4.8 5.7 运动后\n1/27 4.7 加餐\n1/28 5.1 5.5 感冒了",
+   "finish_reason": "stop",
+   "seconds": 6.81,
+   "usage": {
+    "completion_tokens": 174,
+    "prompt_tokens": 1273,
+    "total_tokens": 1447,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5709.397,
+    "prompt_per_token_ms": 4.5026790220820185,
+    "prompt_per_second": 222.09000355028735,
+    "predicted_n": 174,
+    "predicted_ms": 1063.001,
+    "predicted_per_token_ms": 6.144514450867052,
+    "predicted_per_second": 162.74678951383865
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><fcel>测血糖记录(mmol/L)<nl><fcel>2026年1月<nl><fcel>日期 空腹 餐后2小时 备注<nl><fcel>1/7 4.9 6.8 按时服药<nl><fcel>1/8 4.5 7.5<nl><fcel>1/19 4.9 7.0<nl><fcel>1/20 4.5<nl><fcel>1/21 5.2 4.7<nl><fcel>1/22 5.0 6.4<nl><fcel>1/23 4.8<nl><fcel>1/24 4.6 加餐<nl><fcel>1/25 4.9<nl><fcel>1/26 4.8 5.7 运动后<nl><fcel>1/27 4.7 加餐<nl><fcel>1/28 5.1 5.5 感冒了<nl>",
+   "finish_reason": "stop",
+   "seconds": 1.36,
+   "usage": {
+    "completion_tokens": 212,
+    "prompt_tokens": 1273,
+    "total_tokens": 1485,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 16.855,
+    "prompt_per_token_ms": 2.407857142857143,
+    "prompt_per_second": 415.3070305547315,
+    "predicted_n": 212,
+    "predicted_ms": 1294.182,
+    "predicted_per_token_ms": 6.133563981042654,
+    "predicted_per_second": 163.03734714282845
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2263.6,
+  "phys_footprint_mib": 1388.0,
+  "phys_footprint_peak_mib": 1389.4
+ }
+}

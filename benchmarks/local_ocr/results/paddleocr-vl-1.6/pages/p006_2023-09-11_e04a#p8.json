@@ -1,0 +1,67 @@
+{
+ "id": "p006_2023-09-11_e04a#p8",
+ "tier": "T2",
+ "image_sha256": "9cec48cd305182fd4d9bca50992834c5d83f64757711901086c47c5644e1d990",
+ "image_size": [
+  1240,
+  876
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n红细胞计数 5.30 5.27 10E12/L 男:4.30—5.80  \n女:3.80—5.10  \n\n血红蛋白 163 160 g/L 男:130—175  \n女:115—150  \n\n红细胞压积 50.1↑ 49.2 % 男:40.0—50.0  \n女:35.0—45.0  \n\n平均红细胞体积 94.5 93.4 fL 82.0—100.0  \n平均红细胞血红蛋白量 30.8 30.4 pg 27.0—34.0  \n平均红细胞血红蛋白浓度 326 326 g/L 316—354  \n红细胞分布宽度 13.5 12.7 % 11.5—14.5  \n血小板 280 227 10E9/L 125—350  \n平均血小板体积 11.2 11.2 fL 7.6—13.2  \n血小板分布宽度 12.5 12.4 fL 9.0—17.0  \n血小板压积 0.179 0.166 % 0.108—0.282  \n中性粒细胞百分比 60.3 63.2 % 40.0—75.0  \n淋巴细胞百分比 30.5 28.7 % 20.0—50.0  \n单核细胞百分比 5.8 4.9 % 3.0—10.0  \n嗜酸性粒细胞百分比 2.6 2.2 % 0.4—8.0  \n嗜碱性粒细胞百分比 0.8 0.9 % 0.0—1.0  \n中性粒细胞绝对值 5.03 5.62 10E9/L 1.80—6.30  \n淋巴细胞绝对值 2.54 2.55 10E9/L 1.10—3.20  \n单核细胞绝对值 0.48 0.44 10E9/L 0.10—0.60  \n嗜酸性粒细胞绝对值 0.22 0.20 10E9/L 0.02—0.52",
+   "finish_reason": "stop",
+   "seconds": 9.61,
+   "usage": {
+    "completion_tokens": 623,
+    "prompt_tokens": 1273,
+    "total_tokens": 1896,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5716.255,
+    "prompt_per_token_ms": 4.508087539432177,
+    "prompt_per_second": 221.82355405768288,
+    "predicted_n": 623,
+    "predicted_ms": 3858.043,
+    "predicted_per_token_ms": 6.202641479099679,
+    "predicted_per_second": 161.22163490660938
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><lcel><nl><fcel>红细胞计数<fcel>5.30<fcel>5.27<fcel>10E12/L<fcel>男:4.30—5.80\\n女:3.80—5.10<nl><fcel>血红蛋白<fcel>163<fcel>160<fcel>g/L<fcel>男:130—175\\n女:115—150<nl><fcel>红细胞压积<fcel>50.1\\(\\uparrow\\)<fcel>49.2<fcel>%<fcel>男:40.0—50.0\\n女:35.0—45.0<nl><fcel>平均红细胞体积<fcel>94.5<fcel>93.4<fcel>fL<fcel>82.0—100.0<nl><fcel>平均红细胞血红蛋白量<fcel>30.8<fcel>30.4<fcel>pg<fcel>27.0—34.0<nl><fcel>平均红细胞血红蛋白浓度<fcel>326<fcel>326<fcel>g/L<fcel>316—354<nl><fcel>红细胞分布宽度<fcel>13.5<fcel>12.7<fcel>%<fcel>11.5—14.5<nl><fcel>血小板计数<fcel>280<fcel>227<fcel>10E9/L<fcel>125—350<nl><fcel>平均血小板体积<fcel>11.2<fcel>11.2<fcel>fL<fcel>7.6—13.2<nl><fcel>血小板分布宽度<fcel>12.5<fcel>12.4<fcel>fL<fcel>9.0—17.0<nl><fcel>血小板压积<fcel>0.179<fcel>0.166<fcel>%<fcel>0.108—0.282<nl><fcel>中性粒细胞百分比<fcel>60.3<fcel>63.2<fcel>%<fcel>40.0—75.0<nl><fcel>淋巴细胞百分比<fcel>30.5<fcel>28.7<fcel>%<fcel>20.0—50.0<nl><fcel>单核细胞百分比<fcel>5.8<fcel>4.9<fcel>%<fcel>3.0—10.0<nl><fcel>嗜酸性粒细胞百分比<fcel>2.6<fcel>2.2<fcel>%<fcel>0.4—8.0<nl><fcel>嗜碱性粒细胞百分比<fcel>0.8<fcel>0.9<fcel>%<fcel>0.0—1.0<nl><fcel>中性粒细胞绝对值<fcel>5.03<fcel>5.62<fcel>10E9/L<fcel>1.80—6.30<nl><fcel>淋巴细胞绝对值<fcel>2.54<fcel>2.55<fcel>10E9/L<fcel>1.10—3.20<nl><fcel>单核细胞绝对值<fcel>0.48<fcel>0.44<fcel>10E9/L<fcel>0.10—0.60<nl><fcel>嗜酸性粒细胞绝对值<fcel>0.22<fcel>0.20<fcel>10E9/L<fcel>0.02—0.52<nl>",
+   "finish_reason": "stop",
+   "seconds": 4.22,
+   "usage": {
+    "completion_tokens": 644,
+    "prompt_tokens": 1273,
+    "total_tokens": 1917,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.77,
+    "prompt_per_token_ms": 1.6814285714285713,
+    "prompt_per_second": 594.732370433305,
+    "predicted_n": 644,
+    "predicted_ms": 4164.91,
+    "predicted_per_token_ms": 6.477309486780715,
+    "predicted_per_second": 154.38508875341844
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2201.5,
+  "phys_footprint_mib": 1327.9,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

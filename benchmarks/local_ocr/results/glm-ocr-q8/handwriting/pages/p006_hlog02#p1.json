@@ -1,0 +1,67 @@
+{
+ "id": "p006_hlog02#p1",
+ "tier": "H1",
+ "image_sha256": "32f470c388d3bedc36dac926c07f6abaed05b07de6180fbf79c7985f66a6e6e0",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nWeigh-ins\nNovember 2025\nDate Weight (kg) Notes\nNov 14 67.0\nNov 15 66.5\nNov 16 66.6 travelling\nNov 17 66.9\nNov 18 66.9\nNov 19 66.9\nNov 20 67.1",
+   "finish_reason": "stop",
+   "seconds": 7.8,
+   "usage": {
+    "completion_tokens": 90,
+    "prompt_tokens": 2156,
+    "total_tokens": 2246,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7114.131,
+    "prompt_per_token_ms": 3.307359832635983,
+    "prompt_per_second": 302.35597292206177,
+    "predicted_n": 90,
+    "predicted_ms": 596.965,
+    "predicted_per_token_ms": 6.70747191011236,
+    "predicted_per_second": 149.0874674394646
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>Date</th><th>Weight (kg)</th><th>Notes</th></tr></thead><tbody><tr><td>Nov 14</td><td>67.0</td><td></td></tr><tr><td>Nov 15</td><td>66.5</td><td></td></tr><tr><td>Nov 16</td><td>66.6</td><td>travelling</td></tr><tr><td>Nov 17</td><td>66.9</td><td></td></tr><tr><td>Nov 18</td><td>66.9</td><td></td></tr><tr><td>Nov 19</td><td>66.9</td><td></td></tr><tr><td>Nov 20</td><td>67.1</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 1.78,
+   "usage": {
+    "completion_tokens": 230,
+    "prompt_tokens": 2156,
+    "total_tokens": 2386,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 21.804,
+    "prompt_per_token_ms": 4.360799999999999,
+    "prompt_per_second": 229.31572188589251,
+    "predicted_n": 230,
+    "predicted_ms": 1661.026,
+    "predicted_per_token_ms": 7.25338864628821,
+    "predicted_per_second": 137.8665957065091
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2210.0,
+  "phys_footprint_mib": 1786.8,
+  "phys_footprint_peak_mib": 1788.3
+ }
+}

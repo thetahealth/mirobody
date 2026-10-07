@@ -1,0 +1,45 @@
+{
+ "id": "p002_2023-08-08_e01a#p5",
+ "llm": true,
+ "seconds": 3.81,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Potassium(K)",
+   "value": "4.26",
+   "unit": "mmol/L",
+   "reference_range": "3.50--5.30",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Sodium(Na)",
+   "value": "144.6",
+   "unit": "mmol/L",
+   "reference_range": "137.0--147.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Chloride(Cl)",
+   "value": "102.9",
+   "unit": "mmol/L",
+   "reference_range": "99.0--110.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Calcium(Ca)",
+   "value": "2.33",
+   "unit": "mmol/L",
+   "reference_range": "2.11--2.52",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": ""
+}

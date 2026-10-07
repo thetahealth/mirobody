@@ -1,0 +1,316 @@
+{
+ "id": "p001_2025-11-26_e06a#p6",
+ "llm": false,
+ "seconds": 0.07,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "嗜酸性粒细胞百分比（EO%）",
+   "value": "3.1",
+   "unit": "%",
+   "reference_range": "0.4 - 8.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "嗜碱性粒细胞百分比（BASO%）",
+   "value": "0.4",
+   "unit": "%",
+   "reference_range": "0.0 - 1.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "中性粒细胞绝对值（NEUT#）",
+   "value": "2.65",
+   "unit": "×10^9/L",
+   "reference_range": "1.80 - 6.30",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "淋巴细胞绝对值（LYMPH#）",
+   "value": "1.24",
+   "unit": "×10^9/L",
+   "reference_range": "1.10 - 3.20",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "单核细胞绝对值（MONO#）",
+   "value": "0.24",
+   "unit": "×10^9/L",
+   "reference_range": "0.10 - 0.60",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "嗜酸性粒细胞绝对值（EO#）",
+   "value": "0.13",
+   "unit": "×10^9/L",
+   "reference_range": "0.02 - 0.52",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "嗜碱性粒细胞绝对值（BASO#）",
+   "value": "0.02",
+   "unit": "×10^9/L",
+   "reference_range": "0.00 - 0.06",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "ABO血型（ABO）",
+   "value": "O",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "Rh(D)血型（Rh）",
+   "value": "阳性",
+   "unit": "",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "铁蛋白（FER）",
+   "value": "143.1",
+   "unit": "ng/mL",
+   "reference_range": "30.0 - 400.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "血清铁（Fe）",
+   "value": "25.6",
+   "unit": "μmol/L",
+   "reference_range": "11.6 - 31.3",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "维生素B12（VB12）",
+   "value": "568",
+   "unit": "pmol/L",
+   "reference_range": "145 - 569",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "叶酸（FA）",
+   "value": "17.9",
+   "unit": "nmol/L",
+   "reference_range": "7.0 - 46.4",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "凝血酶原时间（PT）",
+   "value": "13.2",
+   "unit": "s",
+   "reference_range": "11.0 - 14.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "国际标准化比值（INR）",
+   "value": "0.94",
+   "unit": "",
+   "reference_range": "0.80 - 1.20",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "活化部分凝血活酶时间（APTT）",
+   "value": "29.0",
+   "unit": "s",
+   "reference_range": "25.0 - 37.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "凝血酶时间（TT）",
+   "value": "17.6",
+   "unit": "s",
+   "reference_range": "14.0 - 21.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "纤维蛋白原（FIB）",
+   "value": "4.43",
+   "unit": "g/L",
+   "reference_range": "2.00 - 4.00",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": ""
+  },
+  {
+   "original_indicator": "D-二聚体（D-D）",
+   "value": "0.39",
+   "unit": "mg/L FEU",
+   "reference_range": "（<0.50）",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "丙氨酸氨基转移酶（ALT）",
+   "value": "25",
+   "unit": "U/L",
+   "reference_range": "9 - 50",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "天门冬氨酸氨基转移酶（AST）",
+   "value": "26",
+   "unit": "U/L",
+   "reference_range": "15 - 40",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "碱性磷酸酶（ALP）",
+   "value": "67",
+   "unit": "U/L",
+   "reference_range": "45 - 125",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "γ-谷氨酰基转移酶（GGT）",
+   "value": "30",
+   "unit": "U/L",
+   "reference_range": "10 - 60",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总蛋白（TP）",
+   "value": "76.5",
+   "unit": "g/L",
+   "reference_range": "65.0 - 85.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "白蛋白（ALB）",
+   "value": "46.8",
+   "unit": "g/L",
+   "reference_range": "40.0 - 55.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "球蛋白（GLB）",
+   "value": "29.7",
+   "unit": "g/L",
+   "reference_range": "20.0 - 40.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总胆红素（TBIL）",
+   "value": "9.4",
+   "unit": "μmol/L",
+   "reference_range": "0.0 - 26.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "直接胆红素（DBIL）",
+   "value": "2.8",
+   "unit": "μmol/L",
+   "reference_range": "（<8.0）",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "间接胆红素（IBIL）",
+   "value": "6.6",
+   "unit": "μmol/L",
+   "reference_range": "0.0 - 18.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "总胆汁酸（TBA）",
+   "value": "4.0",
+   "unit": "μmol/L",
+   "reference_range": "（<10.0）",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "胆碱酯酶（CHE）",
+   "value": "6050",
+   "unit": "U/L",
+   "reference_range": "5000 - 12000",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "前白蛋白（PA）",
+   "value": "583",
+   "unit": "mg/L",
+   "reference_range": "200 - 400",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": ""
+  },
+  {
+   "original_indicator": "尿素（BUN）",
+   "value": "7.88",
+   "unit": "mmol/L",
+   "reference_range": "3.10 - 8.00",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "肌酐（CREA）",
+   "value": "93",
+   "unit": "μmol/L",
+   "reference_range": "57 - 97",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  }
+ ],
+ "date_time": "",
+ "content_type": null
+}

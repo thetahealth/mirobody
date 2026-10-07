@@ -1,0 +1,67 @@
+{
+ "id": "p005_2026-03-05_e07a#p1",
+ "tier": "T4",
+ "image_sha256": "c03afa0c9213143b0f11fd2e4294e8f74b4cbe1e4fdc173a0ac46fa1e06214ef",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "湄哈市第五人民医院\n\n临床检验报告\n姓名：向伟博 性别：女 年龄：35岁\n病历号：8107884696 标本号：553581460 科室：内科\n标本类型：静脉血\n接收时间：2026-03-05\n检查项目 测定值\nWBC 4.88 10E9/L\nRBC 4.77 10E12/L\nHGB 125g/L\nHCT 40.2%\nMCV fl\nMCH 26.2pg\nMCHC 311g/L\nRDW-CV 12.5%\nPLT 174 10E9/L\nMPV 11.5fl\nPDW 13.2fl\nPCT 0.189%\nNEUT% 46.3%\nLYMPH% 44.8%\nMONO% 4.6%\nEO% 3.0%\nBASO% 1.3%\nNEUT# 2.26 10E9/L\nLYMPH# 2.19 10E9/L\nMONO# 0.22 10E9/L\nEO# 0.15 10E9/L\nBASO# 0.06 10E9/L\n\n正常值\n3.50-9.50\n3.80-5.10\n115-150\n35.0-45.0\n82.0-100.0\n27.0-34.0\n316-354\n11.5-14.5\n125-350\n7.6-13.2\n9.0-17.0\n0.108-0.282\n40.0-75.0\n20.0-50.0\n3.0-10.0\n0.4-8.0\n0.0-1.0\n1.80-6.30\n1.10-3.20\n0.10-0.60\n0.02-0.52\n0.00-0.06\n\n建议：标本溶血、脂血可能影响部分项目结果。\n检查者：陶清 检验者：马雪桂\n本报告仅对所检标本负责，如有疑问请至三日内查询。\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 9.67,
+   "usage": {
+    "completion_tokens": 608,
+    "prompt_tokens": 1273,
+    "total_tokens": 1881,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5726.893,
+    "prompt_per_token_ms": 4.51647712933754,
+    "prompt_per_second": 221.4115053310757,
+    "predicted_n": 608,
+    "predicted_ms": 3885.963,
+    "predicted_per_token_ms": 6.401915980230643,
+    "predicted_per_second": 156.20323713838755
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>姓名：向伟博<fcel>性别：女<fcel>年龄：35岁<nl><fcel>病历号：8107884696<fcel>标本号：553581460<fcel>科室：内科<nl><fcel>标本类型：静脉血<ecel><ecel><nl><fcel>接收时间：2026-03-05<lcel><lcel><nl><fcel>检查项目<fcel>测定值<fcel>正常值<nl><fcel>WBC<fcel>4.88 10E9/L<fcel>3.50-9.50<nl><fcel>RBC<fcel>4.77 10E12/L<fcel>3.80-5.10<nl><fcel>HGB<fcel>125g/L<fcel>115-150<nl><fcel>HCT<fcel>40.2%<fcel>35.0-45.0<nl><fcel>MCV<fcel>fl<fcel>82.0-100.0<nl><fcel>MCH<fcel>26.2pg<fcel>27.0-34.0<nl><fcel>MCHC<fcel>311g/L<fcel>316-354<nl><fcel>RDW-CV<fcel>12.5%<fcel>11.5-14.5<nl><fcel>PLT<fcel>174 10E9/L<fcel>125-350<nl><fcel>MPV<fcel>11.5fl<fcel>7.6-13.2<nl><fcel>PDW<fcel>13.2fl<fcel>9.0-17.0<nl><fcel>PCT<fcel>0.189%<fcel>0.108-0.282<nl><fcel>NEUT%<fcel>46.3%<fcel>40.0-75.0<nl><fcel>LYMPH%<fcel>44.8%<fcel>20.0-50.0<nl><fcel>MONO%<fcel>4.6%<fcel>3.0-10.0<nl><fcel>EO%<fcel>3.0%<fcel>0.4-8.0<nl><fcel>BASO%<fcel>1.3%<fcel>0.0-1.0<nl><fcel>NEUT#<fcel>2.26 10E9/L<fcel>1.80-6.30<nl><fcel>LYMPH#<fcel>2.19 10E9/L<fcel>1.10-3.20<nl><fcel>MONO#<fcel>0.22 10E9/L<fcel>0.10-0.60<nl><fcel>EO#<fcel>0.15 10E9/L<fcel>0.02-0.52<nl><fcel>BASO#<fcel>0.06 10E9/L<fcel>0.00-0.06<nl><fcel>建议：标本溶血、 脂血可能影响部分项目结果。<lcel><lcel><nl><fcel>检查者：陶清 检验者：马雪桂<lcel><lcel><nl><fcel>本报告仅对所检标本负责，如有疑问请至三日内查询。<lcel><lcel><nl><fcel>第1页/共1页<lcel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 4.44,
+   "usage": {
+    "completion_tokens": 639,
+    "prompt_tokens": 1273,
+    "total_tokens": 1912,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 16.967,
+    "prompt_per_token_ms": 2.4238571428571425,
+    "prompt_per_second": 412.5655684564154,
+    "predicted_n": 639,
+    "predicted_ms": 4364.16,
+    "predicted_per_token_ms": 6.840376175548589,
+    "predicted_per_second": 146.19079043848072
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2215.5,
+  "phys_footprint_mib": 1335.6,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

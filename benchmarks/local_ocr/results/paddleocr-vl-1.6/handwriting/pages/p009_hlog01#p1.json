@@ -1,0 +1,67 @@
+{
+ "id": "p009_hlog01#p1",
+ "tier": "H3",
+ "image_sha256": "7de0ea48e1fee4435c067242af99e817faa273bf6d7eae3a8bb530677023c2c0",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nWeigh-ins\nJanuary 2026\nDate Weight Notes\n23/1 52.3kg\n27/1 52.3kg\n3/1 52.3kg\n1/2 51.9kg\n2/2 52.5kg\n3/2 52.4kg\n6/2 51.8kg\n10/2 52.8kg\n11/2 58.452.4kg\n16/2 51.8kg\n17/2 52.5kg\n\nbig dinner",
+   "finish_reason": "stop",
+   "seconds": 6.75,
+   "usage": {
+    "completion_tokens": 160,
+    "prompt_tokens": 1273,
+    "total_tokens": 1433,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5714.687,
+    "prompt_per_token_ms": 4.506850946372239,
+    "prompt_per_second": 221.88441816673426,
+    "predicted_n": 160,
+    "predicted_ms": 978.791,
+    "predicted_per_token_ms": 6.155918238993711,
+    "predicted_per_second": 162.4453024190047
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><nl><ecel><fcel>Weight-ins<lcel><nl><ecel><fcel>January 2026<lcel><nl><ecel><fcel>Date<fcel>Weight<fcel>Notes<nl><ecel><fcel>2/3/1<fcel>52.3kg<ecel><nl><ecel><fcel>2/7/1<fcel>52.3kg<ecel><nl><ecel><fcel>3/1/1<fcel>52.3kg<ecel><nl><ecel><fcel>1/2<fcel>51.9kg<ecel><nl><ecel><fcel>2/2<fcel>52.5kg<ecel><nl><ecel><fcel>3/2<fcel>52.4kg<ecel><nl><ecel><fcel>6/2<fcel>51.8kg<ecel><nl><ecel><fcel>10/2<fcel>52.8kg<fcel>big dinner<nl><ecel><fcel>11/2<fcel>58.452.4kg<ecel><nl><ecel><fcel>16/2<fcel>51.8kg<ecel><nl><ecel><fcel>17/2<fcel>52.5kg<ecel><nl><ecel><ecel><ecel><ecel><nl><ecel><ecel><ecel><ecel><nl><ecel><ecel><ecel><ecel><nl><ecel><ecel><ecel><ecel><nl><ecel><ecel><ecel><ecel><nl><ecel><ecel><ecel><ecel><nl><ecel><ecel><ecel><ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.56,
+   "usage": {
+    "completion_tokens": 242,
+    "prompt_tokens": 1273,
+    "total_tokens": 1515,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 17.703,
+    "prompt_per_token_ms": 2.529,
+    "prompt_per_second": 395.41320680110715,
+    "predicted_n": 242,
+    "predicted_ms": 1479.961,
+    "predicted_per_token_ms": 6.140917012448133,
+    "predicted_per_second": 162.84212894799253
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2219.2,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ }
+}

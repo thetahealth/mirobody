@@ -1,0 +1,69 @@
+{
+ "id": "p006_2024-10-25_e09a#p1",
+ "llm": true,
+ "seconds": 11.66,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "TSH",
+   "value": "2.242",
+   "reference_range": "0.270-4.200&mIU/L",
+   "unit": "&mIU/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-25 12:58:10"
+  },
+  {
+   "original_indicator": "FT3",
+   "value": "4.30",
+   "reference_range": "3.10-6.80&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-25 12:58:10"
+  },
+  {
+   "original_indicator": "FT4",
+   "value": "16.03",
+   "reference_range": "12.00-22.00&pmol/L",
+   "unit": "&pmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-25 12:58:10"
+  },
+  {
+   "original_indicator": "TT3",
+   "value": "2.81",
+   "reference_range": "1.30-3.10&nmol/L",
+   "unit": "&nmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-25 12:58:10"
+  },
+  {
+   "original_indicator": "TT4",
+   "value": "116.0",
+   "reference_range": "66.0-181.0&nmol/L",
+   "unit": "&nmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-25 12:58:10"
+  },
+  {
+   "original_indicator": "TPOAb",
+   "value": "35.1",
+   "reference_range": "<34.0&IU/mL",
+   "unit": "&IU/mL",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "",
+   "date_time": "2024-10-25 12:58:10"
+  }
+ ],
+ "date_time": "2024-10-25 12:58:10"
+}

@@ -1,0 +1,149 @@
+{
+ "id": "p003_2024-08-16_e05a#p3",
+ "llm": true,
+ "seconds": 55.83,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "外眼",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "结膜",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "外耳道",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "鼓膜",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "听力",
+   "value": "粗测正常",
+   "reference_range": "粗测正常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "鼻腔",
+   "value": "通畅",
+   "reference_range": "通畅",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "咽部",
+   "value": "无充血",
+   "reference_range": "无充血",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "扁桃体",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "唇颊腭",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "牙齿",
+   "value": "缺牙（26）",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "牙龈",
+   "value": "未见异常",
+   "reference_range": "未见异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "心电图诊断：窦性心律，大致正常心电图",
+   "value": "窦性心律，大致正常心电图",
+   "reference_range": "窦性心律，大致正常心电图",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "胸部X线摄影（正位）影像所见：两肺野清晰，肺纹理走行自然。心影不大。膈面光滑，肋膈角锐利。影像诊断：心肺膈未见明显异常",
+   "value": "两肺野清晰，肺纹理走行自然。心影不大。膈面光滑，肋膈角锐利。影像诊断：心肺膈未见明显异常",
+   "reference_range": "两肺野清晰，肺纹理走行自然。心影不大。膈面光滑，肋膈角锐利。影像诊断：心肺膈未见明显异常",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  },
+  {
+   "original_indicator": "腹部超声（肝、胆、胰、脾、双肾）超声所见：肝脏：肝脏形态大小正常，实质回声细密增强，远场回声轻度衰减，肝内管道显示尚清晰。胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。胰腺：胰腺形态大小正常，回声均匀，胰管无扩张。脾脏：脾脏形态大小正常，回声均匀。双肾：双肾形态大小正常，皮髓质分界清，集合系统无分离，未见明显异常回声。",
+   "value": "肝脏：肝脏形态大小正常，实质回声细密增强，远场回声轻度衰减，肝内管道显示尚清晰。胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。胰腺：胰腺形态大小正常，回声均匀，胰管无扩张。脾脏：脾脏形态大小正常，回声均匀。双肾：双肾形态大小正常，皮髓质分界清，集合系统无分离，未见明显异常回声。",
+   "reference_range": "肝脏：肝脏形态大小正常，实质回声细密增强，远场回声轻度衰减，肝内管道显示尚清晰。胆囊：胆囊大小形态正常，壁不厚，腔内未见明显异常回声。胰腺：胰腺形态大小正常，回声均匀，胰管无扩张。脾脏：脾脏形态大小正常，回声均匀。双肾：双肾形态大小正常，皮髓质分界清，集合系统无分离，未见明显异常回声。",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-10-30 00:00:00"
+  }
+ ],
+ "date_time": "2024-10-30 00:00:00"
+}

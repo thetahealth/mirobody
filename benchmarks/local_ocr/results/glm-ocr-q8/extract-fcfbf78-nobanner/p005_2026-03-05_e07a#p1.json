@@ -1,0 +1,209 @@
+{
+ "id": "p005_2026-03-05_e07a#p1",
+ "llm": true,
+ "seconds": 5.16,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "WBC",
+   "value": "4.88",
+   "unit": "10E9/L",
+   "reference_range": "3.50-9.50",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "RBC",
+   "value": "4.77",
+   "unit": "10E12/L",
+   "reference_range": "3.80-5.10",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "HGB",
+   "value": "125",
+   "unit": "g/l",
+   "reference_range": "115-150",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "HCT",
+   "value": "40.2",
+   "unit": "%",
+   "reference_range": "35.0-45.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "MCH",
+   "value": "26.2",
+   "unit": "pg",
+   "reference_range": "27.0-34.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "MCHC",
+   "value": "311",
+   "unit": "g/l",
+   "reference_range": "316-354",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "RDW-CV",
+   "value": "12.5",
+   "unit": "%",
+   "reference_range": "11.5-14.5",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "PLT",
+   "value": "174",
+   "unit": "10E9/L",
+   "reference_range": "125-350",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "MPV",
+   "value": "11.5",
+   "unit": "fl",
+   "reference_range": "7.6-13.2",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "PDW",
+   "value": "13.2",
+   "unit": "fl",
+   "reference_range": "9.0-17.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "PCT",
+   "value": "0.189",
+   "unit": "%",
+   "reference_range": "0.108-0.282",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "NEUT%",
+   "value": "46.3",
+   "unit": "%",
+   "reference_range": "40.0-75.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "LYMPH%",
+   "value": "44.8",
+   "unit": "%",
+   "reference_range": "20.0-50.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "MONO%",
+   "value": "4.6",
+   "unit": "%",
+   "reference_range": "3.0-10.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "EO%",
+   "value": "3.0",
+   "unit": "%",
+   "reference_range": "0.4-8.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "BASO%",
+   "value": "1.3",
+   "unit": "%",
+   "reference_range": "0.0-1.0",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "NEUT#",
+   "value": "2.26",
+   "unit": "10E9/L",
+   "reference_range": "1.80-6.30",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "LYMPH#",
+   "value": "2.19",
+   "unit": "10E9/L",
+   "reference_range": "1.10-3.20",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "MONO#",
+   "value": "0.22",
+   "unit": "10E9/L",
+   "reference_range": "0.10-0.60",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "EO#",
+   "value": "0.15",
+   "unit": "10E9/L",
+   "reference_range": "0.02-0.52",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "BASO#",
+   "value": "0.06",
+   "unit": "10E9/L",
+   "reference_range": "0.00-0.06",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "MCV",
+   "value": "82.0-100.0",
+   "reference_range": "82.0-100.0",
+   "unit": "fl",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2026-03-05"
+  }
+ ],
+ "date_time": "2026-03-05",
+ "content_type": "medical_report"
+}

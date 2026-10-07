@@ -1,0 +1,67 @@
+{
+ "id": "p009_hlog01#p1",
+ "tier": "H3",
+ "image_sha256": "7de0ea48e1fee4435c067242af99e817faa273bf6d7eae3a8bb530677023c2c0",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\nWeigh-ins\nJanuary 2026\nDate\n23/1\n52.3kg\n27/1\n52.3kg\n3/1\n52.3kg\n1/2\n51.9kg\n2/2\n52.5kg\n3/2\n52.4kg\n6/2\n51.8kg\n10/2\n52.8kg\n11/2\n56.4 52.4kg\n16/2\n51.8kg\n17/2\n52.5kg\nBig dinner<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 13.01,
+   "usage": {
+    "completion_tokens": 154,
+    "prompt_tokens": 2170,
+    "total_tokens": 2324,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11672.384,
+    "prompt_per_token_ms": 5.416419489559165,
+    "prompt_per_second": 184.62380949769988,
+    "predicted_n": 154,
+    "predicted_ms": 1280.164,
+    "predicted_per_token_ms": 8.367084967320261,
+    "predicted_per_second": 119.51593702056924
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><nl>\n<ecel><fcel>Weigh-ins<lcel><lcel><nl>\n<ecel><fcel>January 2026<lcel><lcel><nl>\n<ecel><fcel>Date<fcel>Weight<fcel>Notes<nl>\n<ecel><fcel>23/1<fcel>52.3kg<ecel><nl>\n<ecel><fcel>27/1<fcel>52.3kg<ecel><nl>\n<ecel><fcel>3/1<fcel>52.3kg<ecel><nl>\n<ecel><fcel>1/2<fcel>51.9kg<ecel><nl>\n<ecel><fcel>2/2<fcel>52.5kg<ecel><nl>\n<ecel><fcel>3/2<fcel>52.4kg<ecel><nl>\n<ecel><fcel>6/2<fcel>51.8kg<ecel><nl>\n<ecel><fcel>10/2<fcel>52.8kg<fcel>Big dinner<nl>\n<ecel><fcel>11/2<fcel>56.4 52.4kg<ecel><nl>\n<ecel><fcel>16/2<fcel>51.8kg<ecel><nl>\n<ecel><fcel>17/2<fcel>52.5kg<ecel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<ecel><ecel><lcel><lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.33,
+   "usage": {
+    "completion_tokens": 274,
+    "prompt_tokens": 2170,
+    "total_tokens": 2444,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 17.029,
+    "prompt_per_token_ms": 2.128625,
+    "prompt_per_second": 469.78683422397086,
+    "predicted_n": 274,
+    "predicted_ms": 2250.671,
+    "predicted_per_token_ms": 8.244216117216116,
+    "predicted_per_second": 121.29715982478115
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1752.3,
+  "phys_footprint_mib": 1263.3,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

@@ -1,0 +1,42 @@
+{
+ "id": "p001_2025-11-26_e06a#p6",
+ "tier": "T0",
+ "image_sha256": "dd3dc4e23e3b49aa365ef07d67a5a3d5f23e98412e8c8eba9006ee60b4ce0d7d",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": true,
+ "outputs": {
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>嗜酸性粒细胞百分比（EO%）<fcel>3.1<fcel>0.4 - 8.0<fcel>%<nl><fcel>嗜碱性粒细胞百分比（BASO%）<fcel>0.4<fcel>0.0 - 1.0<fcel>%<nl><fcel>中性粒细胞绝对值（NEUT#）<fcel>2.65<fcel>1.80 - 6.30<fcel>\\(\\times 10^{9}/L\\)<nl><fcel>淋巴细胞绝对值（LYMPH#）<fcel>1.24<fcel>1.10 - 3.20<fcel>\\(\\times 10^{9}/L\\)<nl><fcel>单核细胞绝对值（MONO#）<fcel>0.24<fcel>0.10 - 0.60<fcel>\\(\\times 10^{9}/L\\)<nl><fcel>嗜酸性粒细胞绝对值（EO#）<fcel>0.13<fcel>0.02 - 0.52<fcel>\\(\\times 10^{9}/L\\)<nl><fcel>嗜碱性粒细胞绝对值（BASO#）<fcel>0.02<fcel>0.00 - 0.06<fcel>\\(\\times 10^{9}/L\\)<nl><fcel>血型<lcel><lcel><lcel><nl><fcel>检测项目<fcel>测定值<fcel>正常范围值<fcel>单位(Unit)<nl><fcel>ABO血型（ABO）<fcel>O<ecel><ecel><nl><fcel>Rh(D)血型（Rh）<fcel>阳性<ecel><ecel><nl><fcel>贫血相关检测<lcel><lcel><lcel><nl><fcel>检测项目<fcel>测定值<fcel>正常范围值<fcel>单位(Unit)<nl><fcel>铁蛋白（FER）<fcel>143.1<fcel>30.0 - 400.0<fcel>ng/mL<nl><fcel>血清铁（Fe）<fcel>25.6<fcel>11.6 - 31.3<fcel>\\(\\mu mol/L\\)<nl><fcel>维生素B12（VB12）<fcel>568<fcel>145 - 569<fcel>pmol/L<nl><fcel>叶酸（FA）<fcel>17.9<fcel>7.0 - 46.4<fcel>nmol/L<nl><fcel>凝血功能<lcel><lcel><lcel><nl><fcel>检测项目<fcel>测定值<fcel>正常范围值<fcel>单位(Unit)<nl><fcel>凝血酶原时间（PT）<fcel>13.2<fcel>11.0 - 14.0<fcel>s<nl><fcel>国际标准化比值（INR）<fcel>0.94<fcel>0.80 - 1.20<ecel><nl><fcel>活化部分凝血活酶时间（APTT）<fcel>29.0<fcel>25.0 - 37.0<fcel>s<nl><fcel>凝血酶时间（TT）<fcel>17.6<fcel>14.0 - 21.0<fcel>s<nl><fcel>纤维蛋白原（FIB）<fcel>4.43 偏高<fcel>2.00 - 4.00<fcel>g/L<nl><fcel>D-二聚体（D-D）<fcel>0.39<fcel>（<0.50）<fcel>mg/L FEU<nl><fcel>肝功能<lcel><lcel><lcel><nl><fcel>检测项目<fcel>测定值<fcel>正常范围值<fcel>单位(Unit)<nl><fcel>丙氨酸氨基转移酶（ALT）<fcel>25<fcel>9 - 50<fcel>U/L<nl><fcel>天门冬氨酸氨基转移酶（AST）<fcel>26<fcel>15 - 40<fcel>U/L<nl><fcel>碱性磷酸酶（ALP）<fcel>67<fcel>45 - 125<fcel>U/L<nl><fcel>\\(\\gamma\\)-谷氨酰基转移酶（GGT）<fcel>30<fcel>10 - 60<fcel>U/L<nl><fcel>总蛋白（TP）<fcel>76.5<fcel>65.0 - 85.0<fcel>g/L<nl><fcel>白蛋白（ALB）<fcel>46.8<fcel>40.0 - 55.0<fcel>g/L<nl><fcel>球蛋白（GLB）<fcel>29.7<fcel>20.0 - 40.0<fcel>g/L<nl><fcel>总胆红素（TBIL）<fcel>9.4<fcel>0.0 - 26.0<fcel>\\(\\mu mol/L\\)<nl><fcel>直接胆红素（DBIL）<fcel>2.8<fcel>（<8.0）<fcel>\\(\\mu mol/L\\)<nl><fcel>间接胆红素（IBIL）<fcel>6.6<fcel>0.0 - 18.0<fcel>\\(\\mu mol/L\\)<nl><fcel>总胆汁酸（TBA）<fcel>4.0<fcel>（<10.0）<fcel>\\(\\mu mol/L\\)<nl><fcel>胆碱酯酶（CHE）<fcel>6050<fcel>5000 - 12000<fcel>U/L<nl><fcel>前白蛋白（PA）<fcel>583 偏高<fcel>200 - 400<fcel>mg/L<nl><fcel>肾功能<lcel><lcel><lcel><nl><fcel>检测项目<fcel>测定值<fcel>正常范围值<fcel>单位(Unit)<nl><fcel>尿素（BUN）<fcel>7.88<fcel>3.10 - 8.00<fcel>mmol/L<nl><fcel>肌酐（CREA）<fcel>93<fcel>57 - 97<fcel>\\(\\mu mol/L\\)<nl>",
+   "finish_reason": "stop",
+   "seconds": 12.67,
+   "usage": {
+    "completion_tokens": 1104,
+    "prompt_tokens": 1273,
+    "total_tokens": 2377,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5719.745,
+    "prompt_per_token_ms": 4.510839905362776,
+    "prompt_per_second": 221.68820463150016,
+    "predicted_n": 1104,
+    "predicted_ms": 6904.452,
+    "predicted_per_token_ms": 6.25970262919311,
+    "predicted_per_second": 159.7519976965587
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2174.6,
+  "phys_footprint_mib": 1331.1,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "id": "p012_2025-11-01_e09hn#p1",
+ "tier": "H3",
+ "image_sha256": "e2f3a22388f35f7f88151f505a6d1a77734d70922c6396a810e8cff1ea3d249e",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n门诊记录\n科别：日 分洗饼    日期：2025-11-1\n复诊\n近期无特媒不适，饮食睡眠可\nT: 36.9℃ P: 80 R: 16次/分 BP 114/68mmHg SP02 100%\n体重 57.4 kg\n心肺听诊 未见早者\n印象：扶足性贫血\n处理：监测血糖，不适随访，定期复查\nMMMM<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.41,
+   "usage": {
+    "completion_tokens": 133,
+    "prompt_tokens": 2115,
+    "total_tokens": 2248,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2100,
+    "prompt_ms": 11201.325,
+    "prompt_per_token_ms": 5.333964285714286,
+    "prompt_per_second": 187.47782070424702,
+    "predicted_n": 133,
+    "predicted_ms": 1149.867,
+    "predicted_per_token_ms": 8.711113636363637,
+    "predicted_per_second": 114.79588508931903
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl>\n<fcel>门诊记录<lcel><nl>\n<fcel>科别: 四分语种<fcel>日期: 2025-11-1<nl>\n<fcel>复诊<lcel><nl>\n<fcel>近期无特殊不适,饮食睡眠可<lcel><nl>\n<fcel>T: 36.9°C P: 80 R: 16次/分 BP 114/68mmHg SP02 100%<lcel><nl>\n<fcel>体温57.4kg<lcel><nl>\n<fcel>心肺听诊未见早者<lcel><nl>\n<fcel>印象: 扶识性贫血<lcel><nl>\n<fcel>处理: 监测血糖,不适随访,定期复查<lcel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.54,
+   "usage": {
+    "completion_tokens": 163,
+    "prompt_tokens": 2115,
+    "total_tokens": 2278,
+    "prompt_tokens_details": {
+     "cached_tokens": 2107
+    }
+   },
+   "timings": {
+    "cache_n": 2107,
+    "prompt_n": 8,
+    "prompt_ms": 19.834,
+    "prompt_per_token_ms": 2.47925,
+    "prompt_per_second": 403.3477866290209,
+    "predicted_n": 163,
+    "predicted_ms": 1462.305,
+    "predicted_per_token_ms": 9.026574074074075,
+    "predicted_per_second": 110.78400196949336
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1695.6,
+  "phys_footprint_mib": 1200.0,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

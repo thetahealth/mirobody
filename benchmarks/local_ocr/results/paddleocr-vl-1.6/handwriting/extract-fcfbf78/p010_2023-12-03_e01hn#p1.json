@@ -1,0 +1,90 @@
+{
+ "id": "p010_2023-12-03_e01hn#p1",
+ "llm": true,
+ "seconds": 11.28,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体温",
+   "value": "36.4",
+   "reference_range": "",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "脉搏",
+   "value": "83",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "呼吸",
+   "value": "17",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "血压",
+   "value": "125/74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "血压收缩压",
+   "value": "125",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "血压舒张压",
+   "value": "74",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "血氧饱和度",
+   "value": "95%",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "65.6",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2023-02-23"
+  }
+ ],
+ "date_time": "2023-02-23",
+ "content_type": "medical_report"
+}

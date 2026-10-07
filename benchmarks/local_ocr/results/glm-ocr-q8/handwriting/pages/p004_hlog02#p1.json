@@ -1,0 +1,67 @@
+{
+ "id": "p004_hlog02#p1",
+ "tier": "H1",
+ "image_sha256": "9f8b69aaed92072e8ab0d5b0883b8d5bed0b99e33dd0e9e54221191e27b3c571",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nMorning weight\nSeptember 2021\nDate Weight (kg) Notes\n25.9 58.1\n27.9 58.3\n29.9 58.0\n30.9 57.3\n1.10 58.2\n2.10 58.1\n3.10 57.7 before breakfast",
+   "finish_reason": "stop",
+   "seconds": 7.77,
+   "usage": {
+    "completion_tokens": 91,
+    "prompt_tokens": 2156,
+    "total_tokens": 2247,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7106.9,
+    "prompt_per_token_ms": 3.303998140399814,
+    "prompt_per_second": 302.6636086057212,
+    "predicted_n": 91,
+    "predicted_ms": 600.376,
+    "predicted_per_token_ms": 6.670844444444445,
+    "predicted_per_second": 149.90605886977494
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><tr><td>Morning weight</td><td></td></tr><tr><td>September 2021</td><td></td></tr><tr><td>Date Weight (kg)</td><td>Notes</td></tr><tr><td>25.9</td><td>58.1</td></tr><tr><td>27.9</td><td>58.3</td></tr><tr><td>29.9</td><td>58.0</td></tr><tr><td>30.9</td><td>57.3</td></tr><tr><td>1.10</td><td>58.2</td></tr><tr><td>2.10</td><td>58.1</td></tr><tr><td>3.10</td><td>57.7</td><td>before breakfast</td></tr></table>",
+   "finish_reason": "stop",
+   "seconds": 1.56,
+   "usage": {
+    "completion_tokens": 221,
+    "prompt_tokens": 2156,
+    "total_tokens": 2377,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 10.772,
+    "prompt_per_token_ms": 2.1544,
+    "prompt_per_second": 464.16635722242853,
+    "predicted_n": 221,
+    "predicted_ms": 1470.931,
+    "predicted_per_token_ms": 6.68605,
+    "predicted_per_second": 149.5651393573186
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2290.7,
+  "phys_footprint_mib": 1785.6,
+  "phys_footprint_peak_mib": 1786.7
+ }
+}

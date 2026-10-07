@@ -1,0 +1,80 @@
+{
+ "id": "p006_hlog02#p1",
+ "llm": true,
+ "seconds": 9.44,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Weight",
+   "value": "67.0",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Nov 14 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "66.5",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Nov 15 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "66.6",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "travelling",
+   "date_time": "Nov 16 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "66.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Nov 17 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "66.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Nov 18 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "66.9",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Nov 19 2025"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "67.1",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "Nov 20 2025"
+  }
+ ],
+ "date_time": "November 2025",
+ "content_type": "medical_report"
+}

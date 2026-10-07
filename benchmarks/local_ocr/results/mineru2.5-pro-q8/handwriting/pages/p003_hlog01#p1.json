@@ -1,0 +1,67 @@
+{
+ "id": "p003_hlog01#p1",
+ "tier": "H2",
+ "image_sha256": "341289eb46c5f9e3be7a3557c761deffea273d66ca8360ad541deedb0cc6138f",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n家庭血压记录\n2024年6月\n日期 时间 收缩压 舒张压 脉搏 备注\n6/25 7:02 119 74 58 脉药前\n6/29 7:02 121 81 66\n7/10 7:31 135 74 66\n7/13 7:38 119 71 68 运动后\n7/29 7:36 118 79 65 我竟还好\n8/1 7:20 133 77 63\n11 21:33 114 76 66\n8/7 7:38 133 76 66\n8/13 7:11 118 71 65\n8/20 7:21 119 75 65\n9/8 7:16 115 71 67\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 14.24,
+   "usage": {
+    "completion_tokens": 300,
+    "prompt_tokens": 2170,
+    "total_tokens": 2470,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11676.987,
+    "prompt_per_token_ms": 5.418555452436195,
+    "prompt_per_second": 184.55103187149223,
+    "predicted_n": 300,
+    "predicted_ms": 2505.038,
+    "predicted_per_token_ms": 8.378053511705685,
+    "predicted_per_second": 119.3594668024996
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>家庭血压记录<lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>2024年6月<lcel><lcel><lcel><lcel><lcel><nl>\n<ecel><fcel>日期<fcel>时间<fcel>收缩压<fcel>舒张压<fcel>脉搏<fcel>备注<nl>\n<ecel><fcel>6/25<fcel>7:02<fcel>119<fcel>74<fcel>58<fcel>服药前<nl>\n<ecel><fcel>6/29<fcel>7:02<fcel>121<fcel>81<fcel>66<ecel><nl>\n<ecel><fcel>7/10<fcel>7:31<fcel>135<fcel>74<fcel>66<ecel><nl>\n<ecel><fcel>7/13<fcel>7:38<fcel>119<fcel>71<fcel>68<fcel>运动后<nl>\n<ecel><fcel>7/29<fcel>7:36<fcel>118<fcel>79<fcel>65<fcel>感觉还好<nl>\n<ecel><fcel>8/1<fcel>7:20<fcel>133<fcel>77<fcel>63<ecel><nl>\n<ecel><fcel>11<fcel>21:33<fcel>114<fcel>76<fcel>66<ecel><nl>\n<ecel><fcel>8/7<fcel>7:38<fcel>133<fcel>76<fcel>66<ecel><nl>\n<ecel><fcel>8/13<fcel>7:11<fcel>118<fcel>71<fcel>65<ecel><nl>\n<ecel><fcel>8/20<fcel>7:21<fcel>119<fcel>75<fcel>65<ecel><nl>\n<ecel><fcel>9/8<fcel>7:16<fcel>115<fcel>71<fcel>67<ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<ecel><ecel><ecel><ecel><ecel><ecel><ecel><nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 3.6,
+   "usage": {
+    "completion_tokens": 439,
+    "prompt_tokens": 2170,
+    "total_tokens": 2609,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 19.08,
+    "prompt_per_token_ms": 2.385,
+    "prompt_per_second": 419.287211740042,
+    "predicted_n": 439,
+    "predicted_ms": 3517.042,
+    "predicted_per_token_ms": 8.029776255707763,
+    "predicted_per_second": 124.53647127330296
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1751.4,
+  "phys_footprint_mib": 1263.1,
+  "phys_footprint_peak_mib": 1264.0
+ }
+}

@@ -1,0 +1,189 @@
+{
+ "id": "p001_2021-11-27_e01a#p3",
+ "llm": true,
+ "seconds": 20.21,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "外眼",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "结膜",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "眼压",
+   "value": "16/14 mmHg",
+   "reference_range": "",
+   "unit": "mmHg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "耳鼻喉科",
+   "value": "右侧外耳道耵聍",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "鼓膜",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "听力",
+   "value": "粗测正常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "鼻腔",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "咽部",
+   "value": "咽部黏膜慢性充血，咽后壁淋巴滤泡增生",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "扁桃体",
+   "value": "无肿大",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "口腔科",
+   "value": "唇颊腭未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "牙齿",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "牙龈",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "牙周",
+   "value": "未见异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "心电图诊断",
+   "value": "窦性心律 正常心电图",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "胸部X线摄影（正位）影像所见",
+   "value": "两肺纹理清晰，未见明显实质性病变。心影大小形态未见异常。双侧膈面光整，肋膈角锐利。",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "胸部X线摄影（正位）影像诊断",
+   "value": "胸部平片未见明显异常",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "腹部超声（肝、胆、胰、脾、双肾）肝脏",
+   "value": "肝脏形态大小正常，包膜光滑，实质回声均匀，肝内管道显示清晰，门静脉内径正常。",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  },
+  {
+   "original_indicator": "腹部超声（肝、胆、胰、脾、双肾）胆囊",
+   "value": "胆囊大小形态正常，壁不厚，腔内未见明显异常回声。",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Imaging",
+   "status": "normal",
+   "notes": "",
+   "date_time": ""
+  }
+ ],
+ "date_time": ""
+}

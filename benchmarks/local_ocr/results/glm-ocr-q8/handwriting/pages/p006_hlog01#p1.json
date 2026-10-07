@@ -1,0 +1,67 @@
+{
+ "id": "p006_hlog01#p1",
+ "tier": "H1",
+ "image_sha256": "39c20ebff7666e594f4530134f1b220bd53d74eaf30918fb82a1e00a7a7b99db",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nBlood glucose diary (mmol/L)\nApril 2024\nDate Fasting After breakfast After lunch After dinner Notes\n21/4 6.1 9.6 8.6\n22/4 6.3 6.5\n23/4 5.5 7.1 6.8 7.3\n24/4 5.4 7.9 6.9\n25/4 5.8 6.8\n26/4 5.7 8.3\n27/4 5.9 5.2",
+   "finish_reason": "stop",
+   "seconds": 8.11,
+   "usage": {
+    "completion_tokens": 136,
+    "prompt_tokens": 2156,
+    "total_tokens": 2292,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7124.494,
+    "prompt_per_token_ms": 3.312177591817759,
+    "prompt_per_second": 301.91617818753167,
+    "predicted_n": 136,
+    "predicted_ms": 905.764,
+    "predicted_per_token_ms": 6.709362962962963,
+    "predicted_per_second": 149.0454467168048
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th></th><th>Date</th><th>Fasting</th><th>After breakfast</th><th>After lunch</th><th>After dinner</th><th>Notes</th></tr></thead><tbody><tr><td>21/4</td><td>6.1</td><td></td><td></td><td></td><td>9.6</td><td>8.6</td></tr><tr><td>22/4</td><td>6.3</td><td></td><td></td><td>6.5</td><td></td><td></td></tr><tr><td>23/4</td><td>5.5</td><td>7.1</td><td></td><td>6.8</td><td>7.3</td><td></td></tr><tr><td>24/4</td><td>5.4</td><td>7.9</td><td></td><td></td><td>6.9</td><td></td></tr><tr><td>25/4</td><td>5.8</td><td></td><td></td><td>6.8</td><td></td><td></td></tr><tr><td>26/4</td><td>5.7</td><td></td><td></td><td>8.3</td><td></td><td></td></tr><tr><td>27/4</td><td>5.9</td><td></td><td></td><td></td><td>5.2</td><td></td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.76,
+   "usage": {
+    "completion_tokens": 399,
+    "prompt_tokens": 2156,
+    "total_tokens": 2555,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 16.835,
+    "prompt_per_token_ms": 3.367,
+    "prompt_per_second": 297.000297000297,
+    "predicted_n": 399,
+    "predicted_ms": 2652.275,
+    "predicted_per_token_ms": 6.664007537688442,
+    "predicted_per_second": 150.05985427604602
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2209.7,
+  "phys_footprint_mib": 1786.4,
+  "phys_footprint_peak_mib": 1787.8
+ }
+}

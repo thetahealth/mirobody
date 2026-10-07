@@ -1,0 +1,67 @@
+{
+ "id": "p018_2025-12-14_e05hn#p1",
+ "tier": "H3",
+ "image_sha256": "c423d7c47bfb8d403299f6b14a2d0d699f3f62724e411893134cfdc29c78c59e",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\nClinic notes\nDate: 14 Dec 2025\nReview\nHome BP readings higher. Feels well.\nJemp 36.4 P 85 PE 17 BP 115/71 Satc 96%\nMt +2.8kg\nAldomen soft, non-tender.\nImp: H M\nPlan: check sugars at home, continue\ncurrent meds<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.75,
+   "usage": {
+    "completion_tokens": 106,
+    "prompt_tokens": 2170,
+    "total_tokens": 2276,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11698.362,
+    "prompt_per_token_ms": 5.428474245939674,
+    "prompt_per_second": 184.21382412341148,
+    "predicted_n": 106,
+    "predicted_ms": 985.199,
+    "predicted_per_token_ms": 9.382847619047618,
+    "predicted_per_second": 106.57745288007804
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE - GENERATED DATA, NOT A REAL PATIENT RECORD<nl>\n<fcel>Clinic notes<nl>\n<fcel>Date: 14 Dec 2025<nl>\n<fcel>Review<nl>\n<fcel>Home BP readings higher. Feels well.<nl>\n<fcel>Jemp 36.4 P 85 RE 17 BP 115/71 Satc 96%<nl>\n<fcel>Mt +2.8kg<nl>\n<fcel>Aldomen soft, non-tender.<nl>\n<fcel>Imp: H MN<nl>\n<fcel>Plan: check sugars at home, continue<nl>\n<fcel>Current meds<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 1.19,
+   "usage": {
+    "completion_tokens": 132,
+    "prompt_tokens": 2170,
+    "total_tokens": 2302,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 23.255,
+    "prompt_per_token_ms": 2.906875,
+    "prompt_per_second": 344.0120404214148,
+    "predicted_n": 132,
+    "predicted_ms": 1087.862,
+    "predicted_per_token_ms": 8.304290076335878,
+    "predicted_per_second": 120.41968558512016
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1692.8,
+  "phys_footprint_mib": 1197.5,
+  "phys_footprint_peak_mib": 1264.5
+ }
+}

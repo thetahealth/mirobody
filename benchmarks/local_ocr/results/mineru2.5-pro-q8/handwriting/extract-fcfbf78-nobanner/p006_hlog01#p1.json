@@ -1,0 +1,190 @@
+{
+ "id": "p006_hlog01#p1",
+ "llm": true,
+ "seconds": 30.24,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Fasting",
+   "value": "6.1",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-21"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "9.6",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-21"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "8.6",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-21"
+  },
+  {
+   "original_indicator": "After lunch",
+   "value": "6.3",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-22"
+  },
+  {
+   "original_indicator": "After lunch",
+   "value": "6.5",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-22"
+  },
+  {
+   "original_indicator": "After lunch",
+   "value": "5.5",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-23"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "7.1",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-23"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "6.8",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-23"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "7.3",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-23"
+  },
+  {
+   "original_indicator": "After lunch",
+   "value": "7.9",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-24"
+  },
+  {
+   "original_indicator": "After lunch",
+   "value": "6.9",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-24"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "5.4",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-24"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "6.8",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-25"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "5.8",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-25"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "5.7",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-26"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "8.3",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-26"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "5.9",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-27"
+  },
+  {
+   "original_indicator": "After breakfast",
+   "value": "5.2",
+   "reference_range": "",
+   "unit": "mmol/L",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-04-27"
+  }
+ ],
+ "date_time": "2024-04",
+ "content_type": "medical_report"
+}

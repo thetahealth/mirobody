@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-10-07_e06b#p1",
+ "tier": "T4",
+ "image_sha256": "167baf1db368a41058148bda0086527f2f154b2e3afe4cbbf23e719619572507",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "检查项目\t测定值\t参考\nFPG\t4.67\t3.90-6.10\nHbA1c\t5.5\t4.0-6.0\n检查者：韦峰睿 检验者：孙瑶<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 12.23,
+   "usage": {
+    "completion_tokens": 59,
+    "prompt_tokens": 2170,
+    "total_tokens": 2229,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11686.944,
+    "prompt_per_token_ms": 5.423175870069605,
+    "prompt_per_second": 184.39379875526058,
+    "predicted_n": 59,
+    "predicted_ms": 494.496,
+    "predicted_per_token_ms": 8.525793103448276,
+    "predicted_per_second": 117.29114087879375
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>检查项目<fcel>测定值<fcel>参考<nl>\n<fcel>FPG<fcel>4.67<fcel>3.90-6.10<nl>\n<fcel>HbA1c<fcel>5.5<fcel>4.0-6.0<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 0.48,
+   "usage": {
+    "completion_tokens": 51,
+    "prompt_tokens": 2170,
+    "total_tokens": 2221,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 18.304,
+    "prompt_per_token_ms": 2.288,
+    "prompt_per_second": 437.0629370629371,
+    "predicted_n": 51,
+    "predicted_ms": 414.859,
+    "predicted_per_token_ms": 8.297179999999999,
+    "predicted_per_second": 120.52287644717845
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1644.9,
+  "phys_footprint_mib": 1196.5,
+  "phys_footprint_peak_mib": 1197.8
+ }
+}

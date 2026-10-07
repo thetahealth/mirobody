@@ -1,0 +1,67 @@
+{
+ "id": "p005_log01#p1",
+ "tier": "T6",
+ "image_sha256": "ff3719449d602aae85c49515b955f1235a9bd27c99530e9317c165544520ec0f",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "\nText Recognition:",
+   "raw": "日期 时间 体重(kg) 备注\n2025-12-02 07:43 51.9 晨起\n2025-12-03 07:44 51.2 服药后\n2025-12-04 07:46 51.8\n2025-12-05 08:53 52.2 睡前\n2025-12-06 07:21 51.2 睡前\n2025-12-08 07:37 52.0 服药后\n2025-12-09 07:58 51.1\n2025-12-10 07:57 51.7\n2025-12-11 06:42 51.8 服药后\n2025-12-12 08:17 51.4\n2025-12-13 06:20 51.5 晨起\n2025-12-14 07:51 51.7 服药后<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 14.22,
+   "usage": {
+    "completion_tokens": 305,
+    "prompt_tokens": 2170,
+    "total_tokens": 2475,
+    "prompt_tokens_details": {
+     "cached_tokens": 15
+    }
+   },
+   "timings": {
+    "cache_n": 15,
+    "prompt_n": 2155,
+    "prompt_ms": 11697.087,
+    "prompt_per_token_ms": 5.427882598607888,
+    "prompt_per_second": 184.2339037061108,
+    "predicted_n": 305,
+    "predicted_ms": 2466.127,
+    "predicted_per_token_ms": 8.112259868421052,
+    "predicted_per_second": 123.27021276682021
+   }
+  },
+  "tables": {
+   "prompt": "\nTable Recognition:",
+   "raw": "<fcel>日期<fcel>时间<fcel>体重(kg)<fcel>备注<nl>\n<fcel>2025-12-02<fcel>07:43<fcel>51.9<fcel>晨起<nl>\n<fcel>2025-12-03<fcel>07:44<fcel>51.2<fcel>服药后<nl>\n<fcel>2025-12-04<fcel>07:46<fcel>51.8<ecel><nl>\n<fcel>2025-12-05<fcel>08:53<fcel>52.2<fcel>睡前<nl>\n<fcel>2025-12-06<fcel>07:21<fcel>51.2<fcel>睡前<nl>\n<fcel>2025-12-08<fcel>07:37<fcel>52.0<fcel>服药后<nl>\n<fcel>2025-12-09<fcel>07:58<fcel>51.1<ecel><nl>\n<fcel>2025-12-10<fcel>07:57<fcel>51.7<ecel><nl>\n<fcel>2025-12-11<fcel>06:42<fcel>51.8<fcel>服药后<nl>\n<fcel>2025-12-12<fcel>08:17<fcel>51.4<ecel><nl>\n<fcel>2025-12-13<fcel>06:20<fcel>51.5<fcel>晨起<nl>\n<fcel>2025-12-14<fcel>07:51<fcel>51.7<fcel>服药后<nl>\n<|im_end|>",
+   "finish_reason": "stop",
+   "seconds": 2.74,
+   "usage": {
+    "completion_tokens": 332,
+    "prompt_tokens": 2170,
+    "total_tokens": 2502,
+    "prompt_tokens_details": {
+     "cached_tokens": 2162
+    }
+   },
+   "timings": {
+    "cache_n": 2162,
+    "prompt_n": 8,
+    "prompt_ms": 12.728,
+    "prompt_per_token_ms": 1.591,
+    "prompt_per_second": 628.5355122564425,
+    "predicted_n": 332,
+    "predicted_ms": 2659.205,
+    "predicted_per_token_ms": 8.033851963746223,
+    "predicted_per_second": 124.47329182970098
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 1671.9,
+  "phys_footprint_mib": 1200.5,
+  "phys_footprint_peak_mib": 1201.5
+ }
+}

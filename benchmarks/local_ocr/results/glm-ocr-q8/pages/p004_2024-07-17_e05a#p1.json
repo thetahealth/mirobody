@@ -1,0 +1,67 @@
+{
+ "id": "p004_2024-07-17_e05a#p1",
+ "tier": "T3",
+ "image_sha256": "792af2e75bc0af32bdd292398c8fc4c7ee14f9ebf68132c48a12ac2eae5e2f54",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nWhinmoor Family Clinic\n\nPathology Report\n\nName: Nora Ho\nSex: Male\nAge: 67 Y\nMRN: 3642746131\nLab No.: 682252653\nSpecimen: Serum\nRequested by: James Leung\n\nReportTime: 2024-07-18 00:21\n\nItem Result\nAlpha-fetoprotein 3.11ng/mL\nCarcinoembryonic antigen 1.61ng/mL\nProstate specific antigen 0.86ng/mL\n\nPerformed By: Nora Lambert Verified By: Hui Chan",
+   "finish_reason": "stop",
+   "seconds": 8.24,
+   "usage": {
+    "completion_tokens": 161,
+    "prompt_tokens": 2156,
+    "total_tokens": 2317,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 2151,
+    "prompt_ms": 7093.463,
+    "prompt_per_token_ms": 3.2977512784751277,
+    "prompt_per_second": 303.2369380089809,
+    "predicted_n": 161,
+    "predicted_ms": 1088.108,
+    "predicted_per_token_ms": 6.800675,
+    "predicted_per_second": 147.04422722744434
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table><thead><tr><th>Item</th><th>Result</th></tr></thead><tbody><tr><td>Alpha-fetoprotein</td><td>3.11ng/mL</td></tr><tr><td>Carcinoembryonic antigen</td><td>1.61ng/mL</td></tr><tr><td>Prostate specific antigen</td><td>0.86ng/mL</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 0.81,
+   "usage": {
+    "completion_tokens": 112,
+    "prompt_tokens": 2156,
+    "total_tokens": 2268,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 10.397,
+    "prompt_per_token_ms": 2.0794,
+    "prompt_per_second": 480.90795421756275,
+    "predicted_n": 112,
+    "predicted_ms": 740.422,
+    "predicted_per_token_ms": 6.670468468468469,
+    "predicted_per_second": 149.914508212884
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2431.7,
+  "phys_footprint_mib": 1783.3,
+  "phys_footprint_peak_mib": 1783.8
+ }
+}

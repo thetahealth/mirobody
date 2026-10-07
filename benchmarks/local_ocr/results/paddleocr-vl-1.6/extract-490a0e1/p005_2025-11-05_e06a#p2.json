@@ -1,0 +1,219 @@
+{
+ "id": "p005_2025-11-05_e06a#p2",
+ "llm": true,
+ "seconds": 35.92,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "平均红细胞血红蛋白量（MCH）",
+   "value": "27.3",
+   "reference_range": "27.0~34.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "平均红细胞血红蛋白浓度（MCHC）",
+   "value": "323",
+   "reference_range": "316~354",
+   "unit": "g/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "红细胞分布宽度（RDW-CV）",
+   "value": "13.6",
+   "reference_range": "11.5~14.5",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "血小板總數（PLT）",
+   "value": "199",
+   "reference_range": "125~350",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "平均血小板体积（MPV）",
+   "value": "11.2",
+   "reference_range": "7.6~13.2",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "血小板分布宽度（PDW）",
+   "value": "14.6",
+   "reference_range": "9.0~17.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "血小板压积（PCT）",
+   "value": "0.204",
+   "reference_range": "0.108~0.282",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "中性粒细胞百分比（NEUT%）",
+   "value": "49.6",
+   "reference_range": "40.0~75.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "淋巴细胞百分比（LYMPH%）",
+   "value": "38.8",
+   "reference_range": "20.0~50.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "单核细胞百分比（MONO%）",
+   "value": "5.3",
+   "reference_range": "3.0~10.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "嗜酸性粒细胞百分比（EO%）",
+   "value": "5.1",
+   "reference_range": "0.4~8.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "嗜碱性粒细胞百分比（BASO%）",
+   "value": "1.1",
+   "reference_range": "0.0~1.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "1.1↑",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "中性粒细胞绝对值（NEUT#）",
+   "value": "2.62",
+   "reference_range": "1.80~6.30",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "淋巴细胞绝对值（LYMPH#）",
+   "value": "2.05",
+   "reference_range": "1.10~3.20",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "单核细胞绝对值（MONO#）",
+   "value": "0.28",
+   "reference_range": "0.10~0.60",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "嗜酸性粒细胞绝对值（EO#）",
+   "value": "0.27",
+   "reference_range": "0.02~0.52",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "嗜碱性粒细胞绝对值（BASO#）",
+   "value": "0.06",
+   "reference_range": "0.00~0.06",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "铁蛋白（FER）",
+   "value": "30.6",
+   "reference_range": "13.0~150.0",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "血清铁（Fe）",
+   "value": "10.7",
+   "reference_range": "9.0~30.4",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "维生素B12（VB12）",
+   "value": "291",
+   "reference_range": "145~569",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  },
+  {
+   "original_indicator": "叶酸（FA）",
+   "value": "22.4",
+   "reference_range": "7.0~46.4",
+   "unit": "",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2025-11-05 23:40:34"
+  }
+ ],
+ "date_time": "2025-11-05 23:40:34"
+}

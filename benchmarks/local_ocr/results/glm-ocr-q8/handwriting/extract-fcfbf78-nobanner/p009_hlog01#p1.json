@@ -1,0 +1,120 @@
+{
+ "id": "p009_hlog01#p1",
+ "llm": true,
+ "seconds": 13.37,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "Weight",
+   "value": "52.3kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "23/1"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.3kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "27/1"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.3kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "31/1"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "51.9kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "1/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.5kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.4kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "3/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "51.8kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "6/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.8kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "big dinner",
+   "date_time": "10/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.4kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "11/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "51.8kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "16/2"
+  },
+  {
+   "original_indicator": "Weight",
+   "value": "52.5kg",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "wearable",
+   "status": "normal",
+   "notes": "",
+   "date_time": "17/2"
+  }
+ ],
+ "date_time": "January 2026",
+ "content_type": "medical_report"
+}

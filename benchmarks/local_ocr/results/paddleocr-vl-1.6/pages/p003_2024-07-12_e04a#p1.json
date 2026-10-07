@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-07-12_e04a#p1",
+ "tier": "T6",
+ "image_sha256": "74849c9de11b1e1dc5ac3443c0c8b111dd4f73d5e61fe6b76d31e4128d28c66e",
+ "image_size": [
+  1440,
+  1103
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n麗視社区卫生服务中心\n\n甲状腺功能检验报告单\n\n姓名：闫柏超 性别：男 年龄：53岁\nID号：5167818189 标本号：109134395 科室：内科\n\n报告时间：2024年07月 采样日期：2024年07月 接收时间：2024年07月\n\n检查名称：代号 检验结果 单位 正常值 异常\n超敏促甲状腺激素 TSH 2.197 mIU/L 0.270~4.200 正常\n游离T3 FT3 3.74 pmol/L 3.10~6.80 正常\n游离T4 FT4 18.03 pmol/L 12.00~22.00 正常\n接收时间：2024年07月\n\n总T3 TT3 2.28 nmol/L 1.30~3.10 正常\n总T4 TT4 113.6 nmol/L 66.0~181.0 正常\n抗TPO抗体 TPOAb 9.1 IU/mL <34.0 正常\n\n审核者：潘健悦\n\n本报告仅对所检标本负责，如有疑问请于三日内咨询。\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 7.95,
+   "usage": {
+    "completion_tokens": 352,
+    "prompt_tokens": 1253,
+    "total_tokens": 1605,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1248,
+    "prompt_ms": 5677.949,
+    "prompt_per_token_ms": 4.549638621794871,
+    "prompt_per_second": 219.79767694285385,
+    "predicted_n": 352,
+    "predicted_ms": 2229.067,
+    "predicted_per_token_ms": 6.350618233618234,
+    "predicted_per_second": 157.46498422882757
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>姓名：闫柏超<fcel>性别：男<fcel>年龄：53岁<nl><fcel>ID号：5167818189<fcel>标本号：109134395<fcel>科室：内科<nl><fcel>报告时间：2024年07月 采样日期：2024年07月 接收时间：2024年07月<lcel><lcel><nl><fcel>检查名称<fcel>代号<fcel>检验结果<nl><fcel>超敏促甲状腺激素<fcel>TSH<fcel>2.197<nl><fcel>游离T3<fcel>FT3<fcel>3.74<nl><fcel>游离T4<fcel>FT4<fcel>18.03<nl><fcel>接收时间<fcel>2024年07月<lcel><nl><fcel>总T3<fcel>TT3<fcel>2.28<nl><fcel>总T4<fcel>TT4<fcel>113.6<nl><fcel>抗TPO抗体<fcel>TPOAb<fcel>9.1<nl><fcel>审核者：潘健悦<lcel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.52,
+   "usage": {
+    "completion_tokens": 207,
+    "prompt_tokens": 1253,
+    "total_tokens": 1460,
+    "prompt_tokens_details": {
+     "cached_tokens": 1246
+    }
+   },
+   "timings": {
+    "cache_n": 1246,
+    "prompt_n": 7,
+    "prompt_ms": 17.807,
+    "prompt_per_token_ms": 2.5438571428571426,
+    "prompt_per_second": 393.1038355702814,
+    "predicted_n": 207,
+    "predicted_ms": 1441.428,
+    "predicted_per_token_ms": 6.997223300970874,
+    "predicted_per_second": 142.91383267148964
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2206.5,
+  "phys_footprint_mib": 1335.9,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

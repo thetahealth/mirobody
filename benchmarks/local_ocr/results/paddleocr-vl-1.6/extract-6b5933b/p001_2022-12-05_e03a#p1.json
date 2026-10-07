@@ -1,0 +1,69 @@
+{
+ "id": "p001_2022-12-05_e03a#p1",
+ "llm": true,
+ "seconds": 16.37,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "促甲状腺激素",
+   "value": "2.873 (0.270 - 4.200)",
+   "reference_range": "0.270 - 4.200",
+   "unit": "mIU/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20221205 00:00:00"
+  },
+  {
+   "original_indicator": "游离三碘甲状腺原氨酸",
+   "value": "3.88 (3.10 - 6.80)",
+   "reference_range": "3.10 - 6.80",
+   "unit": "pmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20221205 00:00:00"
+  },
+  {
+   "original_indicator": "游离甲状腺素",
+   "value": "15.27 (12.00 - 22.00)",
+   "reference_range": "12.00 - 22.00",
+   "unit": "pmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20221205 00:00:00"
+  },
+  {
+   "original_indicator": "总三碘甲状腺原氨酸",
+   "value": "1.63 (1.30 - 3.10)",
+   "reference_range": "1.30 - 3.10",
+   "unit": "nmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20221205 00:00:00"
+  },
+  {
+   "original_indicator": "总甲状腺素",
+   "value": "114.5 (66.0 - 181.0)",
+   "reference_range": "66.0 - 181.0",
+   "unit": "nmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20221205 00:00:00"
+  },
+  {
+   "original_indicator": "甲状腺过氧化物酶抗体",
+   "value": "10.1 (<=34.0)",
+   "reference_range": "<=34.0",
+   "unit": "IU/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "20221205 00:00:00"
+  }
+ ],
+ "date_time": "20221205"
+}

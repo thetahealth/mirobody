@@ -1,0 +1,60 @@
+{
+ "id": "p008_2024-11-28_e05hn#p1",
+ "llm": true,
+ "seconds": 8.08,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "体温",
+   "value": "36.9",
+   "reference_range": "",
+   "unit": "°C",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "偏高",
+   "date_time": "2024-11-28"
+  },
+  {
+   "original_indicator": "脉率",
+   "value": "76",
+   "reference_range": "",
+   "unit": "次/分",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11-28"
+  },
+  {
+   "original_indicator": "血压",
+   "value": "107/83",
+   "reference_range": "",
+   "unit": "",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11-28"
+  },
+  {
+   "original_indicator": "血氧饱和度",
+   "value": "96",
+   "reference_range": "",
+   "unit": "%",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11-28"
+  },
+  {
+   "original_indicator": "体重",
+   "value": "64.6",
+   "reference_range": "",
+   "unit": "kg",
+   "detection_method": "Physiological",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2024-11-28"
+  }
+ ],
+ "date_time": "2024-11-28",
+ "content_type": "medical_report"
+}

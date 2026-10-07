@@ -1,0 +1,67 @@
+{
+ "id": "p004_2024-07-17_e05a#p1",
+ "tier": "T3",
+ "image_sha256": "792af2e75bc0af32bdd292398c8fc4c7ee14f9ebf68132c48a12ac2eae5e2f54",
+ "image_size": [
+  1085,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nWhinmoor Family Clinic\n\nPathology Report\n\nName: Nora Ho          Sex: Male          Age: 67 Y\nMRN: 3642746131   Lab No.: 682252653   Specimen: Serum\nRequested by: James Leung\n\nReportTime: 2024-07-18 00:21\n\nItem                                                                 Result\nAlpha-fetoprotein                  3.11 ng/mL\nCarcinoembryonic antigen              1.61 ng/mL\nProstate specific antigen              0.86 ng/mL\n\nPerformed By: Nora Lambert   Verified By: Hui Chan\n\nPage 1 of 1",
+   "finish_reason": "stop",
+   "seconds": 6.94,
+   "usage": {
+    "completion_tokens": 190,
+    "prompt_tokens": 1273,
+    "total_tokens": 1463,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5726.661,
+    "prompt_per_token_ms": 4.516294164037855,
+    "prompt_per_second": 221.42047521234448,
+    "predicted_n": 190,
+    "predicted_ms": 1160.851,
+    "predicted_per_token_ms": 6.142068783068783,
+    "predicted_per_second": 162.81159252996292
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>Name: Nora Ho<fcel>Sex: Male<fcel>Age: 67 Y<nl><fcel>MRN: 3642746131<fcel>Lab No.: 682252653<fcel>Specimen: Serum<nl><fcel>Requested by: James Leung<lcel><lcel><nl><fcel>ReportTime: 2024-07-18 00:21<lcel><lcel><nl><fcel>Item<fcel>Result<lcel><nl><fcel>Alpha-fetoprotein<fcel>3.11ng/mL<lcel><nl><fcel>Carcinoembryonic antigen<fcel>1.61ng/mL<lcel><nl><fcel>Prostate specific antigen<fcel>0.86ng/mL<lcel><nl><fcel>Performed By: Nora Lambert<fcel>Verified By: Hui Chan<lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.04,
+   "usage": {
+    "completion_tokens": 160,
+    "prompt_tokens": 1273,
+    "total_tokens": 1433,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.538,
+    "prompt_per_token_ms": 1.6482857142857144,
+    "prompt_per_second": 606.6909343040388,
+    "predicted_n": 160,
+    "predicted_ms": 980.586,
+    "predicted_per_token_ms": 6.167207547169811,
+    "predicted_per_second": 162.1479401092816
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2203.3,
+  "phys_footprint_mib": 1329.3,
+  "phys_footprint_peak_mib": 1337.3
+ }
+}

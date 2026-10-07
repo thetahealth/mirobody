@@ -1,0 +1,67 @@
+{
+ "id": "p004_hlog01#p1",
+ "tier": "H1",
+ "image_sha256": "6bc7893c57e3c6f9d4b80967409e2845171479cc75195401d73558af8781c73a",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nBlood pressure log\nJune 2025\nDate Time Blood pressure HR Comments\n25.6 AM 109/70 119/70 73 coffee\n13.7 AM 113/74 73\n30.7 AM 111/76 77 coffee\n13.8 AM 116/83 73\n20.8 AM 107/71 77\n23.8 AM 116/76 73\n// PM 110/67 71\n19.9 AM 120/73 70 poor sleep",
+   "finish_reason": "stop",
+   "seconds": 8.39,
+   "usage": {
+    "completion_tokens": 156,
+    "prompt_tokens": 2156,
+    "total_tokens": 2312,
+    "prompt_tokens_details": {
+     "cached_tokens": 0
+    }
+   },
+   "timings": {
+    "cache_n": 0,
+    "prompt_n": 2156,
+    "prompt_ms": 7285.118,
+    "prompt_per_token_ms": 3.3789972170686458,
+    "prompt_per_second": 295.94578975934223,
+    "predicted_n": 156,
+    "predicted_ms": 1030.953,
+    "predicted_per_token_ms": 6.651309677419355,
+    "predicted_per_second": 150.34633004608358
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>Date</th><th>Time</th><th>Blood pressure</th><th>HR</th><th>Comments</th></tr></thead><tbody><tr><td>25.6</td><td>AM</td><td>109/70</td><td>119/70</td><td>73 coffee</td></tr><tr><td>13.7</td><td>AM</td><td>113/74</td><td></td><td>73</td></tr><tr><td>30.7</td><td>AM</td><td>111/76</td><td></td><td>77 coffee</td></tr><tr><td>13.8</td><td>AM</td><td>116/83</td><td></td><td>73</td></tr><tr><td>20.8</td><td>AM</td><td>107/71</td><td></td><td>77</td></tr><tr><td>23.8</td><td>AM</td><td>116/76</td><td></td><td>73</td></tr><tr><td>&#x2712</td><td>PM</td><td>110/67</td><td></td><td>71</td></tr><tr><td>19.9</td><td>AM</td><td>120/73</td><td></td><td>70 poor sleep</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 2.75,
+   "usage": {
+    "completion_tokens": 397,
+    "prompt_tokens": 2156,
+    "total_tokens": 2553,
+    "prompt_tokens_details": {
+     "cached_tokens": 2151
+    }
+   },
+   "timings": {
+    "cache_n": 2151,
+    "prompt_n": 5,
+    "prompt_ms": 15.401,
+    "prompt_per_token_ms": 3.0802,
+    "prompt_per_second": 324.654243230959,
+    "predicted_n": 397,
+    "predicted_ms": 2648.748,
+    "predicted_per_token_ms": 6.688757575757576,
+    "predicted_per_second": 149.50459613372055
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2257.3,
+  "phys_footprint_mib": 1756.2,
+  "phys_footprint_peak_mib": 1756.2
+ }
+}

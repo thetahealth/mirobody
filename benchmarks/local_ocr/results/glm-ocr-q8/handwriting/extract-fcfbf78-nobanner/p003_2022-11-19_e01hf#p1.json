@@ -1,0 +1,85 @@
+{
+ "id": "p003_2022-11-19_e01hf#p1",
+ "llm": true,
+ "seconds": 7.73,
+ "error": null,
+ "indicators": [
+  {
+   "original_indicator": "身高",
+   "value": "163.0",
+   "unit": "cm",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "体重",
+   "value": "72.8",
+   "unit": "kg",
+   "reference_range": "",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "收缩压",
+   "value": "113",
+   "unit": "mmHg",
+   "reference_range": "90-139",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "舒张压",
+   "value": "74",
+   "unit": "mmHg",
+   "reference_range": "60-89",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "心率",
+   "value": "68",
+   "unit": "次/分",
+   "reference_range": "60-100",
+   "detection_method": "laboratory",
+   "status": "",
+   "notes": ""
+  },
+  {
+   "original_indicator": "体重指数",
+   "value": "37.4",
+   "reference_range": "27.4 kg/m²",
+   "unit": "kg/m²",
+   "detection_method": "laboratory",
+   "status": "high",
+   "notes": "Above normal range",
+   "date_time": "2022-11-21 18:02:51"
+  },
+  {
+   "original_indicator": "空腹血糖",
+   "value": "4.90",
+   "reference_range": "3.90-6.10",
+   "unit": "mmol/L",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2022-11-21 18:02:51"
+  },
+  {
+   "original_indicator": "糖化血红蛋白",
+   "value": "5.0",
+   "reference_range": "4.0-6.0",
+   "unit": "%",
+   "detection_method": "laboratory",
+   "status": "normal",
+   "notes": "",
+   "date_time": "2022-11-21 18:02:51"
+  }
+ ],
+ "date_time": "2022-11-19 18:02:51",
+ "content_type": "medical_report"
+}

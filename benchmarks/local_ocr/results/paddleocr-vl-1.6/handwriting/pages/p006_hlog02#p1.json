@@ -1,0 +1,67 @@
+{
+ "id": "p006_hlog02#p1",
+ "tier": "H1",
+ "image_sha256": "32f470c388d3bedc36dac926c07f6abaed05b07de6180fbf79c7985f66a6e6e0",
+ "image_size": [
+  1081,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\nWeigh-ins\nNovember 2025\nDate Weight (kg) Notes\nNov 14 67.0\nNov 15 66.5\nNov 16 66.6\nNov 17 66.9\nNov 18 66.9\nNov 19 66.9\nNov 20 67.1",
+   "finish_reason": "stop",
+   "seconds": 6.41,
+   "usage": {
+    "completion_tokens": 110,
+    "prompt_tokens": 1273,
+    "total_tokens": 1383,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1268,
+    "prompt_ms": 5698.533,
+    "prompt_per_token_ms": 4.494111198738171,
+    "prompt_per_second": 222.51340827542808,
+    "predicted_n": 110,
+    "predicted_ms": 670.45,
+    "predicted_per_token_ms": 6.150917431192661,
+    "predicted_per_second": 162.57737340592138
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><ecel><fcel>Weigh-ins November 2025<nl><ecel><fcel>Date Weight (kg) Notes<nl><ecel><fcel>Nov 14 67.0<nl><ecel><fcel>Nov 15 66.5<nl><ecel><fcel>Nov 16 66.6<nl><ecel><fcel>Nov 17 66.9<nl><ecel><fcel>Nov 18 66.9<nl><ecel><fcel>Nov 19 66.9<nl><ecel><fcel>Nov 20 67.1<nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl><ecel><ecel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.04,
+   "usage": {
+    "completion_tokens": 152,
+    "prompt_tokens": 1273,
+    "total_tokens": 1425,
+    "prompt_tokens_details": {
+     "cached_tokens": 1266
+    }
+   },
+   "timings": {
+    "cache_n": 1266,
+    "prompt_n": 7,
+    "prompt_ms": 11.802,
+    "prompt_per_token_ms": 1.686,
+    "prompt_per_second": 593.1198102016607,
+    "predicted_n": 152,
+    "predicted_ms": 973.373,
+    "predicted_per_token_ms": 6.44617880794702,
+    "predicted_per_second": 155.1306641955345
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2267.5,
+  "phys_footprint_mib": 1382.3,
+  "phys_footprint_peak_mib": 1383.5
+ }
+}

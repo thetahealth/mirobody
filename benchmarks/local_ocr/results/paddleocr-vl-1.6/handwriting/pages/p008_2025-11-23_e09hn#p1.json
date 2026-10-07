@@ -1,0 +1,67 @@
+{
+ "id": "p008_2025-11-23_e09hn#p1",
+ "tier": "H3",
+ "image_sha256": "781fb538bf9184e1749ab9856963d62ee13ee806427ee3a58b618e7ae61a1770",
+ "image_size": [
+  1074,
+  1536
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "OCR:",
+   "raw": "门诊病历\n日期：2025年11月23日\n\n2. 蛋白质来源\n\n点放包括偏食，饮食睡眠可\nT 35.9 P 68 R 15/3/分 BP: 113/71 SpO2 99%\n体重 59.5 kg\n\n放散性蛋病，要纳呼吸青洁\n\n取象：2. 蛋白质来源\n\n建康：多饮多，注意佳位，宅取饮者，皆减\n糖",
+   "finish_reason": "stop",
+   "seconds": 6.28,
+   "usage": {
+    "completion_tokens": 124,
+    "prompt_tokens": 1231,
+    "total_tokens": 1355,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1226,
+    "prompt_ms": 5475.977,
+    "prompt_per_token_ms": 4.466539151712888,
+    "prompt_per_second": 223.88698856843263,
+    "predicted_n": 124,
+    "predicted_ms": 754.335,
+    "predicted_per_token_ms": 6.1328048780487805,
+    "predicted_per_second": 163.05752749110144
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "<fcel>SYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD<lcel><nl><fcel>门诊病历<lcel><nl><fcel>科别：内科 日期：2025年11月23日<lcel><nl><fcel>2型糖尿病就诊<lcel><nl><fcel>点放包括偏言，错会 睡眠 可<lcel><nl><fcel>T 35.9 P 68 R 15 V/s/分 BP: 113/71 SpO2 99%<lcel><nl><fcel>体重 59.5kg<lcel><nl><fcel>致彭世爱病，姜独呼吸 青洁<lcel><nl><fcel>取象：2型糖尿病<lcel><nl><fcel>建康：多舒乐，注意佳节，宅政伎者，警诫良策<lcel><nl><ecel><lcel><nl>",
+   "finish_reason": "stop",
+   "seconds": 1.1,
+   "usage": {
+    "completion_tokens": 169,
+    "prompt_tokens": 1231,
+    "total_tokens": 1400,
+    "prompt_tokens_details": {
+     "cached_tokens": 1224
+    }
+   },
+   "timings": {
+    "cache_n": 1224,
+    "prompt_n": 7,
+    "prompt_ms": 18.905,
+    "prompt_per_token_ms": 2.700714285714286,
+    "prompt_per_second": 370.27241470510444,
+    "predicted_n": 169,
+    "predicted_ms": 1027.987,
+    "predicted_per_token_ms": 6.118970238095239,
+    "predicted_per_second": 163.42619118724264
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2220.5,
+  "phys_footprint_mib": 1388.9,
+  "phys_footprint_peak_mib": 1390.3
+ }
+}

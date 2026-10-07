@@ -1,0 +1,67 @@
+{
+ "id": "p003_2024-07-12_e04a#p1",
+ "tier": "T6",
+ "image_sha256": "74849c9de11b1e1dc5ac3443c0c8b111dd4f73d5e61fe6b76d31e4128d28c66e",
+ "image_size": [
+  1440,
+  1103
+ ],
+ "text_layer": false,
+ "outputs": {
+  "text": {
+   "prompt": "Text Recognition:",
+   "raw": "\nSYNTHETIC SAMPLE — GENERATED DATA, NOT A REAL PATIENT RECORD\n\n麓砚社区卫生服务中心\n\n甲状腺功能检验报告单\n\n姓名：闫柏超 性别：男 年龄：53岁\nID号：5167818189 标本号：109134395 科室：内科\n\n报告时间：2024年07月 采样日期：2024年07月 接收时间：2024年07月\n\n检查名称 代号 检验结果 单位 正常值 异常\n超敏促甲状腺激素 TSH 2.197 mIU/L 0.270--4.200 正常\n游离T3 FT3 3.74 pmol/L 3.10--6.80 正常\n游离T4 FT4 18.03 pmol/L 12.00--22.00 正常\n接收时间 2024年07月\n总T3 TT3 2.28 nmol/L 1.30--3.10 正常\n总T4 TT4 113.6 nmol/L 66.0--181.0 正常\n抗TPO抗体 TPOAb 9.1 IU/mL <34.0 正常\n\n审核者：潘健悦\n\n本报告仅对所检标本负责，如有疑问请于三日内咨询。\n\n第1页/共1页",
+   "finish_reason": "stop",
+   "seconds": 9.09,
+   "usage": {
+    "completion_tokens": 346,
+    "prompt_tokens": 2000,
+    "total_tokens": 2346,
+    "prompt_tokens_details": {
+     "cached_tokens": 5
+    }
+   },
+   "timings": {
+    "cache_n": 5,
+    "prompt_n": 1995,
+    "prompt_ms": 6613.835,
+    "prompt_per_token_ms": 3.3152055137844614,
+    "prompt_per_second": 301.64042495768336,
+    "predicted_n": 346,
+    "predicted_ms": 2423.278,
+    "predicted_per_token_ms": 7.0239942028985505,
+    "predicted_per_second": 142.36913800232577
+   }
+  },
+  "tables": {
+   "prompt": "Table Recognition:",
+   "raw": "\n<table class=\"table table-bordered\"><thead><tr><th>检查名称</th><th>代号</th><th>检验结果</th><th>单位</th><th>正常值</th><th>异常</th></tr></thead><tbody><tr><td>超敏促甲状腺激素</td><td>TSH</td><td>2.197</td><td>mIU/L</td><td>0.270--4.200</td><td>正常</td></tr><tr><td>游离T3</td><td>FT3</td><td>3.74</td><td>pmol/L</td><td>3.10--6.80</td><td>正常</td></tr><tr><td>游离T4</td><td>FT4</td><td>18.03</td><td>pmol/L</td><td>12.00--22.00</td><td>正常</td></tr><tr><td>接收时间</td><td colspan=\"5\">2024年07月</td></tr><tr><td>总T3</td><td>TT3</td><td>2.28</td><td>nmol/L</td><td>1.30--3.10</td><td>正常</td></tr><tr><td>总T4</td><td>TT4</td><td>113.6</td><td>nmol/L</td><td>66.0--181.0</td><td>正常</td></tr><tr><td>抗TPO抗体</td><td>TPOAb</td><td>9.1</td><td>IU/mL</td><td>&lt;34.0</td><td>正常</td></tr></tbody></table>",
+   "finish_reason": "stop",
+   "seconds": 3.37,
+   "usage": {
+    "completion_tokens": 437,
+    "prompt_tokens": 2000,
+    "total_tokens": 2437,
+    "prompt_tokens_details": {
+     "cached_tokens": 1995
+    }
+   },
+   "timings": {
+    "cache_n": 1995,
+    "prompt_n": 5,
+    "prompt_ms": 17.205,
+    "prompt_per_token_ms": 3.441,
+    "prompt_per_second": 290.6131938390003,
+    "predicted_n": 437,
+    "predicted_ms": 3288.218,
+    "predicted_per_token_ms": 7.541784403669724,
+    "predicted_per_second": 132.5946150772242
+   }
+  }
+ },
+ "memory": {
+  "rss_mib": 2308.7,
+  "phys_footprint_mib": 1769.8,
+  "phys_footprint_peak_mib": 1800.8
+ }
+}
