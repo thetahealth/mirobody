@@ -289,15 +289,17 @@ def lint_paths(paths: Iterable[Path | str], *, root: Path | None = None) -> tupl
 
 #: The trees the shipped baseline covers, and the ONE place that list lives.
 #:
-#: It is not "all of `mirobody`". `indicator/` and `kernel/` are excluded on
-#: purpose: the baseline predates them, and `baseline_lines` over a WIDER tree
-#: writes a LONGER file, which is how a "clean-up" ends up growing the thing
-#: it was meant to shrink. The test and the pre-commit hook both read this
-#: constant rather than each spelling the list out, because two copies of a
-#: list like this drift and the drift is silent.
+#: Every package that logs. Left out: `testing/` and `units/`, which log
+#: nothing, and the top-level modules, whose one logger (`_bundle.py`) names
+#: only the shipped data bundle's own files. CI, the test and the pre-commit
+#: hook all read this constant: `baseline_lines` over a different tree set
+#: writes a different file, and two copies of a list like this drift silently.
 DEFAULT_TREES: tuple[str, ...] = (
     "mirobody/agent",
     "mirobody/collect",
+    "mirobody/documents",
+    "mirobody/engine",
+    "mirobody/kernel",
     "mirobody/mcp",
     "mirobody/server",
     "mirobody/task",
