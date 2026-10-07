@@ -58,8 +58,8 @@ class Worker:
         from mirobody.utils.config import settings
         await settings.apply()
 
-        # The worker runs the extraction queues, so it has the same question
-        # the server asks at boot: which surfaces have a provider.
+        # The profile refresh calls a model, so the worker has the same
+        # question the server asks at boot: which surfaces have a provider.
         from mirobody.utils.config.doctor import log_report, provider_report
         log_report(provider_report(config), logger)
 
