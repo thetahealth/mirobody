@@ -562,6 +562,20 @@ def chat_default(lookup: Lookup | None = None) -> str | None:
     return None
 
 
+def default_model(lookup: Lookup | None = None) -> str:
+    """The chat entry a turn uses when the request names none: `DEFAULT_MODEL`
+    when it names a chat entry `entry_ready` admits, else `chat_default`; ""
+    when none is ready. The one answer for the agent, `/api/models` and
+    `mirobody doctor`: the agent read `DEFAULT_MODEL` while the picker and the
+    doctor read `chat_default()`, so `DEFAULT_MODEL=local` chatted with
+    `local` and reported another entry."""
+    configured = _read("DEFAULT_MODEL", lookup)
+    entries = chat_entries(lookup)
+    if configured in entries and entry_ready(entries[configured], lookup):
+        return configured
+    return chat_default(lookup) or ""
+
+
 def keys_present() -> list[str]:
     """Every key name a `MODELS` entry reads, in order, that is set."""
     out: list[str] = []

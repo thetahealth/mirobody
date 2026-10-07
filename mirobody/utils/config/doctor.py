@@ -20,8 +20,8 @@ from dataclasses import dataclass
 from .llm import (
     ROUTE_KEYS,
     RouteSpec,
-    chat_default,
     chat_entries,
+    default_model,
     entry_ready,
     keys_present,
     no_provider_message,
@@ -60,7 +60,7 @@ def _chat_status() -> SurfaceStatus:
     what = SURFACES[0][1]
     entries = chat_entries()
     usable = [n for n, e in entries.items() if entry_ready(e)]
-    default = chat_default()
+    default = default_model()
     if default:
         entry = entries.get(default) or {}
         others = [n for n in usable if n != default]
