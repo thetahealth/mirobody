@@ -246,13 +246,10 @@ class McpService:
     #
     # The observation probe reads `v_observation`, the view the tool reads: a
     # probe on the raw table counted a retracted row (it stays, amended).
+    _GENOTYPE_PROBE = "SELECT 1 FROM th_genotype_set WHERE user_id = :uid AND status = 'active' LIMIT 1"
     _DATA_GATED = {
-        "query_genetic_data":
-            "SELECT 1 FROM th_genotype_set"
-            " WHERE user_id = :uid AND status = 'active' LIMIT 1",
-        "query_pharmacogenomics":
-            "SELECT 1 FROM th_genotype_set"
-            " WHERE user_id = :uid AND status = 'active' LIMIT 1",
+        "query_genetic_data": _GENOTYPE_PROBE,
+        "query_pharmacogenomics": _GENOTYPE_PROBE,
         "query_health_indicators":
             "SELECT 1 FROM v_observation WHERE user_id = :uid LIMIT 1",
         "query_medications":

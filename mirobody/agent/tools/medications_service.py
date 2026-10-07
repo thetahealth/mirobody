@@ -18,7 +18,6 @@ nothing above it to contain a fault.
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping
 from datetime import date, timedelta
 from typing import Any
@@ -27,9 +26,6 @@ from mirobody.kernel import meds, series, tools
 from ._authz import refused
 from ._base import RecordTool
 from ._render import awaited, envelope_meta, render_compact
-
-logger = logging.getLogger(__name__)
-
 
 class MedicationsService(RecordTool):
     """The tool body. `__tools__` is the whole published surface; `envelope`
@@ -124,9 +120,9 @@ class MedicationsService(RecordTool):
     async def _zone_of(self, subject_id: str) -> str:
         if self._tz is not None:
             return await awaited(self._tz(subject_id)) or "UTC"
-        from mirobody.user.user import get_user
-        row = await get_user(user_id=subject_id)
-        return ((row or {}).get("tz") or "").strip() or "UTC"
+        from mirobody.collect import observations
+
+        return await observations.user_tz(subject_id)
 
 
 # --- pure --------------------------------------------------------------------

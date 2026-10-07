@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -11,9 +10,8 @@ from mirobody.kernel import query, tools
 
 from ._authz import refused
 from ._base import RecordTool
+from ._genotype import active_set, fetch_rows, in_clause, source_note
 from ._render import envelope_meta, render_compact
-
-logger = logging.getLogger(__name__)
 
 TOOL_NAME = "query_genetic_data"
 MAX_RSIDS = 50
@@ -21,7 +19,6 @@ MAX_RSIDS = 50
 #: seven typed sites (SLCO1B1, in the shipped site index), so only a region can
 #: reach it, and the answer to a region that does is a narrower region.
 ROW_CAP = 100
-NO_CALL = "--"
 
 COLUMNS = (
     "rsid", "gene", "chromosome", "position", "query_build", "raw_position", "pos37", "pos38", "genotype",
@@ -107,6 +104,14 @@ def _is_region(rsids: Sequence[str], gene: str, chrom: str, args: Mapping[str, A
     return not (rsids or gene) and bool(args.get("start") or args.get("end"))
 
 
+def _selects(request: GeneticRequest) -> bool:
+    """Whether a call names loci; with none it is answered by the upload's
+    profile row. `columns` and the run share this, or a placeholder `build`
+    rendered a profile row in the variant columns: "(no rows)" above
+    "rows=1"."""
+    return bool(request.rsids or request.gene or request.chromosome)
+
+
 def parse_query(args: Mapping[str, Any]) -> GeneticRequest:
     problems = validate_query(args)
     if problems:
@@ -150,28 +155,23 @@ class GeneticService(RecordTool):
         return {"result": render_compact(envelope, self.columns(args)), **envelope_meta(envelope)}
 
     def columns(self, args: Mapping[str, Any]) -> tuple[str, ...]:
-        if not any(args.get(k) for k in ("rsids", "gene", "chromosome", "start", "end", "build")):
-            return PROFILE_COLUMNS
-        return COLUMNS
+        """The columns an answer to `args` renders. A call the validator
+        refuses renders as an error, whatever these are."""
+        if validate_query(args):
+            return COLUMNS
+        return COLUMNS if _selects(parse_query(args)) else PROFILE_COLUMNS
 
     async def _run(self, caller_id: str, args: Mapping[str, Any]) -> tools.Envelope:
         problems = validate_query(args)
         if problems:
             return refused(problems)
         request = parse_query(args)
-        subject_id = caller_id
-        sets = await self._read(
-            "SELECT id, vendor, format_id, build_declared, build_detected, n_rows, n_called, "
-            "sex_inferred, normalizer_version, site_table_version "
-            "FROM th_genotype_set WHERE user_id = :user_id AND status = 'active' LIMIT 1",
-            {"user_id": subject_id},
-        )
-        if not sets:
+        genotype_set = await active_set(self._execute, caller_id)
+        if genotype_set is None:
             return tools.Envelope(tools.STATUS_OK, data=[], meta=tools.Meta(row_count=0),
                                   assumptions=("no active genotype upload for this person",))
-        genotype_set = sets[0]
-        source = _source_note(genotype_set)
-        if not (request.rsids or request.gene or request.chromosome):
+        source = source_note(genotype_set)
+        if not _selects(request):
             row = {
                 "vendor": genotype_set.get("vendor") or genotype_set["format_id"],
                 "build": genotype_set["build_detected"], "rows": genotype_set["n_rows"],
@@ -200,7 +200,7 @@ class GeneticService(RecordTool):
         params: dict[str, Any] = {"set_id": set_id, "limit": ROW_CAP + 1,
                                   "query_build": query_build}
         if request.rsids:
-            binds, rsid_params = _in_clause("rsid", request.rsids)
+            binds, rsid_params = in_clause("rsid", request.rsids)
             sql += f" AND rsid IN ({binds})"
             params.update(rsid_params)
         elif request.gene:
@@ -210,28 +210,7 @@ class GeneticService(RecordTool):
             sql += f" AND chrom = :chromosome AND {position} BETWEEN :start AND :end"
             params.update(chromosome=request.chromosome, start=request.start, end=request.end)
         sql += f" ORDER BY chrom, {position}, rsid LIMIT :limit"
-        return [dict(row) for row in await self._read(sql, params)]
-
-    async def _read(self, sql: str, params: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-        if self._execute is None:
-            from mirobody.utils import execute_query
-
-            self._execute = execute_query
-        return list(await self._execute(sql, dict(params)) or [])
-
-
-def _source_note(genotype_set: Mapping[str, Any]) -> str:
-    return (
-        f"source: genotype set {genotype_set['id']}, vendor={genotype_set.get('vendor') or genotype_set['format_id']}, "
-        f"declared build={genotype_set.get('build_declared') or 'unknown'}, "
-        f"detected build={genotype_set['build_detected']}; "
-        f"normalizer={genotype_set['normalizer_version']}, sites={genotype_set['site_table_version']}"
-    )
-
-
-def _in_clause(prefix: str, values: Sequence[str]) -> tuple[str, dict[str, Any]]:
-    params = {f"{prefix}_{i}": value for i, value in enumerate(values)}
-    return ", ".join(f":{key}" for key in params), params
+        return await fetch_rows(self._execute, sql, params)
 
 
 def _envelope_for(request: GeneticRequest, hits: Sequence[Mapping[str, Any]], *,
@@ -266,6 +245,6 @@ __tools__: tuple[str, ...] = ()
 
 __all__ = [
     "COLUMNS", "GeneticRequest", "GeneticService",
-    "MAX_RSIDS", "NO_CALL", "ROW_CAP", "TOOL_NAME", "TOOL_SCHEMA",
+    "MAX_RSIDS", "ROW_CAP", "TOOL_NAME", "TOOL_SCHEMA",
     "parse_query", "validate_query",
 ]
