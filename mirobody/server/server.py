@@ -17,6 +17,7 @@ from .bootstrap import (
     enforce_production_auth_safety,
     ensure_postgres_reachable,
     seed_demo_data,
+    start_schedulers,
 )
 from .middleware_stack import build_middlewares
 from .htdoc import add_htdoc_routes
@@ -468,8 +469,7 @@ class Server:
         #-----------------------------------------------------
         # Add other routers.
 
-        from .routers.middleware import init
-        await init()
+        await start_schedulers()
 
         from mirobody.server.routers import (
             public_router as pulse_public_router,

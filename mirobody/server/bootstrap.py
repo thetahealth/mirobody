@@ -286,3 +286,16 @@ async def seed_demo_data(config) -> None:
         await seed(members)
     except Exception as e:
         logger.error("demo seed failed: %s", e, exc_info=True)
+
+
+async def start_schedulers() -> None:
+    """Load the device platforms and register the background jobs the server
+    runs: the vendor pull, the aggregation of readings and the derived
+    indicators. A failure stops the boot."""
+    from mirobody.collect import setup_platform_system_async, start_theta_pull_scheduler
+    from mirobody.translate import start_aggregate_indicator_scheduler, start_derived_scheduler
+
+    await setup_platform_system_async()
+    await start_theta_pull_scheduler()
+    await start_aggregate_indicator_scheduler()
+    await start_derived_scheduler()
