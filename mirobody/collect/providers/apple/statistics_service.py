@@ -62,11 +62,12 @@ def _statistics_to_summary_records(
         List of dicts ready for AggregateDatabaseService.batch_save_summary_data()
     """
     records = []
+    unmapped_count = 0
 
     for stat in statistics:
         source_indicator = _resolve_source_indicator(stat.type)
         if not source_indicator:
-            logger.warning(f"Unmapped health type in statistics: {stat.type}")
+            unmapped_count += 1
             continue
 
         tz = stat.timezone or default_timezone
@@ -84,7 +85,7 @@ def _statistics_to_summary_records(
                 start_time = start_time_utc.astimezone(user_tz).replace(tzinfo=None)
                 end_time = end_time_utc.astimezone(user_tz).replace(tzinfo=None)
             except Exception:
-                logger.warning(f"Invalid timezone {tz!r}, falling back to UTC")
+                logger.warning("statistic with an unknown timezone filed in UTC")
                 start_time = start_time_utc.replace(tzinfo=None)
                 end_time = end_time_utc.replace(tzinfo=None)
 
@@ -96,7 +97,7 @@ def _statistics_to_summary_records(
             try:
                 indicator_name = build_indicator_name(stat.grouping, method, source_indicator)
             except ValueError as e:
-                logger.warning(f"Failed to build indicator name: {e}")
+                logger.warning("statistic indicator not built: error_type=%s", type(e).__name__)
                 continue
 
             records.append({
@@ -115,6 +116,8 @@ def _statistics_to_summary_records(
                 "timezone": tz,
             })
 
+    if unmapped_count:
+        logger.warning("statistics of unmapped types skipped: unmapped_count=%d", unmapped_count)
     return records
 
 
@@ -141,10 +144,8 @@ async def process_apple_health_statistics(
     records = _statistics_to_summary_records(request.statistics, user_id, default_tz)
     t2 = time.time()
 
-    logger.info(
-        f"Statistics mapping: {len(request.statistics)} stats -> {len(records)} summary records, "
-        f"user={user_id}, time={((t2 - t1) * 1e3):.1f}ms"
-    )
+    logger.info("statistics mapped: user_id=%s stat_count=%d record_count=%d duration_ms=%.1f",
+                user_id, len(request.statistics), len(records), (t2 - t1) * 1e3)
 
     if not records:
         return 0
@@ -153,9 +154,7 @@ async def process_apple_health_statistics(
     success = await db_service.batch_save_summary_data(records)
     t3 = time.time()
 
-    logger.info(
-        f"Statistics save: {len(records)} records, success={success}, "
-        f"user={user_id}, time={((t3 - t2) * 1e3):.1f}ms"
-    )
+    logger.info("statistics saved: user_id=%s record_count=%d success=%s duration_ms=%.1f",
+                user_id, len(records), success, (t3 - t2) * 1e3)
 
     return len(records) if success else 0

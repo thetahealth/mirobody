@@ -9,6 +9,7 @@ from datetime import date, datetime
 from typing import Any
 
 from mirobody.kernel import decoders, meds
+from mirobody.kernel.ops import is_driver_exception
 from .models import AppleHealthRecord, MetaInfo
 from mirobody.collect.base import LinkRequest, Provider, ProviderInfo
 from mirobody.collect.core import LinkType, ProviderStatus
@@ -34,13 +35,9 @@ class AppleHealthProvider(Provider):
         )
 
     async def link(self, request: LinkRequest) -> dict[str, Any]:
-        logger.info(f"Apple Health provider does not require linking for user {request.user_id}")
-        return {
-            "provider_slug": self.info.slug
-        }
+        return {"provider_slug": self.info.slug}
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
-        logger.info(f"Apple Health provider does not require unlinking for user {user_id}")
         return {}
 
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
@@ -48,8 +45,10 @@ class AppleHealthProvider(Provider):
 
         Every ``type`` is a HealthKit identifier, the vocabulary Apple's own
         export uses, so this push endpoint and ``mirobody import apple`` read
-        one table. Records of a type that table does not carry are dropped and
-        counted, never guessed at.
+        one table. The records arrive already validated as `AppleHealthRecord`
+        (the route refuses a body with an invalid one). A record that decodes
+        to nothing, of a type the table does not carry or without a parsable
+        time, is dropped and counted, never guessed at.
         """
         raw = fmt_input.payload
         t1 = time.time()
@@ -61,23 +60,13 @@ class AppleHealthProvider(Provider):
         source = "apple_health_watch" if meta.directly_from_watch else "apple_health"
 
         records: list[StandardPulseRecord] = []
-        unmapped: dict[str, int] = {}
-        invalid = 0
-        health_data = raw.get("health_data", [])
-        for item in health_data:
-            if isinstance(item, AppleHealthRecord):
-                record = item
-            else:
-                try:
-                    record = AppleHealthRecord(**item)
-                except Exception as e:
-                    invalid += 1
-                    logger.error(f"Invalid record format: {str(e)}")
-                    continue
+        dropped: dict[str, int] = {}
+        health_data: list[AppleHealthRecord] = raw.get("health_data", [])
+        for record in health_data:
             tz = record.timezone if record.timezone and len(record.timezone) <= 20 else default_tz
             facts = decoders.decode("apple", record.type, record.sample(), tz)
             if not facts:
-                unmapped[record.type] = unmapped.get(record.type, 0) + 1
+                dropped[record.type] = dropped.get(record.type, 0) + 1
                 continue
             for r in records_from_facts(
                 facts, slug=self.info.slug, tz=tz, source_id=record.sourceId or "unknown", source=source
@@ -85,25 +74,10 @@ class AppleHealthProvider(Provider):
                 r.task_id = meta.taskId
                 records.append(r)
 
-        # A batch where EVERY record failed to parse is a client speaking the
-        # vocabulary this endpoint dropped in 1.4.4, not a batch of readings we
-        # happen not to know. Answering "success" to that leaves the client
-        # believing it uploaded. An unknown but well-formed type is different
-        # and still succeeds: the shape was right, the type is just not carried.
-        if health_data and invalid == len(health_data):
-            raise ValueError(
-                f"none of the {invalid} records parsed. `type` must be a HealthKit "
-                "identifier (HKQuantityTypeIdentifierHeartRate), the span "
-                "startDate/endDate, `value` the number itself and `unit` its unit. "
-                "See docs/apple-health.md."
-            )
-        if unmapped:
-            logger.warning(  # phi: ok type names and counts, no value and no time
-                "dropped %d Apple records of %d unmapped types: %s",
-                sum(unmapped.values()), len(unmapped), ", ".join(sorted(unmapped)))
-        logger.info(  # phi: ok four counts and an elapsed time, no reading
-            "Formatted %d records from %d Apple Health records in %.0fms (%d invalid)",
-            len(records), len(health_data), (time.time() - t1) * 1000, invalid)
+        dropped_count = sum(dropped.values())
+        logger.info("Apple Health formatted: record_count=%d input_count=%d dropped_count=%d "
+                    "dropped_type_count=%d duration_ms=%.0f", len(records), len(health_data), dropped_count,
+                    len(dropped), (time.time() - t1) * 1000)
 
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(
@@ -117,11 +91,7 @@ class AppleHealthProvider(Provider):
                 windowTo=meta.windowTo,
             ),
             healthData=records,
-            processingInfo={
-                "accepted": len(records),
-                "unparsed": invalid,
-                "unmapped_types": sorted(unmapped),
-            },
+            processingInfo={"accepted": len(records), "dropped_types": sorted(dropped)},
         )
 
 
@@ -257,13 +227,9 @@ class CDAProvider(Provider):
         )
 
     async def link(self, request: LinkRequest) -> dict[str, Any]:
-        logger.info(f"CDA provider does not require linking for user {request.user_id}")
-        return {
-            "provider_slug": self.info.slug
-        }
+        return {"provider_slug": self.info.slug}
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
-        logger.info(f"CDA provider does not require unlinking for user {user_id}")
         return {}
 
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
@@ -307,7 +273,7 @@ class CDAProvider(Provider):
             return StandardPulseData(metaInfo=meta_info, healthData=records)
 
         except Exception as e:
-            logger.error(f"Error formatting CDA data: {str(e)}", stack_info=True)
+            logger.error("CDA format failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             raise
 
     async def _format_vital_signs(self, vital_signs_data: list, user_id: str) -> list:

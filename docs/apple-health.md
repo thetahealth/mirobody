@@ -112,18 +112,14 @@ from a body-scale vendor's own API, so nothing in an Apple export can produce
 them, and they belong to whichever scale integration reads that vendor.
 
 An identifier the table does not carry is dropped, not rejected: the shape was
-right, this build just does not carry that type. The upload succeeds and the
-response says what happened:
+right, this build just does not carry that type. The upload succeeds, and the
+server log counts the records dropped.
 
-```json
-"processingInfo": {"accepted": 34, "unparsed": 0,
-                   "unmapped_types": ["HKQuantityTypeIdentifierX"]}
-```
-
-A batch where **every** record fails to parse is refused instead, because that
-is a client speaking the vocabulary this endpoint dropped rather than a batch
-of readings we happen not to know. Answering "success" to that would leave the
-client believing it uploaded.
+A record that does not fit the model, such as one without a `type` or with a
+`value` that is an object (the `{"numericValue": n}` of the vocabulary this
+endpoint dropped), fails the whole request with a 400 and nothing in it is
+stored. A record with no parsable `startDate`, one that sends `dateFrom`
+instead, fits the model, decodes to nothing and is counted as dropped.
 
 ## Adding a data type
 

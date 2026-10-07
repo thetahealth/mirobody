@@ -1,10 +1,8 @@
-"""
-Database service for Vital providers
-"""
+"""The Apple platform's link rows: an LLM-access flag per pushed provider."""
 
 import logging
-import traceback
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -21,7 +19,7 @@ class AppleDatabaseService:
 
         Args:
             user_id: User ID
-            provider_slug: Provider identifier (without vital prefix)
+            provider_slug: Provider identifier (apple_health or cda)
             llm_access: Access level (0: no access, 1: limited access, 2: full access)
 
         Returns:
@@ -73,9 +71,9 @@ class AppleDatabaseService:
                     },
                 )
 
-            logger.info(f"Successfully updated LLM access to {llm_access} for user {user_id}, provider {provider_slug}")
             return True
 
         except Exception as e:
-            logger.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}", extra={"error": traceback.format_exc()})
+            logger.error("LLM access update failed: user_id=%s provider=%s error_type=%s", user_id, provider_slug,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
