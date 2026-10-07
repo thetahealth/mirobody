@@ -12,7 +12,7 @@ import json
 import logging
 import uuid
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import UTC, datetime
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality: a bare `pip install mirobody` must import this module. Every
@@ -22,11 +22,13 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
+from mirobody.collect.files.errors import failure_reason
 from mirobody.collect.files.file_processor import FileProcessor
 from mirobody.collect.files.services.file_db_service import SOURCE_DATA, FileDbService
 from mirobody.collect.files.services.file_uploader import validate_file_extension
 from mirobody.utils.file_types import guess_mime
 from mirobody.collect.files.handlers.genetic import GeneticHandler
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.tasks import spawn
 from .memory_upload_file import MemoryUploadFile
 
@@ -402,13 +404,22 @@ class WebSocketFileUploadManager:
                     "chunks": {},
                     "total_chunks": total_chunks,
                     "received_chunks": 0,
-                    "content": bytearray(),
+                    # The file's bytes once every chunk is in, else None.
+                    "content": None,
                 }
                 session["uploaded_files"].append(file_record)
                 existing_file = file_record
 
-            # Add data chunk
-            if chunk_index not in existing_file["chunks"]:
+            # A chunk outside the declared count would let the count complete
+            # with a real chunk missing, and the file be assembled without it.
+            if not 0 <= chunk_index < existing_file["total_chunks"]:
+                await self.send_message(
+                    connection_id,
+                    {"type": "upload_error", "messageId": message_id, "filename": filename, "status": "failed",
+                     "message": "Invalid chunk index"},
+                )
+                return False
+            if existing_file["content"] is None and chunk_index not in existing_file["chunks"]:
                 existing_file["chunks"][chunk_index] = file_content
                 existing_file["received_chunks"] += 1
 
@@ -429,12 +440,11 @@ class WebSocketFileUploadManager:
             )
 
             # Check if file is complete
-            if existing_file["received_chunks"] == existing_file["total_chunks"]:
-                # Reassemble file content
-                existing_file["content"] = bytearray()
-                for i in range(existing_file["total_chunks"]):
-                    if i in existing_file["chunks"]:
-                        existing_file["content"].extend(existing_file["chunks"][i])
+            if existing_file["content"] is None and existing_file["received_chunks"] == existing_file["total_chunks"]:
+                # One copy of the file, not the chunks beside it as well.
+                chunks = existing_file["chunks"]
+                existing_file["content"] = b"".join(chunks[i] for i in range(existing_file["total_chunks"]))
+                chunks.clear()
 
                 # Update actual file size in record
                 actual_file_size = len(existing_file["content"])
@@ -460,7 +470,7 @@ class WebSocketFileUploadManager:
             # first file of a batch and again after the last, so each file was
             # filed and extracted twice. Once per session.
             declared = {f.get("filename") for f in session.get("files") or [] if f.get("filename")}
-            received = {f["filename"] for f in session["uploaded_files"] if f["received_chunks"] == f["total_chunks"]}
+            received = {f["filename"] for f in session["uploaded_files"] if f["content"] is not None}
             if len(received) >= len(declared) and not session.get("processing_started"):
                 session["processing_started"] = True
                 await self.start_file_processing(connection_id, message_id)
@@ -537,14 +547,10 @@ class WebSocketFileUploadManager:
             session = self.upload_sessions[message_id]
             # Use real_user_id from parameter or session
             user_id_for_business = real_user_id or session.get("user_id")
-            results = []
-            failed_results = []  # Collect failed file results for complete info storage
-            url_thumb = []
-            url_full = []
-            type_list = []
-            raws = []
-
             total_files = len(uploaded_files)
+            # One per uploaded file, in order: the handler's result, or a
+            # failure with its reason.
+            outcomes: list[dict] = []
 
             # Calculate progress allocation
             progress_config = self._calculate_progress_allocation(total_files, has_genetic_files)
@@ -552,101 +558,45 @@ class WebSocketFileUploadManager:
             max_progress = progress_config["max_progress"]
             progress_per_file = progress_config["progress_per_file"]
 
-            logger.info(f"Progress allocation: base={base_progress}%, max={max_progress}%, per_file={progress_per_file}%, total_files={total_files}")
-
-            # Process each file
             for i, file_data in enumerate(uploaded_files):
+                file_start_progress = base_progress + (i * progress_per_file)
+                file_end_progress = min(base_progress + ((i + 1) * progress_per_file), max_progress)
+                current_file_callback = self._create_progress_callback(
+                    file_start_progress, file_end_progress, i + 1, file_data["filename"], connection_id, message_id
+                )
+                upload = MemoryUploadFile(file_data["content"], file_data["filename"], file_data["content_type"])
                 try:
-                    # Calculate current file progress range
-                    file_start_progress = base_progress + (i * progress_per_file)
-                    file_end_progress = min(base_progress + ((i + 1) * progress_per_file), max_progress)
-
-                    logger.info(f"File {i + 1}/{total_files} of {message_id}: progress range {file_start_progress}%-{file_end_progress}%")
-
-                    # Create progress callback for current file (use connection_id for WebSocket communication)
-                    current_file_callback = self._create_progress_callback(
-                        file_start_progress, file_end_progress, i + 1, file_data["filename"], connection_id, message_id
-                    )
-
-                    # Wrap in MemoryUploadFile adapter
-                    temp_file = MemoryUploadFile(
-                        file_data["content"], 
-                        file_data["filename"], 
-                        file_data["content_type"]
-                    )
-
-                    # UNIFIED PROCESSING ENTRY POINT (use real user_id for business logic)
                     result = await self.file_processor.process_single_file(
-                        file=temp_file,
+                        file=upload,
                         query=query,
                         user_id=user_id_for_business,
                         message_id=message_id,
                         query_user_id=query_user_id,
                         progress_callback=current_file_callback,
-                        )
-
-                    # Collect successful results
-                    if result and result.get("success", False):
-                        results.append(result)
-                        url_thumb.append(result.get("url_thumb", result.get("full_url", "")))
-                        url_full.append(result.get("full_url", ""))
-                        type_list.append(result.get("type", "file"))
-                        raws.append(self._normalize_raw_data(result.get("raw", "")))
-
-                        logger.info(f"File {i + 1} of {message_id} processed successfully")
-                    else:
-                        # Collect failed file info including file_key if available
-                        error_message = result.get("message", "File processing failed") if result else "File processing failed"
-                        failed_info = {
-                            "index": i,
-                            "filename": file_data["filename"],
-                            "content_type": file_data["content_type"],
-                            "size": file_data.get("size", len(file_data.get("content", b""))),
-                            "error": error_message,
-                            "file_key": result.get("file_key", "") if result else "",
-                            "type": result.get("type", "file") if result else "file",
-                        }
-                        failed_results.append(failed_info)
-                        logger.error(f"File {i + 1} ({file_data['filename']}) processing failed: {error_message}")
-
+                    )
                 except Exception as e:
-                    # Collect exception info as failed result
-                    failed_info = {
-                        "index": i,
-                        "filename": file_data["filename"],
-                        "content_type": file_data["content_type"],
-                        "size": file_data.get("size", len(file_data.get("content", b""))),
-                        "error": str(e),
-                        "file_key": "",
-                        "type": "file",
-                    }
-                    failed_results.append(failed_info)
-                    logger.error(f"Failed to process file {file_data['filename']}: {e}")
+                    logger.error("file processing failed: message_id=%s file_index=%d error_type=%s", message_id, i,
+                                 type(e).__name__, exc_info=not is_driver_exception(e))
+                    result = {"success": False, "message": failure_reason(e)}
+                outcomes.append(result or {"success": False})
 
-            # Statistics of processing results
-            successful_files = len(results)
+            successful_files = sum(1 for o in outcomes if o.get("success"))
             failed_files = total_files - successful_files
+            logger.info("upload processed: message_id=%s successful=%d total=%d", message_id, successful_files,
+                        total_files)
 
-            logger.info(f"Processing result statistics: {successful_files}/{total_files} files successful")
+            return_info = self._return_info(uploaded_files, outcomes, message_id, user_id_for_business, query_user_id,
+                                            session)
+            # Every file is filed, a failed one too: the row says why it failed.
+            await self._save_files_to_database(
+                return_info=return_info,
+                message_id=message_id,
+                user_id=user_id_for_business,
+                query_user_id=query_user_id,
+                session_id=session.get("session_id", ""),
+            )
 
             if successful_files == 0:
-                # Build complete return info even for failed files
-                return_info = self._build_return_info_for_failed(
-                    uploaded_files, failed_results, message_id, user_id_for_business, query_user_id, session
-                )
-                
-                # Try to save files to th_files (some might have file_key even if processing failed)
-                await self._save_files_to_database(
-                    return_info=return_info,
-                    message_id=message_id,
-                    user_id=user_id_for_business,
-                    query_user_id=query_user_id,
-                    session_id=session.get("session_id", ""),
-                )
-                
-                # NOTE: No longer update th_messages - files are stored in th_files table
-                
-                # Send failure status with complete file info (use connection_id for WebSocket)
                 await self.send_message(
                     connection_id,
                     {
@@ -661,46 +611,27 @@ class WebSocketFileUploadManager:
                         "total_files": total_files,
                     },
                 )
-                
-                # Update session status
                 session["status"] = "failed"
                 session["progress"] = 0
                 session["results"] = return_info
-                
-                logger.info(f"All files failed, saved complete file info to th_files: message_id={message_id}")
                 return
 
-            # Build return information (include failed_results for partial success scenarios)
-            return_info = await self._build_return_info(
-                uploaded_files, results, raws, url_thumb, url_full, type_list, message_id, user_id_for_business, query_user_id, session, failed_results
-            )
-
-            # Save files to th_files table
-            await self._save_files_to_database(
-                return_info=return_info,
-                message_id=message_id,
-                user_id=user_id_for_business,
-                query_user_id=query_user_id,
-                session_id=session.get("session_id", ""),
-            )
-
-            # NOTE: No longer update th_messages - files are stored in th_files table
-
-            # Send final completion status (use connection_id for WebSocket)
             await self._send_final_completion_status(
                 connection_id, message_id, session, return_info, has_genetic_files, successful_files, failed_files, total_files
             )
-
-            logger.info(f"File processing completed and final message sent: connection_id={connection_id}, message_id={message_id}, status={session['status']}")
-
-            # Start embedding update background task (use real user_id for business logic)
             await self._start_profile_refresh(user_id_for_business, message_id, query_user_id)
 
         except Exception as e:
-            logger.error(f"Asynchronous file processing failed: {e}", exc_info=True)
-            await self.update_progress(connection_id, message_id, "failed", 0, f"Processing failed: {str(e)}")
+            logger.error("upload processing failed: message_id=%s error_type=%s", message_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            await self.update_progress(connection_id, message_id, "failed", 0, "Processing failed")
         finally:
             FileDbService.rows_written(message_id)
+            # Nothing reads a file's bytes after this: kept, every upload's
+            # content stayed resident in `upload_sessions` until its socket
+            # closed, and on every path that failed.
+            for f in uploaded_files:
+                f["content"] = None
 
     async def update_genetic_processing_complete(self, user_id: str, message_id: str):
         """Update genetic processing completion status"""
@@ -845,21 +776,6 @@ class WebSocketFileUploadManager:
             logger.error(f"Failed to save files to th_files: message_id={message_id}, error={str(e)}", stack_info=True)
             # Don't raise - this is a secondary operation, the main upload was successful
 
-    def _normalize_raw_data(self, raw_data, filename: str = "") -> str:
-        """
-        Normalize raw data to string type.
-        Handles bytes, bytearray, and other types conversion.
-        """
-        if isinstance(raw_data, (bytes, bytearray)):
-            try:
-                return raw_data.decode("utf-8", errors="replace")
-            except Exception as e:
-                logger.warning(f"Failed to decode raw data{f' for {filename}' if filename else ''}: {e}")
-                return f"<File content decode failed: {str(e)}>"
-        elif not isinstance(raw_data, str):
-            return str(raw_data)
-        return raw_data
-
     def _calculate_progress_allocation(self, total_files: int, has_genetic_files: bool) -> dict:
         """
         Calculate progress allocation for file processing.
@@ -999,13 +915,6 @@ class WebSocketFileUploadManager:
                 },
             )
 
-        # Release the buffered raw file bytes. Nothing reads them after this
-        # point, and without this every successful upload kept its full
-        # content resident in upload_sessions for the life of the process:
-        # disconnect() only evicts sessions that are NOT completed.
-        for f in session.get("uploaded_files", []):
-            f["content"] = None
-
     async def _start_profile_refresh(
         self,
         user_id: str,
@@ -1038,261 +947,98 @@ class WebSocketFileUploadManager:
         except Exception as e:
             logger.error("profile refresh after an upload not started: error_type=%s", type(e).__name__)
 
-    def _build_return_info_for_failed(
+    def _return_info(
         self,
         uploaded_files: list[dict],
-        failed_results: list[dict],
+        outcomes: list[dict],
         message_id: str,
         user_id: str,
         query_user_id: str,
         session: dict,
     ) -> dict:
-        """
-        Build return information for failed file processing.
-        Ensures complete file info (including file_key) is saved even when all files fail.
-        """
-        import datetime as dt
-        upload_time = dt.datetime.now().isoformat()
-        total_files = len(uploaded_files)
-        
-        # Build files array with complete info for failed files
+        """What an upload reports and files: one entry per uploaded file,
+        `outcomes` aligned with `uploaded_files`. A failed batch and a
+        succeeded one were built by two functions, and the second counted the
+        file sizes by the index of the SUCCESSFUL files, so a genotype file's
+        size went to whichever file sat at its index in the upload."""
+        upload_time = datetime.now(UTC).isoformat()
         files_array = []
-        for i, file_data in enumerate(uploaded_files):
-            # Find corresponding failed result
-            failed_info = None
-            for fr in failed_results:
-                if fr.get("index") == i:
-                    failed_info = fr
-                    break
-            
-            file_entry = {
-                "filename": file_data["filename"],
-                "contentType": file_data["content_type"],
-                "size": file_data.get("size", len(file_data.get("content", b""))),
-                "type": failed_info.get("type", "file") if failed_info else "file",
-                "url_thumb": "",
-                "url_full": "",
-                "raw": "",
-                "file_abstract": "",
-                "file_name": file_data["filename"],
-                "file_key": failed_info.get("file_key", "") if failed_info else "",
-                "error": failed_info.get("error", "Processing failed") if failed_info else "Processing failed",
-                "success": False,
-            }
-            files_array.append(file_entry)
-        
-        # Build file_sizes array
-        file_sizes_array = [
-            f.get("size", len(f.get("content", b""))) for f in uploaded_files
-        ]
-        
-        # Handle proxy upload user information
-        target_user_name = ""
-        is_uploaded_for_others = False
-        if query_user_id and query_user_id != user_id:
-            is_uploaded_for_others = True
-            target_user_name = f"User{query_user_id[:8]}"
-        
-        return {
-            "success": False,
-            "status": "failed",
-            "message": f"All {total_files} files failed to process",
-            "type": "file",
-            "url_thumb": [],
-            "url_full": [],
-            "message_id": message_id,
-            "files": files_array,
-            "original_filenames": [f["filename"] for f in uploaded_files],
-            "file_sizes": file_sizes_array,
-            "upload_time": upload_time,
-            "total_files": total_files,
-            "successful_files": 0,
-            "failed_files": total_files,
-            "CODE_VERSION": "v2.0_WEBSOCKET_EXCEL_SUPPORTED",
-            "query": session.get("query", ""),
-            "session_id": session.get("session_id", ""),
-            "query_user_id": query_user_id,
-            "target_user_name": target_user_name,
-            "is_uploaded_for_others": is_uploaded_for_others,
-            "timestamp": upload_time,
-        }
-
-    # ==================== End Helper Methods ====================
-
-    async def _build_return_info(
-        self,
-        uploaded_files,
-        results,
-        raws,
-        url_thumb,
-        url_full,
-        type_list,
-        message_id,
-        user_id,
-        query_user_id,
-        session,
-        failed_results: list[dict] = None,  # Optional: include failed file info for partial success
-    ):
-        """Build return information"""
-        import datetime
-
-        upload_time = datetime.datetime.now().isoformat()
-        successful_files = len(results)
-        total_files = len(uploaded_files)
-        failed_files = total_files - successful_files
-        
-        # Create a mapping from original file index to failed result info
-        failed_results_map = {}
-        if failed_results:
-            for fr in failed_results:
-                failed_results_map[fr.get("index")] = fr
-
-        # Build files array, ensure all necessary fields are included
-        files_array = []
-        result_index = 0  # Track position in results array (only successful files)
-        
-        for i in range(len(uploaded_files)):
-            file_size = uploaded_files[i].get("size", 0)
-            
-            # `results` holds only the files that succeeded, in upload order.
-            is_failed_file = i in failed_results_map
-            
-            if is_failed_file:
-                # This file failed - get info from failed_results
-                failed_info = failed_results_map[i]
-                file_entry = {
-                    "filename": uploaded_files[i]["filename"],
-                    "contentType": uploaded_files[i]["content_type"],
-                    "type": failed_info.get("type", "file"),
+        for file_data, outcome in zip(uploaded_files, outcomes, strict=True):
+            size = file_data.get("size", 0)
+            file_type = outcome.get("type", "file")
+            if not outcome.get("success"):
+                files_array.append({
+                    "filename": file_data["filename"],
+                    "contentType": file_data["content_type"],
+                    "type": file_type,
                     "url_thumb": "",
                     "url_full": "",
                     "raw": "",
                     "file_abstract": "",
-                    "file_name": uploaded_files[i]["filename"],
-                    "file_size": failed_info.get("size", file_size) or len(uploaded_files[i].get("content", b"")),
-                    "file_key": failed_info.get("file_key", ""),
-                    "error": failed_info.get("error", "Processing failed"),
+                    "file_name": file_data["filename"],
+                    "size": size,
+                    "file_size": size,
+                    "file_key": outcome.get("file_key", ""),
+                    "error": outcome.get("message") or "File processing failed",
                     "success": False,
-                }
-                files_array.append(file_entry)
-            else:
-                # This file was successful - use results array
-                if result_index < len(results):
-                    result = results[result_index]
-                    result_index += 1
-                    
-                    # Normalize raw field to string type
-                    raw_data = raws[result_index - 1] if result_index - 1 < len(raws) else ""
-                    raw_data = self._normalize_raw_data(raw_data, uploaded_files[i]["filename"])
+                })
+                continue
+            if file_type == "genetic" and outcome.get("file_size"):
+                size = outcome["file_size"]
+            generated_name = outcome.get("file_name", "")
+            files_array.append({
+                "filename": file_data["filename"],
+                "type": file_type,
+                "url_thumb": outcome.get("url_thumb", outcome.get("full_url", "")),
+                "url_full": outcome.get("full_url", ""),
+                "raw": str(outcome.get("raw") or ""),
+                "file_abstract": outcome.get("file_abstract", ""),
+                "file_name": generated_name if generated_name and file_type in ("pdf", "image") else file_data["filename"],
+                "file_size": size,
+                "file_key": outcome.get("file_key", ""),
+                "original_text": outcome.get("original_text", ""),
+                "text_length": outcome.get("text_length", 0),
+                "content_hash": outcome.get("content_hash", ""),
+                # Handlers that extract indicators synchronously (csv/genetic
+                # overrides) return them here; without these keys
+                # _save_files_to_database always inserted indicators: [].
+                "indicators": outcome.get("indicators", []),
+                "indicators_count": outcome.get("indicators_count", len(outcome.get("indicators", []) or [])),
+                "success": True,
+            })
 
-                    # For genetic files, get file size from processing results
-                    if result.get("type") == "genetic":
-                        result_file_size = result.get("file_size", file_size)
-                        if result_file_size and result_file_size > 0:
-                            file_size = result_file_size
-
-                    # The handler's abstract: every handler answers one, the
-                    # fallback sentence included.
-                    file_abstract = result.get("file_abstract", "")
-                    file_name = uploaded_files[i]["filename"]
-                    file_type = result.get("type", "file")
-                    generated_name = result.get("file_name", "")
-                    if generated_name and file_type in ["pdf", "image"]:
-                        file_name = generated_name
-
-                    file_entry = {
-                        "filename": uploaded_files[i]["filename"],
-                        "type": file_type,
-                        "url_thumb": result.get("url_thumb", result.get("full_url", "")),
-                        "url_full": result.get("full_url", ""),
-                        "raw": raw_data,
-                        "file_abstract": file_abstract,
-                        "file_name": file_name,
-                        "file_size": file_size,
-                        "file_key": result.get("file_key", ""),
-                        "original_text": result.get("original_text", ""),
-                        "text_length": result.get("text_length", 0),
-                        "content_hash": result.get("content_hash", ""),
-                        # Handlers that extract indicators synchronously
-                        # (csv/genetic overrides) return them here; without
-                        # these keys _save_files_to_database always inserted
-                        # indicators: [] on this path while the chat-attachment
-                        # path persisted them.
-                        "indicators": result.get("indicators", []),
-                        "indicators_count": result.get("indicators_count", len(result.get("indicators", []) or [])),
-                        "success": True,
-                    }
-                    files_array.append(file_entry)
-                else:
-                    # Fallback: no result available, treat as failed without specific info
-                    file_entry = {
-                        "filename": uploaded_files[i]["filename"],
-                        "contentType": uploaded_files[i]["content_type"],
-                        "type": "file",
-                        "url_thumb": "",
-                        "url_full": "",
-                        "raw": "",
-                        "file_abstract": "",
-                        "file_name": uploaded_files[i]["filename"],
-                        "file_size": file_size or len(uploaded_files[i].get("content", b"")),
-                        "file_key": "",
-                        "error": "Processing failed",
-                        "success": False,
-                    }
-                    files_array.append(file_entry)
-
-        # Build file_sizes array using actual file sizes
-        file_sizes_array = []
-        for i, f in enumerate(uploaded_files):
-            actual_size = f.get("size", 0)
-
-            # For genetic files, get file size from processing results
-            if i < len(results) and results[i].get("type") == "genetic":
-                result_file_size = results[i].get("file_size", actual_size)
-                if result_file_size and result_file_size > 0:
-                    actual_size = result_file_size
-
-            file_sizes_array.append(actual_size)
-
-        # Build different response information based on processing results
-        if failed_files > 0:
-            # Partial or complete failure scenarios
-            success_status = successful_files > 0  # Count as partial success if any succeeded
-            message_text = f"Partially successful: {successful_files}/{total_files} files processed successfully"
+        succeeded = [o for o in outcomes if o.get("success")]
+        total_files = len(uploaded_files)
+        if not succeeded:
+            status, message_text = "failed", f"All {total_files} files failed to process"
+        elif len(succeeded) < total_files:
+            status = "partial_success"
+            message_text = f"Partially successful: {len(succeeded)}/{total_files} files processed successfully"
         else:
-            # Complete success
-            success_status = True
-            message_text = "File processing completed"
-
-
-        # Handle proxy upload user information
-        target_user_name = ""
-        is_uploaded_for_others = False
-
-        if query_user_id and query_user_id != user_id:
-            is_uploaded_for_others = True
-            # Use default target username format
-            target_user_name = f"User{query_user_id[:8]}"
-
+            status, message_text = "completed", "File processing completed"
+        is_uploaded_for_others = bool(query_user_id) and query_user_id != user_id
         return {
-            "success": success_status,
+            "success": bool(succeeded),
+            "status": status,
             "message": message_text,
-            "type": type_list[0] if type_list else "file",
-            "url_thumb": url_thumb,
-            "url_full": url_full,
+            "type": succeeded[0].get("type", "file") if succeeded else "file",
+            "url_thumb": [o.get("url_thumb", o.get("full_url", "")) for o in succeeded],
+            "url_full": [o.get("full_url", "") for o in succeeded],
             "message_id": message_id,
-            # Remove outer "raw" field - keep only the "raw" fields inside files array
             "files": files_array,
             "original_filenames": [f["filename"] for f in uploaded_files],
-            "file_sizes": file_sizes_array,
+            "file_sizes": [entry.get("file_size", 0) for entry in files_array],
             "upload_time": upload_time,
-            "total_files": len(uploaded_files),
-            "successful_files": successful_files,
-            "failed_files": failed_files,
+            "total_files": total_files,
+            "successful_files": len(succeeded),
+            "failed_files": total_files - len(succeeded),
             "CODE_VERSION": "v2.0_WEBSOCKET_EXCEL_SUPPORTED",
+            "query": session.get("query", ""),
+            "session_id": session.get("session_id", ""),
             "query_user_id": query_user_id,
-            "target_user_name": target_user_name,
+            "target_user_name": f"User{query_user_id[:8]}" if is_uploaded_for_others else "",
             "is_uploaded_for_others": is_uploaded_for_others,
+            "timestamp": upload_time,
         }
 
     async def update_progress(self, connection_id: str, message_id: str, status: str, progress: int, message: str,
