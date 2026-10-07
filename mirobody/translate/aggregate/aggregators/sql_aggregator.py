@@ -457,7 +457,7 @@ class SQLAggregator:
         Determine the output unit for an aggregation result.
 
         Rules:
-        - Methods with fixed output units (time_of_max → HH:MM, count → count) use overrides
+        - Methods with fixed output units (time_of_max → HHMM, count → count) use overrides
         - Threshold methods (pct_below_X, pct_above_X, tir_X_Y) output "%"
         - All other methods (avg, max, min, sum, last, etc.) inherit source indicator's unit
         - Falls back to source indicator's unit if unknown
@@ -467,7 +467,7 @@ class SQLAggregator:
             aggregation_type: Aggregation method (e.g., "avg", "pct_below_70")
 
         Returns:
-            Unit string (e.g., "mg/dL", "%", "HH:MM")
+            Unit string (e.g., "mg/dL", "%", "HHMM")
         """
         # Check fixed overrides first
         if aggregation_type in self._method_unit_overrides:
