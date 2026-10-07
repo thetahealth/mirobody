@@ -210,7 +210,7 @@ async def realign_dose_slots(config) -> None:
     day that reads as missed is not worth a server that does not start."""
     if not should_bootstrap(config):
         return
-    from mirobody.collect.meds.store import realign_dose_slots as realign
+    from mirobody.collect import realign_dose_slots as realign
 
     try:
         renamed_count = await realign()

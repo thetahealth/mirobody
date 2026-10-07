@@ -14,6 +14,9 @@ re-derived in SQL.
 """
 
 from .mentions import MentionOutcome, apply_medication_mentions
-from .store import PostgresDoseLogStore, PostgresMedicationStore, PostgresOverlayStore
+from .store import PostgresDoseLogStore, PostgresMedicationStore, PostgresOverlayStore, realign_dose_slots
 
-__all__ = ["MentionOutcome", "PostgresDoseLogStore", "PostgresMedicationStore", "PostgresOverlayStore", "apply_medication_mentions"]
+__all__ = [
+    "MentionOutcome", "PostgresDoseLogStore", "PostgresMedicationStore", "PostgresOverlayStore",
+    "apply_medication_mentions", "realign_dose_slots",
+]
