@@ -40,7 +40,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from importlib import resources
-from typing import Literal, Protocol
+from typing import Literal, NamedTuple, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mirobody import units
@@ -812,10 +812,19 @@ def slot_instant(d: date, slot: str, tz: str, *, gap: str = GAP_SHIFT_FORWARD) -
     return ms
 
 
+class SlotKey(NamedTuple):
+    """A slot's identity. A plain ``(plan_id, local_date, slot)`` tuple is
+    equal to it and hashes the same, so a store may pass either."""
+
+    plan_id: str
+    local_date: date
+    slot: str
+
+
 @dataclass(frozen=True)
 class DoseSlot:
-    """One planned intake. Identity is ``key`` (``(plan_id, local_date,
-    slot)``) never the instant. ``utc_ms`` is derived at projection time
+    """One planned intake. Identity is ``key`` (a :class:`SlotKey`), never
+    the instant. ``utc_ms`` is derived at projection time
     (``None`` for a skipped daylight-saving gap) and is what reminders and
     :func:`slot_state` use."""
 
@@ -841,8 +850,8 @@ class DoseSlot:
         return cls(plan_id, local_date, slot, tz, dose, slot_instant(local_date, slot, tz, gap=gap))
 
     @property
-    def key(self) -> tuple[str, date, str]:
-        return (self.plan_id, self.local_date, self.slot)
+    def key(self) -> SlotKey:
+        return SlotKey(self.plan_id, self.local_date, self.slot)
 
 
 def _due_on(instruction: DoseInstruction, plan_start: date, d: date) -> bool:
@@ -858,13 +867,20 @@ def _due_on(instruction: DoseInstruction, plan_start: date, d: date) -> bool:
 
 def _slot_names(schedule: Schedule) -> tuple[tuple[DoseInstruction, str], ...]:
     """Every (instruction, slot) of one due day; a slot name shared by two
-    instructions gets ``#i`` so the two doses keep separate identities."""
+    instructions gets ``#i`` so the two doses keep separate identities. An
+    as-needed or unscheduled instruction has no slot: counted, its ``day``
+    renamed a once-daily ``day`` to ``day#0``, and adding an as-needed dose
+    to a plan moved every key of its daily one."""
+    scheduled = [
+        (i, instr) for i, instr in enumerate(schedule)
+        if instr.schedule_kind() not in (KIND_PRN, KIND_UNSCHEDULED)
+    ]
     counts: dict[str, int] = {}
-    for instr in schedule:
+    for _, instr in scheduled:
         for s in instr.slots():
             counts[s] = counts.get(s, 0) + 1
     out: list[tuple[DoseInstruction, str]] = []
-    for i, instr in enumerate(schedule):
+    for i, instr in scheduled:
         for s in instr.slots():
             out.append((instr, f"{s}#{i}" if counts[s] > 1 else s))
     return tuple(out)
@@ -894,7 +910,7 @@ def project_schedule(
     d = first
     while d <= last:
         for instr, slot in names:
-            if instr.schedule_kind() in (KIND_PRN, KIND_UNSCHEDULED) or not _due_on(instr, plan.start, d):
+            if not _due_on(instr, plan.start, d):
                 continue
             out.append(DoseSlot(plan.plan_id, d, slot, tz, instr.dose, slot_instant(d, slot, tz, gap=gap)))
         d += timedelta(days=1)
@@ -911,8 +927,14 @@ def diff_projection(
     dated on or after the subject's current local day."""
     have = {d.key: d for d in existing}
     want = {d.key: d for d in projected}
-    to_add = tuple(want[k] for k in sorted(want.keys() - have.keys(), key=lambda k: (k[1], k[2])))
-    to_remove = tuple(have[k] for k in sorted(have.keys() - want.keys(), key=lambda k: (k[1], k[2])))
+
+    def order(k: SlotKey) -> tuple[date, str, str]:
+        # The plan id breaks ties: without it two plans' 08:00 came out in
+        # set order, which the string hash seed changes from run to run.
+        return (k.local_date, k.slot, k.plan_id)
+
+    to_add = tuple(want[k] for k in sorted(want.keys() - have.keys(), key=order))
+    to_remove = tuple(have[k] for k in sorted(have.keys() - want.keys(), key=order))
     return to_add, to_remove
 
 
@@ -944,7 +966,7 @@ class DoseEvent:
     status: str
     taken_at_ms: int
     tz: str
-    slot_key: tuple[str, date, str] | None = None
+    slot_key: SlotKey | None = None
     dose: Dose | None = None
     recorded_by: str = "user"  # user | caregiver | device | import
     reason: str = field(default="", repr=False)
@@ -953,16 +975,17 @@ class DoseEvent:
         if self.status not in STORED_EVENT_STATUSES:
             raise ValueError(f"a stored dose event is {sorted(STORED_EVENT_STATUSES)}, never a derived state")
         if self.slot_key is not None:
-            if self.slot_key[0] != self.plan_id:
+            plan_id, local_date, slot = self.slot_key
+            if plan_id != self.plan_id:
                 raise ValueError("slot_key belongs to another plan")
-            object.__setattr__(self, "slot_key", (self.slot_key[0], self.slot_key[1], normalize_slot(self.slot_key[2])))
+            object.__setattr__(self, "slot_key", SlotKey(plan_id, local_date, normalize_slot(slot)))
 
 
-def _answers(events: Iterable[DoseEvent]) -> dict[tuple[str, date, str], DoseEvent]:
+def _answers(events: Iterable[DoseEvent]) -> dict[SlotKey, DoseEvent]:
     """The event that answers each slot: the latest by ``taken_at_ms``,
     whatever order the store returns (the reference store's is newest first,
     and the plan view used to keep the last one it saw, the oldest)."""
-    answered: dict[tuple[str, date, str], DoseEvent] = {}
+    answered: dict[SlotKey, DoseEvent] = {}
     for e in events:
         if e.slot_key is None:
             continue
@@ -1688,7 +1711,7 @@ def log_rows(
                 "time": at.strftime("%H:%M"),
                 "medication": plan.concept.text if plan else "",
                 "status": e.status,
-                "slot": e.slot_key[2] if e.slot_key else "",
+                "slot": e.slot_key.slot if e.slot_key else "",
                 "dose": f"{e.dose.value:g} {e.dose.unit}" if e.dose else "",
                 "recorded_by": e.recorded_by,
                 "plan_id": e.plan_id,
@@ -1774,6 +1797,7 @@ __all__ = [
     "Reconcile",
     "Schedule",
     "ScheduleParts",
+    "SlotKey",
     "Terminology",
     "adherence",
     "courses",
