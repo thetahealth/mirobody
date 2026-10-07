@@ -540,3 +540,102 @@ def test_a_tool_class_publishes_exactly_the_methods_it_declares(klass):
     from mirobody.mcp.tool import load_tools_from_class
 
     assert sorted(load_tools_from_class(klass, __name__)) == ["a_tool"]
+
+
+def _mcp_request(body, *, secret: str = "", bearer: str = "abc"):
+    import json
+    from unittest.mock import MagicMock
+
+    request = MagicMock()
+    request.method = "POST"
+    request.url.path = "/mcp/x" if secret else "/mcp"
+    request.path_params = {"secret": secret} if secret else {}
+    request.headers = {"authorization": f"Bearer {bearer}", "host": "localhost"} if bearer else {"host": "localhost"}
+
+    async def read():
+        return body if isinstance(body, bytes) else json.dumps(body).encode()
+
+    async def as_json():
+        return json.loads(await read())
+
+    request.body = read
+    request.json = as_json
+    return request
+
+
+@pytest.fixture
+def mcp(monkeypatch):
+    """An MCP service whose bearer tokens are account 222's and whose personal
+    link reads account 111, with one tool that says whose record it read."""
+    pytest.importorskip("mcp")
+    import mirobody.mcp.service as service_module
+
+    async def bearer_subject(payload, *, mcp_resource="", decode=None):
+        return int(payload["sub"])
+
+    class Validator:
+        def verify_token(self, token):
+            return {"sub": "222"}, None
+
+    monkeypatch.setattr(service_module, "bearer_subject", bearer_subject)
+    monkeypatch.setattr(service_module, "get_jwt_token", lambda request: request.headers.get("authorization", ""))
+    svc = service_module.McpService(token_validator=Validator(), name="t", version="0")
+    gated: list[str] = []
+
+    async def resolve_secret(secret):
+        return "111"
+
+    async def gate(user_id):
+        gated.append(user_id)
+        return set()
+
+    async def whose(user_info, **_):
+        return {"success": True, "data": {"read": user_info["user_id"]}}
+
+    svc._resolve_secret_user = resolve_secret
+    svc._data_gated_tools = gate
+    svc._callable = {"whose": {"auth": True, "instance": whose, "parameters": {"user_info": None}}}
+    return svc, gated
+
+
+def _call(svc, body, **kwargs) -> dict:
+    import json
+
+    return json.loads(asyncio.run(svc.mcp_handler(_mcp_request(body, **kwargs))).body)
+
+
+def test_a_personal_link_reads_its_own_record_whatever_bearer_rides_with_it(mcp):
+    svc, gated = mcp
+    called = _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "whose", "arguments": {}}},
+                   secret="s")
+    assert called["result"]["structuredContent"] == {"read": "111"}
+    _call(svc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, secret="s")
+    assert gated == ["111"]
+
+
+def test_tools_list_on_bare_mcp_is_gated_for_the_bearers_account(mcp):
+    svc, gated = mcp
+    _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert gated == ["222"]
+
+
+@pytest.mark.parametrize("body", [b"null", b"5", b'"text"', b'[{"jsonrpc": "2.0", "id": 1, "method": "ping"}]'],
+                         ids=["null", "number", "string", "batch"])
+def test_a_body_that_is_not_an_object_is_an_invalid_request_not_a_500(mcp, body):
+    svc, _ = mcp
+    assert _call(svc, body, bearer="")["error"]["code"] == -32600
+
+
+@pytest.mark.parametrize("arguments", [["a"], "text", 5])
+def test_tool_arguments_that_are_not_an_object_are_refused(mcp, arguments):
+    svc, _ = mcp
+    answer = _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                         "params": {"name": "whose", "arguments": arguments}})
+    assert answer["error"]["code"] == -32602
+
+
+@pytest.mark.parametrize("member", [None, 222, "222"])
+def test_a_personal_link_request_takes_a_member_id_as_number_null_or_text(mcp, member):
+    svc, _ = mcp
+    caller, subject, refusal = asyncio.run(svc._personal_mcp_subject(_mcp_request({"user_id": member})))
+    assert (caller, subject, refusal) == ("222", "222", None)
