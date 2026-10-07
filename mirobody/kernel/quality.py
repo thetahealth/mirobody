@@ -16,6 +16,7 @@ Pure functions; the consumer decides what a code means for its queue
 from __future__ import annotations
 
 import math
+from typing import NamedTuple
 
 from . import metrics
 from mirobody import units
@@ -67,25 +68,36 @@ def value_gate(value: float | None, unit: str) -> str:
     return ""
 
 
-def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> tuple[float | None, str, str, str]:
+class ReconciledUnit(NamedTuple):
+    """A fact's value and unit after :func:`reconcile_unit`; ``flag`` and
+    ``error`` are ``""`` when there is nothing to say."""
+
+    value: float | None
+    unit: str
+    flag: str
+    error: str
+
+
+def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> ReconciledUnit:
     """Bring a fact's unit to the metric's canonical unit.
 
-    Returns ``(value, unit, flag, error)``. Convertible units are converted
-    and flagged ``unit_converted``; two units the engine *both* knows with
-    different dimensions are an ``ERR_UNIT_DIMENSION_CONFLICT`` (a
-    temperature filed under a mass); a unit the engine does not know is
-    admitted as-is with ``unverified_unit``: an unfamiliar but correct unit
-    must not lock real data in quarantine.
+    Convertible units are converted and flagged ``unit_converted``; two units
+    the engine knows in *different* families are an
+    ``ERR_UNIT_DIMENSION_CONFLICT`` (a temperature filed under a mass). A
+    unit the engine does not know, or cannot convert within the metric's own
+    family (°F against Cel, an offset scale), is admitted as-is with
+    ``unverified_unit``: a correct unit must not lock real data in quarantine.
     """
     incoming = units.normalize_unit(raw_unit) or raw_unit
     if not expected_ucum or not incoming or incoming == expected_ucum:
-        return value, expected_ucum or incoming, "", ""
+        return ReconciledUnit(value, expected_ucum or incoming, "", "")
     if units.convertible(incoming, expected_ucum):
         converted = units.convert_value(value, incoming, expected_ucum) if value is not None else None
-        return (converted if converted is not None else value), expected_ucum, FLAG_UNIT_CONVERTED, ""
-    if units.unit_family(incoming) and units.unit_family(expected_ucum):
-        return value, incoming, "", ERR_UNIT_DIMENSION_CONFLICT
-    return value, incoming, FLAG_UNVERIFIED_UNIT, ""
+        return ReconciledUnit(converted, expected_ucum, FLAG_UNIT_CONVERTED, "")
+    family_in, family_expected = units.unit_family(incoming), units.unit_family(expected_ucum)
+    if family_in and family_expected and family_in != family_expected:
+        return ReconciledUnit(value, incoming, "", ERR_UNIT_DIMENSION_CONFLICT)
+    return ReconciledUnit(value, incoming, FLAG_UNVERIFIED_UNIT, "")
 
 
 def overcount_suspect(total_ms: float, span_ms: float, *, tolerance_ratio: float = 1.0, floor_ms: float = 0.0) -> bool:
@@ -126,5 +138,5 @@ def shape_for(system: str, metric_key: str) -> metrics.Mapping | None:
 __all__ = [
     "ERR_UNIT_DIMENSION_CONFLICT", "ERR_IMPOSSIBLE_TIME_RANGE", "ERR_IMPOSSIBLE_VALUE", "ERR_NO_TRUSTED_MAPPING", "ERR_TRANSIENT",
     "FLAG_UNIT_CONVERTED", "FLAG_UNVERIFIED_UNIT", "MAX_INTERVAL_MS", "FUTURE_TOLERANCE_MS",
-    "time_gate", "value_gate", "reconcile_unit", "overcount_suspect", "is_echo", "cross_source_ratio", "shape_for",
+    "ReconciledUnit", "time_gate", "value_gate", "reconcile_unit", "overcount_suspect", "is_echo", "cross_source_ratio", "shape_for",
 ]
