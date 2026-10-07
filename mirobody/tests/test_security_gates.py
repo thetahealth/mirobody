@@ -856,13 +856,14 @@ def test_a_failing_files_route_answers_a_sentence_not_the_exception(monkeypatch)
 def test_a_public_share_link_answers_a_sentence_not_the_exception(monkeypatch):
     client, share = _router_app("session_share_router")
     monkeypatch.setattr(share.chat_session, "get_shared_session_history", _raises())
-    answer = client.get("/api/share/0123456789abcdef0123")
+    answer = client.get("/api/share/0123e456-7890-4abc-8def-0123456789ab")
     assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
 
-    # The service catches its own failures and answered "Internal error: <text>".
+    # The service catches its own failures and answered "Internal error: <text>";
+    # the id is a UUID, because anything else is refused before the database.
     monkeypatch.undo()
     monkeypatch.setattr(share.chat_session, "execute_query", _raises())
-    answer = client.get("/api/share/0123456789abcdef0123")
+    answer = client.get("/api/share/0123e456-7890-4abc-8def-0123456789ab")
     assert answer.json()["code"] == -4 and "mirobody.ai" not in answer.text
 
 
