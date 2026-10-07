@@ -4,7 +4,10 @@ import logging
 from typing import IO
 from functools import partial
 
-from .abstract import AbstractStorage
+from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.log import secret_fingerprint
+
+from .abstract import AbstractStorage, storage_failure
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +104,8 @@ class AliyunStorage(AbstractStorage):
             self._initialized = True
             logger.info(f"Aliyun OSS client initialized: bucket={self.bucket}, endpoint={self.endpoint}, cdn={self.cdn or 'none'}")
         except Exception as e:
-            logger.error(f"Failed to initialize Aliyun OSS client: {str(e)}", exc_info=True)
+            logger.error("Aliyun OSS client not initialized: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             raise
     
     #-----------------------------------------------------
@@ -173,14 +177,12 @@ class AliyunStorage(AbstractStorage):
                 partial(self._cdn_bucket.sign_url, "GET", object_key, expires)
             )
 
-            logger.info(f"File uploaded to OSS successfully: {object_key}")
+            logger.info("file uploaded to OSS: key=%s", secret_fingerprint(key))
             
             return url, None
             
         except Exception as e:
-            error_msg = f"Failed to upload to OSS: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
+            return None, storage_failure("OSS upload", key, e)
 
     #-----------------------------------------------------
 
@@ -200,9 +202,7 @@ class AliyunStorage(AbstractStorage):
             return content, None
 
         except Exception as e:
-            error_msg = f"Failed to get file from OSS: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
+            return None, storage_failure("OSS download", key, e)
     
     #-----------------------------------------------------
 
@@ -219,14 +219,12 @@ class AliyunStorage(AbstractStorage):
                 partial(self._bucket.delete_object, object_key)
             )
 
-            logger.info(f"File deleted from OSS successfully: {object_key}")
+            logger.info("file deleted from OSS: key=%s", secret_fingerprint(key))
 
             return None
 
         except Exception as e:
-            error_msg = f"Failed to delete from OSS: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return error_msg
+            return storage_failure("OSS delete", key, e)
 
     #-----------------------------------------------------
 
@@ -252,9 +250,7 @@ class AliyunStorage(AbstractStorage):
             return url, None
 
         except Exception as e:
-            error_msg = f"Failed to generate signed URL: {str(e)}"
-            logger.error(error_msg, exc_info=True)
-            return None, error_msg
+            return None, storage_failure("OSS signed URL", key, e)
 
     #-----------------------------------------------------
 

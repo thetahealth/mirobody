@@ -33,7 +33,9 @@ def get_storage_client() -> AbstractStorage:
             logger.info(f"Storage initialized: {backend.__name__}")
             return _instance
         except Exception as e:
-            logger.debug(f"{backend.__name__} not available: {e}")
+            # Expected for every backend a deployment does not configure: its
+            # constructor raises ValueError naming the missing keys.
+            logger.debug("%s not available: error_type=%s", backend.__name__, type(e).__name__)
 
     _instance = LocalStorage()
     logger.info("Falling back to LocalStorage")

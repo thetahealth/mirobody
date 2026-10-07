@@ -11,6 +11,7 @@ from ruamel.yaml import YAML
 from typing import Any
 
 from mirobody import __version__
+from mirobody.kernel.ops import is_driver_exception
 from typing import TYPE_CHECKING
 
 from .encrypt import FernetEncrypter
@@ -202,7 +203,8 @@ class Config:
                     stream = io.StringIO(s)
 
             except Exception as e:
-                logger.warning(f"Failed to load YAML file '{file}': {str(e)}")
+                logger.warning("config file %s not read: error_type=%s", file, type(e).__name__,  # phi: ok a config path
+                               exc_info=not is_driver_exception(e))
                 return []
 
         elif isinstance(file, io.StringIO):
@@ -284,7 +286,8 @@ class Config:
                         Config.yaml.dump(data, f)
 
             except Exception as e:
-                logger.warning(f"Failed to update YAML file '{file}': {str(e)}")
+                logger.warning("config file %s not rewritten: error_type=%s", file, type(e).__name__,  # phi: ok a config path
+                               exc_info=not is_driver_exception(e))
 
         return includes
 
@@ -465,9 +468,9 @@ class Config:
             return base64.urlsafe_b64encode(raw).decode()
 
         except Exception as e:
-            # Deliberately not logging `s`: it is the encryption passphrase,
-            # and the old version put it in the log line verbatim.
-            logger.error("could not derive a Fernet key from %s: %s", key, e)
+            # Neither `s` nor the error nor a traceback: `s` is the passphrase,
+            # and an encoding error quotes the characters it failed on.
+            logger.error("could not derive a Fernet key from %s: error_type=%s", key, type(e).__name__)
             return ""
 
 
