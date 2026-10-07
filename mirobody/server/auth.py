@@ -66,7 +66,8 @@ async def verify_token_claims(token_string: str) -> tuple[str, dict]:
         # just rejected; the fingerprint goes to our log instead. The reason is
         # the validator's fixed sentence or the decoder's exception type.
         reason = (err or "").rsplit(": ", 1)[-1]
-        logger.warning("JWT decode failed: token=%s reason=%s", secret_fingerprint(token), reason)
+        logger.warning("JWT decode failed: token=%s reason=%s",  # phi: ok a fixed sentence or a type name
+                       secret_fingerprint(token), reason)
         raise HTTPException(status_code=401, detail="Token decode failed")
 
     #-----------------------------------------------------

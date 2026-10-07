@@ -312,8 +312,6 @@ async def websocket_upload_health_report(
                         message_data = json.loads(message)
                         message_type = message_data.get("type")
 
-                        logger.info(f"Received message type: {message_type}")
-
                         # Handle different types of messages
                         # Note: use connection_id for WebSocket operations, but pass user_id for business logic
                         if message_type == "upload_start":
@@ -342,7 +340,9 @@ async def websocket_upload_health_report(
                                 )
                                 await websocket_file_upload_manager.send_message(connection_id, status)
                         else:
-                            logger.warning(f"Unknown message type: {message_type}")
+                            # The type is the client's text; only that it was not one of ours is news.
+                            logger.warning("upload socket: unknown message type ignored: connection_id=%s",
+                                           connection_id)
 
                     except json.JSONDecodeError:
                         logger.error("Invalid JSON message: bytes=%d", len(message))
