@@ -101,13 +101,19 @@ def looks_pdf(data: bytes) -> bool:
     return data[:5] == b"%PDF-"
 
 
+#: The sizes a BMP's DIB header can have (core, info, V2 to V5, OS/2 2.x). Two
+#: letters alone are not a bitmap: `BMI,Weight,Date` and `BMD L1-L4` open text
+#: files, and the bytes outrank the name, so a weight log went to the vision model.
+_BMP_HEADER_SIZES = frozenset({12, 40, 52, 56, 64, 108, 124})
+
+
 def looks_image(data: bytes) -> bool:
     return (
         data[:3] == b"\xff\xd8\xff"  # JPEG
         or data[:4] == b"\x89PNG"
         or data[:4] == b"GIF8"
         or (data[:4] == b"RIFF" and data[8:12] == b"WEBP")
-        or data[:2] == b"BM"
+        or (data[:2] == b"BM" and int.from_bytes(data[14:18], "little") in _BMP_HEADER_SIZES)
     )
 
 
