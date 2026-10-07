@@ -4,35 +4,30 @@ The bundle is a single tarball holding every static LOINC-derived lookup the
 resolver needs::
 
     fhir_loinc_bundle.tar.gz
-    ├── VERSION                      # the release this bundle was cut from
-    ├── NOTICE                       # the LOINC copyright notice, per its licence
-    ├── axis_fields.bin/.npz         # AXIS_FIELDS values per code, plus sort orders
-    ├── corpus_names.bin/.npz        # LONG_COMMON_NAME per code, same row order
-    ├── alias_keys.bin/.npz          # folded designation -> rows (CSR postings)
-    ├── loinc_rank_bonus.npy         # row-aligned float32 commonness prior
-    ├── loinc_skip.txt               # ACTIVE codes the cut leaves out
-    └── loinc_units.tsv              # EXAMPLE_UCUM_UNITS per code
+    ├── VERSION                              # loinc-<release>+<date>-<digest>
+    ├── NOTICE                               # the LOINC copyright notice, per its licence
+    ├── axis_fields.bin + axis_index.npz     # AXIS_FIELDS values per code, plus sort orders
+    ├── corpus_names.bin + corpus_names.npz  # LONG_COMMON_NAME per code, same row order
+    ├── alias_keys.bin + alias_index.npz     # folded designation -> rows (CSR postings)
+    ├── loinc_rank_bonus.npy                 # row-aligned commonness prior
+    ├── loinc_skip.txt                       # ACTIVE codes the cut leaves out
+    └── loinc_units.tsv                      # EXAMPLE_UCUM_UNITS per code
 
-Every member is one blob plus an offset array, so a lookup slices bytes and
+Each table is one blob plus an offset array, so a lookup slices bytes and
 allocates nothing per entry. `translate_build/build_bundle.py` mints them all
 from one LOINC release in one pass; before 1.5.0 they were repacked from a
 second set of members (`loinc_axis.csv`, `loinc_alias_index.npz`) that the cut
 no longer ships.
 
-**Why this module is at the package root rather than inside
-``indicator/fhir/embeddings/``, where it used to live.** ``engine/resolver.py`` (the
-front door of ② Translate, and the one thing a `pip install mirobody`
-actually runs) read its data through the bundle-BUILD package, and reached
-into it for a private symbol (``alias._normalize``) besides. So the runtime
-depended on the build tooling, which meant the build tooling could never be
-pruned from the wheel and the layering was backwards on paper as well as in
-the import graph. The read side is runtime; it lives here. The write side
-(``write_member`` / ``remove_member``) and the SNOMED sibling stay in
-``indicator/fhir/embeddings/bundle.py`` with the passes that mint them.
+This is the read side, and it is runtime: `engine/resolver.py`, the front door
+of ② Translate and the one thing a `pip install mirobody` actually runs, reads
+its data here. It used to read through the bundle-BUILD package, which tied
+the runtime to tooling that cannot ship. The write side is
+`translate_build/build_bundle.py`, outside the package.
 
-Everything needed to CONSUME the bundle ships. The scripts that mint it from
-raw LOINC/UMLS releases do not, because those releases are licensed per user
-(see LICENSE-3RD-PARTY).
+Everything needed to CONSUME the bundle ships. The script that mints it from
+a raw LOINC release does not, because that release is licensed per user (see
+LICENSE-3RD-PARTY).
 """
 
 from __future__ import annotations
@@ -40,9 +35,16 @@ from __future__ import annotations
 import logging
 import os
 import tarfile
+from collections.abc import Callable, Iterable
 from functools import lru_cache
+from typing import TYPE_CHECKING
 
-log = logging.getLogger(__name__)
+if TYPE_CHECKING:
+    import numpy as np
+
+    from ._strtab import FieldTable
+
+logger = logging.getLogger(__name__)
 
 #: ``mirobody/res/``: one level up from this module.
 RES_DIR = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "res"))
@@ -66,7 +68,8 @@ def read_member(name: str, *, bundle_path: str | None = None) -> bytes | None:
 
 @lru_cache(maxsize=4)
 def bundle_version(*, bundle_path: str | None = None) -> str:
-    """The corpus release this bundle was cut from, e.g. ``2026.08.1``.
+    """The corpus release this bundle was cut from, e.g.
+    ``loinc-2.83+2026.09.17-aacb2c715b56``.
 
     Empty string when the bundle predates the VERSION member or is absent.
 
@@ -94,11 +97,16 @@ def is_lfs_pointer(path: str) -> bool:
         return False
 
 
+#: Logged in place of the bundle path: a clone made without git-lfs is the
+#: common cause, and the fix is the same wherever the clone is.
+_LFS_STUB = "the LOINC data bundle is a Git LFS pointer stub, not the data: run `git lfs pull`"
+
+
 def read_member_from(name: str, path: str) -> bytes | None:
     if not os.path.isfile(path):
         return None
     if is_lfs_pointer(path):
-        log.error("%s is a Git LFS pointer stub, not the data bundle — run `git lfs pull`", path)
+        logger.error(_LFS_STUB)
         return None
     try:
         with tarfile.open(path, "r:gz") as tf:
@@ -109,18 +117,22 @@ def read_member_from(name: str, path: str) -> bytes | None:
             if f is None:
                 return None
             return f.read()
-    except Exception:
-        log.exception("failed to read %r from %s", name, path)
+    except Exception as e:
+        from mirobody.kernel.ops import is_driver_exception
+
+        logger.error("bundle member read failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return None
 
 
-def read_members(names, *, bundle_path: str | None = None) -> dict[str, bytes]:
+def read_members(names: Iterable[str], *, bundle_path: str | None = None) -> dict[str, bytes]:
     """Read several members in ONE pass over the tarball.
 
-    `read_member` opens, gunzips and streams the whole archive per call, so the
-    resolver's six-member load cost six full passes over 40 MB: 1.7 s, most of
-    it re-inflating the same bytes. One pass is 0.6 s. Missing members are
-    simply absent from the result; the caller says what that means.
+    `read_member` opens, gunzips and streams the whole archive per call, so
+    loading the resolver a member at a time re-inflated the archive once per
+    member: 1.7 s for six members of the 40 MB 1.4.x bundle, against 0.6 s for
+    one pass. Missing members are simply absent from the result; the caller
+    says what that means.
     """
     path = bundle_path or BUNDLE_PATH
     wanted = set(names)
@@ -128,7 +140,7 @@ def read_members(names, *, bundle_path: str | None = None) -> dict[str, bytes]:
     if not os.path.isfile(path):
         return out
     if is_lfs_pointer(path):
-        log.error("%s is a Git LFS pointer stub, not the data bundle — run `git lfs pull`", path)
+        logger.error(_LFS_STUB)
         return out
     try:
         with tarfile.open(path, "r:gz") as tf:
@@ -139,8 +151,11 @@ def read_members(names, *, bundle_path: str | None = None) -> dict[str, bytes]:
                         out[m.name] = f.read()
                     if len(out) == len(wanted):
                         break
-    except Exception:
-        log.exception("failed to read %s", path)
+    except Exception as e:
+        from mirobody.kernel.ops import is_driver_exception
+
+        logger.error("bundle read failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
     return out
 
 
@@ -152,8 +167,11 @@ def list_members(*, bundle_path: str | None = None) -> list[str]:
     try:
         with tarfile.open(path, "r:gz") as tf:
             return [m.name for m in tf.getmembers()]
-    except Exception:
-        log.exception("failed to list %s", path)
+    except Exception as e:
+        from mirobody.kernel.ops import is_driver_exception
+
+        logger.error("bundle listing failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return []
 
 
@@ -173,16 +191,13 @@ AXIS_TIME, AXIS_CLASS = 9, 10
 AXIS_FIELDS = 11
 
 
-def load_axis(*, bundle_path: str | None = None, members: dict[str, bytes] | None = None):
+def load_axis(
+    *, bundle_path: str | None = None, members: dict[str, bytes] | None = None,
+) -> tuple[FieldTable, np.ndarray, np.ndarray]:
     """The LOINC axis table as ``(FieldTable, order_by_code, order_by_name)``.
 
-    Shared by the lexical resolver and the semantic tier so there is one reader
-    for one table. It used to be two: both parsed ``loinc_axis.csv`` into their
-    own dicts, and when the CSV stopped shipping (superseded by this blob) 
-    the semantic tier would have carried on with EMPTY gate tables rather than
-    failing. That matters more than the duplication: those gates are what stop
-    cosine answering `total cholesterol` with a PhenX survey item, and losing
-    them silently is the worst available failure.
+    The one reader of the table: the resolver uses it, and build-time tools
+    reach it through :mod:`mirobody.bundle`.
     """
     from ._strtab import FieldTable
 
@@ -236,7 +251,7 @@ def alias_source_files(*, include_overrides: bool = True) -> list[str]:
     if include_overrides and not files:
         # Every row there is a documented wrong answer; without them `HRV`
         # resolves to 40991-2, a rhinovirus RNA test, and nothing said so.
-        log.warning("resolver overrides missing (%s): answers fall back to the index alone", OVERRIDES_PATH)
+        logger.warning("resolver overrides missing: answers fall back to the index alone")
     if os.path.isdir(ALIAS_SRC_DIR):
         names = [fn for fn in os.listdir(ALIAS_SRC_DIR) if fn.endswith(".tsv")]
         files += [
@@ -246,7 +261,9 @@ def alias_source_files(*, include_overrides: bool = True) -> list[str]:
     return files
 
 
-def load_alias_sources(*, include_overrides: bool = True, fold=None) -> dict[str, str]:
+def load_alias_sources(
+    *, include_overrides: bool = True, fold: Callable[[str], str] | None = None,
+) -> dict[str, str]:
     """Merge every alias TSV into one ``term -> target`` dict, first file wins.
 
     *fold* normalizes the key; the resolver passes
@@ -263,6 +280,6 @@ def load_alias_sources(*, include_overrides: bool = True, fold=None) -> dict[str
                     parts = line.rstrip("\n").split("\t")
                     if len(parts) == 2 and parts[0] and parts[1]:
                         out.setdefault(fold(parts[0]) if fold else parts[0], parts[1])
-        except OSError:
-            log.exception("failed to read alias source %s", path)
+        except OSError as e:
+            logger.error("alias source read failed: error_type=%s", type(e).__name__, exc_info=True)
     return out

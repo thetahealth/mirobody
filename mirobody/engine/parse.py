@@ -108,11 +108,12 @@ async def parse_file(path: str, *, resolve_names: bool = True) -> list[Reading]:
 def _iso_day(raw: object) -> str:
     """`YYYY-MM-DD` from what the model put in `collected`, or "".
 
-    Models answer this field with "2026-05-06", "2026/05/06", "May 6, 2026"
-    and "2026-05-06 09:15:00". Only the first is worth keeping as-is; the
-    rest go through `date.fromisoformat` after the separators are squared up,
-    and anything else is dropped. An unparseable date is no date: a caller
-    that guesses gets a wrong time axis, which is worse than a missing one.
+    Models answer this field with "2026-05-06", "2026/05/06",
+    "2026-05-06 09:15:00" and "May 6, 2026". The separators are squared up,
+    the date part goes through `date.fromisoformat`, and whatever that cannot
+    read ("May 6, 2026" among them) is dropped. An unparseable date is no
+    date: a caller that guesses gets a wrong time axis, which is worse than a
+    missing one.
     """
     text = str(raw or "").strip()
     if not text:

@@ -1,10 +1,10 @@
 """A read-only string table: one utf-8 blob plus an int32 offset array.
 
-The resolver's four big tables (921k alias keys, 677k corpus names, and the
-LOINC axis table's nine fields across 97k rows) are all the same shape: a
-fixed list of short strings, read a handful at a time, never mutated. Holding
-them as Python objects cost about 1.6 million allocations and ~360 MB of the
-resolver's resident memory, to serve lookups that touch a few hundred entries
+The resolver's big tables (the alias keys, the corpus names and the LOINC axis
+table's eleven fields per row) are all the same shape: a fixed list of short
+strings, read a handful at a time, never mutated. Holding them as Python
+objects cost about 1.6 million allocations and ~360 MB of the resolver's
+resident memory in 1.4.x, to serve lookups that touch a few hundred entries
 per call.
 
 A blob costs what the text costs, and nothing per entry. Everything here works

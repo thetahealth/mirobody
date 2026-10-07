@@ -40,8 +40,8 @@ logger = logging.getLogger(__name__)
 
 
 #: Everything `OfflineResolver.__init__` reads, fetched in one tar pass. The
-#: axis field positions live in `_bundle` beside the loader, because the
-#: semantic tier reads the same table.
+#: axis field positions live in `_bundle` beside the loader, which
+#: `mirobody.bundle` also offers to build-time tools.
 _RUNTIME_MEMBERS = (
     "alias_keys.bin", "alias_index.npz",
     "corpus_names.bin", "corpus_names.npz",
@@ -57,12 +57,14 @@ _BLOCK_SENTINEL = "!unresolved"
 # decoding is paid only for the row that wins.
 _PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
 _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
-# "Fasting plasma glucose FPG" -> "Fasting plasma glucose" (trailing acronym).
+
+
 def _specimen_tokens(system: str) -> frozenset[str]:
     """The specimens a LOINC SYSTEM names: ``Ser/Plas`` is {Ser, Plas}."""
     return frozenset(t for t in re.split(r"[/^+]", system or "") if t)
 
 
+# "Fasting plasma glucose FPG" -> "Fasting plasma glucose" (trailing acronym).
 _TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
 
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
@@ -98,19 +100,19 @@ class Resolution:
     """One resolved indicator name."""
 
     term: str                       # the input, as given
-    canonical: str = ""             # canonical long name from the corpus
-    loinc: str = ""                 # LOINC_NUM when the canonical name is LOINC
+    canonical: str = ""             # LONG_COMMON_NAME of the answer
+    loinc: str = ""                 # LOINC_NUM of the answer
     candidates: int = 0             # how many corpus rows matched the alias
     resolved: bool = False
     #: How the answer was reached, or why there is none. ``"lexical"`` from the
     #: shipped vocabularies is the only kind :func:`resolve` returns;
     #: ``"refused"`` is a decision not to answer (a panel name, a string naming
     #: two tests) and unlike ``""`` must not be overturned by a second opinion.
-    #: A caller using a code as an IDENTITY must accept only ``"lexical"``:
-    #: semantic recall cannot abstain, nonsense scoring 0.78 on the LOINC matrix
-    #: where real terms went as low as 0.56, so no threshold separates them.
+    #: A caller using a code as an IDENTITY accepts only ``"lexical"``.
     method: str = ""
-    score: float = 0.0              # cosine, semantic answers only
+    #: Always 0.0: it held the cosine of the semantic tier, which 1.5.0 removed,
+    #: and nothing lexical scores an answer.
+    score: float = 0.0
 
     #: Which axes corroborated this answer, in order: ``("name",)`` the alias
     #: table alone, ``("name", "property")`` the printed unit agreed with or
@@ -171,13 +173,13 @@ class UnitVerdict:
 class OfflineResolver:
     """Lexical indicator-name resolution against the shipped bundles.
 
-    Construction is one pass over the bundle: about 0.33 s and 156 MB
-    resident. Use :func:`get_resolver` for the cached singleton.
+    Construction is one pass over the bundle, a few tenths of a second. Use
+    :func:`get_resolver` for the cached singleton.
 
-    Both numbers were 1.09 s and 514 MB when the artifacts were a pickled
-    object array and two CSVs: reading those allocates ~1.6 million `str` for
-    tables that answer a few hundred lookups per call. Storage shape, not data
-    volume (77 MB of text either way). They are byte blobs plus offset arrays
+    It took 1.09 s and 514 MB when the artifacts were a pickled object array
+    and two CSVs: reading those allocates ~1.6 million `str` for tables that
+    answer a few hundred lookups per call. Storage shape, not data volume
+    (77 MB of text either way). They are byte blobs plus offset arrays
     now, cut by `translate_build/build_bundle.py`, and nothing allocates per
     entry: `_posting` bisects the alias blob, `_pick` matches regexes against
     slices of the corpus-name blob, and only the winning row is decoded.
@@ -210,8 +212,8 @@ class OfflineResolver:
         #   1. res/loinc/resolver_overrides.tsv, whose targets are index keys.
         #   2. res/loinc/aliases_src/*.tsv: zh.tsv and the curated corrections,
         #      ~23k terms since 1.5.0 dropped ja and the five machine-derived
-        #      files. Their targets are phrases meant for the index build, so
-        #      they resolve only sometimes; hence (1).
+        #      files. Their targets are phrases written for the 1.4.x index
+        #      build, so they resolve only sometimes; hence (1).
         self._system_values: set[str] | None = None
         self._src = load_alias_sources(fold=index_fold)
 
@@ -228,8 +230,8 @@ class OfflineResolver:
         The blob is a plain tar member and arrives as `bytes` in one
         allocation. Inside the .npz it would cost more than twice its size
         resident: `np.load` decompresses to an ndarray, `.tobytes()` copies
-        it, and the allocator keeps both arenas. 75 MB versus 2 MB for the
-        30 MB alias blob, so offsets go in an .npz and the text does not.
+        it, and the allocator keeps both arenas (75 MB versus 2 MB, measured
+        on a 30 MB alias blob), so offsets go in an .npz and the text does not.
         """
         import numpy as np
 
@@ -291,9 +293,10 @@ class OfflineResolver:
         """Corpus rows for one already-folded alias key, or None.
 
         Bisects the key blob rather than consulting a dict built from it: the
-        shipped table is already sorted, and materialising it as 921k Python
-        strings plus a dict cost 285 MB to turn a 0.9 us bisect into a 0.02 us
-        hash, inside a `resolve()` that takes tens of microseconds either way.
+        shipped table is already sorted, and materialising it as Python strings
+        plus a dict cost 285 MB (921k keys, 1.4.x) to turn a 0.9 us bisect into
+        a 0.02 us hash, inside a `resolve()` that takes tens of microseconds
+        either way.
         """
         i = self._alias.find(key.encode("utf-8"))
         if i < 0:

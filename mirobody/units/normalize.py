@@ -310,14 +310,13 @@ def _comparator_and_value(raw_cmp: str, raw_num: str) -> tuple[str, float | None
     return raw_cmp, value
 
 
-# ``parse_value_unit`` expects a clean ``<value><unit>``; resolver and corpus
-# users need ``75 g`` found inside longer text (``--2 hours post 75 g glucose
-# PO``), which the scanner below covers. Restricting it to dose-relevant
-# families keeps it off axes the resolver already has: TIME_ASPCT takes
-# ``2 hours``, PROPERTY takes concentrations. Doses are the gap: challenge
-# doses (75 g, 50 mL), body-weight variants (1.75 g/kg pediatric OGTT) and
-# activity units (``5 IU insulin``). A non-dose family added here would
-# double-fire with the axis bonus and over-promote.
+# ``parse_value_unit`` expects a clean ``<value><unit>``; a LOINC name needs
+# ``75 g`` found inside longer text (``--2 hours post 75 g glucose PO``), which
+# the scanner below covers. It keeps to doses because a LOINC name says the
+# rest on axes of its own: TIME_ASPCT takes ``2 hours``, PROPERTY takes
+# concentrations. Doses are the gap: challenge doses (75 g, 50 mL),
+# body-weight variants (1.75 g/kg pediatric OGTT) and activity units
+# (``5 IU insulin``).
 _DOSE_FAMILIES = frozenset({"Mass", "Vol", "CCnt", "MCnt", "Arb"})
 
 # Two-pass scan, one regex per script class. Latin pass: number, optional
@@ -357,8 +356,8 @@ def scan_value_units(text: str | None) -> list[tuple[float, str]]:
 
     For each numeric run in *text*, look ahead for a unit token, run it
     through :func:`_resolve_strict` to canonicalize, and accept only
-    when the resulting UCUM lives in :data:`_DOSE_FAMILIES` (Mass /
-    Vol / CCnt). Returns deduped list in encounter order.
+    when the resulting UCUM's family is in :data:`_DOSE_FAMILIES`.
+    Returns deduped list in encounter order.
 
     ::
 
@@ -368,11 +367,9 @@ def scan_value_units(text: str | None) -> list[tuple[float, str]]:
         scan_value_units("5.6 mmol/L")                  -> []
         scan_value_units("2 hours post")                -> []
 
-    Mass/Vol/CCnt are the gap not covered by LOINC's TIME_ASPCT or
-    PROPERTY axis bonuses, so a positive hit here is information the
-    resolver doesn't already have. ``mmol/L`` belongs to the SCnc
-    concentration family (PROPERTY-axis territory) and is intentionally
-    rejected: bonusing on it would double-count with axis rerank.
+    Doses are the gap not covered by LOINC's TIME_ASPCT or PROPERTY
+    axes. ``mmol/L`` belongs to the SCnc concentration family, which the
+    PROPERTY axis already states, and is rejected.
     """
     if not isinstance(text, str) or not text:
         return []
@@ -381,13 +378,7 @@ def scan_value_units(text: str | None) -> list[tuple[float, str]]:
     # arbitrary text scanning). NFKC + symbol fold are still applied so
     # full-width digits and the µ/μ variants normalize before regex.
     nfkc = unicodedata.normalize("NFKC", text)
-    folded = []
-    for ch in nfkc:
-        if ch in (" ", "\t"):
-            folded.append(" ")
-        else:
-            folded.append(_SYMBOL_FOLD.get(ch, ch) if ch not in (" ", "\t") else ch)
-    scan_text = "".join(folded)
+    scan_text = "".join(" " if ch in (" ", "\t") else _SYMBOL_FOLD.get(ch, ch) for ch in nfkc)
 
     out: list[tuple[float, str]] = []
     seen: set[tuple[float, str]] = set()
