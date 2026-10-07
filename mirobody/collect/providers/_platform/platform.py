@@ -160,7 +160,7 @@ class ProviderPlatform(Platform):
                     break
 
         if provider_class is None:
-            logger.debug("no provider class in module: module=%s", provider_file.stem)
+            logger.debug("no provider class in module: module=%s", provider_file.stem)  # phi: ok a module name
             return None
 
         if not hasattr(provider_class, "create_provider"):

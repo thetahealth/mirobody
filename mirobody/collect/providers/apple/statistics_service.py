@@ -144,8 +144,9 @@ async def process_apple_health_statistics(
     records = _statistics_to_summary_records(request.statistics, user_id, default_tz)
     t2 = time.time()
 
+    duration_ms = (t2 - t1) * 1e3
     logger.info("statistics mapped: user_id=%s stat_count=%d record_count=%d duration_ms=%.1f",
-                user_id, len(request.statistics), len(records), (t2 - t1) * 1e3)
+                user_id, len(request.statistics), len(records), duration_ms)
 
     if not records:
         return 0
@@ -154,7 +155,8 @@ async def process_apple_health_statistics(
     success = await db_service.batch_save_summary_data(records)
     t3 = time.time()
 
+    duration_ms = (t3 - t2) * 1e3
     logger.info("statistics saved: user_id=%s record_count=%d success=%s duration_ms=%.1f",
-                user_id, len(records), success, (t3 - t2) * 1e3)
+                user_id, len(records), success, duration_ms)
 
     return len(records) if success else 0
