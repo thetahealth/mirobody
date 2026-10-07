@@ -6,7 +6,7 @@ Mirobody follows a **"Tools First"** philosophy. You write standard Python code,
 
 Tool directories are configured by `MCP_TOOL_DIRS` in `config.{env}.yaml`. The defaults:
 
-1. **Built-in tools**: `mirobody/agent/tools/` (this directory) — the whole shipped tool surface: terminology (② Translate), health records, genetics.
+1. **Built-in tools**: `mirobody/agent/tools/` (this directory) — the whole shipped tool surface: terminology (② Translate), health records, medications, genetics and pharmacogenomics.
 
 **Place your own tools in your own directory and add it to `MCP_TOOL_DIRS`** — the list is ordinary config, so a deployment can extend it without touching the package:
 
@@ -35,7 +35,8 @@ labs = "my_plugin.tools"
 2. **Ignored Files**: Files starting with `_` (e.g., `_utils.py`) are ignored.
 3. **Eligible Code**:
    * **Functions**: Top-level functions are automatically registered.
-   * **Classes**: Must end with `Service` (e.g., `FinanceService`) to be registered.
+   * **Classes**: Must end with `Service` (e.g., `FinanceService`) to be registered; their public methods become tools.
+4. **`__tools__`**: a module or class that sets `__tools__ = ("name", ...)` publishes exactly those names, and no other public method or function. Every shipped tool class declares it, so a public helper can never become an undocumented tool.
 
 ### Conditional Registration (`_enabled`)
 
@@ -75,7 +76,7 @@ def my_tool(arg1: str):
 If your tool needs user information (like a User ID from a JWT), add a `user_info` parameter.
 
 * **Injection**: Mirobody automatically injects this value; the AI agent does *not* see or provide it.
-* **Structure**: `{"user_id": "...", "success": True}`.
+* **Structure**: `{"user_id": "..."}`, the authenticated account the call reads.
 
 ## 💡 Examples
 
@@ -103,26 +104,29 @@ def add_numbers(a: float, b: float) -> dict:
 Save this as `my_tools/stocks.py`:
 
 ```python
-from typing import Dict, Any
+from typing import Any
 
 class StockService:
     """
     Service for retrieving stock market data.
     """
 
-    def get_stock_price(self, ticker: str, user_info: dict) -> Dict[str, Any]:
+    __tools__ = ("get_stock_price",)
+
+    def get_stock_price(self, ticker: str, user_info: dict[str, Any]) -> dict[str, Any]:
         """
         Gets the current price of a stock.
 
         Args:
             ticker: The stock ticker symbol (e.g., AAPL).
-    
+
         Returns:
             The current stock price.
         """
-        # user_info is automatically injected
-        user_id = user_info.get("user_id")
-        print(f"User {user_id} requested price for {ticker}")
+        # `user_info` is injected: the account the call reads, never a value
+        # the model chose.
+        if not user_info.get("user_id"):
+            return {"success": False, "error": "Authorization required."}
 
         return {
             "ticker": ticker,
