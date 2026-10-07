@@ -14,8 +14,7 @@
 --   v_observation        the one read surface
 --   th_series_data_genetic   genotypes, a record of their own
 --
--- Writer: collect/observations.py. Design: docs/pipeline.md section 6 and
--- internal/plans/1.5.x/2026-09-15-cta-data-architecture.md. Names are
+-- Writer: collect/observations.py. Design: docs/pipeline.md section 6. Names are
 -- th_ + singular noun + role; enum values are kebab-case. `note_text` is the
 -- only encrypted column; the printed name, value and unit are stored clear.
 
@@ -40,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_th_extraction_user ON th_extraction (user_id, cre
 CREATE TABLE IF NOT EXISTS th_observation (
     id                 bigserial PRIMARY KEY,
     user_id            varchar(200) NOT NULL,
-    kind               text NOT NULL,            -- measurement | symptom | condition | finding | organizer
+    kind               text NOT NULL,            -- measurement | symptom | condition | note | finding | organizer
     modality           text NOT NULL,            -- lab-report | device-sensed | self-reported | manual | derived | llm-unverified
     source_kind        text NOT NULL,            -- file | device | manual | api
     source_ref         text NOT NULL,
