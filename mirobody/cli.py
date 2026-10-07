@@ -190,9 +190,9 @@ def _cmd_dev(args: argparse.Namespace) -> None:
     # verbatim. Written bare, a password holding ` #` lost the rest, one holding
     # `: ` became a mapping, one starting `*` an alias, and `07` the number 7.
     overlay = _DEV_CONFIG.format(
-        host=json.dumps(args.host), port=args.port,
+        host=json.dumps(args.host, ensure_ascii=False), port=args.port,
         jwt_key=jwt_key, config_key=config_key,
-        **{key: json.dumps(value) for key, value in pg.items()},
+        **{key: json.dumps(value, ensure_ascii=False) for key, value in pg.items()},
     )
 
     print(f"mirobody dev — http://{args.host}:{args.port}")
