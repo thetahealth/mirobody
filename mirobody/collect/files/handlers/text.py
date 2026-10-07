@@ -33,18 +33,7 @@ class TextHandler(BaseFileHandler):
         # extraction lives in FileAbstractExtractor now.
         original_text = raw_text
 
-        # Generate the abstract from the text we just extracted, like the
-        # pdf/image/excel handlers do. Without a file_abstract in this dict,
-        # process() falls through to _extract_abstract(), which re-decodes the
-        # same bytes into a temp file for a second, redundant LLM round-trip.
-        file_abstract = ""
-        file_name = ctx.filename
-        if original_text and original_text.strip():
-            file_abstract, file_name = await self._extract_abstract_from_text(
-                original_text=original_text,
-                filename=ctx.filename,
-                language=language,
-            )
+        file_abstract, file_name = await self._abstract(ctx, original_text, language)
 
         if ctx.progress_callback:
             await ctx.progress_callback(90, localize("text_processing_success", language, "file_processor"))

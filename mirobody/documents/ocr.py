@@ -2,7 +2,7 @@ r"""The reference `Ocr`: one image → its text, through the engine's vision cli
 
 `extract.pdf_text` hands this only the pages whose text layer is empty, and
 `extract.image_text` one downscaled photo at a time, never a whole document.
-The provider is whichever key is configured (`utils.llm.unified_file_extract`
+The provider is whichever key is configured (`utils.llm.vision_extract`
 picks it); a consumer with its own vision model passes its own callable.
 
 With `UTILS_OCR_MODEL` routed (a document-OCR model such as GLM-OCR, which
@@ -23,11 +23,10 @@ on a scanned ECG page. GLM-OCR's answers hold none of these and pass unchanged.
 
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
-import os
 import re
-import tempfile
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +58,6 @@ Requirements:
 Return ONLY the extracted text content. Do not add any explanations, summaries, or commentary.
 If there is no text, return an empty response."""
 
-_SUFFIX = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif"}
-
 
 def _ocr_route():
     from mirobody.utils.config.llm import resolve_route
@@ -70,20 +67,11 @@ def _ocr_route():
 
 async def _extract(image: bytes, mime: str, prompt: str, provider: str | None = None,
                    max_tokens: int | None = None) -> str:
-    from mirobody.utils.llm import unified_file_extract
+    from mirobody.utils.llm import vision_extract
 
-    with tempfile.NamedTemporaryFile(suffix=_SUFFIX.get(mime, ".png"), delete=False) as handle:
-        handle.write(image)
-        path = handle.name
-    try:
-        return clean_answer((await unified_file_extract(file_path=path, prompt=prompt, content_type=mime,
-                                                        provider=provider, json_mode=False,
-                                                        max_tokens=max_tokens)) or "")
-    finally:
-        try:
-            os.unlink(path)
-        except OSError:
-            pass
+    answer = await vision_extract(image, mime, prompt, provider=provider, max_tokens=max_tokens)
+    # Off the event loop: `_cut_loops` took 142 ms over a 27k-character answer.
+    return await asyncio.to_thread(clean_answer, answer)
 
 
 async def vision_ocr(image: bytes, mime: str, *, prompt: str = OCR_PROMPT) -> str:

@@ -643,11 +643,6 @@ class WebSocketFileUploadManager:
 
             logger.info(f"Processing result statistics: {successful_files}/{total_files} files successful")
 
-            # Abstract generation for files the handler didn't cover happens
-            # synchronously in _build_return_info's fallback; the result is
-            # persisted by _save_files_to_database. The old background
-            # re-generation pass duplicated exactly that work.
-
             if successful_files == 0:
                 # Build complete return info even for failed files
                 return_info = self._build_return_info_for_failed(
@@ -1019,10 +1014,9 @@ class WebSocketFileUploadManager:
             )
 
         # Release the buffered raw file bytes. Nothing reads them after this
-        # point (the abstract fallback in _build_return_info already ran), and
-        # without this every successful upload kept its full content resident
-        # in upload_sessions for the life of the process: disconnect() only
-        # evicts sessions that are NOT completed.
+        # point, and without this every successful upload kept its full
+        # content resident in upload_sessions for the life of the process:
+        # disconnect() only evicts sessions that are NOT completed.
         for f in session.get("uploaded_files", []):
             f["content"] = None
 
@@ -1212,41 +1206,14 @@ class WebSocketFileUploadManager:
                         if result_file_size and result_file_size > 0:
                             file_size = result_file_size
 
-                    # Extract file abstract from results or generate it
-                    file_abstract = ""
+                    # The handler's abstract: every handler answers one, the
+                    # fallback sentence included.
+                    file_abstract = result.get("file_abstract", "")
                     file_name = uploaded_files[i]["filename"]
                     file_type = result.get("type", "file")
-                    
-                    if result and isinstance(result, dict):
-                        file_abstract = result.get("file_abstract", "")
-                        generated_name = result.get("file_name", "")
-                        if generated_name and file_type in ["pdf", "image"]:
-                            file_name = generated_name
-                    
-                    # Create proper abstract if not available in results
-                    if not file_abstract:
-                        try:
-                            from mirobody.collect.files.services.file_abstract_extractor import FileAbstractExtractor
-                            extractor = FileAbstractExtractor()
-                            
-                            logger.info(f"[WebSocket] Generating file abstract for file {i + 1} of {message_id}, type: {file_type}")
-                            
-                            result_data = await extractor.extract_file_abstract(
-                                file_content=uploaded_files[i]["content"],
-                                file_type=file_type,
-                                filename=uploaded_files[i]["filename"],
-                                content_type=uploaded_files[i]["content_type"]
-                            )
-                            file_abstract = result_data.get("file_abstract", "")
-                            generated_name = result_data.get("file_name", "")
-                            if generated_name and file_type in ["pdf", "image"]:
-                                file_name = generated_name
-                            
-                            logger.info(f"[WebSocket] Generated file abstract for file {i + 1} of {message_id}, {len(file_abstract)} chars")
-                            
-                        except Exception as abstract_error:
-                            logger.warning(f"[WebSocket] File abstract generation failed for file {i + 1} of {message_id}: {str(abstract_error)}")
-                            file_abstract = f"File: {uploaded_files[i]['filename']} - File uploaded successfully"
+                    generated_name = result.get("file_name", "")
+                    if generated_name and file_type in ["pdf", "image"]:
+                        file_name = generated_name
 
                     file_entry = {
                         "filename": uploaded_files[i]["filename"],

@@ -6,7 +6,6 @@ import abc
 import asyncio
 import hashlib
 import logging
-import os
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -20,31 +19,11 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
-from mirobody.utils.file_types import with_extension
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 
 logger = logging.getLogger(__name__)
-
-#: What the text-side abstract asks for. Closed (`additionalProperties: false`)
-#: like every json_schema the product sends: OpenAI answers HTTP 400 to an open
-#: nested object (measured through OpenRouter, 2026-10-06). This flat one was
-#: accepted open; closed, a nested field added later cannot bring the 400 back.
-ABSTRACT_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "file_name": {
-            "type": "string",
-            "description": "Generated filename with extension"
-        },
-        "file_abstract": {
-            "type": "string",
-            "description": "Brief summary of file content (max 150 chars)"
-        }
-    },
-    "required": ["file_name", "file_abstract"]
-}
 
 # Import services type hints (avoid circular imports if possible, or use Any)
 # In a real scenario, we might use Protocol or specific imports if avoiding circular deps.
@@ -137,19 +116,8 @@ class BaseFileHandler(abc.ABC):
                     message_id=ctx.message_id,
                 )
 
-            # 5. Abstract extraction (Common step, but check if already extracted)
-            if "file_abstract" in result_data and result_data["file_abstract"]:
-                file_abstract = result_data["file_abstract"]
-                # Use file_name from result if available
-                file_name = result_data.get("file_name", ctx.filename)
-            elif "extracted_abstract_hint" in result_data and result_data["extracted_abstract_hint"]:
-                 file_abstract = result_data["extracted_abstract_hint"]
-                 file_name = result_data.get("file_name", ctx.filename)
-            else:
-                file_abstract, file_name = await self._extract_abstract(ctx, unique_filename, language)
-            
-            # 6. Construct final response
-            return self._build_response(ctx, result_data, unique_filename, full_url, file_abstract, file_name, language)
+            # 5. Construct final response
+            return self._build_response(ctx, result_data, unique_filename, full_url, language)
             
         except Exception as e:
             return await self._handle_error(ctx, e, unique_filename)
@@ -246,109 +214,24 @@ class BaseFileHandler(abc.ABC):
             ctx.extraction_error = f"{type(e).__name__}: {e}"
             return None, None
 
-    async def _extract_abstract_from_text(
-        self,
-        original_text: str,
-        filename: str,
-        language: str,
-    ) -> tuple[str, str]:
-        """
-        Generate file abstract and filename from pre-extracted original text.
-        
-        Args:
-            original_text: Pre-extracted text content
-            filename: Original file name
-            language: User language
-            
-        Returns:
-            Tuple of (file_abstract, file_name)
-        """
+    async def _abstract(self, ctx: FileProcessingContext, original_text: str | None, language: str) -> tuple[str, str]:
+        """`(abstract, file_name)` for the upload: read off its text by the text
+        model, or for an image with no text, off the image by the vision model;
+        the fallback sentence, under the upload's own name, when neither answered."""
+        file_abstract, file_name = "", ctx.filename
         try:
-            from mirobody.utils.llm import async_get_structured_output
-
-            # `language` reaches this prompt because it used to be an unused
-            # parameter, and "use the same language as the content" was one
-            # bullet in a list the model ignored. An English lab report came
-            # back named `2025-10-15_Laborbericht_Lipide_Glukose.pdf`, and on a
-            # second run `..._Rapport_labo_lipides_glycemie.pdf`: German, then
-            # French, for the same English document. Two runs, two wrong
-            # languages, so it was not one bad sample.
-            prompt = f"""Based on the document content below, generate:
-1. file_name: A descriptive filename in format: Date_Content_Description, with no extension
-   - Include date if found (YYYY-MM-DD format)
-   - Keep it concise (15-40 chars excluding extension)
-   - LANGUAGE: write it in the language the DOCUMENT ITSELF uses. An English
-     report gets an English name; a 体检报告 gets a Chinese one. Never translate
-     into a third language. If the document's own language is genuinely
-     ambiguous, fall back to: {language}
-
-2. file_abstract: A brief summary (max 150 characters)
-   - Identify document type
-   - Extract key information
-   - Highlight main findings
-   - Same language rule as above
-
-Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
-
-            messages = [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Original filename: {filename}\n\nDocument content:\n{original_text[:8000]}"}
-            ]
-            
-            result = await async_get_structured_output(
-                messages=messages,
-                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": ABSTRACT_SCHEMA}},
-                temperature=0.1,
-                max_tokens=32000
-            )
-            
-            if result and isinstance(result, dict):
-                file_abstract = result.get("file_abstract", "")[:200]
-                file_name = with_extension(str(result.get("file_name") or ""), os.path.splitext(filename or "")[1]) or filename
-                logger.info(f"Abstract from text, abstract_len={len(file_abstract)}")
-                return file_abstract, file_name
-            
-            return "", filename
-            
+            if original_text and original_text.strip():
+                file_abstract, file_name = await self.abstract_extractor.abstract_from_text(
+                    original_text, ctx.filename, language)
+            elif self.get_type_name() == "image" and not ctx.extraction_error:
+                await ctx.file.seek(0)
+                file_abstract, file_name = await self.abstract_extractor.describe_image(
+                    bytes(await ctx.file.read()), ctx.filename)
         except Exception as e:
-            logger.warning(f"[BaseFileHandler] Failed to extract abstract from text: {e}")
-            return "", filename
-
-    async def _extract_abstract(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> tuple[str, str]:
-        file_abstract = ""
-        file_name = ctx.filename
-        
-        try:
-            if ctx.progress_callback:
-                await ctx.progress_callback(95, "Extracting file summary...")
-            
-            await ctx.file.seek(0)
-            file_content = await ctx.file.read()
-            
-            # Get simple file type string (e.g., 'pdf', 'image')
-            simple_type = self.get_type_name()
-            
-            result_data = await self.abstract_extractor.extract_file_abstract(
-                file_content=file_content,
-                file_type=simple_type,
-                filename=ctx.filename,
-                content_type=ctx.content_type
-            )
-            
-            file_abstract = result_data.get("file_abstract", "")
-            # Use generated file name if available, otherwise keep original
-            extracted_name = result_data.get("file_name")
-            if extracted_name:
-                file_name = extracted_name
-                
-            logger.info(f"{simple_type} abstract extracted: {ctx.message_id}, abstract length: {len(file_abstract)}")
-        except Exception as e:
-            logger.warning(f"Abstract extraction failed: {ctx.message_id}, error: {e}")
-            # Fallback
-            simple_type = self.get_type_name()
-            fallback = self.abstract_extractor._create_fallback_abstract(ctx.filename, simple_type)
-            file_abstract = fallback.get("file_abstract", "")
-            
+            logger.warning("abstract failed: message_id=%s error_type=%s", ctx.message_id, type(e).__name__,
+                           exc_info=not is_driver_exception(e))
+        if not file_abstract:
+            return self.abstract_extractor.fallback_abstract(ctx.filename, self.get_type_name()), ctx.filename
         return file_abstract, file_name
 
     @abc.abstractmethod
@@ -368,8 +251,6 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         result_data: dict[str, Any], 
         unique_filename: str, 
         full_url: str, 
-        file_abstract: str, 
-        file_name: str,
         language: str
     ) -> dict[str, Any]:
         
@@ -379,8 +260,6 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             "type": self.get_type_name(),
             "filename": ctx.filename,
             "full_url": full_url,
-            "file_abstract": file_abstract,
-            "file_name": file_name,
             "message_id": ctx.message_id,
             "file_key": unique_filename,
         }

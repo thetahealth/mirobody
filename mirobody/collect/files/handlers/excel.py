@@ -67,17 +67,7 @@ class ExcelHandler(BaseFileHandler):
             await ctx.progress_callback(75, localize("extracting_abstract", language, "file_processor"))
 
         # Sync abstract so the upload result carries it (matches PDF behaviour).
-        file_abstract = ""
-        file_name = ctx.filename
-        if original_text and original_text.strip():
-            try:
-                file_abstract, file_name = await self._extract_abstract_from_text(
-                    original_text=original_text,
-                    filename=ctx.filename,
-                    language=language,
-                )
-            except Exception as e:
-                logger.warning(f"Excel abstract extraction failed: {unique_filename}, error: {e}")
+        file_abstract, file_name = await self._abstract(ctx, original_text, language)
 
         if ctx.progress_callback:
             await ctx.progress_callback(90, localize("text_processing_success", language, "file_processor"))

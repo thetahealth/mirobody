@@ -35,18 +35,7 @@ class PDFHandler(BaseFileHandler):
             await ctx.progress_callback(70, localize("extracting_abstract", language, "file_processor"))
 
         # Step 3: Sync extract abstract (must complete before returning success)
-        file_abstract = ""
-        file_name = ctx.filename
-        if original_text and original_text.strip():
-            try:
-                file_abstract, file_name = await self._extract_abstract_from_text(
-                    original_text=original_text,
-                    filename=ctx.filename,
-                    language=language,
-                )
-                logger.info(f"PDF abstract extraction completed: {unique_filename}")
-            except Exception as e:
-                logger.warning(f"PDF abstract extraction failed: {unique_filename}, error: {e}")
+        file_abstract, file_name = await self._abstract(ctx, original_text, language)
 
         if ctx.progress_callback:
             await ctx.progress_callback(85, localize("pdf_upload_success", language, "file_processor"))

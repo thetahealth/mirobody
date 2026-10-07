@@ -1,31 +1,58 @@
+"""An upload's text, its abstract and the name a model gives it.
+
+The text is `mirobody.documents.extract`'s, cached by content hash through
+`th_files`. The abstract is read off that text by the text model
+(`abstract_from_text`); only a photo with no text in it goes to the vision
+model as a picture (`describe_image`), so a photo of a meal still gets one.
 """
-File Abstract Extractor Service
-Extracts file summaries for different file types, with special handling for PDF files
-"""
+
+from __future__ import annotations
 
 import hashlib
-import os
-import csv
-import tempfile
 import logging
-import json
+import os
 
-from mirobody.utils.file_types import with_extension
-from mirobody.utils.llm import unified_file_extract
-from mirobody.collect.files.services.prompts.file_abstract_prompt import FILE_ABSTRACT_PROMPT, FALLBACK_ABSTRACT_TEMPLATES
+from mirobody.collect.files.services.prompts.file_abstract_prompt import (
+    FALLBACK_ABSTRACT_TEMPLATES,
+    FILE_ABSTRACT_PROMPT,
+)
 from mirobody.documents import detect, extract as documents, render
 from mirobody.documents.ocr import table_ocr, vision_ocr
+from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.file_types import with_extension
+from mirobody.utils.llm_output import parse_json_object
 
 logger = logging.getLogger(__name__)
 
+#: What the text-side abstract asks for. Closed (`additionalProperties: false`)
+#: like every json_schema the product sends: OpenAI answers HTTP 400 to an open
+#: nested object (measured through OpenRouter, 2026-10-06). This flat one was
+#: accepted open; closed, a nested field added later cannot bring the 400 back.
+ABSTRACT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "file_name": {
+            "type": "string",
+            "description": "Generated filename with extension"
+        },
+        "file_abstract": {
+            "type": "string",
+            "description": "Brief summary of file content (max 150 chars)"
+        }
+    },
+    "required": ["file_name", "file_abstract"]
+}
 
+#: Characters of an abstract kept.
+MAX_ABSTRACT_CHARS = 200
 
 
 async def lookup_extracted_text(file_content: bytes) -> str | None:
     """Text a previous extraction of these exact bytes produced, or None.
 
     The cheap half of extraction: one indexed lookup, never a model call. The
-    The agent's virtual filesystem uses it at registration time to decide whether a file
+    agent's virtual filesystem uses it at registration time to decide whether a file
     still needs OCR at all (see ``agent/filesystem/parser.FileParser.prepare``).
     """
     if not file_content:
@@ -77,7 +104,8 @@ async def _read_original_text_cache(content_hash: str) -> str | None:
         text = rows[0].get("original_text") if rows else None
         return text if text and text.strip() else None
     except Exception as e:
-        logger.warning(f"original-text cache read failed (hash={content_hash[:16]}...): {e}")
+        logger.warning("original-text cache read failed: error_type=%s", type(e).__name__,
+                       exc_info=not is_driver_exception(e))
         return None
 
 
@@ -93,483 +121,27 @@ class ThFilesTextCache:
         return None
 
 
+def _truncated(abstract: str) -> str:
+    """`abstract` cut to `MAX_ABSTRACT_CHARS`, at a word boundary when one is
+    near the end."""
+    if len(abstract) <= MAX_ABSTRACT_CHARS:
+        return abstract
+    truncated = abstract[:MAX_ABSTRACT_CHARS - 3] + "..."
+    last_space = truncated.rfind(" ")
+    if last_space > MAX_ABSTRACT_CHARS * 0.8:
+        truncated = abstract[:last_space] + "..."
+    return truncated
+
+
 class FileAbstractExtractor:
-    """Service for extracting file abstracts/summaries"""
-    
-    def __init__(self):
-        self.max_abstract_length = 200  # Maximum length for abstract
-    
-    def _infer_file_extension(self, content_type: str, file_type: str, original_filename: str = "") -> str:
-        """
-        Infer file extension from content type or file type
-        
-        Args:
-            content_type: MIME content type
-            file_type: File type string
-            original_filename: Original filename (optional)
-            
-        Returns:
-            str: File extension (e.g., '.pdf', '.jpg', '.png')
-        """
-        # Try to get extension from original filename first
-        if original_filename and "." in original_filename:
-            ext = original_filename.rsplit(".", 1)[-1].lower()
-            if ext in ["pdf", "jpg", "jpeg", "png", "gif", "bmp", "webp"]:
-                return f".{ext}"
-        
-        # Map content types to extensions
-        content_type_map = {
-            "application/pdf": ".pdf",
-            "image/jpeg": ".jpg",
-            "image/jpg": ".jpg",
-            "image/png": ".png",
-            "image/gif": ".gif",
-            "image/bmp": ".bmp",
-            "image/webp": ".webp",
-        }
-        
-        if content_type and content_type in content_type_map:
-            return content_type_map[content_type]
-        
-        # Fallback based on file_type
-        if file_type == "pdf":
-            return ".pdf"
-        if file_type == "image":
-            return ".jpg"  # Default to jpg for generic image type
-        
-        return ""
-    
-    async def extract_file_abstract(
-        self, 
-        file_content: bytes, 
-        file_type: str, 
-        filename: str,
-        content_type: str = None
-    ) -> dict[str, str]:
-        """
-        Extract abstract and generated filename from file content
-        
-        Args:
-            file_content: Binary file content
-            file_type: File type (pdf, image, excel, etc.)
-            filename: Original filename
-            content_type: MIME content type
-            
-        Returns:
-            Dict[str, str]: Dictionary with keys:
-                - file_name: Generated file name (only for PDF and images, empty for others)
-                - file_abstract: File abstract (max 200 characters)
-        """
-        try:
-            # Route to appropriate extractor based on file type
-            if file_type == "pdf" or (content_type and content_type == "application/pdf"):
-                return await self._extract_pdf_abstract(file_content, filename)
-            if file_type == "image" or (content_type and content_type.startswith("image/")):
-                return await self._extract_image_abstract(file_content, filename)
-            if (file_type == "excel" or 
-                  (content_type and ("spreadsheet" in content_type or "excel" in content_type or
-                   content_type in ["application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]))):
-                return await self._extract_excel_abstract(file_content, filename)
-            return await self._extract_generic_abstract(file_content, filename, file_type)
-                
-        except Exception as e:
-            logger.error(f"File abstract extraction failed for {filename}: {e}", stack_info=True)
-            # Return a basic fallback abstract
-            return self._create_fallback_abstract(filename, file_type)
-    
-    async def _extract_pdf_abstract(self, file_content: bytes, filename: str) -> dict[str, str]:
-        """Abstract and generated filename for a PDF, from its TEXT: the embedded
-        layer for a born-digital document, the OCR of the scanned pages
-        otherwise (`documents.extract.pdf_text`, cached by content hash). The
-        model summarises text; it is never handed the whole file."""
-        try:
-            text = await documents.extract_text(filename, "application/pdf", file_content, ocr=vision_ocr, tables=table_ocr(), cache=ThFilesTextCache())
-            page_count = text.count("--- page ")
-            if not text.strip():
-                return {
-                    "file_name": "",
-                    "file_abstract": self._truncate_abstract(f"PDF document: {filename} - File uploaded successfully, but text extraction failed"),
-                }
-            result = await self._generate_llm_abstract_with_content(
-                text,
-                f"PDF document: {filename} ({page_count} pages)",
-                file_extension=self._infer_file_extension("application/pdf", "pdf", filename),
-                generate_filename=True,
-            )
-            if result.get("file_abstract"):
-                result["file_abstract"] = self._truncate_abstract(result["file_abstract"])
-            return result
-        except Exception as e:
-            # The message too, not just the class: a bare `TypeError` next to a
-            # fallback abstract that reads like a success is what made the
-            # bytearray bug (#B-1) invisible for as long as it was.
-            error_type, reason = type(e).__name__, str(e)
-            logger.error("PDF abstract extraction failed: %s: %s", error_type, reason, exc_info=True)  # phi: ok a parser error, not document contents
-            return self._create_fallback_abstract(filename, "pdf")
+    """An upload's text, its abstract and the name a model gives it."""
 
-    async def _extract_image_abstract(self, file_content: bytes, filename: str) -> dict[str, str]:
-        """Abstract and generated filename for an image. The OCR text (one
-        cached vision call, shared with the original-text pass) is what the
-        model summarises; only an image with no readable text goes to the
-        vision model as an image, so a photo of a meal still gets a
-        description."""
-        try:
-            width, height, fmt = render.image_info(file_content)
-            context = f"Image file: {filename} ({width}x{height}, {fmt or 'Unknown'} format)"
-            file_extension = self._infer_file_extension("image/jpeg", "image", filename)
-            mime = detect.image_mime(filename, None, file_content)
-            text = await documents.extract_text(filename, mime, file_content, ocr=vision_ocr, tables=table_ocr(), cache=ThFilesTextCache())
-            if text.strip():
-                result = await self._generate_llm_abstract_with_content(text, context, file_extension=file_extension, generate_filename=True)
-            else:
-                with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-                    temp_file.write(file_content)
-                    temp_file_path = temp_file.name
-                try:
-                    result = await self._generate_llm_abstract_with_file(
-                        temp_file_path=temp_file_path, content_type="image/jpeg", context=context,
-                        file_extension=file_extension, generate_filename=True,
-                    )
-                finally:
-                    try:
-                        os.unlink(temp_file_path)
-                    except Exception:
-                        pass
-            if result.get("file_abstract"):
-                result["file_abstract"] = self._truncate_abstract(result["file_abstract"])
-            return result
-        except Exception as e:
-            # The message and the stack, like the PDF branch above: the fallback
-            # abstract reads like a success, so a bare class name leaves no way to
-            # tell a vendor hiccup from a bug in our own call.
-            logger.error(  # phi: ok a parser error, not document contents
-                "Image abstract extraction failed: %s: %s", type(e).__name__, e, exc_info=True)
-            return self._create_fallback_abstract(filename, "image")
-
-    async def _extract_excel_abstract(self, file_content: bytes, filename: str) -> dict[str, str]:
-        """Abstract for an Excel file (no filename generation for Excel): the
-        first sheet's header and first ten rows go to the model as CSV; the
-        fallback names the columns."""
-        try:
-            sheets = documents.xlsx_sheets(file_content)
-            non_empty = [(name, rows) for name, rows in sheets if rows]
-            if not non_empty:
-                abstract = f"Excel file: {filename} - Empty document or unable to read sheets"
-                return {"file_name": "", "file_abstract": self._truncate_abstract(abstract)}
-
-            _name, rows = non_empty[0]
-            header, body = rows[0], rows[1:11]
-            column_names = [c for c in header[:5] if c]
-            abstract = f"Excel file: {filename} ({len(sheets)} sheets) - Contains columns: {', '.join(column_names)}"
-
-            csv_temp_path = None
-            try:
-                with tempfile.NamedTemporaryFile(
-                    mode="w", suffix=".csv", delete=False, encoding="utf-8", newline=""
-                ) as csv_temp_file:
-                    csv.writer(csv_temp_file).writerows([header, *body])
-                    csv_temp_path = csv_temp_file.name
-                result = await self._generate_llm_abstract_with_file(
-                    temp_file_path=csv_temp_path, content_type="text/csv",
-                    context=f"Excel file: {filename} ({len(sheets)} sheets, {len(body)} rows)",
-                    file_extension="", generate_filename=False,
-                )
-                llm_abstract = result.get("file_abstract", "")
-                # Use the model's abstract only when it is more than a restatement.
-                if (llm_abstract and len(llm_abstract.strip()) > 20
-                        and not llm_abstract.startswith("Excel file")
-                        and not llm_abstract.startswith("File processed")
-                        and "contains content" not in llm_abstract.lower()):
-                    abstract = llm_abstract
-            except Exception as llm_error:
-                logger.error("LLM analysis failed for Excel: %s", type(llm_error).__name__)
-            finally:
-                if csv_temp_path:
-                    try:
-                        os.unlink(csv_temp_path)
-                    except Exception:
-                        pass
-
-            return {"file_name": "", "file_abstract": self._truncate_abstract(abstract)}
-        except Exception as e:
-            # The message and the stack, like the PDF branch above: the fallback
-            # abstract reads like a success, so a bare class name leaves no way to
-            # tell a vendor hiccup from a bug in our own call.
-            logger.error(  # phi: ok a parser error, not document contents
-                "Excel abstract extraction failed: %s: %s", type(e).__name__, e, exc_info=True)
-            return {"file_name": "", "file_abstract": f"Excel file: {filename} - Spreadsheet uploaded, analyzing content in background"}
-
-    async def _extract_generic_abstract(self, file_content: bytes, filename: str, file_type: str) -> dict[str, str]:
-        """
-        Extract abstract from generic file types (no filename generation)
-        
-        Args:
-            file_content: File binary content
-            filename: Original filename
-            file_type: File type
-            
-        Returns:
-            Dict[str, str]: Dictionary with empty file_name and file_abstract
-        """
-        try:
-            file_size = len(file_content)
-            
-            # Try to extract text if it's a text-based file
-            if file_type in ["text", "txt"]:
-                try:
-                    text_content = file_content.decode('utf-8', errors='ignore')[:3000]  # First 3000 chars
-                    if text_content.strip():
-                        result = await self._generate_llm_abstract_with_content(
-                            text_content, 
-                            f"Text file: {filename}"
-                        )
-                        return {
-                            "file_name": "",
-                            "file_abstract": self._truncate_abstract(result.get("file_abstract", ""))
-                        }
-                except Exception:
-                    pass
-            
-            # Fallback to basic file info
-            abstract = f"{file_type.upper()} file: {filename} ({self._format_file_size(file_size)}) - File uploaded successfully"
-            return {
-                "file_name": "",
-                "file_abstract": self._truncate_abstract(abstract)
-            }
-            
-        except Exception as e:
-            logger.error(f"Generic abstract extraction failed: {e}", stack_info=True)
-            return self._create_fallback_abstract(filename, file_type)
-    
-    async def _generate_llm_abstract_with_file(
-        self, 
-        temp_file_path: str, 
-        content_type: str, 
-        context: str, 
-        file_extension: str = "",
-        generate_filename: bool = True
-    ) -> dict[str, str]:
-        """
-        Generate abstract and filename using LLM file extract service (Gemini or Doubao based on environment)
-        
-        Args:
-            temp_file_path: Path to temporary file
-            content_type: MIME content type
-            context: Context information
-            file_extension: File extension to include in generated filename
-            generate_filename: Whether to generate a new filename (True for PDF/images, False for others)
-            
-        Returns:
-            Dict[str, str]: Dictionary with file_name and file_abstract
-        """
-        try:
-            # Prepare prompt with file extension hint
-            extension_hint = f"IMPORTANT: The file extension MUST be '{file_extension}'. Do not use any other extension." if file_extension else ""
-            prompt = f"""{FILE_ABSTRACT_PROMPT}
-
-File context: {context}
-{extension_hint}
-
-Please return strictly in JSON format, do not include any markdown code block markers or other formatting."""
-            
-            # Use unified file extract (auto-selects model based on environment)
-            # json_mode=True because we expect JSON output for file abstract extraction
-            response = await unified_file_extract(
-                file_path=temp_file_path,
-                prompt=prompt,
-                content_type=content_type,
-                json_mode=True
-            )
-                
-            if response and response.strip():
-                # Clean up response - remove markdown code blocks if present
-                cleaned_response = response.strip()
-                if cleaned_response.startswith("```json"):
-                    cleaned_response = cleaned_response[7:]
-                if cleaned_response.startswith("```"):
-                    cleaned_response = cleaned_response[3:]
-                if cleaned_response.endswith("```"):
-                    cleaned_response = cleaned_response[:-3]
-                cleaned_response = cleaned_response.strip()
-                
-                # Try to parse as JSON
-                try:
-                    result = json.loads(cleaned_response)
-                    file_name = with_extension(str(result.get("file_name") or ""), file_extension) if generate_filename else ""
-                    file_abstract = result.get("file_abstract", "")
-                    
-                    # Validate and clean up
-                    if file_abstract:
-                        file_abstract = self._truncate_abstract(file_abstract)
-                    
-                    logger.info(f"Abstract generation successful: file_name='{file_name}', abstract_len={len(file_abstract)}")
-                    
-                    return {
-                        "file_name": file_name,
-                        "file_abstract": file_abstract
-                    }
-                    
-                except json.JSONDecodeError as json_error:
-                    logger.warning(f"LLM returned invalid JSON, treating as plain text: {json_error}")
-                    # Fallback: treat the whole response as abstract
-                    abstract = self._truncate_abstract(cleaned_response)
-                    return {
-                        "file_name": "",
-                        "file_abstract": abstract
-                    }
-            else:
-                logger.warning("LLM returned empty response, using fallback")
-                return {
-                    "file_name": "",
-                    "file_abstract": f"{context} - Contains relevant content, processed successfully"
-                }
-                
-        except Exception as e:
-            logger.warning(f"LLM abstract generation failed: {e}")
-            return {
-                "file_name": "",
-                "file_abstract": f"{context} - Contains relevant content, processed successfully"
-            }
-    
-    async def _generate_llm_abstract_with_content(
-        self,
-        content: str,
-        context: str,
-        file_extension: str = "",
-        generate_filename: bool = False,
-    ) -> dict[str, str]:
-        """
-        Generate abstract (and, for PDFs and images, a filename) from extracted text
-
-        Args:
-            content: Text content to summarize
-            context: Context information
-            file_extension: Extension the generated filename must keep
-            generate_filename: Whether to ask for a filename too
-
-        Returns:
-            Dict[str, str]: Dictionary with file_name and file_abstract
-        """
-        try:
-            # Create a temporary text file for LLM processing
-            with tempfile.NamedTemporaryFile(mode='w', suffix=".txt", delete=False, encoding='utf-8') as temp_file:
-                temp_file.write(content[:3000])  # Limit content to avoid token limits
-                temp_file_path = temp_file.name
-            
-            try:
-                # Use LLM to process the text file
-                result = await self._generate_llm_abstract_with_file(
-                    temp_file_path=temp_file_path,
-                    content_type="text/plain",
-                    context=context,
-                    file_extension=file_extension,
-                    generate_filename=generate_filename,
-                )
-                return result
-            finally:
-                # Clean up temp file
-                try:
-                    os.unlink(temp_file_path)
-                except Exception:
-                    pass
-                    
-        except Exception as e:
-            logger.warning(f"Text-based abstract generation failed: {e}")
-            return {
-                "file_name": "",
-                "file_abstract": f"{context} - Contains relevant content, processed successfully"
-            }
-    
-    def _create_fallback_abstract(self, filename: str, file_type: str) -> dict[str, str]:
-        """
-        Create a fallback abstract when extraction fails
-        
-        Args:
-            filename: Original filename
-            file_type: File type
-            
-        Returns:
-            Dict[str, str]: Dictionary with empty file_name and file_abstract
-        """
-        try:
-            # Use template from FALLBACK_ABSTRACT_TEMPLATES
-            template = FALLBACK_ABSTRACT_TEMPLATES.get(
-                file_type, 
-                FALLBACK_ABSTRACT_TEMPLATES["default"]
-            )
-            
-            # Create abstract based on template
-            # Each placeholder is a complete noun phrase, because the template
-            # no longer supplies the unit word after it.
-            if file_type == "pdf":
-                abstract = template.format(filename=filename, page_count="page count unknown")
-            elif file_type == "image":
-                abstract = template.format(filename=filename, resolution="resolution unknown")
-            elif file_type == "excel":
-                abstract = template.format(filename=filename, sheet_count="sheet count unknown")
-            elif file_type == "genetic":
-                abstract = template.format(filename=filename, file_size="size unknown")
-            elif file_type == "text":
-                abstract = template.format(filename=filename, word_count="length unknown")
-            else:
-                abstract = template.format(file_type=file_type.upper(), filename=filename)
-                
-        except Exception as e:
-            logger.warning(f"Fallback template formatting failed: {e}")
-            # Ultimate fallback
-            abstract = f"{file_type.upper()} file: {filename} - File uploaded successfully and ready for viewing"
-        
-        return {
-            "file_name": "",  # Fallback doesn't generate filename
-            "file_abstract": self._truncate_abstract(abstract)
-        }
-    
-    def _truncate_abstract(self, abstract: str) -> str:
-        """
-        Truncate abstract to maximum length
-        
-        Args:
-            abstract: Original abstract
-            
-        Returns:
-            str: Truncated abstract
-        """
-        if len(abstract) <= self.max_abstract_length:
-            return abstract
-        
-        # Truncate and add ellipsis
-        truncated = abstract[:self.max_abstract_length - 3] + "..."
-        
-        # Try to break at word boundary for better readability
-        if " " in truncated:
-            last_space = truncated.rfind(" ")
-            if last_space > self.max_abstract_length * 0.8:  # If space is not too far back
-                truncated = abstract[:last_space] + "..."
-        
-        return truncated
-    
-    def _format_file_size(self, size_bytes: int) -> str:
-        """
-        Format file size in human readable format
-        
-        Args:
-            size_bytes: Size in bytes
-            
-        Returns:
-            str: Formatted size string
-        """
-        for unit in ['B', 'KB', 'MB', 'GB']:
-            if size_bytes < 1024.0:
-                return f"{size_bytes:.1f}{unit}"
-            size_bytes /= 1024.0
-        return f"{size_bytes:.1f}TB"
-    
     async def extract_file_original_text(
         self,
         file_content: bytes,
         file_type: str,
         filename: str,
-        content_type: str = None
+        content_type: str | None = None,
     ) -> str:
         """The document's text (`mirobody.documents.extract`): the PDF text layer
         page by page with only scanned pages OCR'd, images downscaled then
@@ -585,6 +157,86 @@ Please return strictly in JSON format, do not include any markdown code block ma
         the file with the reason, the agent's file reader answers ""."""
         hint = content_type or ({"pdf": "application/pdf", "image": "image/jpeg"}.get((file_type or "").lower()))
         text = await documents.extract_text(filename, hint, file_content, ocr=vision_ocr, tables=table_ocr(), cache=ThFilesTextCache())
-        logger.info("[Original Text] extracted: file_type=%s char_count=%d", file_type, len(text))
+        logger.info("original text extracted: file_type=%s char_count=%d", file_type, len(text))
         return text
 
+    async def abstract_from_text(self, original_text: str, filename: str, language: str) -> tuple[str, str]:
+        """`(abstract, file_name)` the text model reads off a document's text;
+        `("", filename)` when it answered nothing usable. The name keeps the
+        upload's own extension."""
+        from mirobody.utils.llm import async_get_structured_output
+
+        # `language` reaches this prompt because it used to be an unused
+        # parameter, and "use the same language as the content" was one
+        # bullet in a list the model ignored. An English lab report came
+        # back named `2025-10-15_Laborbericht_Lipide_Glukose.pdf`, and on a
+        # second run `..._Rapport_labo_lipides_glycemie.pdf`: German, then
+        # French, for the same English document.
+        prompt = f"""Based on the document content below, generate:
+1. file_name: A descriptive filename in format: Date_Content_Description, with no extension
+   - Include date if found (YYYY-MM-DD format)
+   - Keep it concise (15-40 chars excluding extension)
+   - LANGUAGE: write it in the language the DOCUMENT ITSELF uses. An English
+     report gets an English name; a 体检报告 gets a Chinese one. Never translate
+     into a third language. If the document's own language is genuinely
+     ambiguous, fall back to: {language}
+
+2. file_abstract: A brief summary (max 150 characters)
+   - Identify document type
+   - Extract key information
+   - Highlight main findings
+   - Same language rule as above
+
+Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
+
+        messages = [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": f"Original filename: {filename}\n\nDocument content:\n{original_text[:8000]}"},
+        ]
+        result = await async_get_structured_output(
+            messages=messages,
+            response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": ABSTRACT_SCHEMA}},
+            temperature=0.1,
+            max_tokens=32000,
+        )
+        if not isinstance(result, dict):
+            return "", filename
+        abstract = str(result.get("file_abstract") or "")[:MAX_ABSTRACT_CHARS]
+        file_name = with_extension(str(result.get("file_name") or ""), os.path.splitext(filename or "")[1]) or filename
+        logger.info("abstract from text: char_count=%d", len(abstract))
+        return abstract, file_name
+
+    async def describe_image(self, file_content: bytes, filename: str) -> tuple[str, str]:
+        """`(abstract, file_name)` the vision model writes for an image whose
+        OCR found no text: a photo of a meal, a scan of an X-ray. Raises what
+        the vision surface raises."""
+        from mirobody.utils.llm import vision_extract
+
+        width, height, fmt = render.image_info(file_content)
+        extension = os.path.splitext(filename or "")[1].lower()
+        prompt = (f"{FILE_ABSTRACT_PROMPT}\n\nFile context: Image file: {filename} "
+                  f"({width}x{height}, {fmt or 'Unknown'} format)")
+        answer = await vision_extract(file_content, detect.image_mime(filename, None, file_content), prompt,
+                                      json_mode=True)
+        parsed = parse_json_object(answer)
+        if parsed is None:
+            # Not JSON: the model described the image in prose, which is an abstract.
+            return _truncated(answer), filename
+        file_name = with_extension(str(parsed.get("file_name") or ""), extension) or filename
+        return _truncated(str(parsed.get("file_abstract") or "")), file_name
+
+    @staticmethod
+    def fallback_abstract(filename: str, file_type: str) -> str:
+        """What the file list says when no abstract could be made. The file IS
+        stored; it is the summary that is missing, and the sentence says so."""
+        template = FALLBACK_ABSTRACT_TEMPLATES.get(file_type, FALLBACK_ABSTRACT_TEMPLATES["default"])
+        # Each placeholder is a complete noun phrase, because the template
+        # no longer supplies the unit word after it.
+        fields = {
+            "pdf": {"page_count": "page count unknown"},
+            "image": {"resolution": "resolution unknown"},
+            "excel": {"sheet_count": "sheet count unknown"},
+            "genetic": {"file_size": "size unknown"},
+            "text": {"word_count": "length unknown"},
+        }.get(file_type, {"file_type": file_type.upper()})
+        return _truncated(template.format(filename=filename, **fields))

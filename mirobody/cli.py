@@ -456,7 +456,7 @@ def _cmd_parse(args: argparse.Namespace) -> None:
     The no-key case gets the same treatment as the missing extra in
     `_require_extra`, and for the same reason. It used to surface as a
     twenty-line traceback ending in a `ValueError` from four frames inside
-    `unified_file_extract`: the message was correct and nobody would read it
+    the vision surface: the message was correct and nobody would read it
     there. `parse` is the second command the README hands a new user, right
     after `resolve`, which needs no key at all; being told which environment
     variable to set is the entire content of the failure.

@@ -1,11 +1,10 @@
-"""Pixels: the only place that opens an image library or a PDF renderer.
+"""Pixels: an image as a vision model is handed it.
 
-`extract` turns a file into text; this turns it into pictures, for the two
-callers that need them. A scanned page has to be rasterised before OCR can see
-it, and a vision model is handed JPEGs rather than a PDF. Both were doing it
-themselves, with their own thresholds and their own idea of what to do with an
-alpha channel, so the same page came out at two resolutions depending on which
-path reached it.
+`extract` turns a file into text, rendering a scanned page to PNG on the way;
+this fits that page, or a photo, to the size and format a vision model reads
+(`fit_image`), with one rule for transparency (`flatten`) shared with the
+downscale `extract` applies first. Two paths with their own thresholds and
+their own idea of an alpha channel sent the same page at two resolutions.
 
 Nothing here knows what a health document is.
 """
@@ -26,8 +25,6 @@ logger = logging.getLogger(__name__)
 #: and buy no accuracy; below it small print in a scanned lab report is lost.
 MAX_VISION_EDGE_PX = 1536
 JPEG_QUALITY = 85
-#: Rendering scale for a PDF page, as a multiple of its 72 dpi natural size.
-PDF_RENDER_SCALE = 1.5
 
 
 def image_info(data: bytes) -> tuple[int, int, str]:
@@ -105,28 +102,6 @@ def fit_image(
     except Exception as exc:
         logger.warning("image: fit failed, sending the original: error_type=%s", type(exc).__name__)
         return data, {"error": type(exc).__name__, "original_size": before}
-
-
-def pdf_pages_as_images(
-    data: bytes, *, scale: float = PDF_RENDER_SCALE, max_edge: int = MAX_VISION_EDGE_PX
-) -> list[tuple[bytes, dict[str, Any]]]:
-    """Every page of a PDF as a JPEG, one entry per page in order."""
-    import pypdfium2 as pdfium
-
-    doc = pdfium.PdfDocument(data)
-    try:
-        out: list[tuple[bytes, dict[str, Any]]] = []
-        for i in range(len(doc)):
-            page = doc[i]
-            try:
-                buf = io.BytesIO()
-                page.render(scale=scale).to_pil().save(buf, format="JPEG", quality=90)
-            finally:
-                page.close()
-            out.append(fit_image(buf.getvalue(), max_edge=max_edge))
-        return out
-    finally:
-        doc.close()
 
 
 def text_image(text: str, *, size: int = 48) -> bytes:

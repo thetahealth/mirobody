@@ -2,8 +2,8 @@
 
 Zero infrastructure: no PostgreSQL, no Redis, no server. ``resolve`` needs no
 credentials at all (offline lookup against the shipped data bundles);
-``parse`` needs exactly one LLM key (any provider
-:func:`mirobody.utils.llm.unified_file_extract` auto-detects).
+``parse`` needs exactly one LLM key (any provider the vision route,
+:func:`mirobody.utils.llm.vision_route`, can name).
 
     from mirobody.engine import resolve, parse_file
 

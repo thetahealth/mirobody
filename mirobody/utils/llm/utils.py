@@ -57,10 +57,10 @@ def _for_endpoint(spec: RouteSpec, messages: list[dict], response_format: dict) 
     if spec.response_format == "json_schema":
         return messages, response_format
 
-    from .file_processors.results import _build_prompt_with_schema
+    from .file_processors.results import json_prompt
 
     schema = (response_format.get("json_schema") or {}).get("schema")
-    instruction = _build_prompt_with_schema("", schema).strip()
+    instruction = json_prompt("", schema).strip()
     out = [dict(m) for m in messages]
     if out and out[0].get("role") == "system":
         out[0]["content"] = f"{out[0].get('content', '')}\n\n{instruction}"
