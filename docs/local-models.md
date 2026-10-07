@@ -135,6 +135,13 @@ mirror: `HF_ENDPOINT=https://<mirror>` in `.env` for the compose services, or
 in the shell before `llama-server`. The models are the only thing fetched;
 nothing about you is sent.
 
+The two compose services run llama.cpp build b11429, the one the evaluation
+ran: `ghcr.io/ggml-org/llama.cpp:server-b11429` for `local-cpu` and
+`server-cuda-b11429` for `local`. `LLAMA_CPU_IMAGE` and `LLAMA_IMAGE` in
+`.env` replace them, then `docker compose up -d`: with a later build, or,
+where ghcr.io is unreachable, with the same tag on a registry that mirrors
+it (`LLAMA_CPU_IMAGE=<mirror>/ggml-org/llama.cpp:server-b11429`).
+
 **Mirobody itself on Windows** runs in Docker Desktop (WSL 2 backend): open a
 WSL terminal (Ubuntu), clone the repository there and run `./deploy.sh`, as on
 Linux. The scripts keep LF line endings on every checkout.

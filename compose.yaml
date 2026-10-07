@@ -107,7 +107,11 @@ services:
   # host (docs/local-models.md). The first-run page finds either one.
   llama: &llama
     profiles: [local]
-    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    # llama.cpp b11429, the build benchmarks/local_models measured with this
+    # preset (results/run.json); a floating tag would change the server under
+    # it. LLAMA_IMAGE (and LLAMA_CPU_IMAGE below) in .env name another build,
+    # or the same one on a registry that mirrors ghcr.io.
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda-b11429}
     restart: unless-stopped
     command: ["--models-preset", "/presets/local-models.ini", "--models-max", "2", "--host", "0.0.0.0", "--port", "8080"]
     environment:
@@ -139,7 +143,7 @@ services:
   llama_cpu:
     <<: *llama
     profiles: [local-cpu]
-    image: ${LLAMA_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
+    image: ${LLAMA_CPU_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-b11429}
     deploy: {}
     networks:
       default:
