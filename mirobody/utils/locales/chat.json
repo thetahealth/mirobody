@@ -12,5 +12,12 @@
     "fr": "Cette demande s'est terminée sans réponse. Veuillez réessayer.",
     "ja": "今回は回答を生成できませんでした。もう一度お試しください。",
     "es": "Esta solicitud terminó sin respuesta. Vuelve a intentarlo."
+  },
+  "local_model_loading": {
+    "zh": "本地模型仍在加载（第一次启动时要先下载）。请过几分钟再问。",
+    "en": "The local model is still loading (the first start downloads it). Please ask again in a few minutes.",
+    "fr": "Le modèle local est encore en cours de chargement (le premier démarrage le télécharge). Reposez votre question dans quelques minutes.",
+    "ja": "ローカルモデルはまだ読み込み中です（初回の起動ではダウンロードから始まります）。数分後にもう一度お尋ねください。",
+    "es": "El modelo local todavía se está cargando (el primer arranque lo descarga). Vuelve a preguntar dentro de unos minutos."
   }
 }

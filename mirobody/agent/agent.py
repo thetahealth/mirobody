@@ -27,6 +27,7 @@ from langchain_core.tools import BaseTool
 from .registry import default_model, llm_client, llm_client_names
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import get_req_ctx
 from mirobody.utils.config import safe_read_cfg
 from mirobody.utils.config.llm import chat_entries
@@ -37,7 +38,7 @@ from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
 from .models.clients import build_llm_clients, unavailable_reason
 from .models.usage import usage_block
 from .prompt import attachment_reminder, build_system_prompt, question_language
-from .wire.blocks import ERROR, NOTICE
+from .wire.blocks import ERROR, NOTICE, TEXT
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
     GenotypeRowGuardMiddleware,
@@ -49,6 +50,14 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
 logger = logging.getLogger(__name__)
+
+
+def _route(model: str) -> Any:
+    """The resolved route (`config.llm.RouteSpec`) of the chat entry `model`,
+    or None when it is not one."""
+    from mirobody.utils.config.llm import resolve_named
+
+    return resolve_named(model) if model in chat_entries() else None
 
 
 def _latest_question(messages: list) -> str:
@@ -360,11 +369,23 @@ class MirobodyAgent:
         """
         if (getattr(client, "profile", None) or {}).get("image_inputs") is False:
             return False
-        from mirobody.utils.config.llm import resolve_named
         from mirobody.utils.config.served import sees
 
-        spec = resolve_named(model) if model in chat_entries() else None
+        spec = _route(model)
         return sees(spec) if spec is not None else True
+
+    def _still_loading(self, model: str) -> bool:
+        """Whether `model` runs on a local model server whose router is still
+        downloading or loading it (`served.served_status`). A question sent
+        then waits for the load with no sign of life: 14 minutes, measured on
+        a 4-core CPU on the first start (2026-10-07). An `unloaded` model is
+        left to the request, which is what starts its load."""
+        from mirobody.utils.config.served import served_status
+
+        spec = _route(model)
+        if spec is None or not (spec.base_url_env and spec.base_url):
+            return False
+        return served_status(spec.base_url, spec.model) == "loading"
 
     #: Read-only tools the `eval` REPL may call as `tools.<name>`; each guards
     #: itself because the PTC bridge bypasses the tool middleware.
@@ -551,11 +572,13 @@ class MirobodyAgent:
         file_list: list[dict[str, Any]] | None = None,
         provider: str | None = None,
         prompt_name: str = "",
+        language: str = "",
         **kwargs
     ) -> AsyncGenerator[dict[str, Any], None]:
         """One turn, as `wire.blocks` (`registry.AbstractAgent`). `provider` is
         the request's field of that name: the `MODELS` entry to answer with,
-        the default when empty."""
+        the default when empty. `language` is the asker's, for a sentence the
+        harness says itself."""
         if not messages:
             yield {"type": ERROR, "message": "Empty message"}
             return
@@ -572,6 +595,10 @@ class MirobodyAgent:
                 # The SYSTEM speaking, not the model. On the reasoning channel
                 # it was indistinguishable from the model's own trace.
                 yield {"type": NOTICE, "message": notice}
+            if await asyncio.to_thread(self._still_loading, model):
+                logger.info("chat model still loading; answered without it: session_id=%s", session_id)
+                yield {"type": TEXT, "text": localize("local_model_loading", language or "en", module="chat")}
+                return
             model_name = getattr(llm_client, "model_name", None) or getattr(llm_client, "model", "Unknown")
 
             # Uploads reach the agent as FILES, never as message payload:
