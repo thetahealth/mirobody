@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from typing import NamedTuple
 
-from . import metrics
+from . import metrics, series
 from mirobody import units
 from .series import Fact
 
@@ -104,20 +104,16 @@ def overcount_suspect(total_ms: float, span_ms: float, *, tolerance_ratio: float
     """A total duration that exceeds the wall-clock span it was measured in.
     This is arithmetic, not a heuristic: the union of intervals inside a span
     cannot be longer than the span. Fires on every aggregation pass, so a
-    re-aggregation of a repaired cell is checked again, not just the first."""
-    return total_ms > span_ms * tolerance_ratio + floor_ms
+    re-aggregation of a repaired cell is checked again, not just the first.
+    The election's ``series.coverage_bound`` applies the same test."""
+    return series._exceeds_span(total_ms, span_ms, tolerance_ratio, floor_ms)
 
 
 def is_echo(value: float | str | None, last_value: float | str | None) -> bool:
     """A source re-reporting the value it last stored. A profile field on a
     wearable comes back on every sync with today's date; storing it again
     manufactures a fresh-looking candidate that can beat a real scale."""
-    if last_value is None:
-        return False
-    try:
-        return math.isclose(float(value), float(last_value), rel_tol=1e-9, abs_tol=1e-9)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return value == last_value
+    return last_value is not None and not series._differs(value, last_value)
 
 
 def cross_source_ratio(a: float, b: float) -> float:
@@ -129,10 +125,9 @@ def cross_source_ratio(a: float, b: float) -> float:
     return max(a, b) / min(a, b)
 
 
-def shape_for(system: str, metric_key: str) -> metrics.Mapping | None:
-    """Convenience: the catalogue mapping a normaliser needs, or ``None``,
-    which the caller turns into ``ERR_NO_TRUSTED_MAPPING``."""
-    return metrics.mapping_for(system, metric_key)
+#: The catalogue mapping a normaliser needs, or ``None``, which the caller
+#: turns into ``ERR_NO_TRUSTED_MAPPING``: ``metrics.mapping_for`` itself.
+shape_for = metrics.mapping_for
 
 
 __all__ = [

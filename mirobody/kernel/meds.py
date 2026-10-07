@@ -43,6 +43,7 @@ from importlib import resources
 from typing import Literal, NamedTuple, Protocol
 
 from mirobody import units
+from . import query
 from .series import day_bounds_ms, stable_hash, zone
 
 MS = 1000
@@ -1583,15 +1584,11 @@ class MedicationsRequest:
     end: str = ""
 
 
-def validate_query(args: Mapping[str, object]) -> tuple:
-    """Everything wrong with the raw arguments (``query.Rejection`` rows);
-    empty means :func:`parse_query` will succeed."""
-    from . import query
-
+def validate_query(args: Mapping[str, object]) -> tuple[query.Rejection, ...]:
+    """Everything wrong with the raw arguments; empty means
+    :func:`parse_query` will succeed."""
     out = query.reject_unknown(args, TOOL_SCHEMA)
-    view = args.get("view")
-    if view not in (None, "") and view not in VIEWS:
-        out.append(query.Rejection("view", f"must be one of {', '.join(VIEWS)}"))
+    out.extend(query.reject_view(args, VIEWS))
     out.extend(query.reject_dates(args))
     return tuple(out)
 
@@ -1599,8 +1596,6 @@ def validate_query(args: Mapping[str, object]) -> tuple:
 def parse_query(args: Mapping[str, object]) -> MedicationsRequest:
     """Raw arguments → a :class:`MedicationsRequest`; ``ValueError`` when
     :func:`validate_query` finds anything."""
-    from . import query
-
     problems = validate_query(args)
     if problems:
         raise ValueError("; ".join(f"{r.parameter}: {r.reason}" for r in problems))

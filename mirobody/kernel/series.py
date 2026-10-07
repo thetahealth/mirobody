@@ -483,6 +483,8 @@ def annotate_echo(candidates: Iterable[Candidate], previous: dict[str, dict[str,
 
 
 def _differs(a: object, b: object) -> bool:
+    """Whether two offered values differ: numerically when both read as
+    numbers, by equality otherwise. `quality.is_echo` is its negation."""
     try:
         return not math.isclose(float(a), float(b), rel_tol=1e-9, abs_tol=1e-9)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -517,9 +519,15 @@ def coverage_bound(member: str, span_ms: float, *, per_unit_ms: float = _MS_PER_
             total_ms = float(v) * per_unit_ms  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return []
-        return [f"{member} exceeds covered span"] if total_ms > span_ms * tolerance else []
+        return [f"{member} exceeds covered span"] if _exceeds_span(total_ms, span_ms, tolerance) else []
 
     return check
+
+
+def _exceeds_span(total_ms: float, span_ms: float, tolerance: float, floor_ms: float = 0.0) -> bool:
+    """The union of intervals inside a span cannot be longer than the span:
+    the one test `coverage_bound` and `quality.overcount_suspect` share."""
+    return total_ms > span_ms * tolerance + floor_ms
 
 
 @dataclass(frozen=True)

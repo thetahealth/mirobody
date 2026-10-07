@@ -44,6 +44,8 @@ from typing import Protocol
 from mirobody import lexical
 from .series import zone
 
+logger = logging.getLogger(__name__)
+
 # --- windows -------------------------------------------------------------------------
 
 SEMANTICS_TZ_EXACT = "tz_exact"
@@ -194,8 +196,8 @@ _CAMEL = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|[^A-Za-z0-9一-鿿]+")
 def _load_synonyms() -> dict[str, tuple[str, ...]]:
     try:
         text = resources.files("mirobody").joinpath("res", "loinc", "recall_synonyms.tsv").read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError):
-        logging.getLogger(__name__).warning("recall_synonyms.tsv missing: catalogue recall has no zh-en bridge")
+    except OSError:
+        logger.warning("recall_synonyms.tsv missing: catalogue recall has no zh-en bridge")
         return {}
     out: dict[str, tuple[str, ...]] = {}
     for row in csv.DictReader(io.StringIO(text), delimiter="\t"):
@@ -455,6 +457,14 @@ def reject_unknown(args: Mapping[str, object], schema: Mapping[str, object]) -> 
     return [Rejection(p, "unknown parameter") for p in sorted(args) if p not in props]  # type: ignore[operator]
 
 
+def reject_view(args: Mapping[str, object], views: Sequence[str]) -> list[Rejection]:
+    """A ``view`` that is not one of ``views``; no view is the default."""
+    view = args.get("view")
+    if view in (None, "") or view in views:
+        return []
+    return [Rejection("view", f"must be one of {', '.join(views)}")]
+
+
 def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
     """``start``/``end`` that are not a calendar day written ``YYYY-MM-DD``.
     The pattern alone let ``2025-06-31`` through: the readings tool then read
@@ -486,9 +496,7 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     times (2026-10-06), each attempt a model turn on an 8k-token prompt. The
     catalogue is the list the next call copies its names from."""
     out: list[Rejection] = reject_unknown(args, TOOL_SCHEMA)
-    view = args.get("view")
-    if view not in (None, "") and view not in VIEWS:
-        out.append(Rejection("view", f"must be one of {', '.join(VIEWS)}"))
+    out.extend(reject_view(args, VIEWS))
     selectors = [p for p in ("keywords", "indicators") if args.get(p) not in (None, "", [], ())]
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
