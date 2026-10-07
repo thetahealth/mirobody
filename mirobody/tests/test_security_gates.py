@@ -492,3 +492,45 @@ def test_the_first_passkey_and_an_aal2_session_still_enrol(monkeypatch):
     client, token = _passkeys(monkeypatch, enrolled=True)
     another = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(2)}"})
     assert another.status_code == 200 and another.json()["data"]["excludeCredentials"]
+
+
+#: What a failing dependency says in these tests: an address and a reading,
+#: the two things an exception's text has been seen to carry.
+_LEAK = "lookup failed for you@mirobody.ai at 7.3 mmol/L"
+
+
+def _raises():
+    async def fail(*args, **kwargs):
+        raise RuntimeError(_LEAK)
+    return fail
+
+
+def test_a_failing_files_route_answers_a_sentence_not_the_exception(monkeypatch):
+    client, files = _router_app("file_router")
+    monkeypatch.setattr(files, "get_user_data_distribution", _raises())
+    answer = client.get("/api/v1/data/data-distribution")
+    assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
+
+    async def deletion_raised(**kw):
+        return {"success": False, "error": f"Internal error: {_LEAK}", "message_id": "m1"}
+
+    monkeypatch.setattr(files, "delete_all_files_from_message", deletion_raised)
+    answer = client.post("/api/v1/data/delete-files", json={"message_id": "m1"})
+    assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
+
+
+def test_a_public_share_link_answers_a_sentence_not_the_exception(monkeypatch):
+    client, share = _router_app("session_share_router")
+    monkeypatch.setattr(share.chat_session, "get_shared_session_history", _raises())
+    answer = client.get("/api/share/0123456789abcdef0123")
+    assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
+
+
+@pytest.mark.parametrize("body", ["7.3 mmol/L, not JSON",
+                                  '{"metaInfo": {"timezone": "UTC"}, "healthData": "7.3 mmol/L"}'])
+def test_an_unreadable_apple_upload_is_refused_without_quoting_it(body):
+    """The decoder's and pydantic's messages quote the input, and the input
+    is readings."""
+    client, _ = _router_app("apple_router")
+    answer = client.post("/apple/health", content=body, headers={"Content-Type": "application/json"})
+    assert answer.status_code == 400 and "7.3" not in answer.text
