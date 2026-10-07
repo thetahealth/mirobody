@@ -1,0 +1,3 @@
+# llama-server's own log, written beside each model's results by run.py and
+# extract.py. Kept local: the results files are the record.
+*.log
