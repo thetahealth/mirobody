@@ -330,8 +330,9 @@ LOCAL_SETUP:
   # 2026-10-06); memory_gb is the peak llama-server held with both loaded
   # while answering, and answer_s the median seconds per answer, on the
   # machine `measured_on` names (benchmarks/local_models has the evaluation),
-  # where llama.cpp runs on the GPU: with no GPU a first answer takes 2-3
-  # minutes (docs/local-models.md, Without a GPU). `sees`: whether the
+  # where llama.cpp runs on the GPU: with no GPU a first answer took 2-3
+  # minutes on an M1 Pro's cores and up to about 15 on a 4-vCPU x86 server
+  # (docs/local-models.md, Without a GPU). `sees`: whether the
   # answering model reads a photo itself (else its OCR text). MiniCPM5-1B and
   # Qwen3.5-9B were evaluated and dropped: the 1B answered 2 of 24 questions
   # fully for 0.4 GB less download, the 9B did not fit beside the stack on
@@ -344,7 +345,7 @@ LOCAL_SETUP:
       download_gb: 3.0
       memory_gb: 5.7
       answer_s: 28
-      measured_on: Apple M1 Pro, 16 GB
+      measured_on: Apple M1 Pro GPU (Metal), 16 GB
     - id: large
       sees: true
       agent: qwen3.8-27b
@@ -352,7 +353,7 @@ LOCAL_SETUP:
       download_gb: 14.5
       memory_gb: 20
       answer_s: 134
-      measured_on: Apple M4 Pro, 48 GB
+      measured_on: Apple M4 Pro GPU (Metal), 48 GB
 
 # Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
 # Same order as UTILS_TEXT_MODEL, deliberately: with several keys present, the
