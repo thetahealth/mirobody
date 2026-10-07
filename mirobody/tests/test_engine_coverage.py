@@ -1037,6 +1037,36 @@ def test_a_blocked_category_word_stays_blocked_inside_a_longer_name(resolver):
     assert resolver.resolve("呕吐计数").loinc == "94070-0"
 
 
+def test_every_override_row_does_its_job(resolver):
+    """The loader passes over what it cannot use without a word: a row that is
+    not exactly `term<TAB>target`, a term repeated later (the first row wins),
+    a target the index does not hold. `乙肝e抗原 -> Hepatitis B virus e Ag`
+    named a LOINC COMPONENT rather than an index key and answered nothing from
+    the day it was written. These checks lived in the unshipped suite, reading
+    a path the file has since left."""
+    from mirobody.lexical import index_fold
+
+    rows = _override_rows()
+    assert len(rows) > 500
+    first: dict[str, tuple[int, str]] = {}
+    problems = []
+    for number, term, target in rows:
+        if not term or not target or "\t" in target:
+            problems.append(f"line {number}: not term<TAB>target")
+            continue
+        earlier, earlier_target = first.setdefault(index_fold(term), (number, target))
+        if earlier_target != target:
+            problems.append(f"line {number}: {term!r} repeats line {earlier} with another target")
+        elif target == "!unresolved":
+            if resolver.resolve(term).method != "refused":
+                problems.append(f"line {number}: {term!r} does not refuse")
+        elif not resolver.resolve(target).loinc:
+            problems.append(f"line {number}: target {target!r} resolves to nothing")
+        elif not resolver.resolve(term).loinc:
+            problems.append(f"line {number}: {term!r} still resolves to nothing")
+    assert not problems, "\n".join(problems)
+
+
 def test_what_is_not_a_lab_specimen_but_is_a_result_still_resolves():
     """Excluding `^Patient` is the intuitive rule and it is wrong: these are all
     measured on the person rather than on a specimen. `Type` likewise: blood

@@ -2,36 +2,38 @@
 #
 # WHY THIS FILE EXISTS, and why it is not aliases_src/{lang}_curated.tsv
 # ---------------------------------------------------------------------
-# Those files are inputs to the BUNDLE BUILD (indicator/fhir/embeddings/
-# lexicon.py). Their right-hand side is a descriptive English phrase —
-# "Total cholesterol TC", "Leukocyte count WBC" — which is exactly the shape
-# the alias-index build wants.
+# The alias index in the bundle is cut from LOINC alone (translate_build/
+# build_bundle.py): it knows LOINC's names, short codes and translations, not
+# every phrase a report prints. Both this file and aliases_src/ are read at
+# runtime, this one first. The right-hand sides in aliases_src/ are
+# descriptive phrases ("Total cholesterol TC", "Leukocyte count WBC") written
+# for the 1.4.x index build, and only some of them resolve.
 #
-# This file serves the OFFLINE RESOLVER at runtime, where the right-hand side
-# has a different job: it must itself be a key the finished alias index can
-# look up. "Total cholesterol TC" is a fine build input and a dead end at
-# lookup time. Rewriting the build inputs to suit the resolver would have
-# quietly degraded the semantic pipeline, so the two concerns get two files.
+# Here the right-hand side has a stricter job: it must itself be a key the
+# alias index can look up. "Total cholesterol TC" reads fine and is a dead end
+# at lookup time.
 #
-# The original rows came from test_engine_coverage.py; the genetic-report rows
-# below are pinned in local report/resolve tests. Two kinds of failure appear,
-# and the second is the dangerous one:
+# The original rows came from mirobody/tests/test_engine_coverage.py; the
+# genetic-report rows below are pinned in local report/resolve tests. Two
+# kinds of failure appear, and the second is the dangerous one:
 #
-#   MISS  — "LDL cholesterol" resolved to nothing. The index is built from
-#           LOINC long common names, so it knows the formal name and the lab
-#           short code (LDL-C) but not the phrase humans write. Plain English
-#           was, counter-intuitively, the worst-covered language.
+#   MISS:  "LDL cholesterol" resolved to nothing. The index is built from
+#          LOINC's own designations, so it knows the formal name and the lab
+#          short code (LDL-C) but not the phrase humans write. Plain English
+#          was, counter-intuitively, the worst-covered language.
 #
-#   WRONG — "血红蛋白" resolved to Hemoglobin A1c: a different test, returned
-#           with full confidence. It matches 301 index rows and the commonness
-#           prior likes HbA1c best. A resolution-rate metric scores this as a
-#           success; a patient reading the report would not.
+#   WRONG: "血红蛋白" resolved to Hemoglobin A1c: a different test, returned
+#          with full confidence. It matched 301 index rows and the commonness
+#          prior liked HbA1c best. A resolution-rate metric scores this as a
+#          success; a patient reading the report would not.
 #
 # CONTRIBUTING: this is the lowest-barrier useful PR in the repo. Find a term
 # that resolves wrong or not at all, add one row here plus one case in
-# mirobody/test_engine_coverage.py, and raise COVERAGE_FLOOR. Any language.
-# Targets are validated by the test suite, so a typo'd target fails CI rather
-# than shipping.
+# mirobody/tests/test_engine_coverage.py. Any language. That module checks
+# every row of this file: exactly two fields, no term repeated with another
+# target, a target that resolves, a term that then resolves, and an
+# `!unresolved` row that refuses. A typo'd target fails CI rather than
+# shipping.
 
 # ══ English ═══════════════════════════════════════════════════════════════
 # ── category-only terms ---------------------------------------------------
