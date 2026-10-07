@@ -356,3 +356,39 @@ def test_a_grant_is_trimmed_to_what_was_asked(monkeypatch):
     assert asyncio.run(subject_for("7", "10")) is None
     assert asyncio.run(subject_for("7", "11")) is None
     assert asyncio.run(subject_for("7", "not-an-id")) is None
+
+
+def _router_app(module_name: str, user_id: str = "7"):
+    """`module_name`'s router signed in as `user_id`. The package exports each
+    APIRouter under its module's name, so the module is reached by import."""
+    import importlib
+
+    from fastapi import FastAPI
+
+    from mirobody.server.auth import verify_token
+
+    module = importlib.import_module(f"mirobody.server.routers.{module_name}")
+    app = FastAPI()
+    app.include_router(module.router)
+    app.dependency_overrides[verify_token] = lambda: user_id
+    return TestClient(app), module
+
+
+def test_a_read_grant_does_not_export_a_members_genome(monkeypatch):
+    """A care-circle VIEW grant streamed the member's whole genome as VCF;
+    the readings export has been owner-only since 1.5.3."""
+    from mirobody.user.care_circle import ACCESS_VIEW
+
+    _grants(monkeypatch, {(7, 8): ACCESS_VIEW})
+    client, genomics = _router_app("genomics_router")
+    read = []
+
+    async def execute_query(query, params=None, **kw):
+        read.append(params)
+        return []
+
+    monkeypatch.setattr(genomics, "execute_query", execute_query)
+    answer = client.get("/api/v1/genomics/export.vcf", params={"build": "GRCh38", "target_user_id": "8"})
+    assert answer.json()["code"] == 403 and not read
+    own = client.get("/api/v1/genomics/export.vcf", params={"build": "GRCh38"})
+    assert own.json()["code"] == 404 and read == [{"user_id": "7"}]

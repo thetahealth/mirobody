@@ -167,10 +167,14 @@ async def export_vcf(
     target_user_id: str | None = Query(None),
     user_id: str = Depends(verify_token),
 ):
-    """Stream mapped, defensible calls from the active set in VCF 4.2 form."""
-    owner = await subject_for(user_id, target_user_id)
-    if owner is None:
-        return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
+    """Stream mapped, defensible calls from the active set in VCF 4.2 form.
+
+    The caller's own genome only, as the readings export: a care-circle read
+    grant shows a member's calls one rsID at a time, and does not hand over
+    a copy of the whole genome. `target_user_id` naming anyone else is 403."""
+    if target_user_id and target_user_id != user_id:
+        return ErrorResponse(code=403, msg="Only the record owner can export it.")
+    owner = user_id
     try:
         rows = await execute_query(
             """SELECT id, format_id, vendor, normalizer_version, site_table_version,
