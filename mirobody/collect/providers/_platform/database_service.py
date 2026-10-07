@@ -2,6 +2,7 @@
 Database service for providers
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -36,49 +37,28 @@ class ProviderDatabaseService:
         expires_at: datetime | None = None
         connect_info: dict[str, Any] | None = None  # Additional connection information
 
-    def _decrypt_password_aes_gcm(self, encrypted_password: str, user_id: str) -> str | None:
-        """
-        Decrypt password using AES-GCM algorithm (matching Go implementation)
-
-        Now using correct key handling method that matches Go's []byte(string) conversion.
-
-        Args:
-            encrypted_password: AES-GCM encrypted password string (base64 encoded)
-            user_id: User ID for logging
-
-        Returns:
-            Decrypted password or None if decryption fails
-        """
-        if not encrypted_password:
-            logger.info(f"Empty password for user {user_id}")
+    def _decrypt(self, ciphertext: str, user_id: str) -> str | None:
+        """A stored secret in the clear, or None when it does not decrypt
+        (a corrupted value or a changed key; `decrypt_string_aes_gcm` logs which)."""
+        if not ciphertext:
             return None
+        plain = decrypt_string_aes_gcm(ciphertext)
+        if plain is None:
+            # A fingerprint says whether it is the same stored value as last
+            # time without carrying the value.
+            logger.error("stored secret does not decrypt: user_id=%s fingerprint=%s",
+                         user_id, secret_fingerprint(ciphertext))
+        return plain
 
-        logger.info(f"Decrypting password for user {user_id} using AES-GCM (length: {len(encrypted_password)})")
-
-        try:
-            decrypted = decrypt_string_aes_gcm(encrypted_password)
-            if decrypted is not None:
-                logger.info(f"AES-GCM decryption successful for user {user_id}")
-                return decrypted
-            logger.error(f"AES-GCM decryption failed for user {user_id}: returned None")
+    def _decrypt_connect_info(self, stored: Any, user_id: str) -> dict[str, Any] | None:
+        """`connect_info` as saved: one encrypted JSON string, since a
+        CUSTOMIZED link keeps its secrets there. A value an earlier release
+        stored in the clear is not read: that link has to be made again."""
+        plain = self._decrypt(stored, user_id) if isinstance(stored, str) else None
+        if plain is None:
             return None
-        except Exception as e:
-            error_msg = str(e)
-            if "InvalidTag" in error_msg:
-                # The first 20 characters of the ciphertext used to be in this
-                # line. `phi_baseline.txt` had grandfathered it, and the entry
-                # read as one long f-string rather than as the slice it
-                # interpolated, so nothing pointed at it. A fingerprint answers
-                # the only question a log can honestly ask here ("is this the
-                # same stored value as last time?") without carrying the value.
-                logger.error(
-                    "AES-GCM InvalidTag for user %s: authentication tag verification failed "
-                    "(ciphertext len=%d, fingerprint=%s). Data corruption or a key mismatch.",
-                    user_id, len(encrypted_password), secret_fingerprint(encrypted_password),
-                )
-            else:
-                logger.error(f"AES-GCM decryption error for user {user_id}: {error_msg}")
-            return None
+        info = json.loads(plain)
+        return info if isinstance(info, dict) else None
 
     async def get_all_user_credentials_for_provider(self, provider_slug: str, link_type: LinkType) -> list[dict[str, Any]]:
         """
@@ -142,7 +122,7 @@ class ProviderDatabaseService:
                     if link_type == LinkType.PASSWORD:
                         encrypted_password = row.get("password")
                         if encrypted_password:
-                            decrypted_password = self._decrypt_password_aes_gcm(encrypted_password, user_id)
+                            decrypted_password = self._decrypt(encrypted_password, user_id)
                             if decrypted_password is None:
                                 logger.error(f"Failed to decrypt password for user {user_id}: password is None after decryption")
                                 continue
@@ -151,20 +131,20 @@ class ProviderDatabaseService:
                     elif link_type == LinkType.OAUTH1:
                         at = row.get("access_token")
                         ats = row.get("access_token_secret")
-                        entry["access_token"] = self._decrypt_password_aes_gcm(at, user_id) if at else None
-                        entry["access_token_secret"] = self._decrypt_password_aes_gcm(ats, user_id) if ats else None
+                        entry["access_token"] = self._decrypt(at, user_id) if at else None
+                        entry["access_token_secret"] = self._decrypt(ats, user_id) if ats else None
                         if row.get("username"):
                             entry["username"] = row.get("username")
                     elif link_type == LinkType.CUSTOMIZED:
-                        # For CUSTOMIZED type, return connect_info as-is (already stored as jsonb)
-                        connect_info = row.get("connect_info")
-                        if connect_info:
-                            entry["connect_info"] = connect_info
+                        connect_info = self._decrypt_connect_info(row.get("connect_info"), user_id)
+                        if connect_info is None:
+                            continue
+                        entry["connect_info"] = connect_info
                     else:  # OAUTH2
                         at = row.get("access_token")
                         rt = row.get("refresh_token")
-                        entry["access_token"] = self._decrypt_password_aes_gcm(at, user_id) if at else None
-                        entry["refresh_token"] = self._decrypt_password_aes_gcm(rt, user_id) if rt else None
+                        entry["access_token"] = self._decrypt(at, user_id) if at else None
+                        entry["refresh_token"] = self._decrypt(rt, user_id) if rt else None
                         entry["expires_at"] = row.get("expires_at")
 
                     credentials.append(entry)
@@ -243,13 +223,14 @@ class ProviderDatabaseService:
         else:
             raise ValueError(f"Unsupported link_type: {link_type}")
 
-        # Add connect_info if provided (applicable to all link types)
+        # connect_info holds whatever fields a CUSTOMIZED provider declares,
+        # passwords and keys among them, so it is stored encrypted: a jsonb
+        # string holding the encrypted JSON object. It used to sit in the
+        # clear beside the encrypted copy of its own password.
         if credentials.connect_info is not None:
-            import json
             fields.append("connect_info")
             values.append(":connect_info")
-            # Store as JSON string, PostgreSQL will convert to jsonb automatically if column type is jsonb
-            params["connect_info"] = json.dumps(credentials.connect_info)
+            params["connect_info"] = json.dumps(encrypt_string_aes_gcm(json.dumps(credentials.connect_info)))
 
         # Atomic soft-delete + insert via data-modifying CTE.
         # The CTE's UPDATE may match 0 rows (first link), that's fine, the INSERT
@@ -388,9 +369,8 @@ class ProviderDatabaseService:
                 result = await execute_query(query, {"user_id": user_id, "provider": provider_slug})
                 if not result:
                     return None
-                row = result[0]
-                connect_info = row.get('connect_info')
-                if not connect_info:
+                connect_info = self._decrypt_connect_info(result[0].get("connect_info"), user_id)
+                if connect_info is None:
                     return None
                 return {
                     "connect_info": connect_info,
@@ -412,7 +392,7 @@ class ProviderDatabaseService:
                 row = result[0]
                 if not row.get('password'):
                     return None
-                decrypted_password = self._decrypt_password_aes_gcm(row['password'], user_id)
+                decrypted_password = self._decrypt(row['password'], user_id)
                 if decrypted_password is None:
                     return None
 
@@ -425,12 +405,12 @@ class ProviderDatabaseService:
 
                 # If token fields exist, decrypt and include them
                 if row.get('access_token'):
-                    decrypted_access_token = self._decrypt_password_aes_gcm(row['access_token'], user_id)
+                    decrypted_access_token = self._decrypt(row['access_token'], user_id)
                     if decrypted_access_token:
                         response["access_token"] = decrypted_access_token
 
                 if row.get('refresh_token'):
-                    decrypted_refresh_token = self._decrypt_password_aes_gcm(row['refresh_token'], user_id)
+                    decrypted_refresh_token = self._decrypt(row['refresh_token'], user_id)
                     if decrypted_refresh_token:
                         response["refresh_token"] = decrypted_refresh_token
 
@@ -452,8 +432,8 @@ class ProviderDatabaseService:
                 row = result[0]
                 if not row.get('access_token') or not row.get('access_token_secret'):
                     return None
-                access_token = self._decrypt_password_aes_gcm(row['access_token'], user_id)
-                access_token_secret = self._decrypt_password_aes_gcm(row['access_token_secret'], user_id)
+                access_token = self._decrypt(row['access_token'], user_id)
+                access_token_secret = self._decrypt(row['access_token_secret'], user_id)
                 if not access_token or not access_token_secret:
                     return None
                 return {
@@ -476,8 +456,8 @@ class ProviderDatabaseService:
             row = result[0]
             if not row.get('access_token') or not row.get('refresh_token'):
                 return None
-            access_token = self._decrypt_password_aes_gcm(row['access_token'], user_id)
-            refresh_token = self._decrypt_password_aes_gcm(row['refresh_token'], user_id)
+            access_token = self._decrypt(row['access_token'], user_id)
+            refresh_token = self._decrypt(row['refresh_token'], user_id)
             if not access_token or not refresh_token:
                 return None
 
