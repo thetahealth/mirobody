@@ -13,7 +13,8 @@
       },
       "expected": {
         "count": 4,
-        "values": {"activeCalories": 2000, "heartRates": 68, "heartRateMax": 155, "strain": 12.3},
+        "values": {"dailyTotalCalories": 2000, "heartRates": 68, "heartRateMax": 155, "strain": 12.3},
+        "absent": ["activeCalories"],
         "window": [1780286400000, 1780372800000]
       }
     },

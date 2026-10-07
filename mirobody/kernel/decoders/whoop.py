@@ -54,7 +54,9 @@ MAPPING: dict[str, dict[str, Entry]] = {
     "cycle": {
         "score.average_heart_rate": ("heartRates", _same),
         "score.max_heart_rate": ("heartRateMax", _same),
-        "score.kilojoule": ("activeCalories", kj_to_kcal),
+        # A cycle's energy is the whole day's, basal included; as active
+        # calories it was summed with the day's workouts and counted twice.
+        "score.kilojoule": ("dailyTotalCalories", kj_to_kcal),
         "score.strain": ("strain", _same),
     },
     "recovery": {
