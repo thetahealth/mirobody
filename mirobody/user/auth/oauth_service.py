@@ -412,7 +412,7 @@ class OAuthService:
             # impersonate the client. The fingerprint still answers the only
             # question this log line was ever used for: "did the client send
             # the secret we expect?".
-            logger.info(
+            logger.info(  # phi: ok grant_type is an OAuth protocol word, not a person's data
                 "Token request - grant_type: %s, client_id: %s, client_secret: %s",
                 grant_type, client_id, secret_fingerprint(client_secret),
             )

@@ -268,7 +268,8 @@ class MandrillEmailValidator(_CodeVerificationMixin, AbstractEmailCodeValidator)
         
         status = result[0].get("status") if result else None
         reason = result[0].get("reject_reason") if result else None
-        logger.warning("sign-in code not sent: provider=mandrill status=%s reason=%s", status, reason)
+        logger.warning("sign-in code not sent: provider=mandrill status=%s reason=%s",  # phi: ok a Mandrill stop code
+                       status, reason)
         return _NOT_SENT
 
     #-----------------------------------------------------

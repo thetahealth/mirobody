@@ -333,7 +333,7 @@ async def merge_accounts(
                         )
 
     except Exception as e:
-        logger.error("account merge failed: losing_user_id=%s winning_user_id=%s reason=%s error_type=%s",
+        logger.error("account merge failed: losing_user_id=%s winning_user_id=%s reason=%s error_type=%s",  # phi: ok a caller's literal label
                      losing_user_id, winning_user_id, reason, type(e).__name__,
                      exc_info=not is_driver_exception(e))
         return affected, "The accounts could not be merged. Nothing was changed; try again."
