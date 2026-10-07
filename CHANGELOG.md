@@ -174,6 +174,28 @@ decisions.
 
 ### Changed
 
+- **A born-digital PDF's tables are read off its text layer, without a
+  model.** The table rules read only HTML tables, and a text layer writes a
+  row as one line of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so a
+  downloaded report (the commonest kind) reached them only through an OCR
+  model's tables pass over the rendered page, and without one the extraction
+  model read all of it. When the tables are asked for (a document-OCR model
+  is routed), a text page now also carries the tables its characters' positions
+  lay out (`documents/extract.py`, `_layer_tables`): cells split at wide gaps,
+  a cell wrapped onto a second line joined, columns by where cells overlap, a
+  table going on at the top of the next page under the same columns, a title
+  line over a table and a running footer left out. Only a text page with no
+  such table is rendered for the OCR pass. On the seed-7 corpus's 16
+  text-layer PDFs (979 printed rows, benchmarks/local_ocr's checks) the rules
+  read 0 rows before and 920 now, 919 with the printed unit and 918 with the
+  printed range, and no row that is not printed; on the six such pages the
+  OCR benchmark ran GLM-OCR on, as many as its tables pass or more (34 against
+  7 on one). What the rules read also leaves the model's text more often:
+  a row of word results (`Negative`), a zero-padded lab code (`02`), a `#`
+  column and the layer's one-line copy of a header no longer keep a read row
+  in it; text handed to the model for those 16 documents went from 76,072 to
+  45,739 characters. To tell: the log line `pdf: … layer_table_page_count=N`.
+
 - **The cloud models are the ones vendors ship now.** `config.llm.yaml` still
   named September's: Claude Sonnet 5 and GPT-5.6 Terra. `claude-sonnet`
   (OpenRouter) now runs `anthropic/claude-sonnet-5.5` and `claude` (Anthropic)
@@ -313,6 +335,55 @@ decisions.
   that still sends them is not refused.
 
 ### Fixed
+
+- **One printed reading is stored once, whichever page it was read on.** The
+  merge compared a model row only with the table rules' rows, and the
+  dedup only name, value and date as written, so a check-up book read a page
+  at a time stored its summary page's `Apolipoprotein A1 1.69 g/L↑` beside the
+  table's `Apolipoprotein A1(ApoA1) 1.69`, and the same for ApoB and HBcAb
+  (benchmarks/local_models small-v2, 2026-10-07). Rows with one value
+  (`value_key`: the number less its flag, unit and copied range), one analyte
+  (one name, the name less its bracketed abbreviation or that abbreviation
+  alone, or one series by the vocabulary) and one date are now one row, and
+  the row that carries the printed range and unit is the one kept; a name a
+  misread character apart still counts only between the OCR's two passes.
+  `EO#` and `EO%` with one value stay two. A row whose value is a unit and
+  nothing else (`HGB | L`, `CREA | mmol/L`; 22 of them for that book, each a
+  `unit:conflict` series in the catalogue) is not stored. Replayed on
+  small-v2's stored rows for that book: 106 rows → 84, rows that are not
+  printed rows 28 → 6 (findings the corpus does not list), printed ranges
+  75 → 78 of 78 with the layer's tables. To tell: a book with a summary page
+  stores one apolipoprotein A1 reading, with its range.
+- **A flag printed after a unit or a word leaves the value.** A flag was split
+  off only right after a number or a unit glued to it, so `1.69 g/L↑` and
+  `0.58 g/L↓` were stored with the unit and arrow in the value and no number,
+  and `阳性 偏高`, `Positive H` and `++ H` with the flag in a word result. Now
+  an arrow or 偏高/偏低 comes off after anything, and `H` after a unit or a
+  result word; `L` still only when the printed range says low (`1.5 L` of
+  urine is litres). To tell: `1.69 g/L↑` is stored as 1.69 g/L, flag ↑.
+- **A page's print date no longer dates its readings.** A row's own
+  `date_time` was always honoured, and reading a book a page at a time the
+  model put a page's `Printed: 2026-08-23` on two rows, filed a fortnight
+  after the examination (2026-08-07). A row keeps its own date now only when
+  the rows print at least two different ones (a log, a table by day);
+  otherwise every row takes the document's. To tell: that book's readings
+  all sit on 2026-08-07, and a weight log keeps one day per row.
+- **A file named by the model keeps the upload's extension.** The model was
+  asked for `Date_Content_Description.extension` and wrote what it liked:
+  MiniCPM5-2B named a re-read PDF `2026-08-28_体检报告_摘要.ext` and another
+  `…_摘要.txt`, and GPT-6 Luna and GPT-6.1 Sol took the name for a second file
+  and tried to open it. The model now gives the name only, and the upload's
+  own extension is put on it (`utils/file_types.with_extension`), on both
+  naming paths. To tell: an uploaded PDF's generated name ends in `.pdf`.
+- **A cut readings answer says so before its rows.** The cut was one note
+  among several after the table, and MiniCPM5-2B, handed the newest 92 days
+  of a March-to-August window, answered that March and April had no data;
+  a raw answer cut at 50 rows per indicator said nothing but `truncated`. Both
+  now open with one plain sentence (`meta.cut`): the span shown, that earlier
+  data exists and is not missing, and the calls that show it (a coarser view,
+  `view=stats`, or `end=` the day before). Chat and MCP read the same
+  rendering; the REST envelope carries `cut`. To tell: a year of daily steps
+  asked by day starts "Only part of the data is shown".
 
 - **`view=stats` names a reading's own day.** Its `first_date` and
   `last_date` were the UTC date of the instant, so a report filed at local

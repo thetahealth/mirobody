@@ -155,6 +155,25 @@ TEXT_MIME_TYPES: set[str] = {
 }
 
 
+#: What a model writes where a file's extension goes when it was never told
+#: which one, beside the real ones in `MIME_BY_EXT`.
+_PLACEHOLDER_EXTS = {".ext", ".extension", ".file"}
+
+
+def with_extension(generated: str, extension: str) -> str:
+    """A model's name for an upload, ending in the upload's own `extension`
+    (`.pdf`, or "" for none) whatever extension the model wrote. The model is
+    asked for a name, never for a file type: MiniCPM5-2B named a re-read PDF
+    `2026-08-28_体检报告_摘要.ext` and another `…_摘要.txt` (the text it was
+    shown came as a .txt), and two models then took the name for a second
+    file and tried to open it (benchmarks/local_models, 2026-10-07)."""
+    stem = generated.strip()
+    root, ext = os.path.splitext(stem)
+    if root and (ext.lower() in MIME_BY_EXT or ext.lower() in _PLACEHOLDER_EXTS):
+        stem = root.rstrip(". ")
+    return f"{stem}{extension.lower()}" if stem else ""
+
+
 def _matches(filename: str, content_type: str | None, exts: set[str], mimes: set[str]) -> bool:
     if not filename:
         return False

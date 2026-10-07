@@ -59,7 +59,12 @@ those lie, the bytes; `extract.extract_text` by kind). A PDF gives up its
 embedded text layer page by page and only the pages that have none — scans —
 are rendered and handed to the vision model, one image at a time; a photo is
 downscaled and OCR'd; a spreadsheet or Word file never reaches a model at
-all. The result is cached by content hash through `th_files`, so the same
+all. When a document-OCR model is routed (its tables are read by their
+columns), a text-layer page also carries its tables as HTML, laid out from
+where the layer's characters sit (`extract._layer_tables`), so the table
+rules read a born-digital report without a model; only a text page whose
+layer lays out no table is rendered for the OCR model's tables pass. The
+result is cached by content hash through `th_files`, so the same
 bytes are never OCR'd twice, and the file summary is generated from that text
 rather than from the file.
 
@@ -507,7 +512,9 @@ ENABLE_INDICATOR_EXTRACTION: 1  # Set to 1 to enable indicator extraction
 ### Report Date
 
 `content_info.date_time` becomes the `start_time`/`end_time` of every reading
-extracted from the file. When the document shows no date (or one the parser
+extracted from the file. A row keeps a date of its own only when the rows
+print at least two different ones (a log, a table by day): a check-up book
+read a page at a time had a page's print date put on two of its rows. When the document shows no date (or one the parser
 cannot read), the readings are filed under the user's current time — and that
 fallback is **labelled**, not silent: each reading's `comment` JSON and the
 file row carry `date_source`:

@@ -114,7 +114,10 @@ def render_compact(envelope: tools.Envelope, columns: Sequence[str] | None = Non
     body = table or "(no rows)"
     if len(body) > MAX_RENDER_CHARS:
         body = body[:MAX_RENDER_CHARS] + f"\n… cut at {MAX_RENDER_CHARS} characters"
-    lines = [body, "", _meta_line(envelope.meta)]
+    # A cut answer says so before its rows: said after them, among the notes,
+    # it was missed (`tools.Meta.cut`).
+    lines = [envelope.meta.cut, "", body] if envelope.meta.cut else [body]
+    lines += ["", _meta_line(envelope.meta)]
     if envelope.assumptions:
         lines.append("notes: " + "; ".join(envelope.assumptions))
     if envelope.next_steps:
@@ -132,6 +135,7 @@ def render_rest(envelope: tools.Envelope) -> dict[str, Any]:
         "count": meta.row_count,
         "total": meta.catalog_total or meta.row_count,
         "truncated": meta.truncated,
+        **({"cut": meta.cut} if meta.cut else {}),
         "window": {"start": meta.window[0], "end": meta.window[1], "tz": meta.tz, "semantics": meta.window_semantics},
         "view": meta.view,
         "status": envelope.status,

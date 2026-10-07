@@ -46,6 +46,7 @@ every path returns an envelope, including the ones that failed.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import date, timedelta
 from typing import Any
 
 from mirobody.kernel import query, tools
@@ -194,7 +195,8 @@ class HealthIndicatorsService(RecordTool):
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
-        return _envelope_for(method, request, window, rows, fell_back=fell_back, bucket_cap=self._bucket_cap)
+        return _envelope_for(method, request, window, rows, fell_back=fell_back, bucket_cap=self._bucket_cap,
+                             row_cap=self._row_cap)
 
     async def _dispatch(
         self, hq: Any, method: str, subject_id: str, request: query.QueryRequest, window: query.Window
@@ -233,6 +235,7 @@ def _envelope_for(
     *,
     fell_back: bool = False,
     bucket_cap: int = query.BUCKET_CAP,
+    row_cap: int = query.ROW_CAP,
 ) -> tools.Envelope:
     rows = list(rows)
     dated = bool(request.start or request.end)
@@ -241,6 +244,11 @@ def _envelope_for(
     # count: read per indicator, every complete catalogue of two was "cut".
     truncated = bool(total and total > len(rows)) or (method != "catalog" and bool(_cut_indicators(rows)))
     semantics = _semantics(rows)
+    cut = ""
+    if truncated and method == "buckets":
+        cut = _cut_note(request.view, rows, bucket_cap)
+    elif truncated and method == "readings":
+        cut = _raw_cut_note(rows, row_cap)
     meta = tools.Meta(
         window=(window.start, window.end) if dated else ("", ""),
         tz=window.tz,
@@ -248,6 +256,7 @@ def _envelope_for(
         view="" if method == "catalog" else request.view,
         row_count=len(rows),
         truncated=truncated,
+        cut=cut,
         catalog_total=total if method == "catalog" else 0,
     )
     assumptions: list[str] = []
@@ -260,8 +269,6 @@ def _envelope_for(
             f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
             f"call again with indicators copied from it and view={request.view}"
         )
-    if method == "buckets" and truncated:
-        assumptions.append(_cut_note(request.view, rows, bucket_cap))
     if method == "buckets" and request.view in ("day", "week", "month"):
         assumptions.append(_DAY_VALUE_NOTE)
     if semantics == query.SEMANTICS_DATE_PADDED:
@@ -297,19 +304,50 @@ def _envelope_for(
     )
 
 
+#: Said in every cut notice: what a model concluded without it. MiniCPM5-2B,
+#: handed the latest 92 days of a March-to-August window with the cut said
+#: last, among the notes after the table, answered that March and April had
+#: no data (benchmarks/local_models small-v2, 2026-10-07).
+_NOT_MISSING = "exists and is not shown here; it is not missing"
+
+
 def _cut_note(view: str, rows: Sequence[Mapping[str, Any]], cap: int) -> str:
-    """What a cut bucket answer covers, and the one call that covers more.
+    """What a cut bucket answer shows, in plain words, and the calls that show
+    the rest: a coarser view, or the window that ends where this one starts.
     The span is stated because the window line still reads "all recorded
     data": MiniCPM5-2B, handed a year of days for "the past three months",
     answered with October to December, months the record does not have
     (2026-09-30, docs/local-models-roadmap.md)."""
     cut = _cut_indicators(rows)
-    periods = [str(r.get("period") or "") for r in rows if r.get("period") and str(r.get("indicator") or "") in cut]
-    span = f" ({min(periods)}..{max(periods)})" if periods else ""
+    periods = sorted(str(r.get("period") or "") for r in rows if r.get("period") and str(r.get("indicator") or "") in cut)
     at = query.BUCKETS.index(view) if view in query.BUCKETS else -1
     coarser = query.BUCKETS[at + 1] if 0 <= at < len(query.BUCKETS) - 1 else ""
-    wider = f"ask view={coarser} or name start and end" if coarser else "name start and end"
-    return f"cut to the latest {cap} {view} points per indicator{span}; for more, {wider}"
+    ways = [f"view={coarser}"] if coarser else []
+    if periods and (before := _day_before(periods[0])):
+        ways.append(f"end={before}")
+    span = f", {periods[0]} to {periods[-1]}" if periods else ""
+    rest = f" For it, call again with {' or with '.join(ways)}." if ways else ""
+    return f"Only part of the data is shown: the latest {cap} {view} points per indicator{span}. Earlier data {_NOT_MISSING}.{rest}"
+
+
+def _raw_cut_note(rows: Sequence[Mapping[str, Any]], cap: int) -> str:
+    """The same for raw rows, cut at `cap` per indicator, newest first."""
+    cut = _cut_indicators(rows)
+    times = sorted(str(r.get("time") or "") for r in rows if r.get("time") and str(r.get("indicator") or "") in cut)
+    ways = ["view=day", "view=stats"]
+    if times and (before := _day_before(times[0])):
+        ways.append(f"end={before}")
+    span = f", {times[0][:16]} to {times[-1][:16]}" if times else ""
+    return (f"Only part of the data is shown: the latest {cap} readings per indicator{span}. "
+            f"Older data {_NOT_MISSING}. For it, call again with {' or with '.join(ways)}.")
+
+
+def _day_before(stamp: str) -> str:
+    """The day before the local date that starts `stamp`, or "" for none."""
+    try:
+        return (date.fromisoformat(stamp[:10]) - timedelta(days=1)).isoformat()
+    except ValueError:
+        return ""
 
 
 def _cut_indicators(rows: Sequence[Mapping[str, Any]]) -> set[str]:

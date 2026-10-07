@@ -148,12 +148,17 @@ _BIRTH = re.compile(r"(?:出生|birth|dob|born)\W*$", re.I)
 _NUMBER = re.compile(r"^[<>≤≥]?\s*[-+]?\d+(?:\.\d+)?$")
 _RANGE = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*(?:-{1,2}|~|–|—|至)\s*([-+]?\d+(?:\.\d+)?)\s*$")
 _BOUND = re.compile(r"^\s*([<>≤≥]|<=|>=)\s*([-+]?\d+(?:\.\d+)?)\s*$")
-#: A flag printed after the number in the value cell, when the table has no
-#: flag column: right after the number (`7.2↑`, `3.1 L`), or after a unit glued
-#: to it (`7.49mmol/L偏高`, `50.5% H`). A letter after a unit needs a space
-#: before it, so the `L` of `mmol/L` is not read as low.
+#: A flag printed after the value in its own cell, when the table has no flag
+#: column: right after the number (`7.2↑`, `3.1 L`); after a unit, glued to the
+#: number or not (`7.49mmol/L偏高`, `1.69 g/L↑`, `50.5% H`); or after a result
+#: word (`阳性 偏高`, `Positive H`). A letter needs a space before it, so the
+#: `L` of `mmol/L` is not read as low. Measured on the 2026-10-07 small-model
+#: eval: with a digit required right before the arrow, a check-up book's
+#: summary rows `1.69 g/L↑` and `0.58 g/L↓` were stored as narratives, unit and
+#: arrow in the value; on the corpus's text-layer books, `阳性 偏高`, `Positive
+#: H` and `++ H` kept their flags in the value the same way.
 _TRAILING_FLAG = re.compile(r"^(.*?\d)\s*(↑↑|↓↓|↑|↓|偏高|偏低|高|低|HH|LL|H|L)$"
-                            r"|^(.*?\d\S*?)(↑↑|↓↓|↑|↓|偏高|偏低)$|^(.*?\d\S*)\s+(HH|LL|H|L)$")
+                            r"|^(.*?\S)\s*(↑↑|↓↓|↑|↓|偏高|偏低)$|^(.*?\S)\s+(HH|LL|H|L)$")
 #: A range or bound, then a unit after it in the same cell: `0-5.0 ng/mL`, or
 #: one that starts with a digit after a space (`4.0-10.0 10^9/L`), never glued
 #: digits (`3.5-5.51` is a range).
@@ -577,15 +582,18 @@ def status_of(value: str, ref: str, flag: str = "") -> str:
 
 
 def _split_flag(value: str, ref: str) -> tuple[str, str]:
-    """`(value, flag)` with a flag printed after the number moved out. A bare
+    """`(value, flag)` with a flag printed after the value moved out. A bare
     `L` is a flag only when the printed range says the value is low: `1.5 L`
-    of urine is litres."""
+    of urine is litres. A bare `H` after a word is a flag only after a result
+    word (`Positive H`), never after any other (`Vitamin H`)."""
     m = _TRAILING_FLAG.match(value.strip())
     if not m:
         return value, ""
     number, flag = next((m.group(i).strip(), m.group(i + 1)) for i in (1, 3, 5) if m.group(i) is not None)
     lead = re.match(r"\s*[-+]?\d+(?:\.\d+)?", number)
     if flag in ("L", "LL") and status_of(lead.group(0) if lead else number, ref) != "low":
+        return value, ""
+    if flag in ("H", "HH") and not lead and translate.parse_value(number, "").value_kind not in ("ordinal", "nominal"):
         return value, ""
     return number, flag
 
@@ -782,7 +790,10 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> dict
         return "admin"
     if re.fullmatch(r"(?i)rs\d+|i\d{4,}", name):
         return "admin"  # a genotype call: the genomics upload reads those
-    if not name or not value or _NUMBER.match(name) or _header(row):
+    if not name or not value or _NUMBER.match(name) or _header(row) or re.search(_DATE_VALUE, value):
+        # A date is never a result: a running footer laid under a table's
+        # columns (`Page 2 of 11 | Printed 2026-02-14 11:37:08`) was read as a
+        # value of 2026 (corpus p004_2026-02-14_e10a, text-layer tables).
         return None
     if _key(name) in _LABELS or _column(value):
         return None
@@ -975,7 +986,16 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
                and not (_RANGE_IN.search(c) and _range_cell(c))
                and (translate.parse_value(_split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c))]
     if not results:
-        return False
+        # A row of word results (`Urine protein(PRO) | Negative | 阴性 | 02`) is
+        # read when a read reading names it with that word and no other name
+        # in it went unread (the other half of a side-by-side panel). Left in,
+        # every urinalysis and serology row of a text-layer book went to the
+        # model a second time (corpus p002_2026-08-07_e04a).
+        named = {name for name, value in pairs if name in names and value in cells}
+        others = {c for i, c in enumerate(cells) if c and i not in codes and not _is_unit(c) and not _range_cell(c)
+                  and not _printed_flag(c)
+                  and translate.parse_value(_split_flag(c, "")[0], "").value_kind not in _RESULT_KINDS}
+        return bool(named) and others <= named
 
     def printed(c: str) -> set[str]:
         head = re.match(r"\s*([<>≤≥]?\s*[-+]?\d+(?:\.\d+)?)", c)
@@ -988,6 +1008,9 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
 #: this one's: what it holds was read from that report, on that report's day.
 _PREVIOUS = {"上次结果", "前次结果", "上次", "前次", "历史结果", "previous", "previousresult", "lastresult",
              "priorresult", "prior"}
+#: Header words of a column of row numbers (`# | Tests | Measured`): with one
+#: or two rows under the header, the numbers alone do not show it is one.
+_ROW_NUMBERS = {"#", "序号", "no", "编号"}
 
 
 def _code_columns(rows: list[list[str]]) -> frozenset[int]:
@@ -1000,10 +1023,16 @@ def _code_columns(rows: list[list[str]]) -> frozenset[int]:
     out = set()
     for i in range(max((len(r) for r in rows), default=0)):
         cells = [r[i].strip() for r in rows if i < len(r) and r[i].strip()]
-        if any(_key(c) in _PREVIOUS for c in cells):
+        if any(_key(c) in _PREVIOUS or _key(c) in _ROW_NUMBERS for c in cells):
             out.add(i)
             continue
         numbers = [c for c in cells if c.isdigit()]
+        if numbers and all(len(c) > 1 and c.startswith("0") for c in numbers):
+            # Zero-padded (`02`): a code, never a count, however few rows
+            # print it; a book's two-row glucose table kept its `Lab | 02`
+            # as an unread result, and both rows went to the model again.
+            out.add(i)
+            continue
         if len(numbers) < 3 or any(_column(c) in ("value", "out", "either") for c in cells):
             continue
         counts = [int(c) for c in numbers]
@@ -1065,7 +1094,10 @@ def without_rows(text: str, readings: list[dict[str, str]]) -> str:
         def tr(m: re.Match) -> str:
             cells = cells_of(m.group(0))
             if _header(cells):
+                # Each header word, and the whole header as a text layer
+                # prints it on one line (`Test Item Measured … Lab`).
                 headings.update(_fold(c) for c in cells if c)
+                headings.add(_fold("".join(cells)))
             if _row_read(cells, pairs, codes) or _admin(next((c for c in cells if c), "")):
                 # A patient-details row holds nothing for a model either, and
                 # neither does the text pass's copy of it (`68岁`).
@@ -1136,37 +1168,66 @@ def left_for_model(text: str) -> str:
     return "\n".join(keep)
 
 
-def same_reading(a: dict, b: dict) -> bool:
-    """Whether two extractions name the same printed row: the same value (less
-    a trailing flag: `6.49↑` / `6.49`), and names a misread character apart
-    (`γ-谷氨酰转移酶` / `y-谷氨酰转移酶`) or names the vocabulary files under
-    one series (`血红蛋白（HGB）` / `血红蛋白` / `HGB` / `Hemoglobin`). Measured
-    on the 2026-10-07 small-model eval: the rule row `血红蛋白（HGB） 153` and
-    the model's `血红蛋白 153` were both stored, one printed row twice. Two
-    analytes with one value (`EO%` and `EO#`, both 0.6) stay two readings."""
-    if not _same_value(str(a.get("value", "")), str(b.get("value", ""))):
+def same_reading(a: dict, b: dict, *, misread: bool = False) -> bool:
+    """Whether two extractions name the same printed reading: the same value
+    (`value_key`: one number less its flag, unit and copied range, `6.49↑` /
+    `6.49` / `1.69 g/L↑` / `1.69`), and the same analyte: one name, one name
+    less its bracketed abbreviation or that abbreviation alone
+    (`Apolipoprotein B(ApoB)` / `Apolipoprotein B` / `ApoB`), or names the
+    vocabulary files under one series (`血红蛋白（HGB）` / `HGB` /
+    `Hemoglobin`). With `misread`, names a character apart too (`γ-谷氨酰转移酶`
+    / `y-谷氨酰转移酶`): two OCR passes of one page, the tables pass's row
+    against the text pass's, never two rows of one text (`HBsAg` / `HBeAg`,
+    both `Negative`, are 0.85 alike).
+
+    Measured on the 2026-10-07 small-model eval: the rule row `血红蛋白（HGB）
+    153` and the model's `血红蛋白 153` were both stored, and a check-up book's
+    summary page stored `Apolipoprotein A1 1.69 g/L↑` and `Apolipoprotein B
+    0.58 g/L↓` beside the table's rows. Two analytes with one value (`EO%` and
+    `EO#`, both 0.6) stay two readings."""
+    if value_key(str(a.get("value", ""))) != value_key(str(b.get("value", ""))):
         return False
-    names = [str(r.get("original_indicator", "")).strip() for r in (a, b)]
-    x, y = (_key(n) for n in names)
-    if not x or not y:
-        return False
-    if x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.8:
-        return True
-    series = _series_of_name(names[0])
-    return bool(series) and series == _series_of_name(names[1])
+    return _same_analyte(str(a.get("original_indicator", "")).strip(), str(b.get("original_indicator", "")).strip(),
+                         misread=misread)
 
 
-def _same_value(a: str, b: str) -> bool:
-    """The same printed value: as text, or as one number less a trailing flag
-    and less the range a model copied with it: on the OCR benchmark
-    (2026-10-07) MiniCPM5-2B returned a slip's whole cell, `2.873 (0.270 -
-    4.200)&mIU/L`, beside the rule's `2.873`."""
-    if a.strip() == b.strip():
+#: A name's trailing bracketed part: an abbreviation (`(HGB)`, `（ApoB）`).
+_BRACKETED = re.compile(r"^(.*?)\s*[(（]([^()（）]+)[)）]\s*$")
+
+
+def _base_and_bracket(name: str) -> tuple[str, str]:
+    """(the name less a trailing bracketed part, that part), keyed."""
+    m = _BRACKETED.match(name)
+    return (_key(m.group(1)), _key(m.group(2))) if m else (_key(name), "")
+
+
+def _same_analyte(x: str, y: str, *, misread: bool) -> bool:
+    kx, ky = _key(x), _key(y)
+    if not kx or not ky:
+        return False
+    (bx, ax), (by, ay) = _base_and_bracket(x), _base_and_bracket(y)
+    # One name, the same name less its bracket, or the bracket alone; never
+    # two brackets alike under two names (`Glucose(GLU)`, `Urine glucose(GLU)`).
+    if kx == ky or (bx and bx == by) or (ax and ax == ky) or (ay and ay == kx):
         return True
-    x, y = (translate.parse_value(_split_flag((_value_parts(v.strip()) or (v.strip(),))[0], "")[0], "")
-            for v in (a, b))
-    return (x.value_kind == y.value_kind == "quantity" and x.value_num == y.value_num
-            and x.comparator == y.comparator)
+    if misread and difflib.SequenceMatcher(None, kx, ky).ratio() >= 0.8:
+        return True
+    series = _series_of_name(x)
+    return bool(series) and series == _series_of_name(y)
+
+
+def value_key(value: str) -> tuple:
+    """What two printings of one value share: the number and its comparator,
+    less a trailing flag, a unit and a range a model copied with it (on the
+    OCR benchmark, 2026-10-07, MiniCPM5-2B returned a slip's whole cell,
+    `2.873 (0.270 - 4.200)&mIU/L`, beside the rule's `2.873`); else the text
+    less its flag, case set aside (`Positive H` / `positive`)."""
+    v = value.strip()
+    head = _split_flag((_value_parts(v) or (v,))[0], "")[0].strip()
+    parsed = translate.parse_value(head, "")
+    if parsed.value_kind == "quantity" and parsed.value_num is not None:
+        return ("number", parsed.value_num, parsed.comparator)
+    return ("text", head.casefold())
 
 
 @functools.lru_cache(maxsize=4096)
@@ -1180,4 +1241,4 @@ def _series_of_name(name: str) -> str:
     return coding.series_id if coding.coded else ""
 
 
-__all__ = ["EXTRACTOR", "left_for_model", "same_reading", "status_of", "table_indicators", "without_rows"]
+__all__ = ["EXTRACTOR", "left_for_model", "same_reading", "status_of", "table_indicators", "value_key", "without_rows"]
