@@ -183,8 +183,8 @@ agent = [
     "jinja2",
     # `utils/config` — the client factory, the checkpointer and the registry
     # read configuration through it. `mirobody.utils` itself resolves its
-    # re-exports lazily, so importing one helper (`utils.sse`, `utils.net`, …)
-    # pulls none of this.
+    # re-exports lazily, so importing one helper (`utils.sse`, `utils.prompts`,
+    # …) pulls none of this.
     "ruamel.yaml",
     "python-dotenv",
     "cryptography",

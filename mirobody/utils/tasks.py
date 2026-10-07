@@ -60,8 +60,3 @@ def spawn(coro: Coroutine[Any, Any, Any], *, name: str | None = None) -> asyncio
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_log_result)
     return task
-
-
-def pending_count() -> int:
-    """How many spawned tasks are still running. For diagnostics and tests."""
-    return len(_BACKGROUND_TASKS)
