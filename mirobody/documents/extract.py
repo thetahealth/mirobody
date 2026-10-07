@@ -517,24 +517,29 @@ def _table_lines(rows) -> list[str]:
 def docx_text_sync(data: bytes) -> str:
     """Sync: paragraphs (headings as markdown headings) and tables, in order of
     appearance. A lab report saved as .docx is text and a table, not a layout
-    problem."""
+    problem. Read all paragraphs first and all tables after, every panel's
+    table landed under the document's last heading, away from the one naming it."""
     import docx
+    from docx.table import Table
 
     document = docx.Document(io.BytesIO(data))
     parts: list[str] = []
-    for para in document.paragraphs:
-        text = (para.text or "").strip()
+    tables = 0
+    for block in document.iter_inner_content():
+        if isinstance(block, Table):
+            tables += 1
+            parts.append(f"## Table {tables}")
+            parts.extend(_table_lines(block.rows))
+            continue
+        text = (block.text or "").strip()
         if not text:
             continue
-        style = (para.style.name or "") if para.style else ""
+        style = (block.style.name or "") if block.style else ""
         if style.startswith("Heading"):
             level = style.removeprefix("Heading ").strip()
             parts.append("#" * (int(level) + 1 if level.isdigit() else 2) + f" {text}")
         else:
             parts.append(text)
-    for i, table in enumerate(document.tables, 1):
-        parts.append(f"## Table {i}")
-        parts.extend(_table_lines(table.rows))
     return "\n".join(parts).strip()
 
 
