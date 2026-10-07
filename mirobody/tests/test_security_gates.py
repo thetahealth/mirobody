@@ -392,3 +392,53 @@ def test_a_read_grant_does_not_export_a_members_genome(monkeypatch):
     assert answer.json()["code"] == 403 and not read
     own = client.get("/api/v1/genomics/export.vcf", params={"build": "GRCh38"})
     assert own.json()["code"] == 404 and read == [{"user_id": "7"}]
+
+
+def _oauth_platform(monkeypatch, callback):
+    """A registered platform `acme` whose one OAuth2 provider's callback is
+    `callback`, as the vendor callback route finds it."""
+    from mirobody.collect import LinkType, platform_manager
+
+    class Provider:
+        info = type("Info", (), {"auth_type": LinkType.OAUTH2})()
+
+        async def callback(self, code, state):
+            return await callback(code, state)
+
+    class Platform:
+        def get_provider(self, slug):
+            return Provider()
+
+    monkeypatch.setitem(platform_manager._platforms, "acme", Platform())
+
+
+def _completion_page(html: str) -> dict:
+    import json
+    import re
+
+    return json.loads(re.search(r"var page = (.*?);\n", html).group(1))
+
+
+def test_a_failed_vendor_callback_shows_a_code_not_the_exception(monkeypatch):
+    async def callback(code, state):
+        raise RuntimeError("token exchange failed for you@mirobody.ai")
+
+    _oauth_platform(monkeypatch, callback)
+    client, _ = _router_app("public_router")
+    html = client.get("/api/v1/pulse/acme/acme_watch/callback", params={"code": "x"}).text
+    assert "mirobody.ai" not in html
+    page = _completion_page(html)
+    assert page["message"]["error"] == "oauth_failed" and page["message"]["success"] is False
+    # The opener is told only on this deployment's own origin, never "*".
+    assert page["targets"] == ["http://testserver"]
+
+
+def test_the_completion_page_cannot_be_closed_from_inside(monkeypatch):
+    async def callback(code, state):
+        return {"note": "</script><script>alert(1)</script>"}
+
+    _oauth_platform(monkeypatch, callback)
+    client, _ = _router_app("public_router")
+    html = client.get("/api/v1/pulse/acme/acme_watch/callback", params={"code": "x"}).text
+    assert html.count("</script>") == 1
+    assert _completion_page(html)["message"]["data"] == {"note": "</script><script>alert(1)</script>"}
