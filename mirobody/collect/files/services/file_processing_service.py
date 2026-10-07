@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from mirobody.collect.files.errors import failure_reason
 from mirobody.collect.files.file_processor import FileProcessor
 from mirobody.collect.files.memory_upload_file import MemoryUploadFile
+from mirobody.collect.files.services.report_date import file_source_ref
 from mirobody.collect.files.services.file_uploader import (
     generate_file_key,
     validate_file_extension,
@@ -152,9 +153,10 @@ async def _invalidate_derived_profile(owner_id: str) -> None:
         # a projection that selects `is_deleted = false`, so the UPDATE above
         # removes the agent's view of the profile as a side effect of
         # invalidating the profile. That is the whole point of the projection.
-        logger.info(f"Invalidated derived health profile for user {owner_id}")
+        logger.info("derived health profile invalidated: user_id=%s", owner_id)
     except Exception as e:
-        logger.error(f"FAILED to invalidate derived profile for {owner_id}: {e}", exc_info=True)
+        logger.error("invalidating a derived health profile failed: user_id=%s error_type=%s", owner_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
 
 
 async def delete_files_from_message(
@@ -162,36 +164,28 @@ async def delete_files_from_message(
     file_keys: list[str],
     user_id: str
 ) -> dict[str, Any]:
-    """
-    Delete specific files from th_files table.
-    
-    Now operates on th_files table instead of th_messages.
-    
+    """Delete the caller's files `file_keys`: the `th_files` row (soft) and
+    the object in storage, then, in the background, what was extracted from
+    each, under the owner of the record it was filed in.
+
     Args:
         message_id: The source ID (created_source_id in th_files)
         file_keys: List of file keys to delete
         user_id: User ID for authorization
-    
+
     Returns:
         Dict containing deletion results
     """
     from .file_db_service import FileDbService
-    
+
     try:
-        logger.info(f"Starting file deletion from th_files: source_id={message_id}, file_keys={file_keys}")
-        
-        # Track deletion results
         deleted_files = []
         failed_deletions = []
-        
-        # Process each file key
-        # Track query_user_id for cascade delete (observations are stored under the target user)
-        cascade_delete_user_id = None
-        
+        #: Each deleted file's record owner: a care-circle upload's readings
+        #: are the member's, whoever uploaded the file.
+        owners: dict[str, str] = {}
         for file_key in file_keys:
-            # Get file info first
             file_record = await FileDbService.get_file_by_key(file_key, user_id)
-            
             if not file_record:
                 failed_deletions.append({
                     "file_key": file_key,
@@ -201,22 +195,12 @@ async def delete_files_from_message(
                     "error": "File not found"
                 })
                 continue
-            
+
             filename = file_record.get("file_name", "")
             file_type = file_record.get("file_type", "other")
-            scene = file_record.get("scene", "")  # Get scene for determining file category
-            
-            # Get query_user_id for cascade delete (observations use query_user_id as user_id)
-            if not cascade_delete_user_id:
-                cascade_delete_user_id = file_record.get("query_user_id") or user_id
-            
-            # Delete from storage
             storage_deleted = await delete_file_from_storage(file_key=file_key)
-            
             # Soft delete from database (even if storage deletion fails)
-            db_deleted = await FileDbService.soft_delete_file(file_key, user_id)
-            
-            if db_deleted:
+            if await FileDbService.soft_delete_file(file_key, user_id):
                 # Nothing to revoke any more. The agent's view of a file is a
                 # projection of THIS row (deep/files_backend.py selects
                 # `is_del = false`), so soft-deleting it here is the whole of it.
@@ -224,11 +208,11 @@ async def delete_files_from_message(
                     "file_key": file_key,
                     "filename": filename,
                     "type": file_type,
-                    "scene": scene,  # Pass scene for cascade delete logic
+                    "scene": file_record.get("scene", ""),
                     "status": "deleted",
                     "storage_deleted": storage_deleted,
                 })
-                logger.info(f"Successfully deleted file: {file_key}")
+                owners[file_key] = str(file_record.get("query_user_id") or user_id)
             else:
                 failed_deletions.append({
                     "file_key": file_key,
@@ -237,22 +221,17 @@ async def delete_files_from_message(
                     "status": "failed",
                     "error": "Database deletion failed"
                 })
-        
+
         # The profile is derived from the readings the cascade is about to remove,
         # and it quotes them. Invalidate it inline: a background failure here
         # leaves deleted values in the model's system prompt.
+        for owner in sorted(set(owners.values())):
+            await _invalidate_derived_profile(owner)
         if deleted_files:
-            await _invalidate_derived_profile(cascade_delete_user_id or user_id)
+            _start_background_cascade_delete(message_id, [(f, owners[f["file_key"]]) for f in deleted_files])
 
-        # Start background cascade delete task for successfully deleted files
-        # Use query_user_id (target user) for the observation erase
-        if deleted_files:
-            _start_background_cascade_delete(
-                message_id=message_id,
-                user_id=cascade_delete_user_id or user_id,
-                deleted_files=deleted_files
-            )
-        
+        logger.info("files deleted: message_id=%s deleted=%d failed=%d", message_id, len(deleted_files),
+                    len(failed_deletions))
         return {
             "success": len(deleted_files) > 0,
             "message_id": message_id,
@@ -261,70 +240,51 @@ async def delete_files_from_message(
             "remaining_files_count": 0,  # Not applicable for th_files
             "message_deleted": False
         }
-        
+
     except Exception as e:
-        logger.error(f"Error in delete_files_from_message: {str(e)}", stack_info=True)
+        logger.error("deleting files failed: message_id=%s error_type=%s", message_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return {
             "success": False,
-            "error": f"Internal error: {str(e)}",
+            "error": "Internal error",
             "message_id": message_id
         }
 
 
 async def delete_file_from_storage(file_key: str) -> bool:
-    """
-    Delete a file from storage using unified storage client
-
-    Args:
-        file_key: The storage key of the file
-
-    Returns:
-        bool: True if deletion successful, False otherwise
-    """
+    """Delete a file's object from storage; whether it went."""
     try:
-        # Get storage client at runtime
-        storage = get_storage_client()
-        
-        # Use unified storage client
-        err = await storage.delete(file_key)
-
-        if err:
-            logger.warning(f"Failed to delete file {file_key}: {err}")
-            return False
-
-        return True
-        
+        err = await get_storage_client().delete(file_key)
     except Exception as e:
-        logger.error(f"Error deleting file from storage: {str(e)}", stack_info=True)
+        logger.error("deleting a stored file failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return False
+    if err:
+        logger.warning("deleting a stored file failed: file_key=%s", file_key)
+        return False
+    return True
 
 
 async def delete_all_files_from_message(
     message_id: str,
     user_id: str
 ) -> dict[str, Any]:
-    """
-    Delete all files associated with a source ID from th_files table.
-    
-    Now operates on th_files table instead of th_messages.
-    
+    """`delete_files_from_message` for every file of `message_id` the caller
+    owns.
+
     Args:
         message_id: The source ID (created_source_id in th_files)
         user_id: User ID for authorization
-    
+
     Returns:
         Dict containing deletion results
     """
     from .file_db_service import FileDbService
-    
+
     try:
-        logger.info(f"Starting deletion of all files for source_id={message_id}")
-        
-        # Get all files for this source_id
         files = await FileDbService.get_files_by_source(user_id=user_id, created_source_id=message_id)
-        
-        if not files:
-            logger.info(f"No files found for source_id={message_id}")
+        file_keys = [f.get("file_key") for f in files if f.get("file_key")]
+        if not file_keys:
             return {
                 "success": True,
                 "message_id": message_id,
@@ -332,169 +292,55 @@ async def delete_all_files_from_message(
                 "failed_deletions": [],
                 "note": "No files found"
             }
-        
-        # Extract file keys
-        file_keys = [f.get("file_key") for f in files if f.get("file_key")]
-        
-        if not file_keys:
-            logger.info(f"No valid file_keys found for source_id={message_id}")
-            return {
-                "success": True,
-                "message_id": message_id,
-                "deleted_files": [],
-                "failed_deletions": [],
-                "note": "No valid file keys found"
-            }
-        
-        # Delete all files
         return await delete_files_from_message(
             message_id=message_id,
             file_keys=file_keys,
             user_id=user_id
         )
-        
+
     except Exception as e:
-        logger.error(f"Error in delete_all_files_from_message: {str(e)}", stack_info=True)
+        logger.error("deleting a message's files failed: message_id=%s error_type=%s", message_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
         return {
             "success": False,
-            "error": f"Internal error: {str(e)}",
+            "error": "Internal error",
             "message_id": message_id
         }
 
 
-async def _background_cascade_delete_by_file_info(
-    message_id: str,
-    user_id: str,
-    deleted_files: list[dict[str, Any]]
-) -> None:
-    """
-    Background task to cascade delete related health data (observations and genetic data) for deleted files.
-
-    Strategy:
-    - For genetic files (type='genetic'): Delete genetic data from th_genetic_data table
-    - For non-genetic files: Erase the observations extracted from the file
-    
-    Args:
-        message_id: Message ID containing the deleted files
-        user_id: User ID
-        deleted_files: List of deleted file info containing file_key and filename
-    """
-    try:
-        logger.info(f"Starting background cascade delete task: message_id={message_id}, user_id={user_id}, files_count={len(deleted_files)}")
-        
-        # Process cascade delete for each deleted file
-        for file_info in deleted_files:
-            file_key = file_info.get("file_key", "")
-            scene = file_info.get("scene", "")  # Use scene to determine file category
-            
-            # Different deletion strategy based on scene
-            if scene == "genetic":
-                # For genetic files, delete from th_series_data_genetic using file_key
-                genetic_delete_success = await _delete_genetic_data_background(user_id, file_key)
-                if genetic_delete_success:
-                    logger.info("genetic data deleted: user_id=%s", user_id)
-                else:
-                    logger.warning("genetic data deletion found no rows: user_id=%s", user_id)
-            else:
-                # For non-genetic files (report, etc.), erase their observations
-                await _delete_th_series_data_background(user_id, "th_files", message_id, file_key)
-        
-        logger.info(f"Background cascade delete task completed successfully: message_id={message_id}, user_id={user_id}")
-        
-    except Exception as e:
-        logger.error("cascade delete failed: message_id=%s user_id=%s error_type=%s",
-                     message_id, user_id, type(e).__name__,
-                     exc_info=not is_driver_exception(e))
-
-
-async def _delete_th_series_data_background(
-    user_id: str, 
-    source_table: str, 
-    message_id: str, 
-    file_key: str | None = None
-) -> None:
-    """
-    Erase a file's observations in a background task (the privacy DELETE).
-
-    `source_table = 'th_files'` for new data; the source_ref of a file's
-    observations is `th_files:<file_key>`. Supports source_table_id formats:
-    - New format: file_key directly
-    - Old format: msg_id_#_file_key_hash (rows migrated from the retired table)
-    - Legacy format: msg_id only
-    
-    Args:
-        user_id: User ID
-        source_table: Source table name (th_files for new data)
-        message_id: Source ID (created_source_id in th_files)
-        file_key: File key for precise deletion
-    """
+async def _background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
+    """Erase what was extracted from each deleted file, under the owner of
+    the record it was filed in: a genotype file's sets, any other file's
+    observations (their coding and frozen extraction go with them). This is
+    the privacy path: one file whose erase fails does not stop the others,
+    and the failure is logged as one."""
     from mirobody.collect import observations
 
-    try:
-        # Deleting the file is the privacy path: the observations extracted
-        # from it, their coding and their frozen extraction go with it.
-        source_ref = f"{source_table}:{file_key or message_id}"
-        delete_count = await observations.erase(str(user_id), source_ref=source_ref)
-        logger.info(f"observation deletion successful: user_id={user_id}, file_key={file_key}, deleted_count={delete_count}")
-
-    except Exception as e:
-        logger.warning(f"observation deletion failed: user_id={user_id}, source_id={message_id}, file_key={file_key}, error={str(e)}", stack_info=True)
-        raise
-
-
-async def _delete_genetic_data_background(user_id: str, file_key: str) -> bool:
-    """
-    Delete genetic data in background task
-    
-    Args:
-        user_id: User ID
-        file_key: File key (used as source_table_id)
-        
-    Returns:
-        bool: True if deletion was successful, False otherwise
-    """
-    try:
-        # Use file_key as source_table_id with source_table = "th_files"
-        delete_success = await delete_genetic_data_by_source(
-            user_id, 
-            "th_files", 
-            file_key
-        )
-        
-        if delete_success:
-            logger.info(f"Genetic data deletion successful: user_id={user_id}, file_key={file_key}")
-        else:
-            logger.info(f"No genetic data found for deletion: user_id={user_id}, file_key={file_key}")
-            
-        return delete_success
-
-    except Exception as e:
-        logger.warning(f"Genetic data deletion failed: user_id={user_id}, file_key={file_key}, error={str(e)}", stack_info=True)
-        return False
+    failed = 0
+    for file_info, owner in deleted:
+        file_key = file_info["file_key"]
+        try:
+            if file_info.get("scene") == "genetic":
+                # `delete_genetic_data_by_source` logs its own failure.
+                if not await delete_genetic_data_by_source(owner, "th_files", file_key):
+                    failed += 1
+            else:
+                await observations.erase(owner, source_ref=file_source_ref(file_key))
+        except Exception as e:
+            failed += 1
+            logger.error("erasing a deleted file's data failed: file_key=%s error_type=%s", file_key,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+    logger.info("cascade delete finished: message_id=%s file_count=%d failed=%d", message_id, len(deleted), failed)
 
 
-def _start_background_cascade_delete(
-    message_id: str,
-    user_id: str,
-    deleted_files: list[dict[str, Any]]
-) -> None:
-    """
-    Start background cascade delete task
-    
-    Args:
-        message_id: Message ID
-        user_id: User ID
-        deleted_files: List of deleted file information
-    """
-    # spawn() keeps a strong reference until completion: a bare
-    # asyncio.create_task here left the task GC-collectable mid-delete
-    # (the exact failure mode utils/tasks.py documents).
-    logger.info(f"Creating background cascade delete task - message_id: {message_id}, user_id: {user_id}, files_count: {len(deleted_files)}")
+def _start_background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
+    """Start `_background_cascade_delete` under `spawn`: a bare
+    `asyncio.create_task` left the task GC-collectable mid-delete (the exact
+    failure mode utils/tasks.py documents)."""
     from mirobody.utils.tasks import spawn
-    spawn(
-        _background_cascade_delete_by_file_info(message_id, user_id, deleted_files),
-        name=f"cascade-delete-{message_id}",
-    )
+
+    spawn(_background_cascade_delete(message_id, deleted), name=f"cascade-delete-{message_id}")
+
 
 async def upload_files_to_storage(
     files: list[UploadFile], 
