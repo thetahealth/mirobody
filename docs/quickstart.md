@@ -55,7 +55,7 @@ do not need Git LFS. With no model yet, it prints the link to the first-run
 page: paste **one** model key there, or choose **100% on this machine** to run
 every model locally on [llama.cpp](local-models.md) (`llama-server`, the local
 model runtime Mirobody ships a preset for; the default pair needs 16 GB of
-memory and no GPU, and without a GPU a first answer takes 2–3 minutes). A key
+memory and no GPU, and without a GPU a first answer takes minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server). A key
 can also go in `.env`, followed by `docker compose up -d` (a `restart` does not
 reread `.env`). Check available model features inside the server container:
 

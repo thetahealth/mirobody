@@ -60,16 +60,19 @@ start command for Windows, Linux and macOS.
 | Download, reader included | 3.0 GB | 14.5 GB |
 | Memory, both models loaded | 5.7 GB at most while answering | about 20 GB |
 | Runs on | any computer with 16 GB of memory, no GPU: Windows, Linux or macOS | a 32 GB Mac, or a 24 GB NVIDIA GPU |
-| Median answer | 29 s, Apple M1 Pro 16 GB | about 2 min (134 s), Apple M4 Pro 48 GB |
+| Median answer | 29 s, Apple M1 Pro 16 GB, on its GPU | about 2 min (134 s), Apple M4 Pro 48 GB, on its GPU |
 | A photo in the chat | read as its OCR text: it cannot see | looked at |
 | On the evaluation | 19 of 24 questions passed (grade 215 of 248), 140 of 140 printed rows, 22 of 31 journal entries | 16 of 16 runs of an earlier 8-question set, no number the record lacks; not run on the 24 questions below |
 
 The answer times are Apple silicon's, where llama.cpp runs on the GPU. With
-no GPU it is minutes, not seconds: in llama.cpp's CPU image on 4 vCPUs (Linux,
-2026-10-07) MiniCPM5-2B reads about 50 tokens a second and writes about 18, so
-a first answer takes 2–3 minutes and later turns reuse the server's prompt
-cache; the two models hold about 6.0 GiB, so Docker needs at least 8 GB of
-memory ([local-models.md](local-models.md#without-a-gpu)).
+no GPU it is minutes, not seconds, and how many depends on the processor. In
+llama.cpp's CPU image on 4 vCPUs (2026-10-07), MiniCPM5-2B wrote about 18
+tokens a second on an Apple M1 Pro (colima's arm64 VM), a first answer in 2–3
+minutes, and 3 to 7 on an Intel Xeon Gold 5220R (an external review), a first
+answer in up to about 15 minutes with the download, a report photo in up to
+about 9 and a PDF page in up to about 12. Later turns reuse the server's
+prompt cache; the two models hold about 6.0 GiB, so Docker needs at least 8 GB
+of memory ([local-models.md](local-models.md#without-a-gpu)).
 
 On the evaluation below, on the final code, the small size passes 19 of 24
 questions (Claude Code grade 215 of 248), stores all 140 printed rows of the
@@ -373,9 +376,10 @@ pins no host: OpenRouter routes it under your account's settings.
 ### Privacy first, on an ordinary computer
 
 The small size: `./deploy.sh`, then **100% on this machine** on the page it
-links. 16 GB of memory, no GPU, 3.0 GB to download. Expect about 29 s an
-answer on an M1 Pro (2–3 minutes for a first answer on a CPU alone), every
-printed row of a lab report stored, and most
+links. 16 GB of memory, no GPU, 3.0 GB of models to download and about 0.7 GB
+of images. Expect about 29 s an answer on an M1 Pro's GPU; on a CPU alone a
+first answer takes minutes, from 2–3 on an M1 Pro's cores to about 15 on a
+4-vCPU x86 server. Expect every printed row of a lab report stored, and most
 questions answered right (19 of 24); it is weakest where it works out an
 average or a chart's window itself. Nothing about you leaves the machine.
 

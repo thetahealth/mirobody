@@ -169,8 +169,9 @@ MODELS:
     # The local agent: MiniCPM5-2B, the `minicpm5-2b` section of
     # docker/local-models.ini on llama.cpp's router: the small size, which an
     # ordinary computer runs (16 GB, no GPU) and the setup page opens on.
-    # LOCAL_MODEL=qwen3.8-27b (or the page's large size) answers better with
-    # about 20 GB of memory. No key, and off until LOCAL_BASE_URL is set:
+    # LOCAL_MODEL=qwen3.8-27b (or the page's large size) needs about 20 GB of
+    # memory and looks at photos; it has not been run on the 24-question
+    # evaluation. No key, and off until LOCAL_BASE_URL is set:
     #   LOCAL_BASE_URL=http://127.0.0.1:8080/v1                (the app on this machine)
     #   LOCAL_BASE_URL=http://host.docker.internal:8080/v1     (the app in Docker)
     llm_type: openai
