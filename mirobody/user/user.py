@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 
 # Type-checking only: `AsyncConnectionPool` appears in two parameter
@@ -261,6 +262,29 @@ async def prove_address(user_id: int) -> bool:
     _valid_after[int(user_id)] = after
     return after == cutoff
 
+
+#: The shapes `health_app_user.birth` arrives in. The column is free text
+#: (`character varying`), written by every client that ever set it.
+_BIRTH_FORMATS = ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d")
+
+
+def age_from_birth(birth: date | str | None) -> int | None:
+    """Whole years since `birth` (`health_app_user.birth`), or None when it
+    is not a date. A time after the date is ignored."""
+    if isinstance(birth, datetime):
+        birth = birth.date()
+    if not isinstance(birth, date):
+        text = str(birth or "").strip()[:10]
+        for fmt in _BIRTH_FORMATS:
+            try:
+                birth = datetime.strptime(text, fmt).date()
+                break
+            except ValueError:
+                continue
+        else:
+            return None
+    today = date.today()
+    return today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day))
 
 #-----------------------------------------------------------------------------
 

@@ -168,10 +168,9 @@ async def get_session_summaries_by_person(user_id: str) -> list[dict[str, any]]:
             # is wrong for everyone whose birthday has not happened yet this year:
             # roughly half of all users at any moment, each reported one year too
             # old, in the profile block that goes into the agent's context.
-            # `_calculate_age` compares (month, day) and already existed; this path
-            # simply wasn't using it.
-            from mirobody.user.profile import BasicInfoService
-            user_age = BasicInfoService._calculate_age(user_birth)
+            # `age_from_birth` compares (month, day).
+            from mirobody.user.user import age_from_birth
+            user_age = age_from_birth(user_birth)
             if user_age is None:
                 user_age = ""
 

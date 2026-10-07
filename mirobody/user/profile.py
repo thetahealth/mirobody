@@ -2,13 +2,14 @@ import asyncio
 import logging
 import re
 from typing import Any
-from datetime import datetime, date
 
 
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
 from mirobody.utils.llm_output import strip_code_fence
 from mirobody.utils.config import safe_read_cfg
+
+from .user import age_from_birth
 
 logger = logging.getLogger(__name__)
 
@@ -651,32 +652,6 @@ class BasicInfoService:
         return gender_map.get(gender, 'Unknown' if not is_chinese else '未知')
     
     @staticmethod
-    def _calculate_age(birth: str | None) -> int | None:
-        """
-        Calculate age based on birth date
-        
-        Args:
-            birth: Birth date string (format: YYYY-MM-DD or other common formats)
-            
-        Returns:
-            Age
-        """
-        if not birth:
-            return None
-        
-        try:
-            if isinstance(birth, date):
-                birth_date = birth
-            else:
-                birth_date = datetime.strptime(str(birth)[:10], "%Y-%m-%d").date()
-            
-            today = date.today()
-            age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-            return age
-        except (ValueError, TypeError):
-            return None
-    
-    @staticmethod
     async def get_user_basic_info(user_id: str) -> dict[str, Any]:
         """
         Get user basic information from health_app_user table
@@ -715,7 +690,7 @@ class BasicInfoService:
             return {
                 "blood_type": result.get('blood'),
                 "gender": BasicInfoService._convert_gender_to_text(raw_gender, lang),
-                "age": BasicInfoService._calculate_age(birth),
+                "age": age_from_birth(birth),
                 "language": lang
             }
         logger.info(f"No basic info found for user: {user_id}")
