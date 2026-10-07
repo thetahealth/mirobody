@@ -11,7 +11,7 @@ class ImageHandler(BaseFileHandler):
     def get_type_name(self) -> str:
         return "image"
 
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
+    async def _process_content(self, ctx: FileProcessingContext, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
         if ctx.progress_callback:
             await ctx.progress_callback(55, localize("extracting_content", language, "file_processor"))
 

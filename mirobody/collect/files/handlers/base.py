@@ -63,13 +63,11 @@ class BaseFileHandler(abc.ABC):
         self, 
         uploader=None, 
         temp_manager=None, 
-        content_extractor=None, 
         indicator_extractor=None,
         abstract_extractor=None
     ):
         self.uploader = uploader
         self.temp_manager = temp_manager
-        self.content_extractor = content_extractor
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
         # Strong references to background tasks to prevent GC before completion
@@ -81,24 +79,18 @@ class BaseFileHandler(abc.ABC):
         try:
             language = request_language()
             
+            await ctx.file.seek(0)
+            if not await ctx.file.read(1):
+                raise ValueError(localize("file_empty", language, "temp_file_manager"))
+
             # 1. Generate unique filename if needed
             unique_filename = self._get_unique_filename(ctx)
             
             # 2. Upload or Get URL (Common step, but can be overridden or skipped by subclasses)
             full_url = await self._handle_upload(ctx, unique_filename, language)
-            
-            # 3. Save to temp (Common step). Deleted as soon as the handler has
-            # read it: nothing did, so every upload left a copy of the document
-            # in /tmp (eight lab reports in the demo container, measured
-            # 2026-09-28). Nothing reads it after `_process_content` returns;
-            # extraction continues from `original_text`.
-            temp_file_path = await self._save_to_temp(ctx, language)
 
-            # 4. Core processing (Specific to file type)
-            try:
-                result_data = await self._process_content(ctx, temp_file_path, unique_filename, full_url, language)
-            finally:
-                self.temp_manager.cleanup_temp_file(temp_file_path)
+            # 3. Core processing (Specific to file type)
+            result_data = await self._process_content(ctx, unique_filename, full_url, language)
 
             # 4.5. Auto-start background indicator extraction for any handler that returns original_text
             original_text = result_data.get("original_text")
@@ -163,13 +155,6 @@ class BaseFileHandler(abc.ABC):
                 # others might fail. For now, log and return empty string.
                 logger.warning(f"File upload failed: {e}")
                 return ""
-
-    async def _save_to_temp(self, ctx: FileProcessingContext, language: str) -> str | None:
-        if ctx.progress_callback:
-            await ctx.progress_callback(45, localize("saving_temp_file", language, "file_processor"))
-            
-        temp_file_path, _ = await self.temp_manager.save_upload_file_to_temp(ctx.file)
-        return str(temp_file_path) if temp_file_path else None
 
     async def _extract_original_text(
         self,
@@ -242,7 +227,7 @@ class BaseFileHandler(abc.ABC):
         return file_abstract, file_name
 
     @abc.abstractmethod
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
+    async def _process_content(self, ctx: FileProcessingContext, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
         """
         Core logic to extract content/indicators.
         Should return a dict with keys like 'raw', 'indicators', 'llm_ret', etc.

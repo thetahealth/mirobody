@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 
-from mirobody.collect.files.services.content_extractor import ContentExtractor
 from mirobody.collect.files.services.file_uploader import FileUploader
 from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
 from mirobody.collect.files.services.temp_file_manager import TempFileManager
@@ -50,7 +49,6 @@ class FileProcessor:
         # Initialize services
         self.uploader = FileUploader()
         self.temp_manager = TempFileManager()
-        self.content_extractor = ContentExtractor()
         self.indicator_extractor = IndicatorExtractor()
         self.abstract_extractor = FileAbstractExtractor()
 
@@ -58,7 +56,6 @@ class FileProcessor:
         self.factory = FileHandlerFactory(
             uploader=self.uploader,
             temp_manager=self.temp_manager,
-            content_extractor=self.content_extractor,
             indicator_extractor=self.indicator_extractor,
             abstract_extractor=self.abstract_extractor,
         )

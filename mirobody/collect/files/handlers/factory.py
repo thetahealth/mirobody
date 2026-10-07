@@ -24,13 +24,11 @@ class FileHandlerFactory:
         self,
         uploader,
         temp_manager,
-        content_extractor,
         indicator_extractor,
         abstract_extractor,
     ):
         self.uploader = uploader
         self.temp_manager = temp_manager
-        self.content_extractor = content_extractor
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
 
@@ -46,7 +44,6 @@ class FileHandlerFactory:
             return GeneticHandler(
                 self.uploader, 
                 self.temp_manager, 
-                self.content_extractor, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -56,7 +53,6 @@ class FileHandlerFactory:
             return ImageHandler(
                 self.uploader, 
                 self.temp_manager, 
-                self.content_extractor, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -66,7 +62,6 @@ class FileHandlerFactory:
             return PDFHandler(
                 self.uploader, 
                 self.temp_manager, 
-                self.content_extractor, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -83,7 +78,6 @@ class FileHandlerFactory:
              return TextHandler(
                 self.uploader, 
                 self.temp_manager, 
-                self.content_extractor, 
                 self.indicator_extractor,
                 self.abstract_extractor
             )
@@ -94,7 +88,6 @@ class FileHandlerFactory:
             return DocumentHandler(
                 uploader=self.uploader,
                 temp_manager=self.temp_manager,
-                content_extractor=self.content_extractor,
                 indicator_extractor=self.indicator_extractor,
                 abstract_extractor=self.abstract_extractor,
             )
@@ -107,7 +100,6 @@ class FileHandlerFactory:
             return ExcelHandler(
                 uploader=self.uploader,
                 temp_manager=self.temp_manager,
-                content_extractor=self.content_extractor,
                 indicator_extractor=self.indicator_extractor,
                 abstract_extractor=self.abstract_extractor
             )

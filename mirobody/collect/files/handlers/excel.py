@@ -37,7 +37,6 @@ class ExcelHandler(BaseFileHandler):
     async def _process_content(
         self,
         ctx: FileProcessingContext,
-        temp_file_path: str,
         unique_filename: str,
         full_url: str,
         language: str,
