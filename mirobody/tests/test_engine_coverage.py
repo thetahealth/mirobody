@@ -900,6 +900,20 @@ def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
     assert resolve_reading("BMI", "24", "kg/m2").loinc == "39156-5"
 
 
+def test_a_milliequivalent_excretion_is_not_a_concentration():
+    """`mEq/24h` and `mEq/kg` were spellings of `meq/L`, so `sodium 150
+    mEq/24h`, a 24-hour urine excretion, answered serum sodium 2951-2 as a
+    concentration."""
+    from mirobody.engine import resolve_reading
+    from mirobody.units import normalize_unit, unit_family
+
+    assert normalize_unit("mEq/24h") == "meq/(24.h)" and unit_family("meq/(24.h)") == "SRat"
+    assert normalize_unit("mEq/kg") == "meq/kg" and unit_family("meq/kg") == "SCnt"
+    excretion = resolve_reading("sodium", "150", "mEq/24h")
+    assert excretion.loinc == "" and excretion.rejected_code == "2951-2"
+    assert resolve_reading("sodium", "140", "mEq/L").loinc == "2951-2"
+
+
 def test_free_prose_in_the_value_column_constrains_nothing():
     """`scales_for_value` answers (Nar, Doc) for anything it cannot read, which
     is the ABSENCE of a measurement rather than a claim about scale. Treating it

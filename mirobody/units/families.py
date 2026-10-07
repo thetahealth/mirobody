@@ -92,6 +92,7 @@ UCUM_FAMILY: dict[str, str] = {
     "mmol/(6.h)":     "SRat",
     "umol/(12.h)":    "SRat",
     "umol/(8.h)":     "SRat",
+    "meq/(24.h)":     "SRat",
 
     # ── Mass rate (MRat): 24h urinary excretion, drug dosing ─────────
     "mg/d":         "MRat",
@@ -234,6 +235,7 @@ UCUM_FAMILY: dict[str, str] = {
     "nmol/g":       "SCnt",
     "umol/g":       "SCnt",
     "mmol/g":       "SCnt",
+    "meq/kg":       "SCnt",
 
     # ── Arbitrary concentration (ACnc): IU = "international units" ───
     "[IU]/L":     "ACnc",
