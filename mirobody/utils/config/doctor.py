@@ -136,12 +136,12 @@ def log_report(rows: list[SurfaceStatus], log: logging.Logger) -> None:
             "`docker compose up -d` (a plain `restart` keeps the old environment), "
             "or start `mirobody serve` again"
         )
-        log.error("no LLM model on any surface — chat, file parsing and indicator extraction will fail on every request: %s", reason)
+        log.error("no LLM model on any surface — chat, file parsing and indicator extraction will fail on every request: %s", reason)  # phi: ok a fixed sentence
         return
     for r in missing:
         surface_type = r.surface
         reason = f"{r.what} — {r.hint}"
-        log.warning("no LLM model for %s: %s", surface_type, reason)
+        log.warning("no LLM model for %s: %s", surface_type, reason)  # phi: ok the surface's description and its config hint
     for alias, fields in unread_entry_keys().items():
         # `openai-utils` declared `reasoning_effort: none`, nothing read it, and
         # the deployment extracted zero indicators from every report: the

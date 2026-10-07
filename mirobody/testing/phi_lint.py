@@ -40,8 +40,8 @@ from mirobody.kernel.ops import LOG_FIELDS
 # a regex would be the tail wagging the dog.
 SAFE_NAME = re.compile(
     r"^(?:.*_)?(?:id|ids|uid|count|counts|len|length|n|i|ix|idx|index|ms|seconds|secs|minutes|hours|days|kind|class|"
-    r"type|status|code|slug|version|level|size|bytes|total|attempt|attempts|limit|offset|step|steps|round|rounds|mode|"
-    r"action|method|reason|state|flag|ok|success|enabled|elapsed|duration|rate|pct|percent|ratio|threshold|tokens|"
+    r"status|code|slug|version|level|size|bytes|total|attempt|attempts|limit|offset|step|steps|round|rounds|mode|"
+    r"action|method|state|flag|ok|success|enabled|elapsed|duration|rate|pct|percent|ratio|threshold|tokens|"
     r"inserted|skipped|coded|rejected|scanned|changed|written|retracted|decided|undecrypted|outcomes|batches)$"
 )
 #: Exact names that are safe although they end in a word the regex does not know.
@@ -62,7 +62,29 @@ SAFE_EXACT = frozenset(
         "tool",
         "slug",
         "platform",
+        # Closed vocabularies only. `type` and `reason` left SAFE_NAME because
+        # `record_type` carried an indicator name and a range check's `reason`
+        # quotes the value it refused (`translate/value_range_validator.py`).
+        # A name is listed here when every value it takes comes from a fixed
+        # set: a type name, a MIME type, an enum, a configured family, a
+        # vendor's stop code.
         "data_type",
+        "error_type",
+        "content_type",
+        "media_type",
+        "auth_type",
+        "link_type",
+        "file_type",
+        "simple_type",
+        "llm_type",
+        "aggregation_type",
+        "storage_type",
+        "surface_type",
+        "schedule_type",
+        "stream_type",
+        "timeout_type",
+        "finish_reason",
+        "stop_reason",
         "table",
         "column",
         "field",

@@ -98,7 +98,7 @@ def _warn_removed(key: str, reason: str) -> None:
     if key in _warned_keys:
         return
     _warned_keys.add(key)
-    logger.warning("config key %s is %s; it is being ignored.", key, reason)
+    logger.warning("config key %s is %s; it is being ignored.", key, reason)  # phi: ok `_REMOVED_KEYS` text
 
 
 def _legacy_env(upper_key: str) -> str | None:

@@ -802,7 +802,7 @@ def build_llm_clients(
             logger.error("[%s] provider %s failed: %s", class_name, provider_name, type(exc).__name__, exc_info=True)
             failed.append((provider_name, type(exc).__name__))
     for provider_name, reason in failed:
-        logger.warning("[%s] provider %s skipped: %s", class_name, provider_name, reason)
+        logger.warning("[%s] provider %s skipped: %s", class_name, provider_name, reason)  # phi: ok an exception type name
     logger.info(
         "[%s] providers loaded: loaded_count=%d total_count=%d placeholder_count=%d",
         class_name, len(clients), len(llm_client_config), placeholder_count,
