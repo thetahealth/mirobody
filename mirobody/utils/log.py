@@ -331,9 +331,12 @@ def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | 
         os.makedirs(dir, exist_ok=True)
 
     now = datetime.datetime.now()
+    # Appending: uvicorn's `dictConfig` closes every existing handler, and a
+    # closed FileHandler reopens on its next record in this mode. "w+"
+    # truncated the file there, and the boot log was gone.
     file_handler = logging.FileHandler(
         os.path.join(dir, f"{now.strftime('%Y-%m-%d')}_{name}_{now.strftime('%H%M%S_%f')}.log"),
-        mode="w+"
+        mode="a", encoding="utf-8",
     )
     _install_root([file_handler, logging.StreamHandler()], level, extra)
 
