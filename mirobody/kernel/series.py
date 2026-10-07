@@ -44,7 +44,6 @@ AGG_TYPE_LAST = "last"
 AGG_TYPE_DURATION = "duration"
 AGG_TYPE_PROVIDER = "provider_value"
 
-_MS_PER_DAY = 86_400_000
 _MS_PER_MINUTE = 60_000
 
 

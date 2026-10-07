@@ -134,8 +134,6 @@ def is_safe_expr(node: ast.AST) -> bool:
             return True
         if fn in ("str", "int", "float", "bool", "repr", "round", "abs", "sorted", "list", "tuple"):
             return all(is_safe_expr(a) for a in node.args)
-        if fn in ("type", "getattr") or (fn or "").endswith(".get"):
-            return False
         # type(e).__name__ is an Attribute over a Call: handled below
         return False
     if isinstance(node, ast.Attribute) and node.attr == "__name__":
@@ -144,8 +142,6 @@ def is_safe_expr(node: ast.AST) -> bool:
         return is_safe_expr(node.left) and is_safe_expr(node.right)
     if isinstance(node, ast.IfExp):
         return is_safe_expr(node.body) and is_safe_expr(node.orelse)
-    if isinstance(node, ast.Subscript):
-        return False
     return False
 
 
