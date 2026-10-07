@@ -506,15 +506,15 @@ UCUM_FAMILY: dict[str, str] = {
 AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     # `Ratio` and `DistWidth` are here for the red cell distribution width
     # printed as a coefficient of variation (RDW-CV, 788-0 and 30385-9):
-    # LOINC has filed it under both, and a CBC prints it as `%`. `VRto`
-    # (FEV1/FVC, 19926-5) and `RelVol` (FEV1 measured/predicted, 20152-5)
-    # declare `%` too. `RelTime` does not go here although 5894-1 (PT
-    # actual/normal) declares `%`: the INR codes share PT's component and
-    # are `RelTime`, so `PT 62 %` would switch to INR 6301-6.
+    # LOINC has filed it under both, and a CBC prints it as `%`. Three
+    # properties that declare `%` stay out. `VRto` (FEV1/FVC) and `RelVol`
+    # (FEV1 measured/predicted) wait for the spirometry aliases: `FEV1` and
+    # `FEV1/FVC` resolve to 19925-7, the PREDICTED ratio, which `%` would code.
+    # `RelTime` (PT actual/normal, 5894-1) shares PT's component with the INR
+    # codes, so `PT 62 %` would switch to INR 6301-6.
     "%": frozenset({
         "MFr", "NFr", "AFr", "VFr", "SFr", "CFr",
         "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth",
-        "VRto", "RelVol",
     }),
     "mm[Hg]": frozenset({"Pres", "PPres"}),    # BP vs blood-gas pO2/pCO2
     # A report prints `U/mL` for tumour markers and antibodies (CA 19-9, CA

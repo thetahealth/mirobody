@@ -928,7 +928,14 @@ and left open, each for the reason given.
 - A prothrombin time printed as a ratio in `%` (actual/normal) is refused:
   admitting `%` as RelTime would also admit it for INR, where it is wrong.
 - An INR printed with the unit `1` is refused.
-- `FEV1/FVC` resolves to 19925-7, the predicted ratio, not the measured one.
+- Spirometry names resolve to PREDICTED codes: `FEV1`, `FEV1%`, `FEV1/FVC` and
+  `Forced expiratory volume in 1 second` to 19925-7 (FEV1/FVC Predicted),
+  `FVC` and `forced vital capacity` to 19869-7 (FVC Predicted). The measured
+  codes are 20150-9 (FEV1), 19926-5 (FEV1/FVC), 20152-5 (FEV1 % of predicted)
+  and 19870-5 (FVC), and only the last two have an index key a
+  `resolver_overrides.tsv` row could point at. Until they do, `%` does not
+  admit `VRto` or `RelVol` (`units/families.py`), so `FEV1 85 %` is refused
+  rather than coded to the predicted ratio.
 
 **Records.**
 - `observations.amend` replaces a row's note with its `note` argument, which

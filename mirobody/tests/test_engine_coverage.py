@@ -869,10 +869,12 @@ def test_the_unit_still_selects_between_two_real_siblings():
 
 
 #: Codes the PROPERTY gate refuses one of their own EXAMPLE_UCUM_UNITS. A
-#: ratchet: lower it when a fix lands, never raise it. Most of the rest needs
-#: more than a family entry: `%` admitted for `RelTime` would switch `PT 62 %`
-#: to an INR code, and `/mL` is declared on log counts.
-REFUSED_OWN_UNIT_CEILING = 1067
+#: ratchet: lower it when a fix lands. Most of the rest needs more than a
+#: family entry: `%` admitted for `RelTime` would switch `PT 62 %` to an INR
+#: code, admitted for `VRto`/`RelVol` it codes `FEV1 85 %` to the PREDICTED
+#: FEV1/FVC ratio its alias points at (20 codes), and `/mL` is declared on
+#: log counts.
+REFUSED_OWN_UNIT_CEILING = 1087
 
 
 def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
@@ -898,6 +900,17 @@ def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
                 refused.add(code)
     assert len(refused) <= REFUSED_OWN_UNIT_CEILING, f"{len(refused)} codes refuse a unit they declare"
     assert resolve_reading("BMI", "24", "kg/m2").loinc == "39156-5"
+
+
+def test_a_spirometry_percent_is_not_coded_to_the_predicted_ratio():
+    """`FEV1`, `FEV1%` and `FEV1/FVC` resolve to 19925-7, FEV1/FVC
+    PREDICTED. With `%` admitted for its `VRto`, `FEV1 85 %` (a percent of
+    predicted, 20152-5) and a measured `FEV1/FVC 78 %` (19926-5) were coded
+    to it; until those aliases are right the reading needs a person."""
+    from mirobody.engine import resolve_reading
+
+    for name, value in (("FEV1", "85"), ("FEV1/FVC", "78"), ("FEV1%", "85")):
+        assert resolve_reading(name, value, "%").loinc != "19925-7"
 
 
 def test_a_milliequivalent_excretion_is_not_a_concentration():
