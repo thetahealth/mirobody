@@ -144,13 +144,14 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
     out older. A report that prints no date still falls back to now.
     """
     from mirobody.engine import parse_text
+    from mirobody.engine.parse import ExtractionError
 
     try:
         readings = await parse_text(body.text)
-    except RuntimeError as e:
-        # parse_text raises RuntimeError with a readable message for "no
-        # provider key" and for non-JSON model output. Both are the caller's
-        # problem to act on, and neither is a server fault.
+    except ExtractionError as e:
+        # A fixed sentence (no provider key, or an answer that was not a JSON
+        # array): the caller's to act on, not a server fault. Any other
+        # RuntimeError may quote what it was sent, so it is not echoed.
         return _error(400, str(e), "extraction_failed", "text")
     except Exception as e:
         logger.error("standardize failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
