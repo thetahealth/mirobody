@@ -64,10 +64,15 @@ services:
       PG_USER: holistic_user
       PG_DBNAME: ${PG_DBNAME:-holistic_db}
       PG_PASSWORD: ${PG_PASSWORD:-REPLACE_THIS_VALUE_IN_PRODUCTION}
-      HTTP_PROXY: ${HTTP_PROXY:-}
-      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      # Only when set, like HF_ENDPOINT below. An empty value routes nothing,
+      # but it made a container look proxied when it was not.
+      HTTP_PROXY:
+      HTTPS_PROXY:
       # host.docker.internal is a model server on this machine (LOCAL_BASE_URL):
-      # through the proxy, every request to it would leave the machine.
+      # through the proxy, every request to it would leave the machine. Set
+      # with no proxy too, because .env can name one as ALL_PROXY or http_proxy.
+      # langchain-openai then logs "detected system proxy configuration" and
+      # keeps httpx's own transport, which still connects directly.
       NO_PROXY: ${NO_PROXY:-pg,llama,localhost,127.0.0.1,host.docker.internal}
     extra_hosts:
       # Docker Desktop resolves this name itself; Docker Engine on Linux needs the line.
