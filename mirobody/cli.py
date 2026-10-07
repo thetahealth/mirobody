@@ -439,8 +439,12 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
             print(f"  {_pad(term, width)}  {loinc:<16}  {r.canonical}"
                   + (f"   [{r.candidates} candidates]" if r.candidates > 1 else ""))
         else:
-            why = _complaint_axis_hint(term) or (
-                "not in the lexical index, and no code is given rather than a guessed one")
+            # A refusal is about a word the index HAS: 血脂 is four analytes,
+            # and "not in the lexical index" sent people looking for a row.
+            missing = ("a category or several tests in one name" if r.method == "refused"
+                       else "not in the lexical index")
+            why = _complaint_axis_hint(term) or r.rejected_reason or (
+                f"{missing}, and no code is given rather than a guessed one")
             print(f"  {_pad(term, width)}  unresolved: {why}")
 
 
