@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.collect.files.errors import failure_reason
 from mirobody.documents.extract import PartialText
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
@@ -57,6 +58,22 @@ class FileProcessingContext:
     @property
     def content_type(self) -> str:
         return self.file.content_type
+
+
+def _no_answer_reason() -> str:
+    """Why no model answered an extraction: no text entry is routable (the
+    sentence names the key to set), or the routed one's call failed. ONE route
+    is tried, never a second: config.llm.yaml states it ("selection happens
+    once; a failed call is reported, never retried elsewhere")."""
+    from mirobody.utils.config.llm import no_provider_message, resolve_route
+
+    route = resolve_route("text")
+    if route is None:
+        return no_provider_message("text")
+    return (f"indicator extraction failed: {route.alias} ({route.model}) returned an error, and a failed call "
+            "is not retried on another provider (see the server log for the provider's message); re-upload "
+            "after fixing it, or point UTILS_TEXT_MODEL elsewhere")
+
 
 class BaseFileHandler(abc.ABC):
     def __init__(
@@ -407,138 +424,76 @@ class BaseFileHandler(abc.ABC):
         file_name: str,
         file_key: str,
         message_id: str | None = None,
-    ):
+    ) -> None:
         """Background task: extract indicators from text and update th_files.
 
         Two steps, two events. The date is probed FIRST (one small model call,
         a few seconds) and announced as `report_date_detected`, so the Data
         page can ask about a missing date while the 15-25 s indicator
         extraction is still running; `extraction_completed` follows with the
-        count and the date the readings were actually filed under.
+        count stored and the date the readings were actually filed under.
         """
-        file_type = self.get_type_name()
+        from mirobody.collect.files.services.content_formatter import ContentFormatter
+        from mirobody.collect.files.services.file_db_service import FileDbService
+
+        filed = None
+        formatted_raw = original_text
+        failed_reason = ""
         try:
-            logger.info(f"Starting async indicator extraction for {file_type}: {file_key}")
-
-            indicators = []
-            llm_ret = {}
-            report = None
-            formatted_raw = original_text
-            extraction_failed_reason = ""
-
-            try:
-                from mirobody.collect.files.services.content_formatter import ContentFormatter
-                from mirobody.collect.files.services.file_db_service import FileDbService
-
-                probed = await self.indicator_extractor.probe_report_date(original_text)
-                probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
-                probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
-                # On the file row now, not after extraction: the bar's answer
-                # (set_file_report_date) reads and writes this row, and the
-                # readings that land later look here for a manual date.
-                await FileDbService.rows_ready(message_id)
-                await FileDbService.update_file_content(file_key, probe_report)
-                await self._push_upload_event(message_id, {
-                    "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
-                })
-
-                (indicators, llm_ret, report) = await self.indicator_extractor.extract_indicators_from_text(
-                    original_text=original_text,
-                    user_id=user_id,
-                    ocr_db_id=0,
-                    source_table="th_files",
-                    file_name=file_name,
-                    file_key=file_key,
-                    save_to_db=True,
-                    report_date=(probe_dt, probe_source),
-                )
-                count = len(indicators) if indicators else 0
-
-                # Three kinds of "zero indicators", told apart (#68). The file
-                # is stored either way, but the UI must not render 1 and 2 like
-                # 3: reporting them as "complete" showed a green status over an
-                # empty list with the cause only in the server logs.
-                #   1. no provider can do structured extraction: configuration
-                #   2. a provider was selected and its call failed: see the log
-                #   3. a model read the document and found none: normal
-                if count == 0 and llm_ret is None:
-                    from mirobody.utils.config.llm import no_provider_message, resolve_route
-
-                    route = resolve_route("text")
-                    if route is None:
-                        extraction_failed_reason = no_provider_message("text")
-                    else:
-                        # ONE route is tried, never a second: config.llm.yaml
-                        # states it ("selection happens once; a failed call is
-                        # reported, never retried elsewhere"). Saying "every
-                        # configured provider" sent readers hunting for three
-                        # failures in a log that holds one.
-                        extraction_failed_reason = (
-                            f"indicator extraction failed: {route.alias} ({route.model}) "
-                            "returned an error, and a failed call is not retried on another "
-                            "provider (see the server log for the provider's message) — "
-                            "re-upload after fixing it, or point UTILS_TEXT_MODEL elsewhere"
-                        )
-                    logger.warning(
-                        f"Indicator extraction for {file_type} {file_key} produced 0 rows: "
-                        f"{extraction_failed_reason}"
-                    )
-                if not extraction_failed_reason:
-                    logger.info(
-                        f"Async indicator extraction completed for {file_type}: {file_key}, "
-                        f"count: {count}"
-                    )
-
-                # Format content
-                if isinstance(llm_ret, dict) and "formatted_content" in llm_ret:
-                    formatted_raw = llm_ret["formatted_content"]
-                elif indicators and llm_ret:
-                    try:
-                        formatted_raw = ContentFormatter.format_parsed_content(
-                            file_results=[{"type": file_type, "raw": original_text}],
-                            file_names=[file_key],
-                            llm_responses=[llm_ret],
-                            indicators_list=[indicators],
-                        )
-                    except Exception:
-                        formatted_raw = original_text
-            except Exception as e:
-                # The fourth kind of "zero indicators", and the one that got
-                # away: extraction RAISED. `extraction_failed_reason` was left
-                # empty here, so the row below was written `status: completed`
-                # with `indicators_count: 0`: a green file over an empty list,
-                # cause visible only in this warning. That is exactly how the
-                # bytearray bug (#B-1) stayed invisible: every PDF uploaded
-                # through the web client raised `TypeError: Invalid input type
-                # 'bytearray'` right here and was then reported as processed.
-                extraction_failed_reason = (
-                    f"indicator extraction failed: {type(e).__name__}: {e} "
-                    f"(see the server log for the full traceback)"
-                )
-                logger.warning(f"Async indicator extraction failed for {file_type}: {file_key}, error: {e}")  # phi: ok an extraction error, not document contents
-
-            # Update th_files with indicator results
-            from mirobody.collect.files.services.file_db_service import FileDbService
-
+            probed = await self.indicator_extractor.probe_report_date(original_text)
+            probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
+            probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
+            # On the file row now, not after extraction: the bar's answer
+            # (set_file_report_date) reads and writes this row, and the
+            # readings that land later look here for a manual date.
             await FileDbService.rows_ready(message_id)
-            await self._update_file_indicators(
-                file_key=file_key,
-                formatted_raw=formatted_raw,
-                indicators_count=len(indicators) if indicators else 0,
-                failed_reason=extraction_failed_reason,
-                report=report,
-            )
+            await FileDbService.update_file_content(file_key, probe_report)
             await self._push_upload_event(message_id, {
-                "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
-                "indicators_count": len(indicators) if indicators else 0,
-                "failed": bool(extraction_failed_reason),
-                **(report or {}),
+                "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
             })
 
-            logger.info(f"Async indicator extraction finished for {file_type}: {file_key}")
-
+            filed = await self.indicator_extractor.extract_indicators_from_text(
+                original_text, user_id, file_key, report_date=(probe_dt, probe_source))
+            # Three kinds of "zero indicators", told apart (#68). The file is
+            # stored either way, but the UI must not render 1 and 2 like 3.
+            #   1. no provider can do structured extraction: configuration
+            #   2. a provider was selected and its call failed: see the log
+            #   3. a model read the document and found none: normal
+            if filed.answer is None:
+                failed_reason = _no_answer_reason()
+            elif filed.indicators:
+                formatted_raw = ContentFormatter.format_parsed_content(
+                    file_results=[{"type": self.get_type_name(), "raw": original_text}],
+                    file_names=[file_key],
+                    llm_responses=[filed.answer],
+                    indicators_list=[filed.indicators],
+                )
         except Exception as e:
-            logger.error(f"Async indicator extraction failed for {file_type} {file_key}: {e}", exc_info=True)
+            # The fourth kind, and the one that got away: extraction RAISED
+            # (a write that stored nothing, the bytearray bug #B-1) and the
+            # row was written `status: completed` over an empty list.
+            failed_reason = f"indicator extraction failed: {failure_reason(e)}"
+            logger.error("indicator extraction failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+
+        stored = filed.stored if filed else 0
+        report = filed.report if filed else None
+        await FileDbService.rows_ready(message_id)
+        await self._update_file_indicators(
+            file_key=file_key,
+            formatted_raw=formatted_raw,
+            indicators_count=stored,
+            failed_reason=failed_reason,
+            report=report,
+        )
+        await self._push_upload_event(message_id, {
+            "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
+            "indicators_count": stored,
+            "failed": bool(failed_reason),
+            **(report or {}),
+        })
+        logger.info("indicator extraction finished: file_key=%s stored_count=%d failed=%s", file_key, stored,
+                    bool(failed_reason))
 
     async def _save_original_text_to_db(
         self,

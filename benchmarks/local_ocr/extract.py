@@ -5,9 +5,9 @@
 
 Reads the OCR outputs `run.py` stored (results/<model>/pages/), builds each
 page's document text exactly as `run.py` scores it, and hands it to
-`IndicatorExtractor.extract_indicators_from_text(..., save_to_db=False)` from
-MIROBODY_SRC: the table rules, then the text model for whatever they left,
-the merge and the de-duplication, as an upload runs them. The text model is
+`IndicatorExtractor.read_indicators` from MIROBODY_SRC: the table rules, then
+the text model for whatever they left, the merge and the de-duplication, as
+an upload runs them. The text model is
 MiniCPM5-2B (the default local size) on its own `llama-server`, started here
 the way `docker/local-models.ini` runs it (32k context, two slots on one KV
 pool, 1 GiB prompt cache) plus a fixed seed, so two OCR models' pages are
@@ -223,8 +223,8 @@ async def main_async(args) -> None:
                 t0 = time.monotonic()
                 error = None
                 try:
-                    indicators, result, _ = await IndicatorExtractor.extract_indicators_from_text(
-                        text, user_id=0, file_name=entry["id"], save_to_db=False)
+                    reading = await IndicatorExtractor.read_indicators(text)
+                    indicators, result = reading.rows, reading.answer
                 except Exception as exc:  # the product would report this upload as failed
                     indicators, result, error = [], None, f"{type(exc).__name__}: {str(exc)[:200]}"
                 seconds = round(time.monotonic() - t0, 2)
