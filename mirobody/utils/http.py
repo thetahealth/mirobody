@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import time
+from typing import Any
 
 from starlette.responses import Response
 from starlette.requests import Request
@@ -136,7 +137,8 @@ def _log_extra(request: Request | None, **fields: object) -> dict[str, object]:
 
 #-----------------------------------------------------------------------------
 
-def json_response(content: any, status_code: int = 200, request: Request = None, disable_log: bool = False) -> Response:
+def json_response(content: Any, status_code: int = 200, request: Request | None = None,
+                  disable_log: bool = False) -> Response:
     if not disable_log:
         extra = _log_extra(request, status=status_code)
 
@@ -162,7 +164,7 @@ def json_response(content: any, status_code: int = 200, request: Request = None,
         media_type  = "application/json; charset=utf-8"
     )
 
-def json_response_with_code(code: int = 0, msg: str = "ok", data: any = None, request: Request = None,
+def json_response_with_code(code: int = 0, msg: str = "ok", data: Any = None, request: Request | None = None,
                            disable_log: bool = False, status: int = 200) -> Response:
     """The `{code, msg, data}` envelope: the same one `server/envelope.py` has.
 
@@ -205,7 +207,7 @@ def json_response_with_code(code: int = 0, msg: str = "ok", data: any = None, re
 
 #-----------------------------------------------------------------------------
 
-def redirect(url: str, status_code: int = 302, request: Request = None, disable_log: bool = False) -> Response:
+def redirect(url: str, status_code: int = 302, request: Request | None = None, disable_log: bool = False) -> Response:
     if not disable_log:
         logger.info("", stacklevel=2, extra=_log_extra(request, status=status_code))
 
@@ -219,7 +221,7 @@ def redirect(url: str, status_code: int = 302, request: Request = None, disable_
 
 #-----------------------------------------------------------------------------
 
-def _result_shape(result: any) -> dict:
+def _result_shape(result: Any) -> dict[str, object]:
     """What a JSON-RPC result LOOKS like: sizes, kinds and counts.
 
     Everything here is a number or a type name, which is the whole of what a
@@ -231,7 +233,7 @@ def _result_shape(result: any) -> dict:
         size = len(json.dumps(result, ensure_ascii=False, separators=(',', ':'), default=str))
     except (TypeError, ValueError):
         size = -1
-    shape: dict = {"size_bytes": size, "result_type": type(result).__name__}
+    shape: dict[str, object] = {"size_bytes": size, "result_type": type(result).__name__}
     if isinstance(result, dict):
         content = result.get("content")
         if isinstance(content, list):
@@ -246,10 +248,10 @@ def _result_shape(result: any) -> dict:
 
 
 def jsonrpc_result(
-    id: any,
-    result: any = None,
+    id: Any,
+    result: Any = None,
     method: str = "",
-    request: Request = None,
+    request: Request | None = None,
     disable_log: bool = False,
     result_type: str = "complete",
     server_info: dict | None = None,
@@ -339,7 +341,8 @@ def jsonrpc_result(
 
 #-----------------------------------------------------------------------------
 
-def jsonrpc_error(id: any, code: int, msg: str = "", data: any = None, method: str = "", request: Request = None, disable_log: bool = False) -> Response:
+def jsonrpc_error(id: Any, code: int, msg: str = "", data: Any = None, method: str = "",
+                  request: Request | None = None, disable_log: bool = False) -> Response:
     if not disable_log:
         extra = _log_extra(request, mcp_method=method, request_id=id, error_code=code)
         logger.warning(msg, stacklevel=2, extra=extra)

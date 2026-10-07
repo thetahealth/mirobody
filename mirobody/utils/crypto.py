@@ -3,7 +3,7 @@
 Two things are fixed by the rows already written and must not change: the byte
 layout (12-byte nonce ‖ ciphertext ‖ 16-byte tag, then base64) and the key
 handling: the configured `DATABASE_DECRYPTION_KEY` string's UTF-8 bytes ARE the
-AES key (not hex-decoded, despite the parameter name). The one consumer is
+AES key (not hex-decoded). The one consumer is
 `collect/providers/_platform/database_service.py` (device credentials and OAuth
 tokens).
 
@@ -29,18 +29,18 @@ logger = logging.getLogger(__name__)
 _NONCE_BYTES = 12
 
 
-def _key(key_hex: str | None) -> bytes:
-    if key_hex is None:
-        key_hex = safe_read_cfg("DATABASE_DECRYPTION_KEY")
-    return key_hex.encode("utf-8")
+def _key(key: str | None) -> bytes:
+    if key is None:
+        key = safe_read_cfg("DATABASE_DECRYPTION_KEY")
+    return key.encode("utf-8")
 
 
-def encrypt_string_aes_gcm(plaintext: str, key_hex: str | None = None) -> str | None:
+def encrypt_string_aes_gcm(plaintext: str, key: str | None = None) -> str | None:
     if not plaintext:
         return None
     try:
         nonce = os.urandom(_NONCE_BYTES)
-        sealed = AESGCM(_key(key_hex)).encrypt(nonce, plaintext.encode("utf-8"), None)
+        sealed = AESGCM(_key(key)).encrypt(nonce, plaintext.encode("utf-8"), None)
         return base64.b64encode(nonce + sealed).decode("utf-8")
     except Exception as e:
         # Without the reason the caller sees only None.
@@ -48,7 +48,7 @@ def encrypt_string_aes_gcm(plaintext: str, key_hex: str | None = None) -> str | 
         return None
 
 
-def decrypt_string_aes_gcm(ciphertext_base64: str, key_hex: str | None = None) -> str | None:
+def decrypt_string_aes_gcm(ciphertext_base64: str, key: str | None = None) -> str | None:
     if not ciphertext_base64:
         return None
     try:
@@ -56,7 +56,7 @@ def decrypt_string_aes_gcm(ciphertext_base64: str, key_hex: str | None = None) -
         if len(blob) < _NONCE_BYTES:
             logger.error(f"Ciphertext too short: {len(blob)} < {_NONCE_BYTES}")  # phi: ok two lengths
             return None
-        plain = AESGCM(_key(key_hex)).decrypt(blob[:_NONCE_BYTES], blob[_NONCE_BYTES:], None)
+        plain = AESGCM(_key(key)).decrypt(blob[:_NONCE_BYTES], blob[_NONCE_BYTES:], None)
         return plain.decode("utf-8")
     except Exception as e:
         logger.error(f"AES-GCM decryption failed: {type(e).__name__}: {e} (b64_len={len(ciphertext_base64)})")  # phi: ok cipher error and a length, never the ciphertext

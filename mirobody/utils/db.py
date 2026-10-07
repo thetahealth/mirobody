@@ -131,8 +131,7 @@ async def execute_query(
     params: dict | list[dict] | None = None,
     db_config: str = "",
     log_sql: bool = True,
-    **kwargs,
-):
+) -> list[dict] | dict:
     if not query:
         raise ValueError("SQL script cannot be empty")
 

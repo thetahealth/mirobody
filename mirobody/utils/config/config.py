@@ -133,12 +133,8 @@ class Config:
 
     #-----------------------------------------------------
 
-    def refresh(self, data: dict | None = None):
-        if data is None:
-            data = {}
-        if data:
-            self._raw.update(data)
-
+    def refresh(self) -> None:
+        """Rebuild the derived settings from the current keys and environment."""
         # Clear cached configuration objects to ensure they use updated _raw values
         self._postgresqls = {}
         self._ephemeral = None
