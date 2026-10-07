@@ -141,7 +141,7 @@ class StandardHealthService:
         if timezone_info == "UTC":
             timezone_info = user_timezone
         value, unit = _to_standard_unit(indicator, record.value, record.unit or "")
-        task_id = record.task_id or ""
+        task_id = record.task_id
         if not ranges.validate(indicator, value).is_valid:
             task_id = FILTERED_OUT_OF_RANGE
         return {
@@ -151,7 +151,7 @@ class StandardHealthService:
             "value": str(value),
             "unit": unit,
             "timezone": timezone_info,
-            "source_id": record.source_id or "",
+            "source_id": record.source_id,
             "task_id": task_id,
             "at": _instant(record.timestamp),
             # A record without a span is a point: both ends are its timestamp.
