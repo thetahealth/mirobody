@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.db import execute_query
 from .document_backend import DocumentBackend
 
@@ -69,7 +70,8 @@ class ProfileBackend(DocumentBackend):
         except Exception as e:
             # Loud: every turn mounts this, and a silent failure looks to the
             # model like a user about whom nothing is known.
-            logger.warning(f"[profile-filesystem] profile unavailable for {self.user_id}: {e}", exc_info=True)
+            logger.warning("health profile unavailable: user_id=%s error_type=%s", self.user_id,
+                           type(e).__name__, exc_info=not is_driver_exception(e))
             return ""
         if not rows:
             return ""

@@ -3,7 +3,6 @@ File Abstract Extractor Service
 Extracts file summaries for different file types, with special handling for PDF files
 """
 
-import hashlib
 import os
 import csv
 import tempfile
@@ -21,18 +20,6 @@ logger = logging.getLogger(__name__)
 
 
 
-async def lookup_extracted_text(file_content: bytes) -> str | None:
-    """Text a previous extraction of these exact bytes produced, or None.
-
-    The cheap half of extraction: one indexed lookup, never a model call. The
-    The agent's virtual filesystem uses it at registration time to decide whether a file
-    still needs OCR at all (see ``agent/filesystem/parser.FileParser.prepare``).
-    """
-    if not file_content:
-        return None
-    return await _read_original_text_cache(hashlib.sha256(file_content).hexdigest())
-
-
 async def _read_original_text_cache(content_hash: str) -> str | None:
     """Dedup read: SHA256 of the raw bytes -> text some earlier upload extracted.
 
@@ -48,10 +35,9 @@ async def _read_original_text_cache(content_hash: str) -> str | None:
     text" true.
 
     The trade-off, stated plainly: an extraction only lands in the cache if it
-    reaches a ``th_files`` row. Registration (``FileParser.prepare``) reads this
-    cache but never OCRs to populate it; the agent's own OCR runs lazily, on
-    the first ``read_file`` (``PgFilesystemBackend._lazy_extract_doc_text``),
-    and is written back into this same ``th_files`` row rather than kept apart.
+    reaches a ``th_files`` row. The agent's own OCR runs lazily, on the first
+    ``read_file`` (``PgFilesystemBackend._lazy_extract_doc_text``), and is
+    written back into this same ``th_files`` row rather than kept apart.
     That write happens only once the extraction finishes, so a file the agent
     reads before the upload pipeline's own extraction lands can still be OCR'd
     by both. That is a cost, not a correctness, difference.

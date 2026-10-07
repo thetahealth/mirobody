@@ -16,8 +16,8 @@ a deleted lab report kept answering questions (1.2.1).
                          taught (an empty document lists nothing; a missing one
                          answers exactly `file_not_found`)
     naming.py            what a file is CALLED and what KIND it is
-    parser.py            upload-time preparation
-    coercion.py          an LLM's arguments to a filesystem tool, coerced
+    parser.py            a document's text, extracted on its first read
+    coercion.py          a read's offset and limit, as an LLM sends them
 
 `document_backend` and `naming` are the library half: a consumer running its own
 agent binds them and gets the same naming and the same `file_not_found`.

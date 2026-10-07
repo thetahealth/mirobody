@@ -7,12 +7,12 @@ already owned. The copies are what let a deleted health document keep answering,
 twice: once as an uploaded-file row that outlived `th_files`, once as a health
 profile that quoted the readings verbatim.
 
-So sourcing moved out and only rendering stayed. Subclasses supply rows through
-`_fetch_row` / `_fetch_rows_under`:
-
-    files_backend.ThFilesBackend        /uploads/ and /library/, over `th_files`
-    profile_backend.ProfileBackend      /memories/, over the health profile
-    deepagents StateBackend             /, the scratch space, checkpointed
+So sourcing moved out and only rendering stayed. A subclass supplies rows
+through `_fetch_row` / `_fetch_rows_under`; there is one,
+`files_backend.ThFilesBackend`, for `/uploads/` and `/library/` over
+`th_files`. The other mounts are `profile_backend.ProfileBackend` (a
+`DocumentBackend`) for `/memories/`, and deepagents' `StateBackend` for the
+scratch space at `/`, checkpointed.
 
 What stayed here is the part that is expensive to relearn: how a file becomes
 something a model can actually read:
@@ -50,6 +50,7 @@ from deepagents.backends.protocol import (
     FILE_NOT_FOUND,
     FileDownloadResponse,
     FileInfo,
+    FileUploadResponse,
     GlobResult,
     GrepMatch,
     GrepResult,
@@ -59,6 +60,7 @@ from deepagents.backends.protocol import (
     WriteResult,
 )
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.db import execute_query
 from .coercion import coerce_to_int
 from mirobody.documents import detect
@@ -67,7 +69,7 @@ from .naming import MULTIMODAL_EXTS
 logger = logging.getLogger(__name__)
 
 _READONLY = (
-    "This path is a read-only view of stored data. Write scratch notes to "
+    "This path is a read-only view of your stored files. Write scratch notes to "
     "the workspace root (/) instead."
 )
 
@@ -82,7 +84,6 @@ _DEFAULT_READ_LIMIT = 2000
 _MAX_MULTIMODAL_BYTES = 24 * 1024 * 1024
 
 Scope = Literal["uploads", "library"]
-Source = Literal["agent_write", "agent_upload", "user_upload", "tool_generated"]
 # `workspace` and `memory` were the two scopes this class stored itself.
 # They are graph state and a profile projection now, so a stored-file
 # subclass is all that is left to validate.
@@ -146,7 +147,6 @@ class PgFilesystemBackend(BackendProtocol):
         self,
         *,
         user_id: str,
-        session_id: str = "",
         scope: Scope = "library",
         supports_file_block: bool = False,
         supports_image: bool = True,
@@ -156,7 +156,6 @@ class PgFilesystemBackend(BackendProtocol):
         if scope not in _VALID_SCOPES:
             raise ValueError(f"unknown scope: {scope!r}")
         self._user_id = str(user_id)
-        self._session_id = str(session_id or "")
         self._scope: Scope = scope
         # When True, the bound model accepts a native `{'type': 'file'}` content
         # block (Claude / Gemini …), so pdf/ppt are served as raw base64 bytes
@@ -233,58 +232,44 @@ class PgFilesystemBackend(BackendProtocol):
         try:
             from mirobody.utils.config.storage.factory import get_storage_client
             content, err = await get_storage_client().get(key)
-            if err:
-                logger.error("storage get failed for %s: %s", key, err)
-                return None
-            return content
-        except Exception:
-            logger.exception("storage get failed for %s", key)
+        except Exception as e:
+            logger.error("object storage read failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return None
+        if err:
+            # The storage client's error names the object, which is a file key.
+            logger.error("object storage read failed: the storage client returned an error")
+            return None
+        return content
 
     async def _lazy_extract_doc_text(
         self, row: dict[str, Any], file_path: str
     ) -> str | None:
         """On-demand text extraction for a text-document (pdf/ppt) whose inline
-        ``content`` is empty.
+        ``content`` is empty: where OCR happens, the first time the model reads
+        a document nothing has extracted yet.
 
-        This is where OCR actually happens. Registration deliberately does not
-        extract (see ``parser.FileParser.prepare``), so for any document the
-        model has not opened before, the first ``read_file`` lands here.
-
-        Three sources, cheapest first:
-          1. the ``th_files`` parse cache by ``file_key``: the upload pipeline's
-             own parse may have completed since this row was registered;
-          2. the raw bytes in object storage, deduplicated by SHA256 inside
-             ``extract_text``: bytes extracted before never pay twice;
-          3. failing both, a real extraction (Vision LLM for scanned pages).
-
-        On success the text is written back to `th_files` so subsequent
-        reads are instant. Returns the extracted text, or ``None`` if nothing
-        could be produced.
+        The bytes come from object storage and `parser.extract_text` reads
+        them, deduplicated by SHA256 inside it, so bytes extracted before never
+        pay twice. On success the text is written back to `th_files`, so later
+        reads are instant. Returns the text, or ``None`` if nothing could be
+        produced. (It first re-read `original_text` of this same row, which
+        the projection had just read empty, and wrote the result back to it.)
         """
+        from .parser import extract_text
+
         file_key = row.get("file_key")
         oss_key = row.get("object_storage_key")
-        name = PurePosixPath(file_path).name
-        try:
-            from .parser import FileParser
-            parser = FileParser()
-
-            if file_key:
-                text = await parser.get_cached_file_by_key(str(file_key))
-                if text:
-                    await self._persist_inline_text(str(file_key), text)
-                    return text
-
-            if oss_key:
-                raw = await self._get_from_storage(str(oss_key))
-                if raw:
-                    text = await parser.extract_text(raw, name)
-                    if text.strip():
-                        await self._persist_inline_text(str(file_key), text)
-                        return text
-        except Exception as e:
-            logger.warning(f"lazy doc extract failed for {file_path}: {e}")
-        return None
+        if not oss_key:
+            return None
+        raw = await self._get_from_storage(str(oss_key))
+        if not raw:
+            return None
+        text = await extract_text(raw, PurePosixPath(file_path).name)
+        if not text.strip():
+            return None
+        await self._persist_inline_text(str(file_key or ""), text)
+        return text
 
     async def _image_as_text(
         self, row: dict[str, Any], file_path: str, inline_text: str, created: str, modified: str
@@ -332,7 +317,8 @@ class PgFilesystemBackend(BackendProtocol):
                         "text": text, "size": len(text.encode("utf-8"))},
             )
         except Exception as e:
-            logger.warning(f"persist extracted text failed for {file_key}: {e}")
+            logger.warning("caching extracted text failed: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
 
     async def als(self, path: str) -> LsResult:
         path = path or "/"  # qwen may send None instead of the default
@@ -482,6 +468,10 @@ class PgFilesystemBackend(BackendProtocol):
         """Refused: see `awrite`."""
         return EditResult(error=_READONLY)
 
+    async def aupload_files(self, files) -> list[FileUploadResponse]:
+        """Refused: see `awrite`."""
+        return [FileUploadResponse(path=getattr(f, "path", ""), error=_READONLY) for f in (files or [])]
+
     async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
         # `None` is the protocol default as of deepagents 0.7 (it used to be
         # "/"), and qwen has always been capable of sending it explicitly:
@@ -598,9 +588,6 @@ class PgFilesystemBackend(BackendProtocol):
             responses.append(FileDownloadResponse(path=file_path, content=payload, error=None))
         return responses
 
-    # ─── audit / registration (non-protocol public surface) ─────────────
-
-
 #: Asked of `mirobody.documents`, not retyped. The hand-kept copy this replaces
 #: was wrong in both directions: `.docx` was missing, so a Word file never took
 #: the extract branch even though `extract_text` reads it, and `.xls`/`.ppt`/
@@ -686,23 +673,17 @@ def _compile_glob(pattern: str | None, *, base: str) -> re.Pattern[str]:
         return re.compile(fnmatch.translate(base_prefix + "/" + (pattern or "")))
 
 
-# Document types we reliably extract text from at upload time. Stored as base64
-# (object-storage offload) but READ as extracted text: most providers reject a
-# ``{'type': 'file'}`` block and only images take the native vision path, so
-# serving text is what makes PDF/PPT/Excel chat work everywhere. Excel matters
-# most: no provider accepts a spreadsheet as a file block and its bytes are a
-# ZIP, so without this entry ``aread`` serves raw base64 the model cannot
-# parse. ``_extract_excel_original_text`` turns the workbook into a markdown
-# table on first read.
-
-
 def _patch_deepagents_multimodal_exts() -> None:
+    """Take the documents (`_TEXT_DOC_EXTS`) out of deepagents' map of
+    suffixes it serves as file blocks. They are stored as bytes but read as
+    their extracted text, because most providers reject a `{'type': 'file'}`
+    block; a spreadsheet most of all, whose bytes are a ZIP no model parses."""
     try:
         from deepagents.backends import utils as _da_utils
         for _ext in _TEXT_DOC_EXTS:
             _da_utils._EXTENSION_TO_FILE_TYPE.pop(_ext, None)
-    except Exception as _e:  # pragma: no cover - defensive
-        logger.warning(f"could not patch deepagents extension map: {_e}")
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning("could not patch deepagents extension map: error_type=%s", type(e).__name__)
 
 
 _patch_deepagents_multimodal_exts()
