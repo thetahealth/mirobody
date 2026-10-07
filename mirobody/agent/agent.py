@@ -20,6 +20,7 @@ import logging
 import uuid
 from typing import Any, TYPE_CHECKING
 from collections.abc import AsyncGenerator
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from langchain_core.messages import BaseMessage
 from langchain_core.tools import BaseTool
@@ -50,6 +51,25 @@ if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
 
 logger = logging.getLogger(__name__)
+
+
+def _zone(name: str | None) -> str:
+    """`name` when it is an IANA zone, else the deployment's default zone,
+    else UTC. A turn's zone arrives from a header, the request body or the
+    profile, and `GMT+8`, `UTC+8`, `+08:00`, `CST` or `Etc/Unknown` reached
+    `ZoneInfo` in the system prompt unchecked and failed every turn."""
+    from mirobody.utils.config import get_default_timezone
+
+    for candidate in (name, get_default_timezone()):
+        if not candidate:
+            continue
+        try:
+            ZoneInfo(candidate)
+        except (ZoneInfoNotFoundError, ValueError):
+            logger.warning("a time zone is not an IANA name; falling back")
+            continue
+        return candidate
+    return "UTC"
 
 
 def _route(model: str) -> Any:
@@ -87,8 +107,7 @@ class MirobodyAgent:
         # Whether the asker may change the record this turn reads (the chat
         # layer resolves it per turn); an `ask_user` date is filed only then.
         self.may_write = may_write
-        from mirobody.utils.config import get_default_timezone
-        self.timezone = timezone or get_default_timezone()
+        self.timezone = _zone(timezone)
         self.allowed_tools = allowed_tools
         self.disallowed_tools = disallowed_tools or []
         self.prompt_templates = prompt_templates
