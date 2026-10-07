@@ -15,9 +15,9 @@ so in the boot log, which is the mechanism working.
 The settings live in [`config.devices.yaml`](../config.devices.yaml) (named by the
 `INCLUDE` list at the top of `config.yaml`), not in `config.yaml` itself: a
 deployment that never connects a wearable never sees them. That file ships with
-empty credentials and each vendor's endpoint defaults already filled in; put your
-credentials there, or in your `config.{env}.yaml` overlay, which overrides it
-(the YAML blocks below work in either).
+empty credentials and each vendor's endpoint defaults already filled in. Put your
+credentials in your `config.{env}.yaml` overlay, which overrides it (the YAML
+blocks below go there).
 
 **With Docker** the image carries its own copy of these files, so editing the
 checkout's `config.devices.yaml` changes nothing. Put the blocks in
@@ -112,10 +112,12 @@ GARMIN_REDIRECT_URL:  'https://abc123.ngrok-free.app/api/v1/pulse/theta/theta_ga
 Optional, with defaults: `GARMIN_AUTH_URL`, `GARMIN_TOKEN_URL`,
 `GARMIN_ACCESS_TOKEN_URL`, `GARMIN_API_BASE_URL`, `OAUTH_TEMP_TTL_SECONDS`.
 
-> Secrets are encrypted at rest automatically: any key whose name contains
-> `_SECRET`, `_KEY`, `_TOKEN`, `_PASSWORD` … is encrypted with
+> Secrets in the overlay are encrypted at rest automatically: any key whose name
+> contains `_SECRET`, `_KEY`, `_TOKEN`, `_PASSWORD` … is encrypted with
 > `CONFIG_ENCRYPTION_KEY` from `.env` the first time the server reads it. Paste
-> the plaintext once; the file rewrites itself.
+> the plaintext once; the overlay rewrites itself. The shipped defaults,
+> `config.yaml` and the files it includes, are read and never rewritten, so a
+> secret pasted into `config.devices.yaml` stays in plaintext.
 
 ---
 
@@ -126,7 +128,7 @@ Optional, with defaults: `GARMIN_AUTH_URL`, `GARMIN_TOKEN_URL`,
 boot log with `docker compose logs mirobody`:
 
 ```
-Loaded provider from /app/mirobody/collect/providers/mirobody_oura/provider_oura.py
+Loaded provider: provider_class=OuraProvider
   - provider platform loaded 1 providers
 ```
 
@@ -155,12 +157,20 @@ curl -s http://localhost:18060/api/v1/pulse/user/providers -H "Authorization: Be
 
 Unlink with `POST /api/v1/pulse/user/providers/unlink`.
 
-**4. Data arrives** either on the pull schedule the provider registers at
-startup, or via webhook: `POST /api/v1/pulse/{platform}/{provider}/webhook`,
-which is the endpoint you give the vendor for push notifications. Webhooks are
-off (404) until you set `COLLECT_WEBHOOK_SECRET`; then register the URL with
-`?secret=<value>`, or send the value in `X-Webhook-Secret`. A push names its
-person by the vendor's own user id, which is matched through the linked account.
+**4. Data arrives.** Oura and WHOOP are pulled: right after a link (Oura 30
+days back, WHOOP 2), then on a schedule, Oura every hour and WHOOP once a day.
+
+Garmin pushes, and is pulled only once, 7 days back, right after a link. Give
+Garmin `POST {your-https-host}/api/v1/pulse/theta/theta_garmin/webhook` as the
+push endpoint for each summary type. Webhooks are off (404) until you set
+`COLLECT_WEBHOOK_SECRET`; then register the URL with `?secret=<value>`, or send
+the value in `X-Webhook-Secret`. A push names its person by Garmin's user id,
+which is matched through the linked account; a push for an account nobody
+linked here answers an error.
+
+WHOOP and Oura pushes are not supported. Their notifications carry only the id
+of a record to fetch, and no link here stores their user id, so a push from
+either is not stored.
 
 ---
 
@@ -178,10 +188,11 @@ slash. The most common miss is the slug: `theta_oura`, not `oura`.
 so the platform has nothing registered under that slug. Fix the credentials
 first; the callback is downstream of registration.
 
-**It worked, then stopped after an hour.** Access tokens expire and are
-refreshed through `refresh_access_token`; if a refresh token was never stored,
-the vendor consent needs the offline/refresh scope. Re-link once with the right
-scope configured.
+**It worked, then stopped.** An access token is refreshed before it expires.
+When the vendor refuses the refresh token, or none was stored because the
+consent lacked the offline scope, the link is marked for reconnecting: the app
+shows it as "reconnect", the pull skips it, and linking again clears the mark.
+A refresh that only times out is tried again on the next pull.
 
 ---
 
@@ -189,7 +200,8 @@ scope configured.
 
 The provider contract is one directory:
 `mirobody_<slug>/provider_<slug>.py`, exporting a `BasePullProvider` subclass
-with `create_provider(config)` returning `None` when unconfigured.
+with `create_provider(config)` returning `None` when unconfigured, `format_data`
+and `pull_from_vendor_api(credentials, days)`.
 [`mirobody_whoop/`](../mirobody/collect/providers/mirobody_whoop/) is the OAuth2
 reference; [`mirobody_oura/`](../mirobody/collect/providers/mirobody_oura/) is the
 same shape with a different vendor. Full guide: [provider-guide.md](provider-guide.md).

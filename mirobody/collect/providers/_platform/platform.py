@@ -129,7 +129,7 @@ class ProviderPlatform(Platform):
                     providers.append(provider)
 
             except Exception as e:
-                logger.warning("provider failed to load: module=%s error_type=%s", provider_name,
+                logger.warning("Failed to load provider: module=%s error_type=%s", provider_name,
                                type(e).__name__, exc_info=not is_driver_exception(e))
                 continue
 

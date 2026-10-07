@@ -1,115 +1,76 @@
-# 🏥 Developing Data Providers
+# Device and health-platform providers
 
-Providers are modules in the **Pulse** platform that connect Mirobody to external data sources (wearables, databases, health APIs).
+A provider connects Mirobody to one external data source. This directory holds
+the shipped ones and the machinery they stand on:
 
-## 📂 Architecture
+    _platform/              BasePullProvider, the loader, credential storage,
+                            the OAuth2 client, the HTTP helpers, the pull task
+    mirobody_garmin_connect/  Garmin (OAuth 1.0a, pushes; pulled once after a link)
+    mirobody_oura/          Oura (OAuth 2.0, pulled hourly)
+    mirobody_whoop/         WHOOP (OAuth 2.0, pulled daily)
+    apple/                  Apple Health and CDA documents, pushed by a client app
 
-Providers can be located in two places:
+The translation of a vendor's JSON into facts is not here: it is the pure
+decode table in `mirobody/kernel/decoders/<vendor>.py`, with its samples. A
+provider here is the IO shell around it.
 
-1.  **Custom Providers** (Recommended): Place them in the root `providers/` directory.
-2.  **Core Providers** (Public releases): Located in `mirobody/collect/providers/`.
+## Where a provider can live
 
-Each provider gets its own directory following the naming convention: `mirobody_<slug>`,
-containing at least one `provider_*.py`. That pair is the whole contract — it is
-literally the glob `load_providers()` scans (`mirobody_*/provider_*.py`). The module
-file name does **not** have to match the directory slug: the shipped Garmin provider
-is `mirobody_garmin_connect/provider_garmin.py`.
+`ProviderPlatform.load_providers()` scans each directory in `PROVIDER_DIRS`
+(config.yaml lists `mirobody/collect/providers`; add your own directory to the
+list) for `mirobody_*/provider_*.py`, and also loads any installed package that
+declares a `mirobody.providers` entry point
+(`examples/mirobody_example_plugin/` is a complete one). A directory not in
+`PROVIDER_DIRS` is not scanned. The module file name need not match the
+directory slug: the shipped Garmin provider is
+`mirobody_garmin_connect/provider_garmin.py`.
 
-The directory slug is also what `installed.py` reports, without importing anything —
-`test_installed.py` guards the convention, so a `mirobody_*/` directory holding no
-`provider_*.py` fails the suite instead of silently loading nothing.
+The directory slug is also what `installed.py` reports, without importing
+anything; `test_installed.py` guards the convention, so a `mirobody_*/`
+directory holding no `provider_*.py` fails the suite instead of silently
+loading nothing.
 
-### Directory Structure
-```
-providers/                      # Root directory for custom providers
-└── mirobody_mydevice/          # Provider directory
-    ├── __init__.py             # Exports
-    └── provider_mydevice.py    # Main implementation
-```
-
-## 🏗️ Implementation Guide
-
-To create a new provider, inherit from `BasePullProvider` and implement the required methods.
-
-### 1. Basic Structure
+## The contract
 
 ```python
-from mirobody.collect.providers._platform.base import BasePullProvider
-from mirobody.collect.base import ProviderInfo
-from mirobody.collect.core import LinkType, ProviderStatus
-from mirobody.collect.core.models import ConnectInfoField
+from typing import Any
+
+from mirobody.collect import (
+    BasePullProvider, FormatDataInput, LinkType, ProviderInfo, ProviderStatus, StandardPulseData,
+)
+
 
 class MyDeviceProvider(BasePullProvider):
-    def __init__(self):
-        super().__init__()
-        # Initialize your client/service here
+    pull_interval_hours = 6.0              # how often the scheduler pulls
+    raw_table = "health_data_mydevice"     # keep payloads as received; "" keeps none
 
     @classmethod
-    def create_provider(cls, config):
-        # Factory method
-        return cls()
-```
+    def create_provider(cls, config: dict[str, Any]) -> "MyDeviceProvider | None":
+        return cls()                       # None when a credential it needs is not configured
 
-### 2. Provider Metadata (`info`)
-
-Define how your provider appears in the UI and what credentials it needs.
-
-```python
     @property
     def info(self) -> ProviderInfo:
-        return ProviderInfo(
-            slug="theta_mydevice",
-            name="My Device",
-            description="Integration for My Device health data",
-            logo="https://example.com/logo.png",
-            supported=True,
-            auth_type=LinkType.PASSWORD,  # or CUSTOMIZED
-            status=ProviderStatus.AVAILABLE,
-            # If LinkType.CUSTOMIZED, define fields:
-            connect_info_fields=[
-                ConnectInfoField(
-                    field_name="api_key",
-                    field_type="string",
-                    required=True,
-                    label="API Key"
-                )
-            ]
-        )
-```
+        return ProviderInfo(slug="theta_mydevice", name="My Device",
+                            auth_type=LinkType.PASSWORD, status=ProviderStatus.AVAILABLE)
 
-### 3. Authentication (`_validate_credentials`)
-
-Validate that the user's credentials work.
-
-```python
     async def _validate_credentials(self, credentials: dict) -> None:
-        # For LinkType.PASSWORD
-        username = credentials.get("username")
-        password = credentials.get("password")
-        
-        # For LinkType.CUSTOMIZED
-        connect_info = credentials.get("connect_info", {})
-        api_key = connect_info.get("api_key")
+        ...                                # raise if username/password cannot work
 
-        if not self.my_client.test_connection(api_key):
-             raise ValueError("Invalid credentials")
+    async def pull_from_vendor_api(self, credentials: dict[str, Any], days: int) -> list[dict[str, Any]]:
+        ...                                # the last `days`, as {"data_type", "data", "timestamp"} packages;
+                                           # raise PermissionError when the vendor refuses the credential
+
+    async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
+        ...                                # decoders.decode + records_from_facts
 ```
 
-### 4. Data Pulling (Optional)
+The base class runs the loop: every linked account every `pull_interval_hours`,
+`pull_days` back; each package pushed to the platform, saved by
+`save_raw_data_to_db` and formatted. Three refusals in a row stop it trying an
+account until the person links again or the worker restarts; a timeout or a
+vendor outage does not count. A `LinkType.CUSTOMIZED` provider declares its fields with
+`ConnectInfoField` and reads them from `credentials["connect_info"]`, which is
+stored encrypted.
 
-If your provider pulls data periodically, implement `pull_from_vendor_api`.
-
-```python
-    def register_pull_task(self) -> bool:
-        return True  # Enable scheduled pulling
-
-    async def pull_from_vendor_api(self, username, password) -> list:
-        # Fetch data from external API
-        raw_data = await self.my_client.get_data()
-        return raw_data
-```
-
-## 🧩 Reference
-
-- **Base Class**: [`mirobody/collect/providers/_platform/base.py`](_platform/base.py)
-- **Example**: [`mirobody/collect/providers/mirobody_whoop/provider_whoop.py`](mirobody_whoop/provider_whoop.py)
+The full guide is [docs/provider-guide.md](../../../docs/provider-guide.md);
+setting up the shipped three is [docs/provider-setup.md](../../../docs/provider-setup.md).
