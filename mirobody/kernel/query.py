@@ -37,7 +37,7 @@ import logging
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from importlib import resources
 from typing import Protocol
 
@@ -53,8 +53,10 @@ SEMANTICS_DATE_PADDED = "date_padded_naive"  # a store whose time column has no 
 @dataclass(frozen=True)
 class Window:
     """An absolute window. ``start``/``end`` are the local dates the caller
-    asked for (inclusive), ``start_ms``/``end_ms`` the instants they resolve
-    to in ``tz`` (end exclusive). ``note`` says when the window was clamped."""
+    asked for (inclusive), in the order the window uses them;
+    ``start_ms``/``end_ms`` the instants they resolve to in ``tz`` (end
+    exclusive). ``note`` says when the pair was swapped or the window
+    clamped."""
 
     start_ms: int
     end_ms: int
@@ -88,23 +90,31 @@ def resolve_window(
     tz: str, *, start: str = "", end: str = "", hours: int, now: datetime, max_hours: int | None = None
 ) -> Window:
     """``start``/``end`` (either may be empty) → an absolute window in ``tz``.
-    A missing end is ``now``; a missing start is ``hours`` before the end; an
-    inverted pair is repaired; a window longer than ``max_hours`` is clamped
-    to its most recent part and says so in ``note``. ``now`` is a parameter
-    so the same call gives the same answer in a test and at 23:59."""
+    A missing end is ``now``; a missing start is ``hours`` before the end. A
+    pair given the wrong way round is swapped, as the medications tool does:
+    it means the span between the two dates, and the old repair (``hours``
+    after the start) answered about a day nobody asked for while echoing the
+    dates as asked. A window longer than ``max_hours`` is clamped to its most
+    recent part. ``note`` says which of the two happened. ``now`` is a
+    parameter so the same call gives the same answer in a test and at 23:59."""
     if hours < 1:
         raise ValueError("hours must be >= 1")
     z = zone(tz)
     now_local = now.astimezone(z)
     end_dt = parse_bound(end, tz, end_of_day=True) or now_local
     start_dt = parse_bound(start, tz) or (end_dt - timedelta(hours=hours))
+    notes = []
     if end_dt <= start_dt:
-        end_dt = start_dt + timedelta(hours=hours)
-    note = ""
+        # Only a given start can pass the end (a derived one is `hours`
+        # before it), so the swapped end always parses.
+        start, end = end, start
+        start_dt = parse_bound(start, tz) or now_local
+        end_dt = parse_bound(end, tz, end_of_day=True) or now_local
+        notes.append("start and end swapped")
     if max_hours is not None and (end_dt - start_dt) > timedelta(hours=max_hours):
         start_dt = end_dt - timedelta(hours=max_hours)
-        note = f"window clamped to {max_hours}h"
-    return Window(int(start_dt.timestamp() * 1000), int(end_dt.timestamp() * 1000), tz, start, end, note)
+        notes.append(f"window clamped to {max_hours}h")
+    return Window(int(start_dt.timestamp() * 1000), int(end_dt.timestamp() * 1000), tz, start, end, "; ".join(notes))
 
 
 # --- selection ------------------------------------------------------------------------
@@ -446,11 +456,21 @@ def reject_unknown(args: Mapping[str, object], schema: Mapping[str, object]) -> 
 
 
 def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
+    """``start``/``end`` that are not a calendar day written ``YYYY-MM-DD``.
+    The pattern alone let ``2025-06-31`` through: the readings tool then read
+    it as no bound at all (an end of *now*) and the medications tool raised."""
     out = []
     for p in ("start", "end"):
         v = args.get(p)
-        if v not in (None, "") and not _DATE.match(str(v)):
+        if v in (None, ""):
+            continue
+        if not _DATE.match(str(v)):
             out.append(Rejection(p, "must be YYYY-MM-DD"))
+            continue
+        try:
+            date.fromisoformat(str(v))
+        except ValueError:
+            out.append(Rejection(p, "not a calendar date"))
     return out
 
 
