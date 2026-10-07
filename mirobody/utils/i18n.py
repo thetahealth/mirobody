@@ -60,6 +60,14 @@ def _translations(module: str) -> dict[str, dict[str, str]]:
         return {}
 
 
+@cache
+def _missing(module: str, key: str) -> None:
+    """Log, once per key, a key its bundle does not have: the person is shown
+    the key itself (`excel_processing_success`), which went unnoticed while
+    eleven keys the upload path used were in no bundle."""
+    logger.warning("locale key missing: module=%s key=%s", module, key)  # phi: ok a key from the code, not a value
+
+
 def localize(key: str, language: str, module: str, **kwargs) -> str:
     """The text for `key` in `language`, from `locales/<module>.json`.
 
@@ -71,6 +79,8 @@ def localize(key: str, language: str, module: str, **kwargs) -> str:
     """
     lang_code = LANGUAGE_CODES.get(language.lower(), "en")
     text_dict = _translations(module).get(key, {})
+    if not text_dict:
+        _missing(module, key)
     text = text_dict.get(lang_code) or text_dict.get("en") or text_dict.get("zh") or key
     if kwargs:
         try:
