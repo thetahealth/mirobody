@@ -307,3 +307,39 @@ def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
     assert seen["model"] == "vendor/model-b"
     assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
     assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400
+
+
+# -- the agent and the MCP surface: a secret, a record, a caller ---------------
+
+
+_LITERAL_KEY = "sk-proj-THIS-IS-THE-LITERAL-SECRET"
+
+
+def test_a_secret_written_where_a_key_name_belongs_is_never_repeated(caplog):
+    from mirobody.agent.models.clients import build_llm_clients, unavailable_reason
+
+    table = {"gpt": {"llm_type": "openai", "model": "gpt-x", "api_key": _LITERAL_KEY},
+             "named": {"llm_type": "openai", "model": "gpt-y", "api_key": "OPENAI_API_KEY"}}
+    with caplog.at_level("DEBUG"):
+        clients = build_llm_clients(table, resolve=lambda name: None)
+    assert _LITERAL_KEY not in caplog.text
+    assert _LITERAL_KEY not in unavailable_reason(clients["gpt"])
+    with pytest.raises(AttributeError) as raised:
+        clients["gpt"].invoke
+    assert _LITERAL_KEY not in str(raised.value)
+    # A variable NAME is what tells the operator what to set: it stays.
+    assert "OPENAI_API_KEY" in unavailable_reason(clients["named"])
+
+
+def test_a_turn_on_a_model_whose_key_is_a_literal_never_shows_it(monkeypatch):
+    pytest.importorskip("langchain_core")
+    from mirobody.agent import agent as agent_module
+    from mirobody.agent.errors import ConfigError
+    from mirobody.agent.models.clients import build_llm_clients
+
+    clients = build_llm_clients({"gpt": {"llm_type": "openai", "model": "gpt-x", "api_key": _LITERAL_KEY}},
+                                resolve=lambda name: None)
+    monkeypatch.setattr(agent_module, "llm_client", clients.get)
+    with pytest.raises(ConfigError) as raised:
+        asyncio.run(agent_module.MirobodyAgent(timezone="UTC")._init_llm_client("gpt"))
+    assert _LITERAL_KEY not in str(raised.value)

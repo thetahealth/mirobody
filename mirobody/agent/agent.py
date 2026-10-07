@@ -34,7 +34,7 @@ from mirobody.utils.config.llm import chat_default, chat_entries
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error
 from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
-from .models.clients import build_llm_clients
+from .models.clients import build_llm_clients, unavailable_reason
 from .models.usage import usage_block
 from .prompt import attachment_reminder, build_system_prompt, question_language
 from .wire.blocks import ERROR, NOTICE
@@ -129,13 +129,13 @@ class MirobodyAgent:
                     f"Available providers: {available_str}"
                 )
 
-        # Validate client (check for PlaceholderClient)
-        try:
-            _ = agent_llm_client.invoke
-        except AttributeError as attr_error:
-            logger.error(f"Provider validation failed: {attr_error}")
-            raise ConfigError(f"Provider initialization failed: {attr_error}") from attr_error
-        
+        # An entry whose key or address is missing is a placeholder
+        # (`build_llm_clients`); its reason names the variable to set.
+        reason = unavailable_reason(agent_llm_client)
+        if reason:
+            logger.error("chat model unavailable: its key or address is not set")
+            raise ConfigError(f"Provider initialization failed: {reason}")
+
         # Extract model name
         model_name = getattr(agent_llm_client, "model_name", None) or getattr(agent_llm_client, "model", "Unknown")
 
