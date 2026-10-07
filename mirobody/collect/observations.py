@@ -511,7 +511,7 @@ SELECT id FROM th_observation o
 """
 
 _SELECT_BY_SOURCE = """
-SELECT id, observed_start, observed_end FROM v_observation
+SELECT id, observed_start, observed_end, tz FROM v_observation
  WHERE user_id = :user_id AND source_ref = :source_ref
 """
 
@@ -838,8 +838,10 @@ async def amend(
     now: datetime | None = None,
 ) -> int | None:
     """Correct one observation: a new row with the change, pointing at the
-    old one, re-coded from the corrected text. Returns the new id, or `None`
-    when the id is not this person's or nothing changed."""
+    old one, re-coded from the corrected text. Returns the new row's id;
+    `observation_id` itself when the change leaves the row's fingerprint as
+    it was and no note is given, and nothing is written; `None` when the id
+    is not this person's."""
     async with db.transaction() as tx:
         rows = await tx.execute(_SELECT_ROW, {"id": int(observation_id), "user_id": str(user_id)})
         if not rows:
@@ -863,6 +865,8 @@ async def amend(
             derived_from=tuple(old.get("derived_from") or ()),
         )
         row = prepare(draft, provenance, str(user_id), user_tz, now=now or datetime.now(tz=translate.zone_for("UTC")))
+        if row["fingerprint"] == old["fingerprint"] and not note:
+            return int(observation_id)
         row["extraction_id"] = old.get("extraction_id")
         row["amends"] = int(observation_id)
         inserted = await tx.execute(_INSERT_OBSERVATION, row)
@@ -877,19 +881,19 @@ async def amend(
 
 async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str = "UTC") -> tuple[int, int]:
     """Move every visible observation of one source to `when` (a report whose
-    date came from the upload time, answered by the person). Each move is an
-    amendment. Returns `(moved, skipped)`, where a skipped row already sat on
-    that time, or an equal row already holds the target identity."""
+    date came from the upload time, answered by the person). A naive `when`
+    is wall clock in each row's own zone, as `amend` reads it. Each move is
+    an amendment. Returns `(moved, skipped)`, where a skipped row already sat
+    on that time, or an equal row already holds the target identity."""
     rows = await _select_by_source(user_id, source_ref)
     moved = skipped = 0
     for r in rows:
-        start = r["observed_start"]
-        target = when if when.tzinfo else when.replace(tzinfo=start.tzinfo)
-        if start == target and r["observed_end"] == target:
+        target = when if when.tzinfo else when.replace(tzinfo=translate.zone_for(r["tz"]))
+        if r["observed_start"] == target and r["observed_end"] == target:
             skipped += 1
             continue
         new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
-        if new_id is None:
+        if new_id is None or new_id == int(r["id"]):
             skipped += 1
         else:
             moved += 1
