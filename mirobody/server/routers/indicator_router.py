@@ -39,6 +39,7 @@ from mirobody.collect import RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATAL
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
 from mirobody.server.auth import subject_for, verify_token
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.envelope import ErrorResponse, StandardResponse, failed
 
 logger = logging.getLogger(__name__)
@@ -289,7 +290,8 @@ async def patch_reading(patch: ReadingPatch, user_id: str = Depends(verify_token
             tz = await observations.user_tz(str(user_id))
             done = await observations.amend(str(user_id), patch.id, value_text=patch.value.strip(), user_tz=tz) is not None
     except Exception as e:
-        logger.error(f"[patch_reading] {e}", exc_info=True)
+        logger.error("reading correction failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This update could not complete.")
 
     if not done:
@@ -354,6 +356,7 @@ async def patch_file_date(patch: FileDatePatch, user_id: str = Depends(verify_to
     try:
         data = await set_file_report_date(owner, patch.file_key, when)
     except Exception as e:
-        logger.error(f"[patch_file_date] {e}", exc_info=True)
+        logger.error("file date change failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This update could not complete.")
     return StandardResponse(data=data)

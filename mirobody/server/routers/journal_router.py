@@ -205,9 +205,7 @@ async def log_entry(
     try:
         report = await observations.ingest(owner, [draft], provenance, user_tz=tz, on_conflict=ON_CONFLICT)
     except Exception as e:
-        # A type name and nothing else: a driver exception quotes the SQL and
-        # its parameters, and the parameter here is what the person typed.
-        logger.error("[log_entry] error_type=%s", type(e).__name__)
+        logger.error("journal entry failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This entry could not be saved.")
 
     if not report.inserted:
@@ -297,7 +295,8 @@ async def log_sentence(
                 payload={"model": raw, "received_at": now.isoformat()},
             )
         except Exception as e:
-            logger.error("[log_sentence] error_type=%s", type(e).__name__)
+            logger.error("journal sentence failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return ErrorResponse(code=500, msg="This sentence could not be saved.")
 
     medications: list[dict] = []
@@ -312,7 +311,8 @@ async def log_sentence(
             outcomes = await apply_medication_mentions(
                 owner, mentions, record_date=now.date(), source_record_id=record_id)
         except Exception as e:
-            logger.error("[log_sentence] medications error_type=%s", type(e).__name__)
+            logger.error("journal sentence medications failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             medications_failed = True
         else:
             medications = [
@@ -483,7 +483,8 @@ async def retract_medication(
         _, now = _writer_zone(await observations.user_tz(owner))
         await store.transition(owner, plan_id, "void", today=now.date())
     except Exception as e:
-        logger.error("[retract_medication] error_type=%s", type(e).__name__)
+        logger.error("journal medication retraction failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This entry could not be retracted.")
     return StandardResponse(data={"retracted": 1})
 
@@ -503,7 +504,8 @@ async def retract_entry(
     try:
         count = await observations.retract(owner, [observation_id])
     except Exception as e:
-        logger.error("[retract_entry] error_type=%s", type(e).__name__)
+        logger.error("journal entry retraction failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This entry could not be retracted.")
     if not count:
         return ErrorResponse(code=404, msg="No such entry.")

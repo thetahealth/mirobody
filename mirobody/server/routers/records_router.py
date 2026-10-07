@@ -45,6 +45,7 @@ from mirobody.kernel import series
 from mirobody.collect import observations
 from mirobody.translate import devices
 from mirobody.utils import execute_query
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 
 logger = logging.getLogger(__name__)
@@ -151,7 +152,7 @@ async def standardize(body: StandardizeRequest, user_id: str = Depends(verify_to
         # problem to act on, and neither is a server fault.
         return _error(400, str(e), "extraction_failed", "text")
     except Exception as e:
-        logger.error(f"[standardize] {e}", exc_info=True)
+        logger.error("standardize failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return _error(500, "This extraction could not complete.", "internal_error")
 
     data: list[dict[str, Any]] = []
@@ -351,7 +352,7 @@ async def write_records(body: WriteRequest, user_id: str = Depends(verify_token)
     try:
         report = await _insert_records(user_id, records, source=_SOURCE_API)
     except Exception as e:
-        logger.error(f"[write_records] {e}", exc_info=True)
+        logger.error("records write failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return _error(500, "These records could not be written.", "internal_error")
     return {"status": "ok", "ingested": report.inserted, "standardized": report.coded, "rejected": dict(report.rejected)}
 
@@ -397,7 +398,7 @@ async def read_records(
     try:
         rows = await execute_query(sql, params) or []
     except Exception as e:
-        logger.error(f"[read_records] {e}", exc_info=True)
+        logger.error("records read failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return _error(500, "This lookup could not complete.", "internal_error")
 
     has_more = len(rows) > limit
@@ -456,6 +457,6 @@ async def erase_records(
         else:
             deleted = await observations.erase(str(user_id), everything=True)
     except Exception as e:
-        logger.error(f"[erase_records] {e}", exc_info=True)
+        logger.error("records erase failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return _error(500, "This deletion could not complete.", "internal_error")
     return {"status": "ok", "deleted": deleted}
