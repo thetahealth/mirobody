@@ -390,7 +390,9 @@ def weekday_from(value: int | str, convention: Literal["iso", "zero_monday", "ze
 
 @dataclass(frozen=True)
 class ScheduleParts:
-    """A description of a schedule with no words in it: labels render it."""
+    """A description of a schedule with no words in it: labels render it.
+    ``doses_per_day`` counts the doses on each day the schedule is due (0 for
+    as-needed and unscheduled), whichever way the instruction stores them."""
 
     kind: str
     times: tuple[str, ...]
@@ -401,10 +403,13 @@ class ScheduleParts:
 
 
 def describe_schedule(instruction: DoseInstruction) -> ScheduleParts:
+    kind = instruction.schedule_kind()
     return ScheduleParts(
-        kind=instruction.schedule_kind(),
+        kind=kind,
         times=instruction.times,
-        doses_per_day=instruction.doses_per_day or len(instruction.times),
+        # Counted from the slots: once daily is stored as `period_days=1` with
+        # no count, and the stored fields alone read "0x/day".
+        doses_per_day=0 if kind in (KIND_PRN, KIND_UNSCHEDULED) else len(instruction.slots()),
         period_days=instruction.period_days,
         weekdays=tuple(sorted(instruction.weekdays)),
         as_needed=instruction.as_needed,
@@ -1589,18 +1594,19 @@ def schedule_text(schedule: Schedule) -> str:
     for instr in schedule:
         d = describe_schedule(instr)
         dose = f"{instr.dose.value:g} {instr.dose.unit}" if instr.dose else ""
-        if d.kind == KIND_FIXED_TIMES:
-            when = "/".join(d.times)
-        elif d.kind == KIND_DAILY:
-            when = f"{d.doses_per_day}x/day"
-        elif d.kind == KIND_WEEKLY:
-            when = "wd" + ",".join(str(w) for w in d.weekdays)
-        elif d.kind == KIND_INTERVAL:
-            when = f"every {d.period_days}d"
-        elif d.kind == KIND_PRN:
+        if d.kind == KIND_PRN:
             when = "as needed"
-        else:
+        elif d.kind == KIND_UNSCHEDULED:
             when = "unscheduled"
+        else:
+            # What a due day holds, then which days are due: a weekly or
+            # interval plan's clock times were dropped.
+            days = {
+                KIND_WEEKLY: "wd" + ",".join(str(w) for w in d.weekdays),
+                KIND_INTERVAL: f"every {d.period_days}d",
+            }.get(d.kind, "")
+            per_day = "/".join(d.times) if d.times else f"{d.doses_per_day}x" + ("" if days else "/day")
+            when = " ".join(x for x in (per_day, days) if x)
         parts.append(" ".join(x for x in (dose, when) if x))
     return "; ".join(parts)
 
