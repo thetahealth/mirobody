@@ -116,10 +116,10 @@ class HealthDataRepository:
             "repair_task_id": repair_task_id,
         }
         result = await execute_query(query, params)
-        deleted = result.get("record_count", 0) if isinstance(result, dict) else 0
+        deleted_count = int(result.get("record_count") or 0) if isinstance(result, dict) else 0
         logger.info("repair sweep of series points: user_id=%s deleted=%d indicators=%d",
-                    user_id, deleted or 0, len(indicators))
-        return deleted or 0
+                    user_id, deleted_count, len(indicators))
+        return deleted_count
 
 
 # Create singleton instance

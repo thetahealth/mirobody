@@ -148,10 +148,11 @@ class RepairReconciler:
                         task_id=repair_task_id,
                     )
 
+            series_deleted_count, retracted_count = result["series_deleted"], result["observations_retracted"]
+            reaggregate_ok = result["reaggregated"]
             logger.info(
                 "repair sweep done: user_id=%s task_id=%s series_deleted=%d observations_retracted=%d reaggregated=%s",
-                user_id, repair_task_id, result["series_deleted"], result["observations_retracted"],
-                result["reaggregated"],
+                user_id, repair_task_id, series_deleted_count, retracted_count, reaggregate_ok,
             )
             return result
 

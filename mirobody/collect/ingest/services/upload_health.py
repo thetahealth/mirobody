@@ -6,8 +6,7 @@ unit, and check it against the indicator's plausible range
 
 - a summary indicator (a vendor's own daily figure) is written as an
   observation (`observations.ingest_legacy`). A value outside its range is
-  not written; the records refused are counted in the log as
-  `observations.REJECT_OUT_OF_RANGE`.
+  not written; the records refused are counted in the log.
 - a series indicator (one point of a stream) is upserted into `series_data`,
   which the aggregation reads. A value outside its range is kept there under
   `task_id = "filtered_out_of_range"`, which the aggregation skips: a point
@@ -89,9 +88,10 @@ class StandardHealthService:
                 window_to_ms=getattr(meta, "windowTo", None),
             )
 
+            duration_ms = (time.monotonic() - started) * 1000
             logger.info(
                 "pulse batch written: user_id=%s records=%d summaries=%d series=%d elapsed_ms=%d",
-                user_id, len(health_data), summary_count, series_count, (time.monotonic() - started) * 1000,
+                user_id, len(health_data), summary_count, series_count, duration_ms,
             )
             return summary_success and series_success
 
@@ -107,7 +107,7 @@ class StandardHealthService:
         summary value outside its range is left out of both and counted."""
         summary_records: list[dict[str, Any]] = []
         series_records: list[dict[str, Any]] = []
-        out_of_range = unreadable = 0
+        out_of_range_count = unreadable_count = 0
 
         user_timezone = await observations.user_tz(user_id)
         ranges = await observations.value_ranges()
@@ -117,20 +117,19 @@ class StandardHealthService:
                 common = self._prepare_common_record_data(record, user_id, user_timezone, ranges)
             except (OverflowError, OSError, ValueError):
                 # A timestamp no datetime can hold: that record, not the batch.
-                unreadable += 1
+                unreadable_count += 1
                 continue
             indicator = common["indicator"]
             if is_summary_indicator(indicator):
                 if common["task_id"] == FILTERED_OUT_OF_RANGE:
-                    out_of_range += 1
+                    out_of_range_count += 1
                 else:
                     summary_records.append(self._prepare_summary_record(common))
             if is_series_indicator(indicator):
                 series_records.append(self._prepare_series_record(common))
 
-        logger.info("pulse records classified: user_id=%s summaries=%d series=%d unreadable=%d rejected=%d reason=%s",
-                    user_id, len(summary_records), len(series_records), unreadable, out_of_range,
-                    observations.REJECT_OUT_OF_RANGE)
+        logger.info("pulse records classified: user_id=%s summaries=%d series=%d unreadable=%d out_of_range=%d",
+                    user_id, len(summary_records), len(series_records), unreadable_count, out_of_range_count)
         return summary_records, series_records
 
     def _prepare_common_record_data(
