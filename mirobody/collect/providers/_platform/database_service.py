@@ -111,21 +111,19 @@ class ProviderDatabaseService:
             )
 
             if not result:
-                logger.info(f"No users found for provider {provider_slug}")
                 return []
 
             # Decrypt corresponding fields and return credentials list
             credentials = []
             for row in result:
+                user_id = row["user_id"]
                 try:
-                    user_id = row["user_id"]
                     entry: dict[str, Any] = {"user_id": user_id, "link_type": link_type.value.lower()}
                     if link_type == LinkType.PASSWORD:
                         encrypted_password = row.get("password")
                         if encrypted_password:
                             decrypted_password = self._decrypt(encrypted_password, user_id)
                             if decrypted_password is None:
-                                logger.error(f"Failed to decrypt password for user {user_id}: password is None after decryption")
                                 continue
                             entry["username"] = row.get("username")
                             entry["password"] = decrypted_password
@@ -150,14 +148,14 @@ class ProviderDatabaseService:
 
                     credentials.append(entry)
                 except Exception as e:
-                    logger.error(f"Failed to decrypt password for user {row['user_id']}: {str(e)}")
+                    logger.error("credentials unreadable: provider=%s user_id=%s error_type=%s", provider_slug,
+                                 user_id, type(e).__name__, exc_info=not is_driver_exception(e))
                     continue
-
-            logger.info(f"Found {len(credentials)} users with credentials for provider {provider_slug}")
             return credentials
 
         except Exception as e:
-            logger.error(f"Error getting user credentials for provider {provider_slug}: {str(e)}")
+            logger.error("credentials lookup failed: provider=%s error_type=%s", provider_slug, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return []
 
     async def save_user_theta_provider(
@@ -249,7 +247,8 @@ class ProviderDatabaseService:
         """
 
         await execute_query(query=atomic_query, params=params)
-        logger.info("credentials saved: provider=%s user_id=%s link_type=%s", provider_slug, app_user_id, link_type.value)
+        logger.info("credentials saved: provider=%s user_id=%s link_type=%s",  # phi: ok LinkType enum value
+                    provider_slug, app_user_id, link_type.value)
 
     async def mark_reconnect(self, user_id: str, provider_slug: str) -> None:
         """Flag a link whose credential the vendor refuses. Every credential
@@ -304,11 +303,11 @@ class ProviderDatabaseService:
                 },
             )
 
-            logger.info(f"Successfully updated LLM access to {llm_access} for user {user_id}, provider {provider_slug}")
             return True
 
         except Exception as e:
-            logger.error(f"Error updating LLM access for user {user_id}, provider {provider_slug}: {str(e)}")
+            logger.error("LLM access update failed: user_id=%s provider=%s error_type=%s", user_id, provider_slug,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
 
     async def get_user_theta_providers_with_llm_access(self, user_id: str) -> dict[str, dict[str, int]]:
@@ -432,7 +431,8 @@ class ProviderDatabaseService:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get user credentials for {provider_slug}: {str(e)}")
+            logger.error("credentials lookup failed: provider=%s user_id=%s error_type=%s", provider_slug, user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return None
 
     async def save_oauth1_credentials(

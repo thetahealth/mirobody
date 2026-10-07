@@ -219,9 +219,10 @@ class BasePullProvider(Provider):
             await self._pull_and_push_for_user(credentials, days=self.pull_days)
             for credentials in await self.get_all_user_credentials()
         ]
+        failed_count = results.count(False)
         logger.info("pull run done: provider=%s account_count=%d failed_count=%d",
-                    self.info.slug, len(results), results.count(False))
-        return all(results)
+                    self.info.slug, len(results), failed_count)
+        return failed_count == 0
 
     def _now_ms(self) -> int:
         """The clock, as one overridable call. A back-off is a decision about
@@ -244,16 +245,18 @@ class BasePullProvider(Provider):
         state = self._credential_states.get(user_id) or connect.Credential(provider=slug, subject_id=user_id)
         now_ms = self._now_ms()
         if not connect.may_attempt(state, now_ms=now_ms, policy=self.DEBOUNCE):
-            logger.info("pull skipped: provider=%s user_id=%s state=%s failure_count=%d",
-                        slug, user_id, state.state, state.failures)
+            failure_count = state.failures
+            logger.info("pull skipped: provider=%s user_id=%s state=%s failure_count=%d",  # phi: ok state is connect's closed set
+                        slug, user_id, state.state, failure_count)
             return True
         try:
             packages = await self.pull_from_vendor_api(credentials, days)
         except PermissionError as e:
             state = connect.record_failure(state, now_ms=now_ms, policy=self.DEBOUNCE)
             self._credential_states[user_id] = state
+            failure_count = state.failures
             logger.warning("pull refused: provider=%s user_id=%s error_type=%s failure_count=%d",
-                           slug, user_id, type(e).__name__, state.failures)
+                           slug, user_id, type(e).__name__, failure_count)
             return False
         except Exception as e:
             logger.error("pull failed: provider=%s user_id=%s error_type=%s", slug, user_id, type(e).__name__,
@@ -261,11 +264,11 @@ class BasePullProvider(Provider):
             return False
         self._credential_states[user_id] = connect.record_success(state)
 
-        pushed = 0
+        pushed_count = 0
         for package in packages:
             package["theta_user_id"] = user_id
             if await push_service.push_data(platform="theta", provider_slug=slug, data=package):
-                pushed += 1
+                pushed_count += 1
         logger.info("pull done: provider=%s user_id=%s package_count=%d pushed_count=%d",
-                    slug, user_id, len(packages), pushed)
-        return pushed == len(packages)
+                    slug, user_id, len(packages), pushed_count)
+        return pushed_count == len(packages)

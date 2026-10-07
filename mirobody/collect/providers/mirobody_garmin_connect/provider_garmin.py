@@ -111,128 +111,49 @@ class GarminProvider(BasePullProvider):
         )
 
     async def link(self, request: Any) -> dict[str, Any]:
+        """OAuth 1.0a stage 1: a request token, and the URL the person approves it at.
+
+        The request token's secret and the account it is for wait in
+        temporary state under the token, for `callback`. `request.options`
+        may carry `return_url`, where the browser goes once the link is made.
+        Returns `{"link_web_url": ...}`.
         """
-        Link Garmin OAuth Provider - Stage 1: Generate OAuth authorization URL
-
-        This method initiates the OAuth flow by generating an authorization URL
-        that the user needs to visit to grant permission. After user authorization,
-        the callback will be handled by the separate callback() method.
-
-        Args:
-            request: Link request containing user_id and options (redirect_url)
-
-        Returns:
-            Dict containing 'link_web_url' for user authorization
-
-        Raises:
-            RuntimeError: If OAuth configuration is invalid or token generation fails
-        """
+        if not self.client_id or not self.client_secret:
+            raise ValueError("Missing GARMIN_CLIENT_ID or GARMIN_CLIENT_SECRET configuration")
+        if not self.redirect_url:
+            raise ValueError("Missing GARMIN_REDIRECT_URL configuration")
         user_id = request.user_id
-        options = request.options or {}
+        oauth = OAuth1Session(
+            client_key=self.client_id,
+            client_secret=self.client_secret,
+            signature_method="HMAC-SHA1",
+            signature_type="auth_header",
+        )
+        # OAuth1Session is synchronous `requests`, which aiohttp cannot
+        # replace for OAuth 1.0a: a thread keeps it off the event loop.
+        resp = await asyncio.to_thread(oauth.post, self.request_token_url)
+        if resp.status_code != 200:
+            raise RuntimeError(f"Garmin request token refused: status={resp.status_code}")
+        params = parse_qs(resp.text)
+        oauth_token = params["oauth_token"][0]
 
         try:
-            # Generate OAuth authorization URL (Stage 1 of OAuth flow)
-            logger.info(f"Generating OAuth authorization URL for user: {user_id}")
-            return await self._generate_authorization_url(user_id, options)
-
+            ephemeral = global_config().get_ephemeral()
+            await ephemeral.setex(f"oauth:secret:{oauth_token}", self.oauth_temp_ttl, params["oauth_token_secret"][0])
+            await ephemeral.setex(f"oauth:user:{oauth_token}", self.oauth_temp_ttl, user_id or "")
         except Exception as e:
-            logger.error(f"Error linking Garmin provider: {str(e)}")
-            raise RuntimeError(str(e))
+            logger.warning("Garmin OAuth state write failed: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
+            raise RuntimeError("Garmin OAuth state is unavailable") from None
 
-    async def _generate_authorization_url(self, user_id: str, options: dict[str, Any]) -> dict[str, Any]:
-        """
-        Generate OAuth authorization URL for user to grant permission
-
-        This method creates a request token with Garmin, stores the token secret
-        in Postgres temporary state cache, and builds the authorization URL that the user needs to visit.
-
-        Args:
-            user_id: User ID to associate with the OAuth flow
-            options: Dict containing redirect_url for OAuth callback
-
-        Returns:
-            Dict containing 'link_web_url' for user authorization
-
-        Raises:
-            ValueError: If OAuth credentials are not configured
-            RuntimeError: If request token generation fails
-        """
-        try:
-            if not self.client_id or not self.client_secret:
-                raise ValueError("Missing GARMIN_CLIENT_ID or GARMIN_CLIENT_SECRET configuration")
-
-            # Create OAuth1Session for request token
-            oauth = OAuth1Session(
-                client_key=self.client_id,
-                client_secret=self.client_secret,
-                signature_method='HMAC-SHA1',
-                signature_type='auth_header',
-                verifier=None
-            )
-
-            # Get request token. OAuth1Session is synchronous `requests`:
-            # awaiting it in a thread keeps this provider from freezing the
-            # event loop (Oura/Whoop use aiohttp natively; Garmin is the one
-            # provider still on OAuth1, which aiohttp does not speak).
-            resp = await asyncio.to_thread(oauth.post, self.request_token_url)
-
-            if resp.status_code != 200:
-                raise RuntimeError(f"Failed to get request token: status={resp.status_code}")
-
-            # Parse response
-            params = parse_qs(resp.text)
-            oauth_token = params['oauth_token'][0]
-            oauth_token_secret = params['oauth_token_secret'][0]
-
-            # Store oauth_token_secret in Postgres temporary state keyed by oauth_token (TTL 15 minutes)
-            try:
-                cfg = global_config()
-                ephemeral = cfg.get_ephemeral()
-                await ephemeral.setex(
-                    f"oauth:secret:{oauth_token}", self.oauth_temp_ttl, oauth_token_secret
-                )
-                # Optionally store user for cross-check (not strictly required)
-                await ephemeral.setex(
-                    f"oauth:user:{oauth_token}", self.oauth_temp_ttl, user_id or ""
-                )
-            except Exception as e:
-                logger.warning("Garmin OAuth state write failed: error_type=%s", type(e).__name__)
-                raise RuntimeError("Garmin OAuth state is unavailable") from None
-
-            # Build authorization URL
-            redirect_url = self.redirect_url
-            if not redirect_url:
-                raise ValueError("Missing GARMIN_REDIRECT_URL configuration")
-
-            # Attach optional return_url to callback for round-trip
-            return_url = options.get("return_url")
-            if return_url:
-                # append return_url as query to our callback
-                # callback is handled by /api/v1/pulse/{platform}/{provider}/callback
-                # here we embed return_url so it can be read back on callback
-                if "?" in redirect_url:
-                    redirect_uri_with_return = f"{redirect_url}&return_url={urlencode({'r': return_url})[2:]}"
-                else:
-                    redirect_uri_with_return = f"{redirect_url}?return_url={urlencode({'r': return_url})[2:]}"
-            else:
-                redirect_uri_with_return = redirect_url
-
-            auth_params = {
-                "oauth_token": oauth_token,
-                "oauth_callback": redirect_uri_with_return
-            }
-
-            authorization_url = f"{self.auth_url}?{urlencode(auth_params)}"
-
-            logger.info(f"Generated OAuth authorization URL for user {user_id}")
-
-            return {
-                "link_web_url": authorization_url
-            }
-
-        except Exception as e:
-            logger.error("Garmin authorization URL failed: error_type=%s", type(e).__name__)
-            raise
+        # The callback reads return_url back from its own query string.
+        callback_url = self.redirect_url
+        return_url = (request.options or {}).get("return_url")
+        if return_url:
+            separator = "&" if "?" in callback_url else "?"
+            callback_url = f"{callback_url}{separator}{urlencode({'return_url': return_url})}"
+        query = urlencode({"oauth_token": oauth_token, "oauth_callback": callback_url})
+        return {"link_web_url": f"{self.auth_url}?{query}"}
 
     async def callback(self, oauth_token: str, oauth_verifier: str) -> dict[str, Any]:
         """OAuth 1.0a stage 2: trade the verified request token for an access token.
@@ -320,66 +241,29 @@ class GarminProvider(BasePullProvider):
         )
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
+        """Revoke the registration at Garmin, then remove the link here.
+
+        The local link goes either way: it is what the person asked to
+        remove, and a token Garmin rejects cannot be revoked by trying again.
+        A Garmin failure used to surface as a 500 after the row was already
+        deleted, so the app said "failed" about a provider that was gone.
         """
-        Unlink Garmin provider by deleting user registration
-
-        Args:
-            user_id: User ID
-
-        Returns:
-            Unlink result data
-        """
-        api_unlink_success = False
-        api_error_message = None
-
+        vendor_revoked = False
         try:
-            logger.info(f"Unlinking Garmin provider for user: {user_id}")
-
-            # Get stored credentials using new OAuth method
             credentials = await self.db_service.get_user_credentials(user_id, self.info.slug, self.info.auth_type)
-            if not credentials:
-                await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-                logger.warning(f"No stored credentials found for user {user_id}")
-                return {"success": True, "message": "No credentials found; treated as unlinked"}
-
-            # Use new OAuth1 format
-            access_token = credentials.get("access_token")
-            token_secret = credentials.get("access_token_secret")
-
-            if not access_token or not token_secret:
-                logger.warning(f"Invalid stored credentials for user {user_id}")
-                # Will be removed from database in finally block
-            else:
-                oauth = self._oauth_session(access_token, token_secret)
-
-                # Call DELETE API to unlink user (sync requests: thread)
-                unlink_url = f"{self.api_base_url}/user/registration"
-                resp = await asyncio.to_thread(oauth.delete, unlink_url)
-
-                if resp.status_code == 204:
-                    api_unlink_success = True
-                    logger.info(f"Successfully unlinked Garmin provider for user {user_id}")
-                else:
-                    api_error_message = f"Garmin API unlink failed: {resp.status_code} - {resp.text}"
-                    logger.error(api_error_message)
-                    # Raise on API unlink failure as requested
-                    raise RuntimeError(api_error_message)
-
+            if credentials:
+                oauth = self._oauth_session(credentials["access_token"], credentials["access_token_secret"])
+                resp = await asyncio.to_thread(oauth.delete, f"{self.api_base_url}/user/registration")
+                vendor_revoked = resp.status_code == 204
+                if not vendor_revoked:
+                    logger.warning("Garmin did not revoke the registration: user_id=%s status_code=%d",
+                                   user_id, resp.status_code)
         except Exception as e:
-            api_error_message = str(e)
-            logger.error(f"Error unlinking Garmin provider: {str(e)}")
+            logger.error("Garmin revocation failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
-        # The local link goes either way: it is what the person asked to remove,
-        # and a token Garmin rejects cannot be revoked by trying again. A Garmin
-        # failure used to surface as a 500 after the row was already deleted, so
-        # the app said "failed" about a provider that was gone.
-        try:
-            await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-        except Exception as db_error:
-            logger.error(f"Failed to remove from database: {str(db_error)}")
-            raise RuntimeError(f"Failed to unlink provider: {api_error_message or 'Unknown error'}") from db_error
-
-        if api_unlink_success:
+        await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
+        if vendor_revoked:
             return {"success": True, "vendor_revoked": True, "message": "Successfully unlinked from Garmin"}
         return {
             "success": True,
@@ -393,10 +277,11 @@ class GarminProvider(BasePullProvider):
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """Garmin summaries → standard records, via ``mirobody.kernel.decoders.garmin``.
 
-        The payload is ``{data_type: [summary, ...], ...}`` for one user (a
-        webhook push or an active pull, already split per user). Every data
-        type Garmin sends is decoded by the shared table; ``activityDetails``
-        wraps an activity summary under ``summary``.
+        The payload is ``{data_type: [summary, ...], ...}`` for one person, as
+        `save_raw_data_to_db` returns it for a push or a pull. Every summary
+        type is decoded by the shared table; ``activityDetails`` wraps an
+        activity summary under ``summary``, and a deregistration decodes to
+        nothing.
         """
         ctx = fmt_input.context
         request_id = self.generate_request_id()
@@ -427,7 +312,7 @@ class GarminProvider(BasePullProvider):
                 records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=record_id))
         if not types:
             return self._create_empty_response(request_id, ctx.theta_user_id)
-        logger.info("Formatted %d Garmin records from %d data types", len(records), len(types))
+        logger.info("Garmin formatted: record_count=%d type_count=%d", len(records), len(types))
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
             healthData=records,
@@ -557,8 +442,9 @@ class GarminProvider(BasePullProvider):
                 if isinstance(item, dict) and item.get("userId"):
                     by_person.setdefault(str(item["userId"]), {}).setdefault(data_type, []).append(item)
         accounts = await self._batch_map_external_to_theta_user_ids(list(by_person))
-        if len(accounts) < len(by_person):
-            logger.warning("Garmin push for unlinked accounts: unmatched_count=%d", len(by_person) - len(accounts))
+        unmatched_count = len(by_person) - len(accounts)
+        if unmatched_count:
+            logger.warning("Garmin push for unlinked accounts: unmatched_count=%d", unmatched_count)
         return [(accounts[garmin_id], garmin_id, by_type)
                 for garmin_id, by_type in by_person.items() if garmin_id in accounts]
 

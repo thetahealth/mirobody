@@ -68,13 +68,13 @@ class ProviderPlatform(Platform):
         providers = []
 
         if not directory.exists():
-            logger.debug(f"Provider directory does not exist: {directory}")
+            logger.debug("provider directory does not exist")
             return providers
 
         provider_files = sorted(directory.glob("mirobody_*/provider_*.py"))
 
         if not provider_files:
-            logger.debug(f"No provider files found in {directory}")
+            logger.debug("no provider files in a provider directory")
             return providers
 
         # Providers shipped INSIDE this package must be imported by their real
@@ -129,7 +129,8 @@ class ProviderPlatform(Platform):
                     providers.append(provider)
 
             except Exception as e:
-                logger.warning(f"Failed to load provider {provider_name} from {directory}: {e}")
+                logger.warning("provider failed to load: module=%s error_type=%s", provider_name,
+                               type(e).__name__, exc_info=not is_driver_exception(e))
                 continue
 
         return providers
@@ -159,19 +160,19 @@ class ProviderPlatform(Platform):
                     break
 
         if provider_class is None:
-            logger.debug(f"No provider class found in {provider_file.stem}, skipping")
+            logger.debug("no provider class in module: module=%s", provider_file.stem)
             return None
 
         if not hasattr(provider_class, "create_provider"):
-            logger.warning(f"Provider class {provider_class.__name__} missing create_provider method, skipping")
+            logger.warning("provider class has no create_provider: provider_class=%s", provider_class.__name__)
             return None
 
         provider_instance = provider_class.create_provider(self.config)
         if provider_instance is None:
-            logger.info(f"Provider {provider_class.__name__} declined to start (not configured)")
+            logger.info("Provider %s declined to start (not configured)", provider_class.__name__)
             return None
 
-        logger.info(f"Loaded provider from {provider_file}")
+        logger.info("Loaded provider: provider_class=%s", provider_class.__name__)
         return provider_instance
 
     def load_providers(self) -> list[BasePullProvider]:
@@ -208,7 +209,6 @@ class ProviderPlatform(Platform):
                 seen_dirs.add(dir_path)
 
         for directory in all_dirs:
-            logger.info(f"Scanning for providers in: {directory}")
             dir_providers = self._load_providers_from_directory(directory)
             providers.extend(dir_providers)
 
@@ -232,7 +232,6 @@ class ProviderPlatform(Platform):
         for provider in self._providers.values():
             providers.append(provider.info)
 
-        logger.info(f"Got {len(providers)} providers from theta platform")
         return providers
 
     async def get_user_providers(self, user_id: str) -> list[UserProvider]:
@@ -261,10 +260,9 @@ class ProviderPlatform(Platform):
                     )
                 )
 
-            logger.info(f"Got {len(connections)} connections for user {user_id} from theta platform")
-
         except Exception as e:
-            logger.error(f"Error getting user providers for user {user_id}: {str(e)}")
+            logger.error("provider links lookup failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
         return connections
 
@@ -282,13 +280,7 @@ class ProviderPlatform(Platform):
         if not provider:
             raise ValueError(f"Provider {provider_slug} not found in theta platform")
 
-        try:
-            result_data = await provider.unlink(user_id)
-            logger.info(f"Unlink successful for theta provider {provider_slug}")
-            return result_data
-        except Exception as e:
-            logger.error(f"Error unlinking theta provider {provider_slug}: {str(e)}")
-            raise RuntimeError(f"Failed to unlink provider: {str(e)}") from e
+        return await provider.unlink(user_id)
 
     async def post_data(self, provider_slug: str, data: dict[str, Any], msg_id: str) -> bool:
         """Save a payload, format it and store its readings; False on any failure.
@@ -346,7 +338,8 @@ class ProviderPlatform(Platform):
         try:
             await scheduler.start()
         except Exception as e:
-            logger.error(f"Failed to start theta pull scheduler: {str(e)}")
+            logger.error("pull scheduler failed to start: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
 
     # ===== LLM Access Management =====
 

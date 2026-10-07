@@ -75,9 +75,10 @@ class AppleHealthProvider(Provider):
                 records.append(r)
 
         dropped_count = sum(dropped.values())
+        duration_ms = (time.time() - t1) * 1000
         logger.info("Apple Health formatted: record_count=%d input_count=%d dropped_count=%d "
                     "dropped_type_count=%d duration_ms=%.0f", len(records), len(health_data), dropped_count,
-                    len(dropped), (time.time() - t1) * 1000)
+                    len(dropped), duration_ms)
 
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(
