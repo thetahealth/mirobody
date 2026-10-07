@@ -1,8 +1,8 @@
 """WHOOP API v2 records → facts. Pure; field paths are WHOOP's own.
 
-The record types are ``sleep``, ``cycle``, ``workout``, ``recovery``,
-``body_measurement`` and ``profile`` (WHOOP's singular names; the plural
-spellings an older pull loop used are accepted). Scored types are only
+The record types are ``sleep``, ``cycle``, ``workout``, ``recovery`` (WHOOP's
+own singular names) and ``body``, the body measurement. WHOOP's profile
+carries nothing measurable and is not a type here. Scored types are only
 decoded once WHOOP has scored them (``score_state == "SCORED"``); a pending
 record decodes to nothing rather than to zeros.
 
@@ -89,21 +89,8 @@ ZONES = (
     ("workoutDurationHigh", ("zone_four_milli", "zone_five_milli")),
 )
 
-_ALIASES = {
-    "sleeps": "sleep",
-    "cycles": "cycle",
-    "workouts": "workout",
-    "recoveries": "recovery",
-    "body_measurement": "body",
-    "body_measurements": "body",
-    "user_profile": "profile",
-}
 SCORED = frozenset({"sleep", "cycle", "workout", "recovery"})
-DATA_TYPES: tuple[str, ...] = ("sleep", "cycle", "workout", "recovery", "body", "profile")
-
-
-def canonical_type(data_type: str) -> str:
-    return _ALIASES.get(data_type, data_type)
+DATA_TYPES: tuple[str, ...] = tuple(MAPPING)
 
 
 def window_ms(data_type: str, item: dict, tz: str, pulled_at_ms: int) -> tuple[int, int]:
@@ -136,13 +123,12 @@ METRICS: frozenset[str] = frozenset(
 def decode(
     data_type: str, item: dict, tz: str, *, pulled_at_ms: int = 0, source_record_id: str = "", ingested_at_ms: int = 0
 ) -> list[Fact]:
-    kind = canonical_type(data_type)
-    mapping = MAPPING.get(kind)
+    mapping = MAPPING.get(data_type)
     if not mapping or not isinstance(item, dict):
-        return []  # profile is informational; nothing measurable in it
-    if kind in SCORED and item.get("score_state") != "SCORED":
         return []
-    start, end = window_ms(kind, item, tz, pulled_at_ms)
+    if data_type in SCORED and item.get("score_state") != "SCORED":
+        return []
+    start, end = window_ms(data_type, item, tz, pulled_at_ms)
     if not start:
         return []
     out: list[Fact] = []
@@ -150,7 +136,7 @@ def decode(
     def emit(metric: str, value: float) -> None:
         out.append(fact(metric, value, start, end, source_record_id=source_record_id, ingested_at_ms=ingested_at_ms))
 
-    if kind == "workout":
+    if data_type == "workout":
         zones: Any = dig(item, "score.zone_durations")
         if isinstance(zones, dict):
             for metric, keys in ZONES:

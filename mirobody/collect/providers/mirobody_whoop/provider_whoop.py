@@ -255,7 +255,7 @@ class WhoopProvider(BasePullProvider):
         Implements three-layer data fetching strategy:
         1. Collection data (cycles, sleeps, workouts, recovery)
         2. Detailed data (by-ID endpoints)
-        3. Static data (user profile, body measurements)
+        3. Static data (body measurements)
         """
         try:
             if days and days > 0:
@@ -371,11 +371,6 @@ class WhoopProvider(BasePullProvider):
                 # Layer 3: Fetch static data
                 logger.info("Layer 3: Fetching static data")
 
-                # Fetch user profile
-                profile_url = f"{self.api_base_url}/user/profile/basic"
-                profile = await self._fetch_paginated_data(session, profile_url, headers)
-                logger.info("Fetched user profile data")
-
                 # Fetch body measurements
                 body_url = f"{self.api_base_url}/user/measurement/body"
                 body_measurements = await self._fetch_paginated_data(session, body_url, headers)
@@ -389,7 +384,7 @@ class WhoopProvider(BasePullProvider):
                 if detailed_cycles:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "cycles",
+                        "data_type": "cycle",
                         "data": detailed_cycles,
                         "timestamp": timestamp,
                     })
@@ -398,14 +393,14 @@ class WhoopProvider(BasePullProvider):
                 if detailed_sleeps:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "sleeps",
+                        "data_type": "sleep",
                         "data": detailed_sleeps,
                         "timestamp": timestamp,
                     })
                 elif sleeps:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "sleeps",
+                        "data_type": "sleep",
                         "data": sleeps,
                         "timestamp": timestamp,
                     })
@@ -414,7 +409,7 @@ class WhoopProvider(BasePullProvider):
                 if detailed_workouts:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "workouts",
+                        "data_type": "workout",
                         "data": detailed_workouts,
                         "timestamp": timestamp,
                     })
@@ -423,31 +418,22 @@ class WhoopProvider(BasePullProvider):
                 if cycle_recoveries:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "recoveries",
+                        "data_type": "recovery",
                         "data": cycle_recoveries,
                         "timestamp": timestamp,
                     })
                 elif recoveries:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "recoveries",
+                        "data_type": "recovery",
                         "data": recoveries,
-                        "timestamp": timestamp,
-                    })
-
-                # Add user data
-                if profile:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "user_profile",
-                        "data": profile,
                         "timestamp": timestamp,
                     })
 
                 if body_measurements:
                     all_raw_data.append({
                         "user_id": user_id,
-                        "data_type": "body_measurements",
+                        "data_type": "body",
                         "data": body_measurements,
                         "timestamp": timestamp,
                     })

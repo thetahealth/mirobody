@@ -58,8 +58,6 @@ class OuraProvider(BasePullProvider):
         # {"path": "/v2/usercollection/daily_cardiovascular_age", "data_type": "daily_cardiovascular_age", "paginated": True},
         {"path": "/v2/usercollection/vo2_max", "data_type": "vo2_max", "paginated": True},
         {"path": "/v2/usercollection/workout", "data_type": "workout", "paginated": True},
-        {"path": "/v2/usercollection/session", "data_type": "session", "paginated": True},
-        {"path": "/v2/usercollection/sleep_time", "data_type": "sleep_time", "paginated": True},
     ]
 
     def __init__(self):

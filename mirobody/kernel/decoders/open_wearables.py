@@ -17,7 +17,7 @@ daylight saving, quality gates, medications and the query tools here.
 ## The four things that need care
 
 * **`type` is a name, not a code.** `res/crosswalks/open_wearables.tsv` is the
-  93-row table; 44 rows map, 49 decline WITH A REASON. An unmapped type is
+  93-row table; 49 rows map, 44 decline WITH A REASON. An unmapped type is
   quarantined, never guessed into a neighbouring metric.
 * **`unit` is a label, not a unit.** The engine knows seventeen of their
   twenty-six spellings; the crosswalk carries the rest. The one that bites is
@@ -273,7 +273,7 @@ def _sleep(item: dict, tz: str, record_id: str, ingested_at_ms: int) -> list[Fac
                 value_num=float(end - start),
                 effective_start_ms=start,
                 effective_end_ms=end,
-                unit="ms",
+                unit=metrics.METRICS[metric].unit_ucum,
                 series_key=key,
                 device_id=str(source.get("device") or ""),
                 source_record_id=record_id or str(item.get("id") or ""),
