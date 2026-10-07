@@ -280,7 +280,7 @@ class GarminProvider(BasePullProvider):
             oauth_verifier: OAuth verifier received from Garmin callback
 
         Returns:
-            Dict containing provider_slug, access_token (truncated), and stage info
+            Dict containing provider_slug and stage
 
         Raises:
             RuntimeError: If token exchange fails or credentials cannot be saved
@@ -309,7 +309,7 @@ class GarminProvider(BasePullProvider):
             credentials: Dict containing oauth_token and oauth_verifier
 
         Returns:
-            Dict with provider_slug, truncated access_token, and completion status
+            Dict with provider_slug and stage
 
         Raises:
             ValueError: If required tokens are missing
@@ -393,11 +393,7 @@ class GarminProvider(BasePullProvider):
             # Start an async task to pull data after successful link
             spawn(self._pull_and_push_for_user(creds_payload))
 
-            return {
-                "provider_slug": self.info.slug,
-                "access_token": access_token[:20] + "...",
-                "stage": "completed"
-            }
+            return {"provider_slug": self.info.slug, "stage": "completed"}
 
         except Exception as e:
             logger.error(f"Error handling OAuth callback: {str(e)}")
@@ -502,12 +498,19 @@ class GarminProvider(BasePullProvider):
                 continue
             types.append(key)
             for item in items:
+                if not isinstance(item, dict):
+                    continue
+                # Garmin's own summaryId, never the per-pull msg_id: the id is
+                # part of a reading's identity, so a msg_id stored a new copy
+                # of every daily summary per pull.
+                record_id = str(item.get("summaryId") or "")
                 if key == "activityDetails":
-                    item = item.get("summary") if isinstance(item, dict) else None
-                    facts = decoders.decode("garmin", "activities", item, tz, source_record_id=msg_id) if item else []
+                    summary = item.get("summary")
+                    facts = (decoders.decode("garmin", "activities", summary, tz, source_record_id=record_id)
+                             if isinstance(summary, dict) else [])
                 else:
-                    facts = decoders.decode("garmin", key, item, tz, source_record_id=msg_id)
-                records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=msg_id))
+                    facts = decoders.decode("garmin", key, item, tz, source_record_id=record_id)
+                records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=record_id))
         if not types:
             return self._create_empty_response(request_id, ctx.theta_user_id)
         logger.info("Formatted %d Garmin records from %d data types", len(records), len(types))

@@ -22,6 +22,7 @@ from mirobody.collect.providers._platform.base import BasePullProvider
 from mirobody.collect.providers._platform.oauth2 import OAuth2Client
 from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.kernel import decoders
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
 from mirobody.utils.tasks import spawn
@@ -174,7 +175,6 @@ class WhoopProvider(BasePullProvider):
 
             return {
                 "provider_slug": self.info.slug,
-                "access_token": result["access_token"][:20] + "...",
                 "stage": "completed",
                 "return_url": result.get("return_url"),
             }
@@ -238,8 +238,11 @@ class WhoopProvider(BasePullProvider):
         pulled_at = int(payload.get("timestamp") or 0)
         records: list[StandardPulseRecord] = []
         for item in items:
-            facts = decoders.decode("whoop", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=msg_id)
-            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=msg_id))
+            # WHOOP's own record id, never the per-pull msg_id: the id is part
+            # of a reading's identity, so a msg_id stored a new copy per pull.
+            record_id = str(item.get("id") or "") if isinstance(item, dict) else ""
+            facts = decoders.decode("whoop", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=record_id)
+            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=record_id))
         logger.info("Formatted %d Whoop records from %d %s items", len(records), len(items), data_type)
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
@@ -649,8 +652,8 @@ class WhoopProvider(BasePullProvider):
             result_data["msg_id"] = msg_id
             return [result_data]
         except Exception as e:
-            logger.info(f"whoop raw_data: {raw_data}")
-            logger.error(f"Error saving Whoop raw data: {str(e)}")
+            logger.error("WHOOP raw save failed: data_type=%s error_type=%s",
+                         raw_data.get("data_type"), type(e).__name__, exc_info=not is_driver_exception(e))
             return []
 
     async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:

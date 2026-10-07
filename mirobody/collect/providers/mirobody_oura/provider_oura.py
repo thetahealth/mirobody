@@ -138,7 +138,6 @@ class OuraProvider(BasePullProvider):
 
         return {
             "provider_slug": self.info.slug,
-            "access_token": result["access_token"][:20] + "..." if result["access_token"] else "",
             "stage": "completed",
             "return_url": result.get("return_url"),
         }
@@ -372,8 +371,11 @@ class OuraProvider(BasePullProvider):
         pulled_at = int(payload.get("timestamp") or 0)
         records: list[StandardPulseRecord] = []
         for item in items:
-            facts = decoders.decode("oura", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=msg_id)
-            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=msg_id))
+            # Oura's own document id, never the per-pull msg_id: the id is part
+            # of a reading's identity, so a msg_id stored a new copy per pull.
+            record_id = str(item.get("id") or "") if isinstance(item, dict) else ""
+            facts = decoders.decode("oura", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=record_id)
+            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=record_id))
         logger.info("Formatted %d Oura records from %d %s items", len(records), len(items), data_type)
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
