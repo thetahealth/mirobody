@@ -3,7 +3,6 @@ from __future__ import annotations
 from mirobody.collect.files.services.conversation_summary import update_message_content
 from mirobody.collect.files.services.report_date import resolve_report_date
 import abc
-import asyncio
 import hashlib
 import logging
 import uuid
@@ -23,6 +22,7 @@ from mirobody.documents.extract import PartialText
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
+from mirobody.utils.tasks import spawn
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +70,6 @@ class BaseFileHandler(abc.ABC):
         self.temp_manager = temp_manager
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
-        # Strong references to background tasks to prevent GC before completion
-        self._background_tasks: set[asyncio.Task] = set()
 
     async def process(self, ctx: FileProcessingContext) -> dict[str, Any]:
         """Template method for file processing"""
@@ -348,7 +346,7 @@ class BaseFileHandler(abc.ABC):
         file_key: str,
         message_id: str | None = None,
     ):
-        """Start background indicator extraction with GC-safe task reference.
+        """Start indicator extraction in the background.
 
         `message_id` is the upload session the file arrived in; it is how the
         task's two progress events find the client's WebSocket (see
@@ -362,17 +360,18 @@ class BaseFileHandler(abc.ABC):
             )
             return
 
-        task = asyncio.create_task(
+        # `spawn` holds the task: the handler is discarded once `process`
+        # returns, and a task only it referenced could be collected mid-run.
+        spawn(
             self._async_extract_indicators(
                 original_text=original_text,
                 user_id=user_id,
                 file_name=file_name,
                 file_key=file_key,
                 message_id=message_id,
-            )
+            ),
+            name="indicator-extraction",
         )
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
         logger.info(
             f"{self.get_type_name()} upload completed, "
             f"background indicator extraction started: {file_key}"
