@@ -96,17 +96,20 @@ class MedicationsService(RecordTool):
         window = _window(request, today, default_days=meds.LOG_DEFAULT_DAYS if request.view == meds.VIEW_LOG else None)
 
         plans = list(await awaited(store.list(subject_id)))
+        # One row past the cap: an answer of exactly `MAX_ROWS` rows is
+        # complete, and read as cut when the cap was all that was asked for.
+        limit = meds.MAX_ROWS + 1
         if request.view == meds.VIEW_LOG:
             events = list(await awaited(log.list(subject_id, window)))  # type: ignore[arg-type]
-            rows = meds.log_rows(events, {p.plan_id: p for p in plans}, keywords=request.keywords)
+            rows = meds.log_rows(events, {p.plan_id: p for p in plans}, keywords=request.keywords, limit=limit)
         elif request.view == meds.VIEW_HISTORY:
             by_plan = {p.plan_id: list(await awaited(store.courses(p.plan_id))) for p in plans}
-            rows = meds.history_rows(plans, by_plan, keywords=request.keywords, window=window)
+            rows = meds.history_rows(plans, by_plan, keywords=request.keywords, window=window, limit=limit)
         else:
             todays = list(await awaited(log.list(subject_id, (today, today))))
             rows = meds.plan_rows(
                 plans, todays, keywords=request.keywords, window=window, today=today,
-                now_ms=int(now.timestamp() * 1000), tz=tz,
+                now_ms=int(now.timestamp() * 1000), tz=tz, limit=limit,
             )
         return _envelope_for(request, window, tz, rows)
 
@@ -144,11 +147,13 @@ def _envelope_for(
     request: meds.MedicationsRequest, window: tuple[date, date] | None, tz: str, rows: list[dict]
 ) -> tools.Envelope:
     dated = bool(request.start or request.end) or (request.view == meds.VIEW_LOG)
+    truncated = len(rows) > meds.MAX_ROWS
+    rows = rows[:meds.MAX_ROWS]
     meta = tools.Meta(
         window=(window[0].isoformat(), window[1].isoformat()) if (window and dated) else ("", ""),
         tz=tz,
         row_count=len(rows),
-        truncated=len(rows) >= meds.MAX_ROWS,
+        truncated=truncated,
     )
     notes = (meds.PLAN_NOTE,) if request.view == meds.VIEW_PLAN else (meds.LOG_NOTE,) if request.view == meds.VIEW_LOG else ()
     if not rows:

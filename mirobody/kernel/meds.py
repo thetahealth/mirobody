@@ -1614,11 +1614,14 @@ def plan_rows(
     today: date,
     now_ms: int,
     tz: str,
+    limit: int = MAX_ROWS,
 ) -> list[dict]:
     """The ``plan`` view: one row per plan in effect at some point in
     ``window`` (all plans when ``None``), with its effective status and, for
     an active plan, every slot of ``today`` and its derived state. Pure:
-    ``today``/``now_ms`` are the caller's clock in the subject's zone."""
+    ``today``/``now_ms`` are the caller's clock in the subject's zone. At most
+    ``limit`` rows, as in each view: a caller that asks for one more than it
+    shows can tell a cut answer from a complete one."""
     out: list[dict] = []
     by_plan: dict[str, dict[tuple, DoseEvent]] = {}
     for e in todays_events:
@@ -1646,11 +1649,12 @@ def plan_rows(
             }
         )
     out.sort(key=lambda r: (r["status"] != EFFECTIVE_ACTIVE, r["since"]), reverse=False)
-    return out[:MAX_ROWS]
+    return out[:limit]
 
 
 def log_rows(
-    events: Sequence[DoseEvent], plans: Mapping[str, MedicationPlan], *, keywords: Sequence[str] = ()
+    events: Sequence[DoseEvent], plans: Mapping[str, MedicationPlan], *, keywords: Sequence[str] = (),
+    limit: int = MAX_ROWS,
 ) -> list[dict]:
     """The ``log`` view: what was recorded, newest first, each dose named by
     its medication (a log of plan ids answers nothing a person asked)."""
@@ -1677,7 +1681,7 @@ def log_rows(
             }
         )
     rows.sort(key=lambda r: r.pop("_at"), reverse=True)
-    return rows[:MAX_ROWS]
+    return rows[:limit]
 
 
 def history_rows(
@@ -1686,6 +1690,7 @@ def history_rows(
     *,
     keywords: Sequence[str] = (),
     window: tuple[date, date] | None = None,
+    limit: int = MAX_ROWS,
 ) -> list[dict]:
     """The ``history`` view: every course of every matching plan that was in
     effect at some point in ``window``, newest first, with why it closed
@@ -1708,7 +1713,7 @@ def history_rows(
                 }
             )
     out.sort(key=lambda r: r["start"], reverse=True)
-    return out[:MAX_ROWS]
+    return out[:limit]
 
 
 #: The columns each view renders for the model, in order. `provenance` rides
