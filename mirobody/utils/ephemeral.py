@@ -168,21 +168,6 @@ class EphemeralStore:
             )
             return cursor.rowcount
 
-    async def delete_if_value(self, key: str, expected: str) -> bool:
-        """Release a lock only while its owner still matches."""
-        async with self._connection() as conn:
-            row = await (await conn.execute(
-                "SELECT value_ciphertext FROM th_ephemeral WHERE key_hash = %s "
-                "AND (expires_at IS NULL OR expires_at > now()) FOR UPDATE",
-                (self._hash(key),),
-            )).fetchone()
-            if row is None:
-                return True
-            if self._open(row[0]) != expected:
-                return False
-            await conn.execute("DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),))
-            return True
-
     async def take_if_value(self, key: str, expected: str) -> bool:
         """Consume a one-time code only if it matches, with the row locked."""
         async with self._connection() as conn:

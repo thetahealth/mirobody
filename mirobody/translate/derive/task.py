@@ -6,7 +6,6 @@ Independent from AggregateIndicatorTask.
 """
 
 import logging
-from datetime import datetime
 
 from mirobody.utils.scheduler import PullTask, ScheduleType
 from .rules import DerivedAggregator
@@ -33,33 +32,15 @@ class DerivedCalculationTask(PullTask):
 
             result = await self.aggregator.process(lookback_days=90)
 
-            stats = {
-                "executed_at": datetime.now().isoformat(),
-                "total_computed": result.get("total_computed", 0),
-                "total_skipped": result.get("total_skipped", 0),
-                "by_rule": result.get("by_rule", {}),
-            }
-            await self.save_task_stats(stats)
-
             logger.info(
-                f"[DerivedCalculationTask] Done: {stats['total_computed']} computed, "
-                f"{stats['total_skipped']} skipped"
+                f"[DerivedCalculationTask] Done: {result.get('total_computed', 0)} computed, "
+                f"{result.get('total_skipped', 0)} skipped"
             )
             return True
 
         except Exception as e:
             logger.error(f"[DerivedCalculationTask] Execution error: {e}")
             return False
-
-    async def get_task_info(self) -> dict:
-        full_status = await self.get_full_status()
-        full_status.update({
-            "task_name": "Derived Indicator Calculation",
-            "description": "Compute derived indicators from daily summaries",
-            "execution_frequency": "Every 6 hours",
-            "rules_count": len(self.aggregator.rules),
-        })
-        return full_status
 
 
 _task = None
