@@ -80,50 +80,6 @@ class TempFileManager:
             raise e
 
     @staticmethod
-    def create_temp_file_from_content(content: bytes, filename: str) -> tuple[Path, str]:
-        """
-        Create temporary file from content
-
-        Args:
-            content: File content
-            filename: Original filename
-
-        Returns:
-            tuple[Path, str]: Path object and path string of the temporary file
-        """
-        temp_file_path = None
-        try:
-            language = request_language()
-            # Check if content is empty
-            if not content or len(content) == 0:
-                logger.error(f"File content is empty: {filename}")
-                raise ValueError(localize("file_empty", language, "temp_file_manager"))
-
-            # Get original filename and extension
-            suffix = os.path.splitext(filename)[1] if filename else ""
-
-            # Generate unique temporary filename
-            unique_id = f"{int(time.time())}_{uuid.uuid4().hex[:8]}"
-
-            # Create temporary file
-            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{unique_id}{suffix}") as temp_file:
-                temp_file.write(content)
-                temp_file_path = temp_file.name
-
-            logger.info(f"Created temporary file: {temp_file_path}")
-            return Path(temp_file_path), temp_file_path
-
-        except Exception as e:
-            logger.error(f"Failed to create temporary file: {filename}", stack_info=True)
-            # If error occurs, ensure to delete potentially created temporary file
-            if temp_file_path and os.path.exists(temp_file_path):
-                try:
-                    os.unlink(temp_file_path)
-                except Exception as ex:
-                    logger.error(f"Error deleting temporary file: {str(ex)}")
-            raise e
-
-    @staticmethod
     def cleanup_temp_file(temp_file_path: str) -> bool:
         """
         Clean up temporary file

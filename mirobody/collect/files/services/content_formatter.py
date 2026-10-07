@@ -1,10 +1,5 @@
-"""
-Content formatter service for file processing results
-
-This service formats raw content from PDF/image/Excel parsing results
-for structured storage in th_messages.content.raw field.
-Supports multi-page PDF aggregation and health indicator formatting.
-"""
+"""What an upload's `th_files` row shows as `raw` once its readings are
+extracted: the report's details and its readings as a markdown table."""
 
 import json
 import logging
@@ -12,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from mirobody.collect.files.services.table_indicators import status_of
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +23,8 @@ class ContentFormatter:
         indicators_list: list[list[dict]] = None,
     ) -> str:
         """
-        Format parsed content from multiple files (including multi-page PDFs)
-        into a structured display format for storage in th_messages.content.raw field.
+        Format parsed content into a structured display format for the file
+        row's `raw` field.
 
         Args:
             file_results: List of file processing results
@@ -73,7 +69,6 @@ class ContentFormatter:
                     if raw_content:
                         formatted_content.append("**Raw Content:**")
                         formatted_content.append("```")
-                        # 🔧 Keep all raw content complete, no truncation
                         formatted_content.append(str(raw_content))
                         formatted_content.append("```")
 
@@ -81,14 +76,11 @@ class ContentFormatter:
                 formatted_content.append("---")
                 formatted_content.append("")
 
-            # Add summary if multiple files
-            if len(file_results) > 1:
-                formatted_content.extend(ContentFormatter._format_multi_file_summary(file_results, indicators_list))
-
             return "\n".join(formatted_content)
 
         except Exception as e:
-            logger.error(f"Content formatting failed: {str(e)}", stack_info=True)
+            logger.error("content formatting failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             # Return fallback content
             return ContentFormatter._create_fallback_content(file_results, file_names)
 
@@ -203,7 +195,8 @@ class ContentFormatter:
                 content_lines.append("No valid health indicator data was identified in this analysis.")
 
         except Exception as e:
-            logger.warning(f"Health report formatting failed: {str(e)}")
+            logger.warning("health report formatting failed: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
             content_lines.append("### Processing Result")
             content_lines.append("")
             content_lines.append(f"Found {len(indicators)} indicators from health document analysis.")
@@ -222,41 +215,8 @@ class ContentFormatter:
         if raw_content:
             content_lines.append("**Data Summary:**")
             content_lines.append("```")
-            # 🔧 Keep all content complete, no truncation
             content_lines.append(str(raw_content))
             content_lines.append("```")
-
-        return content_lines
-
-    @staticmethod
-    def _format_multi_file_summary(file_results: list[dict], indicators_list: list[list[dict]] = None) -> list[str]:
-        """Format summary for multiple files"""
-        content_lines = []
-
-        content_lines.append("## 📋 Processing Summary")
-        content_lines.append("")
-
-        # File type statistics
-        type_counts = {}
-        total_indicators = 0
-
-        for i, result in enumerate(file_results):
-            file_type = result.get("type", "unknown")
-            type_counts[file_type] = type_counts.get(file_type, 0) + 1
-
-            if indicators_list and i < len(indicators_list):
-                total_indicators += len(indicators_list[i])
-
-        content_lines.append("**File Types:**")
-        for file_type, count in type_counts.items():
-            content_lines.append(f"- {file_type.upper()}: {count} files")
-
-        if total_indicators > 0:
-            content_lines.append("")
-            content_lines.append(f"**Total Health Indicators Extracted:** {total_indicators}")
-
-        content_lines.append("")
-        content_lines.append("**Processing Status:** ✅ Completed")
 
         return content_lines
 

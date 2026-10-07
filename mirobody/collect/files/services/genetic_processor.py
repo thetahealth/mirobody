@@ -299,57 +299,57 @@ class _Batches:
 
 async def process_genetic_file(
     user_id: str,
-    temp_file_path: Path,
-    message_id: str = None,
+    temp_file_path: Path | str,
+    message_id: str | None = None,
     language: str = "en",
-    original_filename: str = None,  # New: original filename parameter
-    original_file_size: int = None,  # New: original file size parameter
-    source_table: str = None,  # New: data source table name
-    source_table_id: str = None,  # New: data source table record ID
-    file_key: str = None,  # New: file_key for th_files updates
-    full_url: str = None,  # New: OSS/S3 URL for the file
-    file_abstract: str = None,  # New: file abstract/summary
-    target_user_id: str = None,  # Data owner ID for the genotype set
-):
-    """Entry function for processing genetic data files - writes to th_files table
-    
+    original_filename: str | None = None,
+    original_file_size: int | None = None,
+    source_table_id: str | None = None,
+    file_key: str | None = None,
+    full_url: str | None = None,
+    file_abstract: str | None = None,
+    target_user_id: str | None = None,
+) -> dict:
+    """Load an uploaded genotype file from its temporary copy into a new set
+    for `target_user_id` (else `user_id`), record the outcome on its
+    `th_files` row, tell the uploader's socket, and delete the copy.
+
     Args:
         user_id: Uploader ID (for WebSocket notifications)
-        target_user_id: Data owner ID (for th_series_data_genetic.user_id)
-        ... other params
+        temp_file_path: The upload's temporary copy, deleted here
+        message_id: The upload session the file arrived in
+        language: The uploader's language, for the messages
+        original_filename: The name the file was uploaded under
+        original_file_size: The upload's size in bytes
+        source_table_id: The key the set is filed under (the file key)
+        file_key: The `th_files` row the outcome is written to
+        full_url: The stored file's URL
+        file_abstract: The file's abstract
+        target_user_id: Data owner ID for the genotype set (a care-circle member)
     """
     # Imported here: the upload manager imports this module's handler.
     from mirobody.collect.files.file_upload_manager import get_websocket_file_upload_manager
 
     websocket_file_upload_manager = get_websocket_file_upload_manager()
     temp_file_path = Path(temp_file_path)
+    display_filename = original_filename or temp_file_path.name
+    display_file_size = original_file_size or (temp_file_path.stat().st_size if temp_file_path.exists() else 0)
     try:
-
-        # 🔧 Fix: Use original filename, or temporary filename if not provided
-        display_filename = original_filename or temp_file_path.name
-        display_file_size = original_file_size or (temp_file_path.stat().st_size if temp_file_path.exists() else 0)
-
-        # Determine the user ID for genetic data ownership
-        # Use target_user_id if provided (upload for others), otherwise use uploader's user_id
+        # The uploader may write on behalf of an authorised care-circle member.
         data_owner_user_id = target_user_id or user_id
 
         # Every status below is written to the upload's th_files row.
         await FileDbService.rows_ready(message_id)
 
-        # Pass file_key to loader for th_files updates
         loader = GeneticDataLoader(message_id, language, user_id, display_filename, display_file_size, file_key)
-
         if file_key:
             await loader.update_progress(0, 0, localize("genetic_initializing_loader", language, "load_genetic_data"))
-
-        # The uploader may write on behalf of an authorised care-circle member.
         loaded_records = await loader.load_user_genetic_data(
             data_owner_user_id,
             str(temp_file_path),
             source_table_id=source_table_id,
         )
 
-        # Update completion status in th_files
         if file_key:
             final_content = localize(
                 "genetic_processing_complete_message",
@@ -357,10 +357,7 @@ async def process_genetic_file(
                 "load_genetic_data",
                 records=loaded_records,
             )
-
             url_value = full_url or display_filename
-            
-            # Update th_files with completion status
             await FileDbService.update_file_content(
                 file_key=file_key,
                 updates={
@@ -370,55 +367,48 @@ async def process_genetic_file(
                     "raw": final_content,
                     "file_abstract": file_abstract or "",
                     "loaded_records": loaded_records,
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "success": True,
                     "type": "genetic",
                 }
             )
-
-            # Send completion status via WebSocket
             if message_id:
+                # A closed socket costs the uploader the live message, never the load.
                 try:
-                    detailed_final_message = f"✅ Genetic data processing completed! Saved {loaded_records:,} records"
                     send_success = await websocket_file_upload_manager.send_message_by_message_id(message_id, {
                         "type": "upload_completed", "messageId": message_id, "status": "completed",
-                        "progress": 100, "message": detailed_final_message, "file_type": "genetic",
+                        "progress": 100,
+                        "message": f"Genetic data processing completed: {loaded_records:,} records saved",
+                        "file_type": "genetic",
                         "filename": display_filename, "success": True, "raw": final_content,
                         "url_thumb": url_value, "url_full": url_value, "file_key": file_key,
                         "file_size": display_file_size, "file_abstract": file_abstract or "",
                         "processing_stats": {"processed_records": loaded_records, "saved_records": loaded_records,
-                                           "progress_percent": 100, "stage": "genetic_completed"},
+                                             "progress_percent": 100, "stage": "genetic_completed"},
                         "genetic_processing_final": True
                     })
                     if send_success:
                         await websocket_file_upload_manager.update_genetic_processing_complete(str(user_id), message_id)
-                except Exception:
-                    pass  # WebSocket failure doesn't affect results
+                except Exception as e:
+                    logger.warning("genotype completion not sent: message_id=%s error_type=%s", message_id,
+                                   type(e).__name__, exc_info=not is_driver_exception(e))
 
-        logger.info(f"Genetic processing completed: {loaded_records} records")
-
-        # 🔧 Fix: Return correct original file information
+        logger.info("genotype file processed: row_count=%d", loaded_records)
         return {
             "success": True,
             "message": localize("genetic_file_received", language, "load_genetic_data"),
             "type": "genetic",
-            "url_thumb": display_filename,  # Use original filename
-            "full_url": display_filename,  # Use original filename
-            "filename": display_filename,  # Add original filename
-            "file_size": display_file_size,  # Add original file size
+            "url_thumb": display_filename,
+            "full_url": display_filename,
+            "filename": display_filename,
+            "file_size": display_file_size,
             "loaded_records": loaded_records,
-            "file_key": file_key,  # Add file_key
+            "file_key": file_key,
         }
 
     except Exception as e:
         error_msg = "Genetic data processing failed"
         logger.error("genotype processing failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
-
-        # 🔧 Fix: Use original filename, or temporary filename if not provided
-        display_filename = original_filename or temp_file_path.name
-        display_file_size = original_file_size or (temp_file_path.stat().st_size if temp_file_path.exists() else 0)
-
-        # Update failure status in th_files
         if file_key:
             try:
                 failed_content = localize(
@@ -427,8 +417,6 @@ async def process_genetic_file(
                     "load_genetic_data",
                     error=str(e) if isinstance(e, NotAGenotypeExport) else error_msg,
                 )
-
-                # Update th_files with failure status
                 await FileDbService.update_file_content(
                     file_key=file_key,
                     updates={
@@ -438,64 +426,43 @@ async def process_genetic_file(
                         "success": False,
                         "error": error_msg,
                         "raw": failed_content,
-                        "timestamp": datetime.now().isoformat(),
+                        "timestamp": datetime.now(UTC).isoformat(),
                         "type": "genetic",
                     }
                 )
-
-                # Send failure status via WebSocket
-                try:
-                    if message_id:
-                        try:
-                            send_success = await websocket_file_upload_manager.send_message_by_message_id(
-                                message_id,
-                                {
-                                    "type": "upload_error",
-                                    "messageId": message_id,
-                                    "status": "failed",
-                                    "progress": 0,
-                                    "message": failed_content,
-                                    "file_type": "genetic",
-                                    "filename": display_filename,
-                                    "success": False,
-                                    "raw": failed_content,
-                                    "url_thumb": display_filename,
-                                    "url_full": display_filename,
-                                    "file_key": file_key,
-                                    "error": error_msg,
-                                },
-                            )
-                            if send_success:
-                                logger.info("genotype failure status sent", extra={"message_id": message_id})
-                            else:
-                                logger.info(f"WebSocket failure status send failed (session not found): message_id={message_id}")
-                        except Exception as ws_error:
-                            logger.warning("genotype failure notification failed: error_type=%s", type(ws_error).__name__)
-                    else:
-                        logger.warning("WebSocket failure status update skipped: message_id is empty")
-
-                except Exception as ws_error:
-                    logger.warning("genotype websocket unavailable: error_type=%s", type(ws_error).__name__)
-
+                if message_id:
+                    await websocket_file_upload_manager.send_message_by_message_id(
+                        message_id,
+                        {
+                            "type": "upload_error",
+                            "messageId": message_id,
+                            "status": "failed",
+                            "progress": 0,
+                            "message": failed_content,
+                            "file_type": "genetic",
+                            "filename": display_filename,
+                            "success": False,
+                            "raw": failed_content,
+                            "url_thumb": display_filename,
+                            "url_full": display_filename,
+                            "file_key": file_key,
+                            "error": error_msg,
+                        },
+                    )
             except Exception as update_error:
-                logger.error("genotype file status update failed: error_type=%s", type(update_error).__name__)
+                logger.error("genotype failure not recorded: file_key=%s error_type=%s", file_key,
+                             type(update_error).__name__, exc_info=not is_driver_exception(update_error))
 
         return {
             "success": False,
             "message": error_msg,
             "type": "error",
-            "filename": display_filename,  # Add original filename
-            "file_size": display_file_size,  # Add original file size
-            "file_key": file_key,  # Add file_key
+            "filename": display_filename,
+            "file_size": display_file_size,
+            "file_key": file_key,
         }
     finally:
-        # Clean up temporary files
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.unlink(temp_file_path)
-                logger.info(f"Deleted temporary file: {temp_file_path}")
-            except Exception as ex:
-                logger.error(f"Failed to delete temporary file: {str(ex)}")
-
-
-# If running this file directly, execute all tests
+        try:
+            temp_file_path.unlink(missing_ok=True)
+        except OSError as e:
+            logger.error("temporary genotype copy not deleted: error_type=%s", type(e).__name__)

@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class FileUploadData(BaseModel):
-    """File upload data model - matches router FileUploadData structure"""
+    """One stored upload, as `POST /files/upload` answers it."""
     file_url: str               # File access URL
     file_name: str              # Original filename
     file_key: str               # File storage key (S3/OSS)  
@@ -348,15 +348,9 @@ async def upload_files_to_storage(
     folder_prefix: str | None = None,
 ) -> dict[str, Any]:
     """
-    Universal file upload service that can be reused across projects
-    
-    Uploads multiple files directly to S3/Aliyun OSS without storing metadata in database.
-    This function is project-agnostic: it takes only its arguments and touches
-    no module-level state, so it can be lifted into another codebase as-is.
-    
-    Nothing else holds the bytes. They used to be copied into Redis as base64
-    for an hour under `file_cache:{file_key}` (not a path, as this docstring
-    said), for the chat layer to skip one fetch; it no longer reads them.
+    Store uploads in object storage, without filing them in the database.
+    It takes only its arguments and touches no module-level state, and
+    nothing else holds the bytes.
 
     Args:
         files: List of files to upload (UploadFile objects)
@@ -369,8 +363,8 @@ async def upload_files_to_storage(
         - msg: Result message
         - data: List of successful upload results (or None if all failed)
         
-    Each successful upload result contains (same format as FileUploadData):
-        - url: File access URL
+    Each successful upload result contains (`FileUploadData`):
+        - file_url: File access URL
         - file_name: Original filename
         - file_key: Storage key (S3/OSS)
         - file_size: File size in bytes  
@@ -390,10 +384,10 @@ async def upload_files_to_storage(
     storage = get_storage_client()
     
     # Track upload results
-    successful_uploads: list[FileUploadData] = []
+    successful_uploads: list[dict[str, Any]] = []
     failed_uploads = []
     
-    logger.info(f"Starting batch upload of {len(files)} files for user {user_id} using {storage.get_storage_type()} storage")
+    logger.info("upload batch: user_id=%s file_count=%d storage=%s", user_id, len(files), storage.get_storage_type())
     
     # Process each file
     for file_index, file in enumerate(files):
@@ -414,12 +408,9 @@ async def upload_files_to_storage(
                 })
                 continue
 
-            # `validate_file_extension` has been imported by this module since
-            # it was written and was never once called, so SUPPORTED_EXTENSIONS
-            # documented a restriction that did not exist: any extension landed
-            # in the store. Combined with the file route's old `inline`
-            # disposition that made an uploaded .html a stored-XSS payload on
-            # this origin.
+            # Without it any extension landed in the store, and with the file
+            # route's old `inline` disposition an uploaded .html was a
+            # stored-XSS payload on this origin.
             ext_ok, ext_err = validate_file_extension(file.filename)
             if not ext_ok:
                 failed_uploads.append({
@@ -446,7 +437,6 @@ async def upload_files_to_storage(
                 })
                 continue
             
-            # Record upload start time
             upload_time = datetime.now()
             
             logger.info("uploading file: bytes=%d", file_size)
@@ -461,7 +451,7 @@ async def upload_files_to_storage(
             if not file_url or error:
                 failed_uploads.append({
                     "file_name": file.filename,
-                    "error": error or "Failed to upload file to storage backend"
+                    "error": "Failed to upload file to storage backend"
                 })
                 continue           
             
@@ -508,7 +498,7 @@ async def upload_files_to_storage(
         msg = f"Partial upload: {successful_count} succeeded, {failed_count} failed"
         data = successful_uploads  # Return successful ones for partial success
     
-    logger.info(f"Batch upload completed - Total: {total_files}, Success: {successful_count}, Failed: {failed_count}")
+    logger.info("upload batch done: total=%d stored=%d failed=%d", total_files, successful_count, failed_count)
     
 
     return {

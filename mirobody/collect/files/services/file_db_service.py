@@ -44,8 +44,6 @@ class FileDbService:
     Handles all CRUD operations for file records stored in th_files table.
     """
     
-    TABLE_NAME = "th_files"
-
     @staticmethod
     def expect_rows(message_id: str | None) -> None:
         """This upload's rows will be inserted later; writers must wait."""
@@ -756,10 +754,3 @@ class FileDbService:
         except Exception as e:
             logger.error(f"Failed to soft delete file: {str(e)}", stack_info=True)
             return False
-    
-    # ============== URL Regeneration ==============
-    
-
-
-# Singleton instance
-file_db_service = FileDbService()
