@@ -125,8 +125,8 @@ async def report_date_status(user_id: str, file_keys: list[str]) -> str:
     a report date was found: what the prompt's "Report date of an attachment"
     rule keys on.
 
-    Only `user_id`'s own live files are read, the filter the `/uploads/` mount
-    applies, in one query. A key from the request was read by key alone,
+    Only live files of `user_id`'s record are read, the filter the `/uploads/`
+    mount applies, in one query. A key from the request was read by key alone,
     once per file, so another account's file put its report date and source
     into this conversation.
 
@@ -139,7 +139,8 @@ async def report_date_status(user_id: str, file_keys: list[str]) -> str:
     try:
         rows = await execute_query(
             "SELECT file_key, decrypt_content(file_content) AS file_content FROM th_files"
-            " WHERE user_id = :user_id AND file_key = ANY(:keys) AND is_del = false",
+            " WHERE COALESCE(query_user_id, user_id) = :user_id AND file_key = ANY(:keys)"
+            " AND is_del = false",
             params={"user_id": str(user_id), "keys": list(file_keys)},
         )
         found = {str(r.get("file_key")): _json_object(r.get("file_content")) for r in rows or []}

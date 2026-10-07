@@ -495,7 +495,7 @@ def test_the_attachment_note_reads_report_dates_of_the_records_own_files_only(mo
 
     async def execute_query(sql, params=None, **kwargs):
         queries.append((sql, params))
-        if "user_id = :user_id" not in sql or params.get("user_id") != "7":
+        if "COALESCE(query_user_id, user_id) = :user_id" not in sql or params.get("user_id") != "7":
             return [{"file_key": "k-someone-elses", "file_content": json.dumps({"date_source": "manual",
                                                                                 "report_date": "2020-02-02"})}]
         return [{"file_key": "k-own", "file_content": json.dumps({"date_source": "extracted",

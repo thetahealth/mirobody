@@ -103,7 +103,13 @@ class ThFilesBackend(PgFilesystemBackend):
         }
 
     async def _files(self) -> list[dict[str, Any]]:
-        """Live `th_files` rows for this scope, newest first, de-duped by name."""
+        """Live `th_files` rows of this record for this scope, newest first,
+        de-duped by name.
+
+        The record is `query_user_id` (the uploader's own id when unset): a file
+        a care-circle member filed into this record has the member as
+        `user_id`, so filtering on the uploader hid it, the turn's own
+        attachment included, from every turn about this record."""
         params: dict[str, Any] = {"uid": self._user_id}
         if self._scope == "uploads":
             if not self._keys:
@@ -135,12 +141,10 @@ class ThFilesBackend(PgFilesystemBackend):
                        content_hash, decrypt_content(original_text) AS original_text,
                        text_length, created_at, updated_at
                   FROM th_files
-                 WHERE user_id = :uid AND is_del = false
+                 WHERE COALESCE(query_user_id, user_id) = :uid AND is_del = false
                    AND scene IS DISTINCT FROM 'genetic' {where}
                    AND NOT EXISTS (
-                       SELECT 1 FROM th_genotype_set g
-                        WHERE g.user_id = th_files.user_id
-                          AND g.file_key = th_files.file_key
+                       SELECT 1 FROM th_genotype_set g WHERE g.file_key = th_files.file_key
                    )
                  ORDER BY created_at DESC
                  LIMIT :limit
