@@ -6,6 +6,7 @@ import logging
 import os
 import re
 
+from collections.abc import Collection
 from ruamel.yaml import YAML
 from typing import Any
 
@@ -124,8 +125,12 @@ class Config:
     def __init__(
         self,
         yaml_filenames: str | list[str | io.StringIO] | None = None,
-        encrypter: FernetEncrypter | None = None
+        encrypter: FernetEncrypter | None = None,
+        read_only: Collection[str] = (),
     ):
+        """`read_only` names files never written back, and their INCLUDEs: the
+        defaults `Config.init` adds. Every other file named here has a secret
+        it holds in plaintext encrypted in place."""
         if isinstance(yaml_filenames, str | io.StringIO):
             self._yaml_filenames = [yaml_filenames]
         elif isinstance(yaml_filenames, list):
@@ -154,7 +159,7 @@ class Config:
         # before the next file, so a later overlay still wins over everything
         # an earlier file pulled in.
         for yaml_filename in self._yaml_filenames:
-            self._load_with_includes(yaml_filename)
+            self._load_with_includes(yaml_filename, write_back=yaml_filename not in read_only)
         # `.env` reaches us as the environment; a removed key set there was
         # ignored without a word.
         for key, reason in _REMOVED_KEYS.items():
@@ -206,10 +211,10 @@ class Config:
         self.api_keys = self.get_api_keys()
 
 
-    def _load_with_includes(self, file: str | io.StringIO, depth: int = 0) -> None:
+    def _load_with_includes(self, file: str | io.StringIO, depth: int = 0, write_back: bool = True) -> None:
         from .yaml_files import include_paths
 
-        includes = self.load_yaml(file)
+        includes = self.load_yaml(file, write_back=write_back)
         if depth >= 3:
             if includes:
                 logger.warning("INCLUDE nesting deeper than 3 in %s is ignored", file)
@@ -218,11 +223,13 @@ class Config:
             if not os.path.exists(path):
                 logger.warning("INCLUDE names %s, which does not exist; skipped", path)  # phi: ok a filename from our own INCLUDE list
                 continue
-            self._load_with_includes(path, depth + 1)
+            self._load_with_includes(path, depth + 1, write_back)
 
-    def load_yaml(self, file: str | io.StringIO) -> list:
+    def load_yaml(self, file: str | io.StringIO, write_back: bool = True) -> list:
         """Merge one YAML document into the configuration. Returns the file's
-        `INCLUDE` list (empty when it has none) for the caller to load next."""
+        `INCLUDE` list (empty when it has none) for the caller to load next.
+        With `write_back`, a secret the file holds in plaintext is encrypted
+        in the file itself."""
         if not file:
             return []
 
@@ -291,7 +298,8 @@ class Config:
                     self._raw[upper_key] = self._encrypter.decrypt(value, upper_key)
                     continue
 
-                if re.search(r"_KEY|_PASSWORD|_PASS|_PWD|_SECRET|_SK|_TOKEN", upper_key) and \
+                if write_back and isinstance(file, str) and \
+                    re.search(r"_KEY|_PASSWORD|_PASS|_PWD|_SECRET|_SK|_TOKEN", upper_key) and \
                     not upper_key.endswith("_URL") and \
                     value != PLACEHOLDER_SENTINEL:
 
@@ -831,13 +839,18 @@ class Config:
 
         final_yaml_file_list = []
 
-        default_yaml = "config.yaml" if os.path.exists("config.yaml") else _shipped_defaults()
+        # The working directory's config.yaml is the defaults only when it is
+        # Mirobody's, with its config.llm.yaml beside it: `mirobody parse` run
+        # in another project read that project's config.yaml, and encrypted
+        # its secrets in place. Defaults are read, never written.
+        if os.path.isfile("config.yaml") and os.path.isfile("config.llm.yaml"):
+            default_yaml = "config.yaml"
+        else:
+            default_yaml = _shipped_defaults()
+        read_only = []
         if default_yaml and default_yaml not in yaml_file_list:
             final_yaml_file_list.append(default_yaml)
-            # DEBUG: config.print() names the files anyway, and at INFO this was
-            # the JSON line printed above `mirobody doctor`'s table.
-            logger.debug("Default config has been loaded.")
-
+            read_only.append(default_yaml)
 
         for yaml_filename in yaml_file_list:
             # A stream (config built in memory) has no path to stat. Only a
@@ -846,7 +859,7 @@ class Config:
             if not isinstance(yaml_filename, str) or os.path.exists(yaml_filename):
                 final_yaml_file_list.append(yaml_filename)
 
-        config = Config(yaml_filenames=final_yaml_file_list)
+        config = Config(yaml_filenames=final_yaml_file_list, read_only=read_only)
 
         #-----------------------------------------------------
 
