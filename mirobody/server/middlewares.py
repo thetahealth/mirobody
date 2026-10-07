@@ -9,13 +9,13 @@ from collections.abc import Awaitable, Callable
 from psycopg_pool import AsyncConnectionPool
 from mirobody.utils.ephemeral import EphemeralStore
 
-from starlette.responses import JSONResponse, Response
+from starlette.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
-from mirobody.user.auth.bearer import bearer_subject, mcp_resource
+from mirobody.user.auth.bearer import aal2_required_response, bearer_subject, lacks_second_factor, mcp_resource
 from mirobody.utils.http import request_origin
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 #-----------------------------------------------------------------------------
 
 #: Paths an AAL1 session of an MFA account may still reach: the WebAuthn and
-#: session routes that raise it to AAL2, and the settings read the web client's
+#: session routes that raise it to AAL2 (registering a passkey asks
+#: `lacks_second_factor` itself), and the settings read the web client's
 #: `ensureAAL2` makes to learn whether a passkey is registered. Matched as a
 #: substring so an `API_PREFIX` in front does not matter.
 _AAL1_REACHABLE = ("/auth/webauthn/", "/auth/session/")
@@ -54,38 +55,6 @@ def _aal1_reachable(method: str, path: str) -> bool:
     if any(p in path for p in _AAL1_REACHABLE):
         return True
     return method == "GET" and any(path.endswith(p) for p in _AAL1_REACHABLE_GETS)
-
-
-def aal2_required_response() -> Response:
-    # The web client's interceptor keys on `detail.code`, runs the passkey
-    # upgrade and retries the request (the same shape as the session routes'
-    # ERROR_SESSION_MAX_LIFETIME).
-    return JSONResponse(
-        {"detail": {"code": "ERROR_AAL2_REQUIRED", "message": "This account requires a passkey for this request."}},
-        status_code=403,
-    )
-
-
-async def lacks_second_factor(
-    user_id: int,
-    claims: dict | None,
-    requires_second_factor: Callable[[int], Awaitable[bool]] | None,
-) -> bool:
-    """Whether this token is too weak for this account: the account needs an
-    AAL2 token (a passkey) and the token's `aal` is lower.
-
-    The JWT middleware asks this for a token in the Authorization header. A
-    route that takes its token from the query string must ask it itself: the
-    middleware never sees that token, so `GET /files/...?access_token=` and the
-    upload socket's `?token=` accepted an MFA account's AAL1 token.
-    """
-    if user_id <= 0 or requires_second_factor is None:
-        return False
-    try:
-        aal = int((claims or {}).get("aal") or 0)
-    except (TypeError, ValueError):
-        aal = 0
-    return aal < 2 and await requires_second_factor(user_id)
 
 
 #: On every response. `nosniff` stops a browser from running an uploaded file

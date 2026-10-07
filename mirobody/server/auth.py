@@ -38,7 +38,7 @@ async def verify_token_claims(token_string: str) -> tuple[str, dict]:
     """The account a token speaks for, and its decoded claims.
 
     For a route that takes its token from the query string: it must check
-    the claims' `aal` itself (`middlewares.lacks_second_factor`), because
+    the claims' `aal` itself (`user.auth.bearer.lacks_second_factor`), because
     the JWT middleware only reads the Authorization header.
     """
     try:

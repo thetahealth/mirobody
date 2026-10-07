@@ -20,8 +20,8 @@ from mirobody.collect.files.file_upload_manager import WebSocketFileUploadManage
 from mirobody.server.middlewares import (
     SECURITY_HEADERS,
     JwtMiddleware,
-    lacks_second_factor,
 )
+from mirobody.user.auth.bearer import lacks_second_factor
 from mirobody.utils.http import safe_return_url
 
 OWN = "http://localhost:18060"
@@ -442,3 +442,53 @@ def test_the_completion_page_cannot_be_closed_from_inside(monkeypatch):
     html = client.get("/api/v1/pulse/acme/acme_watch/callback", params={"code": "x"}).text
     assert html.count("</script>") == 1
     assert _completion_page(html)["message"]["data"] == {"note": "</script><script>alert(1)</script>"}
+
+
+def _passkeys(monkeypatch, *, enrolled: bool):
+    """A WebAuthn service for an account with MFA on, which has registered a
+    passkey when `enrolled`; and a token minted with `aal`."""
+    from mirobody.user import user as user_module
+    from mirobody.user.auth.jwt import JwtTokenValidator
+    from mirobody.user.auth.webauthn import WebAuthnService
+
+    async def active(user_id, minted_at=None):
+        return True
+
+    async def mfa_enabled(user_id):
+        return True
+
+    async def credentials(user_id):
+        return [{"credential_id": b"passkey-1", "transports": ["internal"]}] if enrolled else []
+
+    monkeypatch.setattr(user_module, "is_active_account", active)
+    validator = JwtTokenValidator("k" * 32)
+    service = WebAuthnService(validator, rp_id="localhost", origin="http://localhost:18060")
+    monkeypatch.setattr(service, "_is_mfa_enabled", mfa_enabled)
+    monkeypatch.setattr(service, "get_credentials_for_user", credentials)
+
+    def token(aal: int) -> str:
+        access, _, _ = asyncio.run(validator.generate_tokens(
+            "7", "you@mirobody.ai", gen_claims_func=lambda _u, _e: {"aal": aal}))
+        return access
+
+    return TestClient(Starlette(routes=service.routes)), token
+
+
+@pytest.mark.parametrize("route", ["/auth/webauthn/register/options", "/auth/webauthn/register/verify"])
+def test_a_second_passkey_takes_the_first(monkeypatch, route):
+    """The AAL1 token sign-in hands an MFA account enrolled a passkey of the
+    caller's choosing, and registration answered with an AAL2 token."""
+    client, token = _passkeys(monkeypatch, enrolled=True)
+    answer = client.post(route, json={}, headers={"Authorization": f"Bearer {token(1)}"})
+    assert answer.status_code == 403
+    assert answer.json()["detail"]["code"] == "ERROR_AAL2_REQUIRED"
+
+
+def test_the_first_passkey_and_an_aal2_session_still_enrol(monkeypatch):
+    client, token = _passkeys(monkeypatch, enrolled=False)
+    first = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(1)}"})
+    assert first.status_code == 200 and first.json()["data"]["challenge"]
+
+    client, token = _passkeys(monkeypatch, enrolled=True)
+    another = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(2)}"})
+    assert another.status_code == 200 and another.json()["data"]["excludeCredentials"]

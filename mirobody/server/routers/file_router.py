@@ -18,7 +18,7 @@ from mirobody.utils import execute_query
 from mirobody.utils.i18n import language_from_headers
 from mirobody.utils.req_ctx import set_req_ctx
 from mirobody.server.auth import subject_for, verify_token, verify_token_claims
-from mirobody.server.middlewares import aal2_required_response, lacks_second_factor
+from mirobody.user.auth.bearer import aal2_required_response, lacks_second_factor
 
 from mirobody.collect import get_websocket_file_upload_manager
 from mirobody.collect import get_user_data_distribution

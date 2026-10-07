@@ -460,7 +460,7 @@ class Server:
         app.state.ephemeral = ephemeral
         app.state.pg_pool = pg_pool
         # For the routes that take a token from the query string, which the JWT
-        # middleware never sees (`middlewares.lacks_second_factor`).
+        # middleware never sees (`user.auth.bearer.lacks_second_factor`).
         app.state.requires_second_factor = server._user_service.requires_second_factor
         
         logger.info("Global resources ready")

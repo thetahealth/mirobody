@@ -24,7 +24,7 @@ from webauthn.helpers.structs import (
     AuthenticatorAttachment,
 )
 
-from .bearer import bearer_subject
+from .bearer import aal2_required_response, bearer_subject, lacks_second_factor
 from .jwt import AbstractTokenValidator
 
 from mirobody.utils import json_response_with_code, json_response, get_jwt_token, Request, Response, Route
@@ -341,6 +341,8 @@ class WebAuthnService:
         email = payload.get("email", "")
         if not user_id:
             return json_response_with_code(-1, "Invalid user", request=request)
+        if await lacks_second_factor(user_id, payload, self.requires_second_factor):
+            return aal2_required_response()
 
         # Exclude already registered credentials.
         existing = await self.get_credentials_for_user(user_id)
@@ -390,6 +392,11 @@ class WebAuthnService:
         user_id = int(payload.get("sub", 0))
         if not user_id:
             return json_response_with_code(-1, "Invalid user", request=request)
+        # The middleware lets an AAL1 token reach these routes, which is how a
+        # first passkey gets enrolled. Once the account requires one, enrolling
+        # another takes it: this route answers with an AAL2 token.
+        if await lacks_second_factor(user_id, payload, self.requires_second_factor):
+            return aal2_required_response()
 
         # Get stored challenge.
         challenge = await self._get_and_delete_challenge(f"reg:{user_id}")
