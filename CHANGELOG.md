@@ -50,65 +50,75 @@
   and `deploy.sh` copies it from the command line like a key.
 - **Every model can run on the same machine.** `LOCAL_BASE_URL` and
   `LOCAL_OCR_BASE_URL` point the `local` entries at any OpenAI-compatible
-  server. The shipped preset runs on llama.cpp: GLM-OCR-0.9B reads
-  documents, and one of two models answers, picked on the setup page by what
-  each downloads and needs. MiniCPM5-2B, the default: 3.0 GB with the
-  reader, 5.7 GB of memory at most, 28 s a median answer on a 16 GB M1 Pro,
-  19 of 24 evaluation questions passed, all 140 printed rows of 12 documents
-  stored and 24 of 31 journal entries written. Qwen3.8-27B: 14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of
-  16 earlier test questions with no number the record lacks, about two
-  minutes an answer, 27 of 27 demo readings. `docker compose --profile
-  local` (NVIDIA) or `--profile local-cpu` runs it next to the app. Each
-  model server keeps at most 1 GiB of prompt cache, the reader none:
-  llama.cpp's default is 8 GiB per model, and two small models filled a
-  16 GB Mac's disk with swap. Both slots of a model share one KV pool
-  (`kv-unified`), so one long question can use the whole context: split, a
-  32k model answered in a 16k slot and two evaluation questions ended in
-  `ContextOverflowError`, at the same memory. A local reply stops at 6,144
-  tokens (the `local` entry's `max_tokens`): nothing below the context
-  bounded it, and on the evaluation MiniCPM5-2B wrote on after two questions'
-  tool results until the 600 s timeout; a chart answer with its reasoning is
-  about 2k tokens. The evaluation, its seed and how to rerun it
-  are in `benchmarks/local_models/`; `docs/local-models.md` is the guide.
-  The models download from Hugging Face the first time; `HF_ENDPOINT` in
-  `.env` points the `llama` service at a mirror.
+  server. The shipped preset runs on llama.cpp's `llama-server`: GLM-OCR-0.9B
+  reads documents, and one of two sizes answers, picked on the setup page by
+  what each downloads and needs. Small, MiniCPM5-2B, the default: 3.0 GB with
+  the reader, 5.7 GB of memory at most, 28 s a median answer on a 16 GB M1
+  Pro, 19 of 24 evaluation questions passed, all 140 printed rows of 12
+  documents stored and 24 of 31 journal entries written. Large, Qwen3.8-27B:
+  14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of 16 earlier test
+  questions with no number the record lacks, about two minutes an answer, 27
+  of 27 demo readings. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
+  the 1B answered 2 of the 24 questions with every expected fact, and the 9B
+  did not fit beside the stack on 16 GB. `docker compose --profile local`
+  (NVIDIA) or `--profile local-cpu` runs the server next to the app. With no
+  GPU it is minutes, not seconds: in llama.cpp's CPU image on 4 vCPUs (colima,
+  2026-10-07) MiniCPM5-2B read prompts at about 50 tokens a second and wrote
+  at about 18, a 6.8k-token prompt was answered in 137 s, GLM-OCR read a
+  photographed page in about 17 s, the two models held about 6.0 GiB (so
+  Docker needs at least 8 GB), and the tool-call probe passed. Each model
+  server keeps at most 1 GiB of prompt cache, the reader none: llama.cpp's
+  default is 8 GiB per model, and two small models filled a 16 GB Mac's disk
+  with swap. Both slots of a model share one KV pool (`kv-unified`), so one
+  long question can use the whole context: split, a 32k model answered in a
+  16k slot and two evaluation questions ended in `ContextOverflowError`, at
+  the same memory. A local reply stops at 6,144 tokens (the `local` entry's
+  `max_tokens`): nothing below the context bounded it, and on the evaluation
+  MiniCPM5-2B wrote on after two questions' tool results until the 600 s
+  timeout; a chart answer with its reasoning is about 2k tokens. The
+  evaluation, its seed and how to rerun it are in `benchmarks/local_models/`;
+  `docs/local-models.md` is the guide. The models download from Hugging Face
+  the first time; `HF_ENDPOINT` in `.env` points the `llama` service at a
+  mirror.
 - **A guide to choosing a model, and the two evaluations behind it.** No page
-  compared the local sizes with hosted models on the same cases, or said
-  what each costs and who reads the health data with it: the figures were
-  spread over `config.llm.yaml`'s comments and `docs/local-models.md`, the
-  hosted models had last been run on September's eight questions, and
-  `docs/local-models-roadmap.md` still named Qwen3.8-27B as 1.5.4's default.
-  `docs/model-choice.md`, in English and Chinese, puts MiniCPM5-2B and
-  Qwen3.8-27B beside DeepSeek V4.1 Flash, Claude Sonnet 5.5 and GPT-6 Luna on
-  the same 24 questions, 12 documents and 15 journal sentences, asked through the product's API of a synthetic record
-  (mirobody-gen, seed 7) and graded by Claude Code against a published
-  rubric. It says what leaves the machine in each mode, including GLM-OCR on
-  the machine with a cloud model answering; how to keep OpenRouter to
-  zero-data-retention hosts, one host per model; what an answer and a
-  hundred documents cost; and it previews the Mirobody model 1.6.0 will ship.
-  `benchmarks/local_models/` and `benchmarks/local_ocr/` are the two
-  evaluations, with cases, results, every grade's reason and the commands
-  to rerun them. The OCR one is why GLM-OCR stays the reader: 283 of 303
-  printed rows stored right, 302 without the generator's banner, and none
-  the page does not print (PaddleOCR-VL-1.6 278 and 12, MinerU2.5 279 and
-  3). PaddleOCR-VL is the preset's option, switched as
-  `docs/local-models.md` now says. The roadmap names the small size as the
-  default and marks which of its harness steps 1.5.4 took. To tell: the
+  compared the local sizes with hosted models on the same cases, or said what
+  each costs and who reads the health data with it, and the hosted models had
+  last been run on September's eight questions. `docs/model-choice.md`, in
+  English and Chinese, puts the small size (MiniCPM5-2B) beside five cloud
+  models, DeepSeek V4.1 Flash, Claude Sonnet 5.5, Claude Opus 5.5, Gemini 3.8
+  Flash and GPT-6 Luna, on the same 24 questions, 12 documents and 15 journal
+  sentences, asked through the product's API of a synthetic record
+  (mirobody-gen, seed 7) and graded by Claude Code against a published rubric,
+  with the large size's earlier measurements beside them; GPT-6.1 Sol was run
+  and dropped (Changed, the cloud models). It says what leaves the machine in
+  each mode, including GLM-OCR on the machine with a cloud model answering;
+  how to keep OpenRouter to zero-data-retention hosts, one host per model;
+  what an answer and a hundred documents cost; and it previews the Mirobody
+  model 1.6.0 will ship. `benchmarks/local_models/` and
+  `benchmarks/local_ocr/` are the two evaluations, with cases, results, every
+  grade's reason and the commands to rerun them. The OCR one is why GLM-OCR
+  stays the reader: 283 of 303 printed rows stored right, 302 without the
+  generator's banner, and none the page does not print (PaddleOCR-VL-1.6 278
+  and 12, MinerU2.5 279 and 3). PaddleOCR-VL is the preset's option, switched
+  as `docs/local-models.md` says: the `local-ocr` entry's `model` and its
+  `ocr_prompts` together. `docs/local-models-roadmap.md` keeps the earlier
+  measurements and marks which of its harness steps 1.5.4 took. To tell: the
   README's "Which model" line links the guide, and `docs/README.md` and
   `benchmarks/README.md` list all three.
 - **A table is read by its header, without a model**, in every setup: a
   born-digital PDF's tables off its text layer, a scan's from the local OCR
   model's tables pass, a CSV's and a sheet's as they are. With a vendor key
-  the vendor's model now reads only what the rules left, so a lab report's
-  table rows do not leave the machine. Rows under a header the rules know
-  (项目名称 / 结果 / 参考值 / 单位, Analyte / Result / Unit, a CSV's first
-  line), including two panels side by side, are stored as printed and
-  labelled `rules:table@v1`, with only the flag the report printed. A row is
-  read only when it looks like a reading (a number, `1+` or 阴性 beside a
-  unit and a range); patient details are skipped; a value the page's other
-  copy (the text layer, or the OCR's text pass) does not confirm, a table of
-  one row per day, and any text outside the tables that holds a number or a
-  finding go to the text model.
+  the vendor's model now extracts readings only from what the rules left; it
+  still writes the file's title and summary from the first 3,000 characters of
+  the document's text (`file_abstract_extractor`), so the rows are not kept
+  from it. Rows under a header the rules know (项目名称 / 结果 / 参考值 /
+  单位, Analyte / Result / Unit, a CSV's first line), including two panels
+  side by side, are stored as printed and labelled `rules:table@v1`, with only
+  the flag the report printed. A row is read only when it looks like a reading
+  (a number, `1+` or 阴性 beside a unit and a range); patient details are
+  skipped; a value the page's other copy (the text layer, or the OCR's text
+  pass) does not confirm, a table of one row per day, and any text outside the
+  tables that holds a number or a finding go to the text model.
 - **`mirobody doctor --probe` sends one real request per surface** (a tool
   call, a schema-bound answer, an image, the OCR passes) and checks that each
   local server runs the model its entry names. `doctor` reads the setup
@@ -182,50 +192,50 @@ decisions.
   row as one line of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so a
   downloaded report (the commonest kind) reached them only through an OCR
   model's tables pass over the rendered page, and without one the extraction
-  model read all of it. When the tables are asked for (a document-OCR model
-  is routed), a text page now also carries the tables its characters' positions
-  lay out (`documents/extract.py`, `_layer_tables`): cells split at wide gaps,
-  a cell wrapped onto a second line joined, columns by where cells overlap, a
-  table going on at the top of the next page under the same columns, a title
-  line over a table and a running footer left out. Only a text page with no
-  such table is rendered for the OCR pass. On the seed-7 corpus's 16
-  text-layer PDFs (979 printed rows, benchmarks/local_ocr's checks) the rules
-  read 0 rows before and 920 now, 919 with the printed unit and 918 with the
-  printed range, and no row that is not printed; on the six such pages the
-  OCR benchmark ran GLM-OCR on, as many as its tables pass or more (34 against
-  7 on one). What the rules read also leaves the model's text more often:
-  a row of word results (`Negative`), a zero-padded lab code (`02`), a `#`
-  column and the layer's one-line copy of a header no longer keep a read row
-  in it; text handed to the model for those 16 documents went from 76,072 to
-  45,739 characters. To tell: the log line `pdf: … layer_table_page_count=N`.
+  model read all of it. A text page now also carries the tables its
+  characters' positions lay out (`documents/extract.py`, `_layer_tables`),
+  whichever model reads the rest: cells split at wide gaps, a cell wrapped
+  onto a second line joined, columns by where cells overlap, a table going on
+  at the top of the next page under the same columns, a title line over a
+  table and a running footer left out. With a document-OCR model, only a text
+  page with no such table is rendered for its tables pass. On the seed-7
+  corpus's 16 text-layer PDFs (979 printed rows, benchmarks/local_ocr's
+  checks) the rules read 0 rows before and 920 now, 919 with the printed unit
+  and 918 with the printed range, and no row that is not printed; on the six
+  such pages the OCR benchmark ran GLM-OCR on, as many as its tables pass or
+  more (34 against 7 on one). What the rules read also leaves the model's text
+  more often: a row of word results (`Negative`), a zero-padded lab code
+  (`02`), a `#` column and the layer's one-line copy of a header no longer
+  keep a read row in it; text handed to the model for those 16 documents went
+  from 76,072 to 45,739 characters. To tell: the log line `pdf: …
+  layer_table_page_count=N`.
 
 - **The cloud models are the ones vendors ship now.** `config.llm.yaml` still
   named September's: Claude Sonnet 5 and GPT-5.6 Terra. `claude-sonnet`
   (OpenRouter) now runs `anthropic/claude-sonnet-5.5` and `claude` (Anthropic)
   `claude-sonnet-5-5`; `openai` runs `gpt-6-sol` and `openai-utils`
   `gpt-6-luna`, both at `reasoning_effort: none`, the only effort at which
-  GPT-6 takes a function tool on Chat Completions or a `temperature`.
-  The `gpt` entry, on OpenRouter, runs `openai/gpt-6-luna`: on the
-  evaluation in `benchmarks/local_models/` it graded 237 of 248 and was the
-  cheapest model measured ($0.0009 an answer), never rate-limited. It named
-  GPT-6.1 Sol, whose tool calls OpenAI serves only on the Responses API (the
-  agent speaks Chat Completions, so 6.1 Sol is not the `openai` entry), but
-  even pinned to Azure, OpenRouter kept 6.1 Sol rate-limited upstream (9 of
-  24 questions needed up to four retry rounds and one never got through; 50
-  of 140 document rows were never stored), at about 20 times Luna's price.
+  GPT-6 takes a function tool on Chat Completions or a `temperature`. The
+  `gpt` entry, on OpenRouter, runs `openai/gpt-6-luna` (it ran GPT-5.6 Terra):
+  on the evaluation in `benchmarks/local_models/` it graded 237 of 248 and was
+  the cheapest model measured ($0.0009 an answer), never rate-limited. GPT-6.1
+  Sol was tried for it and dropped: even pinned to Azure, OpenRouter kept it
+  rate-limited upstream (9 of 24 questions needed up to four retry rounds and
+  one never got through; 50 of 140 document rows were never stored), at about
+  20 times Luna's price. Nor is it the `openai` entry: OpenAI serves its tool
+  calls only on the Responses API, and the agent speaks Chat Completions.
   `openrouter-utils` asks Gemini 3.8 Flash for `low` reasoning, not `minimal`,
   which Google documents as an error on that model; `claude-sonnet` and `gpt`
   send no `temperature`: Sonnet 5.5 answers 400 to a non-default one, and
-  OpenAI's GPT-6 guide says to remove it. Still each
-  vendor's newest, so unchanged: `qwen3.8-flash`, `gemini-3.8-flash`,
-  `deepseek-flash` (DeepSeek V4.1 Flash), `claude-haiku-4-5-20251001`. A model
-  set through an entry's `model_env` variable is kept. To tell: `mirobody
-  doctor` names the new ids. Measured 2026-10-06 through the product's own
-  calls (a tool call and a second round with its result, a schema-bound
-  answer, an image, and the demo photo read and its nine readings extracted):
-  every OpenRouter and DashScope entry passes. The OpenAI, Anthropic, Google
-  and DeepSeek direct entries were checked against each vendor's
-  documentation, not called.
+  OpenAI's GPT-6 guide says to remove it. Still each vendor's newest, so
+  unchanged: `qwen3.8-flash`, `gemini-3.8-flash`, `deepseek-flash` (DeepSeek
+  V4.1 Flash), `claude-haiku-4-5-20251001`. A model set through an entry's
+  `model_env` variable is kept. To tell: `mirobody doctor` names the new ids.
+  Measured 2026-10-06 through the product's own calls (a tool call and a
+  second round with its result, a schema-bound answer, an image, and the demo
+  photo read and its nine readings extracted): every OpenRouter and DashScope
+  entry passes. The OpenAI, Anthropic, Google and DeepSeek direct entries were
+  checked against each vendor's documentation, not called.
 - **The README starts with the first-run page, and says what leaves the
   machine in each mode.** `./deploy.sh` alone is the first command; a GIF
   (English and Chinese) shows the page, a table compares a model key, 100% on
@@ -237,19 +247,21 @@ decisions.
   first paragraph and its mode table say that llama.cpp's `llama-server`
   serves the local models and Mirobody runs none itself. The table gives the
   default size (MiniCPM5-2B with GLM-OCR: 16 GB of memory, no GPU, 3.0 GB to
-  download) before the large one; it had given only Qwen3.8-27B's 20 GB.
+  download, minutes a first answer on a CPU alone) before the large one
+  (Qwen3.8-27B, about 20 GB).
 - **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
   MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
   2026-10-01, and none of their cards linked here, nor did either README link
   them, the ESL-Bench paper or `thetahealth/mirobody-eval`. Both editions'
   "Numbers you can check" tables now carry one row for them.
-- **Two commands to a running stack.** `deploy.sh` writes a model key given
-  in its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
+- **Two commands to a running stack.** `deploy.sh` writes a model key given in
+  its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
   under the variable names `config.llm.yaml` reads, so a first run needs no
-  second step; a key added later still goes in `.env`, then
-  `docker compose up -d`. The README (both editions), the skills and the
-  Docker Hub copy say so, and name the source tarball as the way in without
-  Git. To tell: after that one command, `mirobody doctor` names a provider.
+  second step; a key added later goes in through Settings › Model, or in
+  `.env` followed by `docker compose up -d`. The README (both editions), the
+  skills and the Docker Hub copy say so, and name the source tarball as the
+  way in without Git. To tell: after that one command, `mirobody doctor` names
+  a provider.
 - **The sign-in page offers the demo account while it is seeded.** Only
   `deploy.sh`'s last line and the README said `you@mirobody.ai` / `111111`.
   `/mirobody.json` carries `__DEMO_SIGN_IN__` under the seed's own three
@@ -295,19 +307,20 @@ decisions.
   Data › Records and shows it become a complaint, two readings and a
   medication, with "no fever" kept out (`docs/images/journal-demo.gif` and its
   zh-CN twin).
-- **Docs say what the tree does.** AGENTS.md and CONTRIBUTING.md count 232
-  tests in three shipped modules (they said 147 in two); `pyproject.toml`'s
-  note on extras names the three runtime extras; `demo/README.md` stops
-  quoting 1.4.4 and 1.5.0; the README no longer says the docs site is
-  rendered from `docs/`, which its MCP page is not.
-- **The README starts with the Docker path.** Both editions open with the
-  three commands that bring the stack up (`git clone`, `./deploy.sh`, one key
-  in `.env` then `docker compose up -d`) and what a running deployment does;
-  the library, the ICPC-3 axis and the genetics tools follow, each with a
-  runnable example, and the figures link the public suites under
-  `benchmarks/`. The docs site links point at the pages that exist rather
-  than at redirects, and `docs/`, CONTRIBUTING and the workflow README name
-  the benchmarks. `benchmarks/README.md` is new.
+- **Docs say what the tree does.** AGENTS.md, CONTRIBUTING.md and
+  `docs/testing.md` count 268 tests in four shipped modules, 255 passing and
+  13 strict xfails (they said 147 in two); `pyproject.toml`'s note on extras
+  names the three runtime extras; `demo/README.md` stops quoting 1.4.4 and
+  1.5.0; the README no longer says the docs site is rendered from `docs/`,
+  which its MCP page is not.
+- **The README leads with the running stack, then the library.** Both editions
+  open with the commands that bring the stack up (`git clone`, `./deploy.sh`,
+  then the first-run page above) and what a running deployment does; the
+  library, the ICPC-3 axis and the genetics tools follow, each with a runnable
+  example, and the figures link the public suites under `benchmarks/`. The
+  docs site links point at the pages that exist rather than at redirects, and
+  `docs/`, CONTRIBUTING and the workflow README name the benchmarks.
+  `benchmarks/README.md` is new.
 - **A release publishes its Docker image.** The GitHub Release is created by
   the workflow's own token, and GitHub starts no workflow from such an event,
   so `docker-hub.yml`'s `release: published` trigger never fired; the 1.5.3
@@ -552,7 +565,7 @@ decisions.
 - **A keyword finds a reading whatever its unit and however it is spelled.**
   On the 1.5.4 local-model evaluation, `query_health_indicators(keywords=
   ["triglycerides"])` left out a triglyceride printed as `甘油三酯（TG）` in
-  mmol/L, for every model size. Two tiers missed it. The lexical one compared
+  mmol/L, whichever model asked. Two tiers missed it. The lexical one compared
   the word with its plural `s` against `Triglyceride [Moles/volume] …`, and
   "triglyceride" found it. The code one compared codes: the word resolves to
   2571-8 (mass) and the reading was coded 14927-8 (moles). Words are now
@@ -571,14 +584,14 @@ decisions.
   (20567-4 and 718-7), through two rows in `resolver_overrides.tsv`; a French
   report's bare `Fer` now answers ferritin too. Readings already stored keep
   their code until `mirobody recode` runs. To tell: `mirobody resolve FER`
-  prints a Ferritin code; resolver coverage is 300/300.
+  prints a Ferritin code; resolver coverage is 317/317.
 - **The table rules read the headers most reports print.** Their vocabulary
   lacked `检测结果`, `化验结果`, `报告结果`, `本次结果`, `数值`, `测量值`, `检查名称`,
   `测定项目`, `Test Item`, `Tests`, `Items`, `Measured`, `REF.RANGE`,
   `参考值(范围)`, `正常参考值` and every Traditional header, and took `Measurement`
   for the name column. On the local-model evaluation's corpus (seed 7) the
   rules read 21 of its 70 documents; the other lab tables went to the text
-  model, which on a 1-2B model reads them less exactly. Those words are now in
+  model, which a 2B model reads less exactly. Those words are now in
   the vocabulary; headers, patient labels and date labels are compared with
   Traditional folded to Simplified; `Measurement` is the result column beside
   a name word and the name column without one; and a name or value column is
@@ -662,8 +675,8 @@ decisions.
   trailing comma, the JSON fenced a second time inside the block) without
   touching a value, and a block it still cannot draw shows "This chart could
   not be drawn" with its data one click away. A doubled fence no longer turns
-  the rest of the answer into a code block. Ships with the next web build in
-  `frontend/`. To check: an answer containing a vis-chart block whose JSON
+  the rest of the answer into a code block. `frontend/` carries it
+  (mirobody-web 08df217). To check: an answer containing a vis-chart block whose JSON
   ends in `}}` draws the chart.
 - **The journal reads a sentence on a small local model.** Under the JSON
   schema the journal asks for, MiniCPM5-2B answered `{"entries": []}` for
@@ -830,7 +843,7 @@ decisions.
   conversation, from before a switch to such a model, is replaced by a line
   saying one was there.
 - **The chat's model menu names the model.** A local deployment showed
-  `local` where it runs `qwen3.8-27b`; `/api/models?labels=1` gives each
+  `local` where it runs `minicpm5-2b`; `/api/models?labels=1` gives each
   entry's model, and the bare list is unchanged for other clients.
 - **Answers come in the question's language.** The prompt names it when the
   question is mostly in it (Chinese, Traditional Chinese, Japanese, Korean,
