@@ -60,7 +60,7 @@ from html.parser import HTMLParser
 
 from mirobody import translate
 from mirobody.collect.sentence import blood_pressure
-from mirobody.translate.parse import KIND_ABSENT
+from mirobody.translate.parse import KIND_ABSENT, RANGE_SEPARATOR
 from mirobody.units import normalize_unit
 from mirobody.zh_fold import fold_to_hans
 
@@ -147,7 +147,7 @@ _LABELLED_DATE = re.compile(
 _BIRTH = re.compile(r"(?:出生|birth|dob|born)\W*$", re.I)
 
 _NUMBER = re.compile(r"^[<>≤≥]?\s*[-+]?\d+(?:\.\d+)?$")
-_RANGE = re.compile(r"^\s*([-+]?\d+(?:\.\d+)?)\s*(?:-{1,2}|~|–|—|至)\s*([-+]?\d+(?:\.\d+)?)\s*$")
+_RANGE = re.compile(rf"^\s*([-+]?\d+(?:\.\d+)?)\s*(?:{RANGE_SEPARATOR})\s*([-+]?\d+(?:\.\d+)?)\s*$")
 _BOUND = re.compile(r"^\s*([<>≤≥]|<=|>=)\s*([-+]?\d+(?:\.\d+)?)\s*$")
 #: A flag printed after the value in its own cell, when the table has no flag
 #: column: right after the number (`7.2↑`, `3.1 L`); after a unit, glued to the
@@ -162,7 +162,7 @@ _TRAILING_FLAG = re.compile(r"^(.*?\d)\s*(↑↑|↓↓|↑|↓|偏高|偏低|�
 #: one that starts with a digit after a space (`4.0-10.0 10^9/L`), never glued
 #: digits (`3.5-5.51` is a range).
 _REF_UNIT = re.compile(
-    r"^\s*(\(?[<>≤≥]?=?\s*[-+]?\d+(?:\.\d+)?(?:\s*(?:-{1,2}|~|–|—|至)\s*[-+]?\d+(?:\.\d+)?)?\)?)"
+    rf"^\s*(\(?[<>≤≥]?=?\s*[-+]?\d+(?:\.\d+)?(?:\s*(?:{RANGE_SEPARATOR})\s*[-+]?\d+(?:\.\d+)?)?\)?)"
     r"(?:\s*([^\d\s&].*?)|\s+(\d[\d.]*[^\d\s.].*?))\s*$")
 #: A result cell that says the test was not done (`尿葡萄糖 | 未做`): no result.
 _NOT_DONE = {"未做"}
@@ -448,7 +448,7 @@ def _admin(cell: str) -> bool:
 
 
 #: A printed range or bound inside a reference cell.
-_RANGE_IN = re.compile(r"[-+]?\d+(?:\.\d+)?\s*(?:-{1,2}|~|–|—|至)\s*[-+]?\d+(?:\.\d+)?|[<>≤≥]=?\s*[-+]?\d+(?:\.\d+)?")
+_RANGE_IN = re.compile(rf"[-+]?\d+(?:\.\d+)?\s*(?:{RANGE_SEPARATOR})\s*[-+]?\d+(?:\.\d+)?|[<>≤≥]=?\s*[-+]?\d+(?:\.\d+)?")
 
 
 def _range_cell(cell: str) -> bool:
@@ -987,7 +987,7 @@ _TAG = re.compile(r"<[^>]+>")
 _TD = re.compile(r"<t[dh]\b[^>]*>(.*?)</t[dh]>", re.S | re.I)
 #: Numbers that are not results: the two ends of a printed range, and the
 #: exponent of a count unit (10^9/L).
-_NOT_RESULT = re.compile(r"[-+]?\d+(?:\.\d+)?\s*(?:-{1,2}|~|–|—|至)\s*[-+]?\d+(?:\.\d+)?|10\s*[\^*]\s*\d+|×\s*10\S*")
+_NOT_RESULT = re.compile(rf"[-+]?\d+(?:\.\d+)?\s*(?:{RANGE_SEPARATOR})\s*[-+]?\d+(?:\.\d+)?|10\s*[\^*]\s*\d+|×\s*10\S*")
 _NUMBER_TOKEN = re.compile(r"(?<![\w.])[<>≤≥]?[-+]?\d+(?:\.\d+)?(?![\w.])")
 
 
