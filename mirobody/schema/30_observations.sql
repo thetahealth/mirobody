@@ -142,7 +142,7 @@ CREATE INDEX IF NOT EXISTS idx_th_coding_current_open ON th_coding_current (outc
 CREATE TABLE IF NOT EXISTS th_coding_history (
     observation_id   bigint NOT NULL REFERENCES th_observation(id) ON DELETE CASCADE,
     coded_at         timestamptz NOT NULL DEFAULT now(),
-    cause            text NOT NULL,              -- ingest | amend | recode-release | recode-rules | recode-alias
+    cause            text NOT NULL,              -- ingest | amend | correct | recode-release | recode-rules | recode-alias
     release          text NOT NULL,
     outcome          text NOT NULL,
     reason           text,

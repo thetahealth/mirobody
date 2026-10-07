@@ -79,7 +79,12 @@ GRAIN_DAY = "day"
 STAT_AS_REPORTED = "as-reported"
 
 CAUSE_INGEST = "ingest"
+#: A source re-sent a changed value for a row it wrote (`ON_CONFLICT_AMEND`),
+#: or a row was retracted.
 CAUSE_AMEND = "amend"
+#: A person corrected a row (`amend()`). A source re-sending its value, the
+#: old one or a new one, never amends a correction back.
+CAUSE_CORRECT = "correct"
 CAUSE_RECODE_RELEASE = "recode-release"
 CAUSE_RECODE_RULES = "recode-rules"
 CAUSE_RECODE_ALIAS = "recode-alias"
@@ -87,7 +92,7 @@ CAUSE_RECODE_ALIAS = "recode-alias"
 #: What a collision on the identity index means. `skip`: a retry, not a
 #: duplicate (a report re-uploaded, a batch re-sent after a timeout).
 #: `amend`: the source re-sent the truth (a device sync, a re-aggregation),
-#: and a changed value becomes an amendment of the row it replaces.
+#: and a changed value amends the row it replaces, unless a person corrected it.
 #: `reassert`: the person typed it again. A row they retracted no longer holds
 #: the identity, so the new row amends the retraction. Under the other two a
 #: retraction stands, and a re-sync does not bring back what was deleted.
@@ -449,9 +454,13 @@ INSERT INTO th_coding_history (observation_id, cause, {_CODING_COLUMNS})
 SELECT :new_id, :cause, {_CODING_COLUMNS} FROM th_coding_current WHERE observation_id = :old_id
 """
 
-# The visible row that already holds an identity: the one a re-sent value amends.
+# The visible row that already holds an identity: the one a re-sent value
+# amends, unless a person corrected it.
 _SELECT_CURRENT = """
-SELECT id, fingerprint FROM th_observation o
+SELECT id, fingerprint,
+       EXISTS (SELECT 1 FROM th_coding_history h
+                WHERE h.observation_id = o.id AND h.cause = 'correct') AS corrected
+  FROM th_observation o
  WHERE o.user_id = :user_id AND o.name_key = :name_key
    AND o.observed_start = :observed_start AND o.observed_end = :observed_end AND o.source_ref = :source_ref
    AND COALESCE(o.source_record_id, '') = COALESCE(:source_record_id, '')
@@ -625,7 +634,8 @@ async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> 
     `OUTCOME_SKIPPED` when the identity is already held by an equal row (or,
     under `skip`, by any row), or `OUTCOME_DIFFERS` under `verify`/`repair`
     when it is held by a different one. Under `amend`, a changed value is
-    inserted as an amendment; under `reassert`, an identity whose row was
+    inserted as an amendment, unless the row it would amend is a person's
+    correction (`CAUSE_CORRECT`); under `reassert`, an identity whose row was
     retracted is written again; under `repair`, see `ON_CONFLICT_REPAIR`."""
     inserted = await tx.execute(_INSERT_OBSERVATION, row)
     if inserted:
@@ -644,7 +654,7 @@ async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> 
             return None, OUTCOME_SKIPPED
     elif on_conflict == ON_CONFLICT_AMEND:
         current = await tx.execute(_SELECT_CURRENT, row)
-        if not current or str(current[0]["fingerprint"]) == row["fingerprint"]:
+        if not current or current[0]["corrected"] or str(current[0]["fingerprint"]) == row["fingerprint"]:
             return None, OUTCOME_SKIPPED
     else:
         return None, OUTCOME_SKIPPED
@@ -861,7 +871,7 @@ async def amend(
         new_id = _inserted_id(inserted[0], row)
         aliases = await _load_aliases(tx, str(user_id))
         coding = coding_for(row, aliases)
-        await _write_coding(tx, new_id, row, coding, CAUSE_AMEND)
+        await _write_coding(tx, new_id, row, coding, CAUSE_CORRECT)
     return new_id
 
 
@@ -1328,6 +1338,7 @@ async def ingest_legacy_rows(rows: list[dict[str, Any]], *, on_conflict: str = O
 __all__ = [
     "AGGREGATE_TASK_IDS",
     "CAUSE_AMEND",
+    "CAUSE_CORRECT",
     "CAUSE_INGEST",
     "CAUSE_RECODE_ALIAS",
     "CAUSE_RECODE_RELEASE",

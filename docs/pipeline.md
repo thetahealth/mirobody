@@ -212,7 +212,10 @@ no device recorded.
 **Implemented.** `overlay.Override` — who changed which field, to what, when.
 The stored row is never rewritten and a deletion is an override like any other,
 so re-pushing the source changes the row and leaves the correction standing.
-`th_override` is the reference application's append-only table.
+`th_override` is the reference application's append-only table. A reading's
+own correction is `observations.amend()`: a new row amending the old one, its
+coding history cause `correct`, and a source re-sending its value, the old one
+or a new one, never amends it back.
 
 *The failure this prevents:* every correction used to be an `UPDATE`, and every
 one was silently undone the next time the source re-pushed the same record.
