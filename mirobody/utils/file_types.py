@@ -77,6 +77,7 @@ MIME_BY_EXT: dict[str, str] = {
     # archives
     ".zip": "application/zip", ".rar": "application/x-rar-compressed",
     ".7z": "application/x-7z-compressed", ".gz": "application/gzip",
+    ".bgz": "application/gzip", ".bgzf": "application/gzip",  # BGZF is gzip-compatible
     ".tar": "application/x-tar",
     # types that only the files package's own table used to carry
     ".ico": "image/x-icon", ".tif": "image/tiff", ".mkv": "video/x-matroska",
