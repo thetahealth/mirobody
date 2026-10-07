@@ -510,19 +510,6 @@ class Config:
 
     #-----------------------------------------------------
 
-    def get_mcp_options(self) -> dict[str, str | list[str]]:
-        return {
-            "tool_dirs"         : self.mcp_tool_dirs,
-        }
-
-
-    def get_agent_options(self) -> dict[str, list[str] | dict[str, str]]:
-        return {
-            "agent_dirs"        : self.agent_dirs,
-            "api_keys"          : self.api_keys
-        }
-
-
     def get_agent_settings(self) -> dict[str, Any]:
         """The agent's runtime settings from the four plain keys, cached.
 

@@ -409,8 +409,8 @@ class Server:
 
             http_headers    = config.http.headers or {},
 
-            **config.get_mcp_options(),
-            **config.get_agent_options(),
+            tool_dirs       = config.mcp_tool_dirs,
+            agent_dirs      = config.agent_dirs,
 
             **config.get_jwt_options(),
             **config.get_email_options(),
