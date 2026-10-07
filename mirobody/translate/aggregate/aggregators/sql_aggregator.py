@@ -18,7 +18,7 @@ from mirobody.translate.aggregate import windows
 from mirobody.translate.aggregate.models import CalculationTask
 from mirobody.translate.aggregate.rule_generator import get_rules_by_source_indicator
 from .source_id_priority import APPLE_SOURCES, build_apple_priority_case
-from mirobody.translate import StandardIndicator
+from mirobody.translate import StandardIndicator, zone_for
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,23 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetim
     except Exception as e:
         logger.error(f"Error converting timezone {timezone}: {e}")
         return day_start_utc, day_start_utc + timedelta(hours=24)
+
+
+def _local_days_later(begin_utc: datetime, timezone: str, days: int) -> datetime:
+    """The naive UTC instant `days` local days after `begin_utc`: the same wall
+    clock in `timezone`, so a daylight-saving day is 23 or 25 hours, not 24. A
+    zone Python cannot place (Postgres knows a few more) keeps 24-hour days."""
+    begin = begin_utc if begin_utc.tzinfo else begin_utc.replace(tzinfo=UTC)
+    try:
+        zone = zone_for(timezone)
+    except ValueError:
+        return (begin + timedelta(days=days)).astimezone(UTC).replace(tzinfo=None)
+    return (begin.astimezone(zone) + timedelta(days=days)).astimezone(UTC).replace(tzinfo=None)
+
+
+def _naive_utc(instant: datetime) -> datetime:
+    """`series_data.time` is naive UTC; the trigger query hands back either."""
+    return instant.astimezone(UTC).replace(tzinfo=None) if instant.tzinfo else instant
 
 
 def _tasks_from_rows(rows: list[dict[str, Any]]) -> list[CalculationTask]:
@@ -405,15 +422,14 @@ class SQLAggregator:
         # Get data_begin_utc from first task (all tasks have the same data_begin_utc)
         data_begin_utc = data_begin_tasks[0].data_begin_utc
 
-        # Group tasks by user to process each user separately
+        # One group per person and zone: the zone decides where the day ends.
         user_groups = defaultdict(list)
         for task in data_begin_tasks:
-            user_groups[task.user_id].append(task)
+            user_groups[(task.user_id, task.timezone)].append(task)
 
         all_summaries = []
 
-        # Process each user group separately
-        for user_id, user_tasks in user_groups.items():
+        for (user_id, timezone), user_tasks in user_groups.items():
             # Split tasks into standard aggregation, CGM event detection, GMI, and custom derived
             _special = self._cgm_event_methods | self._cgm_gmi_methods | self._custom_derived_methods
             standard_tasks = [t for t in user_tasks if t.aggregation_type not in _special]
@@ -432,7 +448,7 @@ class SQLAggregator:
                 )
 
                 agg_results = await self._execute_single_sql_aggregation(
-                    [user_id], indicators, data_begin_utc, aggregation_methods
+                    [user_id], indicators, data_begin_utc, timezone, aggregation_methods
                 )
 
                 if agg_results:
@@ -510,7 +526,7 @@ class SQLAggregator:
                         f"data_begin_utc: {data_begin_utc}"
                     )
                     results = await self._execute_single_sql_aggregation(
-                        [user_id], [indicator], data_begin_utc, aggregation_methods
+                        [user_id], [indicator], data_begin_utc, user_tasks[0].timezone, aggregation_methods
                     )
                     if results:
                         summaries = self._convert_to_summary_records(results, standard_tasks, data_begin_utc)
@@ -604,29 +620,15 @@ class SQLAggregator:
             user_ids: list[str],
             indicators: list[str],
             data_begin_utc: datetime,
+            timezone: str,
             aggregation_methods: set[str]
     ) -> list[dict[str, Any]]:
-        """
-        Execute single SQL query for all users and indicators
-        
-        Args:
-            user_ids: List of user IDs
-            indicators: List of indicators
-            data_begin_utc: Starting time point in UTC (allows direct comparison with time column)
-            aggregation_methods: Set of aggregation methods to apply
-            
-        Returns:
-            List of aggregation results
-        """
-
-        # Calculate time boundaries: data_begin_utc to data_begin_utc+24h
-        # Both are in UTC, can directly compare with series_data.time (UTC) - uses index!
-        # Remove timezone info if present (PostgreSQL may return timezone-aware datetime)
-        if data_begin_utc.tzinfo is not None:
-            day_start = data_begin_utc.replace(tzinfo=None)
-        else:
-            day_start = data_begin_utc
-        day_end = day_start + timedelta(hours=24)
+        """One statement aggregating `indicators` of `user_ids` over the local
+        day that begins at `data_begin_utc` in `timezone`, one row per
+        (person, indicator, source). The bounds are naive UTC, compared with
+        `series_data.time` directly so its index is used."""
+        day_start = _naive_utc(data_begin_utc)
+        day_end = _local_days_later(data_begin_utc, timezone, 1)
 
         # Build user filter - use ANY for both single and multiple users
         user_filter = "user_id = ANY(:user_ids)"
@@ -765,15 +767,10 @@ class SQLAggregator:
         if not event_tasks:
             return []
 
-        # All event tasks share the same source_indicator and data_begin_utc
+        # All event tasks share the same source_indicator, data_begin_utc and zone
         source_indicator = event_tasks[0].source_indicator
-
-        # Calculate time boundaries
-        if data_begin_utc.tzinfo is not None:
-            day_start = data_begin_utc.replace(tzinfo=None)
-        else:
-            day_start = data_begin_utc
-        day_end = day_start + timedelta(hours=24)
+        day_start = _naive_utc(data_begin_utc)
+        day_end = _local_days_later(data_begin_utc, event_tasks[0].timezone, 1)
 
         # Get all sources for this user/indicator/day (to match per-source aggregation pattern)
         source_query = """
@@ -959,7 +956,7 @@ class SQLAggregator:
         for source_row in sources:
             source = source_row.get('source', '')
             gmi_result = await self._execute_gmi_aggregation(
-                user_id, source_indicator, source, data_begin_utc
+                user_id, source_indicator, source, data_begin_utc, gmi_tasks[0].timezone
             )
 
             if gmi_result is None:
@@ -983,9 +980,11 @@ class SQLAggregator:
             indicator: str,
             source: str,
             data_begin_utc: datetime,
+            timezone: str,
     ) -> float | None:
         """
-        Calculate GMI from raw CGM data over a 14-day window ending at data_begin_utc.
+        Calculate GMI from raw CGM data over the 14 local days ending with the
+        day that begins at data_begin_utc.
 
         Algorithm (per 2018 international consensus, Bergenstal et al.):
         1. Fetch all raw readings from series_data over past 14 days
@@ -1001,8 +1000,8 @@ class SQLAggregator:
         """
         from collections import Counter
 
-        day_end = data_begin_utc + timedelta(hours=24)
-        day_start_14d = data_begin_utc - timedelta(days=13)
+        day_end = _local_days_later(data_begin_utc, timezone, 1)
+        day_start_14d = _local_days_later(data_begin_utc, timezone, -13)
 
         # Fetch all raw readings sorted by time
         query = """
@@ -1105,13 +1104,10 @@ class SQLAggregator:
         if not tasks:
             return []
 
-        # query_start/query_end: UTC window for querying series_data (whose `time`
-        # column is UTC). Handlers rely on these being UTC instants.
-        if data_begin_utc.tzinfo is not None:
-            query_start = data_begin_utc.replace(tzinfo=None)
-        else:
-            query_start = data_begin_utc
-        query_end = query_start + timedelta(hours=24)
+        # query_start/query_end: the local day as naive UTC instants, for
+        # `series_data.time`. Handlers rely on these being UTC.
+        query_start = _naive_utc(data_begin_utc)
+        query_end = _local_days_later(data_begin_utc, tasks[0].timezone, 1)
 
         # store_start/store_end: user's local calendar-day boundaries for
         # th_series_data storage (00:00:00 - 23:59:59), matching the standard path.
@@ -1153,11 +1149,10 @@ class SQLAggregator:
                     "end_time": store_end,
                     "source": source,
                     "task_id": "aggregate_indicator",
-                    "comment": f"Source/{source}/Unit/{unit}/Aggregated/{task.aggregation_type}",
                     "source_table": "series_data",
                     "source_table_id": "",
-                    "indicator_id": "",
                     "unit": unit,
+                    "timezone": task.timezone,
                 })
 
             except Exception as e:
@@ -1540,11 +1535,10 @@ class SQLAggregator:
                     "end_time": day_end,
                     "source": source,
                     "task_id": "aggregate_indicator",
-                    "comment": f"Source: {source}, Unit: {self._get_aggregation_unit(task.source_indicator, task.aggregation_type)}, Timezone: {timezone}, Aggregated: {task.source_indicator} via {task.aggregation_type}",
                     "source_table": "series_data",
                     "source_table_id": task.source_indicator,
-                    "indicator_id": "",
                     "unit": self._get_aggregation_unit(task.source_indicator, task.aggregation_type),
+                    "timezone": timezone,
                 }
 
                 summaries.append(summary)
