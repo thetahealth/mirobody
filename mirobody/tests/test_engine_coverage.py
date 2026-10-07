@@ -893,6 +893,46 @@ def test_a_category_word_never_lands_on_a_specific_analyte():
     assert not resolve("骨量").resolved              # was 34019-0, a DENTAL bone volume
 
 
+def _override_rows() -> list[tuple[int, str, str]]:
+    """`(line number, term, target)` for every data row of the overrides file
+    the resolver reads at runtime."""
+    from mirobody._bundle import OVERRIDES_PATH
+
+    rows = []
+    with open(OVERRIDES_PATH, encoding="utf-8") as f:
+        for number, line in enumerate(f, 1):
+            if line.startswith("#") or not line.strip():
+                continue
+            term, _, target = line.rstrip("\n").partition("\t")
+            rows.append((number, term, target))
+    return rows
+
+
+def test_a_blocked_category_word_stays_blocked_inside_a_longer_name(resolver):
+    """A refusal written for a category word holds for every name derived
+    from it. `resolve` checked the block on the name as written, and the stems
+    it derives then looked the category word up as an ordinary index key:
+    `Stool OB` answered a budgerigar-droppings IgE, `电解质计数` an
+    electrolytes panel and `流感 FLU` an influenza assay."""
+    blocked = [term for _, term, target in _override_rows() if target == "!unresolved"]
+    assert blocked
+    leaks = [
+        name
+        for term in blocked
+        for name in (f"Serum {term}", f"{term} count")
+        if resolver.resolve(name).resolved
+    ]
+    assert not leaks, leaks[:10]
+    for name in ("Stool OB", "流感 FLU", "电解质计数"):
+        assert not resolver.resolve(name).resolved, name
+    # A blocked word at the END names the category too, so it is no
+    # abbreviation to strip: stripped, `Glucose STOOL` answers blood glucose.
+    assert not resolver.resolve("Glucose STOOL").resolved
+    # A name that is an index key of its own is not a derived form: `呕吐`
+    # is blocked and `呕吐计数` is LOINC's emesis count.
+    assert resolver.resolve("呕吐计数").loinc == "94070-0"
+
+
 def test_what_is_not_a_lab_specimen_but_is_a_result_still_resolves():
     """Excluding `^Patient` is the intuitive rule and it is wrong: these are all
     measured on the person rather than on a specimen. `Type` likewise: blood

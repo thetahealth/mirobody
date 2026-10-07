@@ -368,10 +368,14 @@ class OfflineResolver:
         A token that resolves to nothing and is no specimen is treated as an
         abbreviation: `FPG` reaches its stem through the alias table, and
         refusing the strip on "unknown" would give back the misses this exists
-        to fix. Recursion is not a concern: the pattern needs whitespace before
-        the token, and neither argument here has any.
+        to fix. A token the overrides block (`STOOL`, `HIV`) resolves to
+        nothing because it names a category, which is information: stripped,
+        `Glucose STOOL` would answer serum glucose.
+
+        The recursion is bounded: looking the stem up can strip a trailing
+        token of its own, one token shorter at each level.
         """
-        if not token or token in self._systems() or is_component_suffix(token):
+        if not token or token in self._systems() or is_component_suffix(token) or self._is_blocked(token):
             return False
         if any(ch.isdigit() for ch in token):
             # `Vitamin D-3`, `Apolipoprotein B-100`: a numbered tail is a
@@ -421,9 +425,18 @@ class OfflineResolver:
         )
 
     def _keys_for(self, norm: str) -> list[str]:
-        """Alias-table hop then the raw key, for one already-normalized term."""
+        """Alias-table hop then the raw key, for one already-normalized term.
+
+        No keys at all for a blocked term. `resolve` refuses a blocked term
+        as written, but the stems derived from it come here without that
+        check, and the raw key of a category word reaches some narrow assay:
+        `电解质计数` answered an electrolytes panel and `Stool OB` a
+        budgerigar-droppings IgE, while `电解质` and `Stool` refuse.
+        """
         keys: list[str] = []
         eng = self._src.get(norm)
+        if eng == _BLOCK_SENTINEL:
+            return keys
         if eng:
             keys.append(self._normalize(eng))
             # The same strip on the alias table's TARGET: 429 of 48,366 targets
@@ -498,7 +511,14 @@ class OfflineResolver:
         stem, inside = split_trailing_parenthetical(term)
         if not stem and not inside:
             return Resolution(term=term)
-        if (stem and self._is_blocked(stem)) or (inside and self._is_blocked(inside)):
+        # Both halves, and the whole name without its measure words: `Serum
+        # HRV (RMSSD)` is the blocked `HRV (RMSSD)`, and its stem half alone
+        # answers the SDNN code that block exists to refuse.
+        if (
+            (stem and self._is_blocked(stem))
+            or (inside and self._is_blocked(inside))
+            or any(self._is_blocked(measured) for measured in measure_stems(term))
+        ):
             return Resolution(term=term, method="refused")
 
         stem_hit = self._lookup(stem) if stem else None
