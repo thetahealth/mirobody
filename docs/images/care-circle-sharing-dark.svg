@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="636" viewBox="0 0 920 636" role="img" aria-labelledby="title description" font-family="&#x27;Inter&#x27;, &#x27;Helvetica Neue&#x27;, Arial, &#x27;PingFang SC&#x27;, &#x27;Microsoft YaHei&#x27;, sans-serif">
+<title id="title">Care for family. Keep control.</title>
+<desc id="description">Invite a family member and wait for acceptance. They choose whether to share their own record, with view or edit access. Ask about the shared record within that permission. Joining alone shares no health data. For a family member who does not sign in, you can manage a record until they take it over and choose your access.</desc>
+<rect width="920" height="636" fill="#0D1117"/>
+<text x="28" y="56" font-size="34" fill="#EDF3F9" font-weight="650" text-anchor="start">Care for family. Keep control.</text>
+<text x="28" y="95" font-size="20" fill="#B2C0CF" font-weight="400" text-anchor="start">Separate records. Permission to share. Answers with sources.</text>
+<rect x="24" y="132" width="268" height="320" rx="20" fill="#151E29" stroke="#344355" stroke-width="1.3"/>
+<rect x="46" y="154" width="52" height="52" rx="15" fill="#1D3151"/>
+<g transform="translate(56 164) scale(1.1428571428571428)" fill="none" stroke="#9CBFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="20" cy="9" r="3"/><path d="M3 23v-4a6 6 0 0 1 12 0v4M16 16a6 6 0 0 1 10 4v3"/></g>
+<text x="268" y="188" font-size="20" fill="#9CBFFF" font-weight="650" text-anchor="end">01</text>
+<text x="46" y="236" font-size="24" fill="#EDF3F9" font-weight="650" text-anchor="start">Invite family</text>
+<text x="46" y="271" font-size="19" fill="#B2C0CF" font-weight="400" text-anchor="start">Send an invitation.</text>
+<text x="46" y="297" font-size="19" fill="#B2C0CF" font-weight="400" text-anchor="start">They accept to join.</text>
+<circle cx="92" cy="362" r="31" fill="#1D3151"/>
+<g transform="translate(73 343) scale(1.3571428571428572)" fill="none" stroke="#9CBFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="8" r="5"/><path d="M4 26v-3a10 10 0 0 1 20 0v3"/></g>
+<text x="92" y="419" font-size="20" fill="#EDF3F9" font-weight="550" text-anchor="middle">You</text>
+<circle cx="224" cy="362" r="31" fill="#1D3151"/>
+<g transform="translate(205 343) scale(1.3571428571428572)" fill="none" stroke="#9CBFFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="8" r="5"/><path d="M4 26v-3a10 10 0 0 1 20 0v3"/></g>
+<text x="224" y="419" font-size="20" fill="#EDF3F9" font-weight="550" text-anchor="middle">Family</text>
+<path d="M134.0 362h48m-5-5 5 5-5 5" fill="none" stroke="#9CBFFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="235" y="371" width="24" height="24" rx="12" fill="#9CBFFF"/>
+<g transform="translate(237 373) scale(0.7142857142857143)" fill="none" stroke="#0D1117" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 5 5L23 7"/></g>
+<rect x="326" y="132" width="268" height="320" rx="20" fill="#151E29" stroke="#344355" stroke-width="1.3"/>
+<rect x="348" y="154" width="52" height="52" rx="15" fill="#18382C"/>
+<g transform="translate(358 164) scale(1.1428571428571428)" fill="none" stroke="#91D6B1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2 25 6v8c0 7-11 12-11 12S3 21 3 14V6Z"/><path d="m9 13 3 3 7-7"/></g>
+<text x="570" y="188" font-size="20" fill="#91D6B1" font-weight="650" text-anchor="end">02</text>
+<text x="348" y="236" font-size="24" fill="#EDF3F9" font-weight="650" text-anchor="start">They choose access</text>
+<text x="348" y="271" font-size="19" fill="#B2C0CF" font-weight="400" text-anchor="start">Their record, their choice.</text>
+<rect x="346" y="303" width="228" height="37" rx="10" fill="#1B2735" stroke="#344355" stroke-width="1.3"/>
+<g transform="translate(356 309) scale(0.8928571428571429)" fill="none" stroke="#B2C0CF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="12" width="16" height="13" rx="3"/><path d="M9 12V8a5 5 0 0 1 10 0v4M14 18v2"/></g>
+<text x="392" y="328" font-size="19" fill="#B2C0CF" font-weight="500" text-anchor="start">Private · default</text>
+<rect x="346" y="347" width="228" height="37" rx="10" fill="#1B2735" stroke="#344355" stroke-width="1.3"/>
+<g transform="translate(356 353) scale(0.8928571428571429)" fill="none" stroke="#91D6B1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14s5-8 12-8 12 8 12 8-5 8-12 8S2 14 2 14Z"/><circle cx="14" cy="14" r="3"/></g>
+<text x="392" y="372" font-size="19" fill="#EDF3F9" font-weight="500" text-anchor="start">View only</text>
+<rect x="346" y="391" width="228" height="37" rx="10" fill="#1B2735" stroke="#344355" stroke-width="1.3"/>
+<g transform="translate(356 397) scale(0.8928571428571429)" fill="none" stroke="#91D6B1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 19-1 5 5-1L24 9l-4-4ZM17 8l4 4"/></g>
+<text x="392" y="416" font-size="19" fill="#EDF3F9" font-weight="500" text-anchor="start">View &amp; edit</text>
+<rect x="628" y="132" width="268" height="320" rx="20" fill="#151E29" stroke="#344355" stroke-width="1.3"/>
+<rect x="650" y="154" width="52" height="52" rx="15" fill="#302443"/>
+<g transform="translate(660 164) scale(1.1428571428571428)" fill="none" stroke="#D1B2FA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v22h22M8 18l5-5 5 2 7-8M20 7h5v5"/></g>
+<text x="872" y="188" font-size="20" fill="#D1B2FA" font-weight="650" text-anchor="end">03</text>
+<text x="650" y="236" font-size="24" fill="#EDF3F9" font-weight="650" text-anchor="start">Ask with permission</text>
+<text x="650" y="271" font-size="19" fill="#B2C0CF" font-weight="400" text-anchor="start">Explore their health trends.</text>
+<rect x="648" y="303" width="228" height="96" rx="12" fill="#1B2735" stroke="#344355" stroke-width="1.3"/>
+<g transform="translate(658 314) scale(0.8928571428571429)" fill="none" stroke="#D1B2FA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10l6 6v16H7ZM17 3v7h6M11 15h8M11 20h6"/></g>
+<text x="693" y="332" font-size="18" fill="#EDF3F9" font-weight="550" text-anchor="start">Their shared record</text>
+<path d="M666 380H860" stroke="#344355" fill="none"/>
+<polyline points="666,368 703,351 739,362 777,348 859,356" stroke="#D1B2FA" stroke-width="2.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<circle cx="666" cy="368" r="3.3" fill="#D1B2FA"/>
+<circle cx="703" cy="351" r="3.3" fill="#D1B2FA"/>
+<circle cx="739" cy="362" r="3.3" fill="#D1B2FA"/>
+<circle cx="777" cy="348" r="3.3" fill="#D1B2FA"/>
+<circle cx="859" cy="356" r="3.3" fill="#D1B2FA"/>
+<g transform="translate(652 414) scale(0.8571428571428571)" fill="none" stroke="#D1B2FA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h10l6 6v16H7ZM17 3v7h6M11 15h8M11 20h6"/></g>
+<text x="686" y="434" font-size="18" fill="#B2C0CF" font-weight="400" text-anchor="start">Answers link to sources</text>
+<path d="M298 292h22m-5-5 5 5-5 5" fill="none" stroke="#54667C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M600 292h22m-5-5 5 5-5 5" fill="none" stroke="#54667C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<g transform="translate(43 475) scale(1.0)" fill="none" stroke="#91D6B1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="12" width="16" height="13" rx="3"/><path d="M9 12V8a5 5 0 0 1 10 0v4M14 18v2"/></g>
+<text x="83" y="497" font-size="21" fill="#91D6B1" font-weight="550" text-anchor="start">Joining a circle does not share health data.</text>
+<rect x="24" y="523" width="872" height="89" rx="16" fill="#182331"/>
+<text x="46" y="553" font-size="20" fill="#EDF3F9" font-weight="600" text-anchor="start">For family who do not sign in</text>
+<text x="46" y="588" font-size="20" fill="#B2C0CF" font-weight="400" text-anchor="start">You manage</text>
+<text x="272" y="588" font-size="20" fill="#B2C0CF" font-weight="400" text-anchor="start">They take over</text>
+<text x="524" y="588" font-size="20" fill="#B2C0CF" font-weight="400" text-anchor="start">They choose your access</text>
+<path d="M211 582h32m-5-5 5 5-5 5" fill="none" stroke="#54667C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M463 582h32m-5-5 5 5-5 5" fill="none" stroke="#54667C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -2,15 +2,16 @@
 
 **English** · **[中文](walkthrough.zh-CN.md)**
 
-The four scenes the README shows, in order. Parts 2 to 4 are recorded
-against a running `./deploy.sh` stack with `SEED_DEMO_DATA` on; part 1 is
-drawn, because what it shows is the authorization path and a drawing of that
-can be checked against `user/care_circle.py` while a recording cannot.
+This page walks through five scenes on the demo record: arriving, uploading a
+file, reading its coded values, asking across reports, and writing a journal
+entry. Parts 2 to 5 are recorded against a running `./deploy.sh` stack with
+`SEED_DEMO_DATA` on; part 1 is drawn, with the authorization rules behind the
+drawing listed below it.
 
 `SEED_DEMO_DATA` defaults to on, so the ① → ② → ③ chain is walkable the moment
-`./deploy.sh` finishes: signing in and browsing the seeded record need no key;
-the extraction in parts 2 and 3 and the questions in part 4 use the one model
-key in `.env`.
+`./deploy.sh` finishes. Signing in and browsing the seeded record need no
+model; reading a file and answering a question use the model chosen on the
+setup page, a key or [the local models](local-models.md).
 
 **1 · Arrive.** You sign in as `you@mirobody.ai` and find two records, not one.
 Yours: a year of self-tracked vitals and a lab panel from last November.
@@ -21,9 +22,11 @@ one of the two records is yours. Isolation you can see, not just read about.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="images/your-care-circle-dark.svg">
-    <source media="(prefers-color-scheme: light)" srcset="images/your-care-circle.svg">
-    <img src="images/your-care-circle.svg" alt="How one person reaches another's health record: a request passes resolve_subject, which requires both memberships accepted and the subject's own health_access switch, and either returns access trimmed to the request or raises a 403" width="920">
+    <source media="(max-width: 640px) and (prefers-color-scheme: dark)" srcset="images/care-circle-sharing-mobile-dark.svg">
+    <source media="(max-width: 640px)" srcset="images/care-circle-sharing-mobile.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="images/care-circle-sharing-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="images/care-circle-sharing.svg">
+    <img src="images/care-circle-sharing.svg" alt="Invite a family member; they choose whether you may view or edit their own record; ask about the record they share. A family member who does not sign in can be managed by you until they take over and choose your access" width="920">
   </picture>
 </p>
 
@@ -36,10 +39,7 @@ one of the two records is yours. Isolation you can see, not just read about.
 | It is **your** switch, on **your own** row | it governs your record, not theirs |
 | Each member controls their own | no other party's action can raise yours |
 
-These four were a drawing until 1.4.4. Each is pinned by a test as a security
-property rather than a nicety, because the shipped code once contradicted all
-four at once (see [the roadmap](roadmap.md)). A table can be diffed; a picture
-cannot.
+Each of the four is pinned by a test as a security property.
 
 The switch is a column, not a promise:
 `care_circle_members.health_access`, `NOT NULL DEFAULT 0`, on **your own** row.
@@ -79,9 +79,9 @@ what it means is another.
        alt="Dropping a lab-report PDF on the Data page; its analytes extracted, each linked to its source file" width="880">
 </p>
 
-**3 · ② Translate.** Its analytes come out as readings a few seconds later,
-each one linking back to the file it was read off, and each one carrying a
-code:
+**3 · ② Translate.** Its analytes come out as readings once the model has read
+the page (seconds with a cloud model, minutes on a CPU alone), each one
+linking back to the file it was read off, and each one carrying a code:
 
 ```
 Glycated Hemoglobin-HbA1c   5.2 %        loinc 4548-4
@@ -127,6 +127,18 @@ is a different person's.
 <p align="center">
   <img src="images/ask-circle-demo.gif"
        alt="Asking the same question about the shared record; the agent answers from a record you can only view" width="880">
+</p>
+
+**5 · Say how you feel.** Under **Data › Records**, type one sentence:
+`headache since last night, BP 150/95, no fever, metformin 500 mg morning and evening`.
+The model splits it and types each part; the codes come from the vocabulary.
+It becomes a headache coded NS01, blood pressure coded 8480-6 and 8462-4, and
+metformin on the medication list. "No fever" is kept out of the record rather
+than logged as a fever.
+
+<p align="center">
+  <img src="images/journal-demo.gif"
+       alt="One typed sentence becomes a headache coded NS01, blood pressure coded 8480-6 and 8462-4, and metformin on the medication list; 'no fever' is not logged" width="880">
 </p>
 
 That is the whole chain in one sitting: a file goes in, a coded reading comes

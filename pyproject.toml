@@ -13,8 +13,8 @@ dynamic = ["version"]
 authors = [
     {name = "Theta AI Team", email = "developer@thetahealth.ai"},
 ]
-# The PyPI storefront line — keep in lockstep with the README's H1 tagline.
-description = "The AI-native health data engine — collect, standardize, and reason over labs, wearables & genomics."
+# The PyPI storefront line: keep it in step with the README's opening lines.
+description = "Self-hosted AI health data engine: lab reports, wearables and genetics in one record, with answers that cite their sources."
 readme = "README.md"
 # 3.12+ is a hard floor, not a preference: the codebase uses PEP 701 f-strings
 # (nested same-type quotes, e.g. utils/config/config.py), which are a SyntaxError
@@ -225,7 +225,7 @@ agent = [
     # Floor raised to 0.7.14 on 2026-09-16; the API this repository binds
     # (`create_deep_agent`, `HarnessProfile`, the backends, `get_model_provider`)
     # is byte-identical across 0.7.5..0.7.14, and 0.7.14 pulls langchain 1.4.
-    "deepagents>=0.7.14",
+    "deepagents>=0.7.19",
     # In-process JS/TS interpreter middleware — the agent's code sandbox, with
     # no external sandbox service or key. 0.3.7 is deepagents 0.7.14's floor
     # for its own `quickjs` extra.

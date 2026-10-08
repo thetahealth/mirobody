@@ -1,59 +1,72 @@
 # Docker Hub page copy
 
-This is the copy for `thetahealth4mirobody/mirobody`. Keep the short
-description in Docker Hub's repository summary field and paste the Markdown
-under “Full description”. It deliberately leads with the self-hosted result;
-implementation details belong on the documentation site.
+This is the copy for `thetahealth4mirobody/mirobody`. The `docker-hub.yml`
+workflow publishes the short description to Docker Hub's repository summary
+(100 characters at most) and the Markdown under "Full description" as the full
+description. It leads with the result; implementation details belong on the
+documentation site.
 
 ## Short description
 
-Self-hosted health data engine for lab reports, wearables, genomics, and source-citing agent tools.
+Self-hosted AI health data engine: lab reports, wearables, genetics. Answers cite their sources.
 
 ## Full description
 
 # Mirobody
 
-Mirobody turns lab reports, wearable data, Apple Health exports, and genetic files into one local health record. Its deterministic Translate layer standardizes names, units, complaints, diagnoses, and genetic data before an agent reasons over them. Every answer can point back to the source file and page.
+**Turn scattered health data into answers you can trace.** Mirobody brings lab
+reports, wearable data, Apple Health exports and genetic files into one
+record in a Postgres you run. Names and units are resolved to one standard
+offline, and the agent's answers point back to the file and page each number
+came from.
 
 ## Start with Docker
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
-OPENROUTER_API_KEY=sk-or-... ./deploy.sh
+./deploy.sh
 ```
 
-Open `http://localhost:18060` and sign in with the demo account the page
-offers (`you@mirobody.ai`, code `111111`). No Git? The source tarball is the
-same checkout:
+Open the setup link the script prints and paste one model key: OpenRouter,
+OpenAI, Gemini, Anthropic, DeepSeek, DashScope or any OpenAI-compatible
+gateway. The key is kept only after one real request through it works. Then
+sign in at `http://localhost:18060` as `you@mirobody.ai`, code `111111`: a
+synthetic demo record with two people's readings is already there.
+
+No Git? The source tarball is the same checkout:
 
 ```bash
 curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz
-cd mirobody-main && OPENROUTER_API_KEY=sk-or-... ./deploy.sh
+cd mirobody-main && ./deploy.sh
 ```
 
 This image is not a single container: it runs beside its own Postgres, which
 `compose.yaml` starts, and `deploy.sh` generates the secrets the two share.
 Run on its own (`docker run`), it stops within ten seconds and says it cannot
-reach Postgres. Use any supported model key or an OpenAI-compatible gateway;
-the key stays in your `.env` file, and one added later needs
-`docker compose up -d` (a `restart` does not read `.env` again).
+reach Postgres.
 
-Or run every model on the same machine, with no key: `./deploy.sh` alone
-prints a link to the first-run page, where **100% on this machine** points
-Mirobody at a [llama.cpp](https://github.com/ggml-org/llama.cpp) server, the
-local model runtime it ships a preset for (`docker compose --profile local`
-on an NVIDIA GPU, `--profile local-cpu` with none, or `llama-server` on a Mac
-or Windows). The default pair needs 16 GB of memory; on a CPU alone a first answer takes minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server. Your documents and questions
-then stay on the machine; the models download once from Hugging Face. See
+## Or keep every model on your machine
+
+```bash
+COMPOSE_PROFILES=local-cpu ./deploy.sh
+```
+
+This starts [llama.cpp](https://github.com/ggml-org/llama.cpp)'s CPU image
+beside the stack, so no model key is needed and your documents and questions
+stay on the machine; the models download once from Hugging Face. Allow 16 GB
+of memory, at least 8 GB of it for Docker. With no GPU a first answer takes
+minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server.
+`COMPOSE_PROFILES=local` uses an NVIDIA GPU instead, and on a Mac
+`llama-server` runs natively on the GPU. See
 [local models](https://github.com/thetahealth/mirobody/blob/main/docs/local-models.md).
 
 ## What it does
 
-- Reads PDFs, report photos, spreadsheets, CSV exports, wearable data, and genetic files.
-- Resolves alternate names such as `A1c`, `HbA1c`, and `Glycated Hemoglobin` to one LOINC identity.
-- Normalizes units to UCUM and keeps the original source and page evidence.
-- Standardizes complaints and diagnoses with ICPC-3, and handles common genetic formats and CPIC pharmacogenomics data.
-- Serves seven user-scoped MCP tools: `resolve_indicator`, `convert_unit`, `normalize_unit`, `query_health_indicators`, `query_medications`, `query_genetic_data`, and `query_pharmacogenomics`. Settings issues a personal link for Claude Code, Codex, Cursor or Gemini CLI; Claude Desktop takes it through `npx -y mcp-remote <link>`.
+- Reads PDFs, report photos, spreadsheets, CSV exports, wearable data and genetic files.
+- Resolves alternate names such as `A1c`, `HbA1c` and `Glycated Hemoglobin` to one LOINC identity, and units to UCUM, keeping the source page as evidence.
+- Codes complaints and diagnoses with ICPC-3, and reports CPIC pharmacogenomic coverage without recommending a change of medication.
+- Shares a family member's record only when they allow it, view or edit; joining a care circle alone shares nothing.
+- Serves seven MCP tools, each scoped to the signed-in person: four read the record (`query_health_indicators`, `query_medications`, `query_genetic_data`, `query_pharmacogenomics`) and three resolve names and units (`resolve_indicator`, `convert_unit`, `normalize_unit`). Settings issues a personal link for Claude Code, Codex, Cursor or Gemini CLI.
 - Refuses ambiguous category words instead of inventing a code.
 
 ## Use the engine without Docker
@@ -62,13 +75,11 @@ then stay on the machine; the models download once from Hugging Face. See
 uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白
 ```
 
-The lexical resolver and unit engine are offline and need no model key. A key
-is needed only when the document extraction path calls a model.
+The resolver and unit engine are offline and need no model key.
 
-- [Documentation](https://docs.mirobody.ai/en/)
-- [Self-host guide](https://docs.mirobody.ai/en/self-host)
+- [Documentation](https://docs.mirobody.ai/en/self-host)
 - [Source and issues](https://github.com/thetahealth/mirobody)
 - [Security policy](https://github.com/thetahealth/mirobody/blob/main/SECURITY.md)
 
 Mirobody is Apache-2.0 licensed. Keep health data on infrastructure you
-control and review the model provider and retention policy you choose.
+control, and review the terms of the model provider you choose.

@@ -1,88 +1,55 @@
 # Documentation
 
-The rule this directory exists to enforce:
+These guides are also published, in English and Chinese, at
+[docs.mirobody.ai](https://docs.mirobody.ai/en/self-host). The site renders the
+files here, so this directory is where they are edited.
 
-> **A package carries a short `README.md` saying what it is. Long-form guides
-> live here.**
+## Start here
 
-`mirobody` is published to PyPI, so anything inside the package tree lands in
-someone's `site-packages`. A 2,000-line guide to writing a data provider is
-contributor documentation — valuable on GitHub, dead weight in an install.
+| You want to | Read |
+| --- | --- |
+| Run the whole product and see a first answer | [quickstart.md](quickstart.md) ([中文](quickstart.zh-CN.md)) · [walkthrough.md](walkthrough.md) ([中文](walkthrough.zh-CN.md)) |
+| Keep every model on your own machine | [local-models.md](local-models.md) ([中文](local-models.zh-CN.md)) |
+| Choose a model by privacy, quality and cost | [model-choice.md](model-choice.md) ([中文](model-choice.zh-CN.md)) · [local-models-roadmap.md](local-models-roadmap.md) ([中文](local-models-roadmap.zh-CN.md)) |
+| Back up and restore a deployment | [backup-restore.md](backup-restore.md) |
 
-This repo was written by several people over two years, and it showed: guides
-were named `FILE_PROCESSING_GUIDE.md`, `INTEGRATION_GUIDE.md`, `DESIGN.md`,
-`TEST_README.md` and `CLAUDE.md`, scattered at whatever depth their author
-happened to be working. One of them (`pulse/CLAUDE.md`) was shipping AI working
-notes to PyPI under a filename that told open-source readers to ignore it.
+## How it works
 
-## Guides
-
-| | Guide | For |
+| Stage | Guide | For |
 | --- | --- | --- |
-| | [quickstart.md](quickstart.md) | the three ways in — the library, the Docker stack, a checkout — what each needs and what it does not |
-| | [pipeline.md](pipeline.md) | the eleven stages a reading passes through, the invariant each holds, and what is deliberately NOT done |
-| ① | [provider-setup.md](provider-setup.md) | turning ON Garmin / Oura / Whoop — credentials, callback URLs, boot-log truth |
-| ① | [provider-guide.md](provider-guide.md) | writing a data provider end to end — the long one |
-| ① | [file-processing.md](file-processing.md) | a file becomes text by kind (`mirobody/documents/`: PDF text layer, OCR for scanned pages only, Office, text), then the table rules, and a model for what they leave |
-| ① | [apple-health.md](apple-health.md) | Apple Health export + CDA import |
-| ② | [standardization.md](standardization.md) | the long form of ② Translate: the alias tiers, which LOINC release and what the cut contains — moved out of the README in 1.4.1 |
-| ② | [device-crosswalk.md](device-crosswalk.md) | thirteen wearable vendors' fields to LOINC, with a confidence and a source per row, the 71 quantities no code fits, and the normalisation traps between vendors |
-| ② | [benchmarks/README.md](../benchmarks/README.md) | the coding decisions: how a resolver change is scored, what each benchmark suite proves, and how to run it from a clone |
-| ③ | [answers.md](answers.md) | one tool per data class: the matrix, the envelope, the governance, and the PHI discipline |
-| ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar (provisional) |
-| ①②③ | [genetics.md](genetics.md) | raw genotype uploads, active sets, migration, bounded queries, VCF and FHIR export, pinned CPIC coverage, and the scope of each |
+| | [pipeline.md](pipeline.md) | the stages a reading passes through, the invariant each holds, and what is deliberately not done |
+| | [repository-layout.md](repository-layout.md) ([中文](repository-layout.zh-CN.md)) | the directory map, and the two forms the code ships in: library and application |
+| ① | [provider-setup.md](provider-setup.md) ([中文](provider-setup.zh-CN.md)) | turning on Garmin, Oura and Whoop: credentials, callback URLs, and how to confirm a provider runs |
+| ① | [apple-health.md](apple-health.md) | Apple Health export and CDA import |
+| ① | [file-processing.md](file-processing.md) | how a file becomes text by kind, then readings |
+| ② | [standardization.md](standardization.md) ([中文](standardization.zh-CN.md)) | ② Translate in depth: alias tiers, the LOINC release, what the bundled cut covers |
+| ② | [device-crosswalk.md](device-crosswalk.md) | wearable vendors' fields to LOINC, with a confidence and a source per row |
+| ③ | [answers.md](answers.md) | the health-data tools: the matrix, the envelope, the governance, the PHI discipline |
+| ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar |
+| ①②③ | [genetics.md](genetics.md) ([中文](genetics.zh-CN.md)) | genotype uploads, bounded queries, VCF and FHIR export, CPIC coverage |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
-| ③ | [walkthrough.md](walkthrough.md) | the four-minute care-circle walkthrough, all four scenes |
-| | [local-models.md](local-models.md) | running every model on your own machine with llama.cpp: the two sizes and what each needs, how long an answer takes without a GPU, the start command per platform, the document reader, and what each model can read in a photo |
-| | [local-models-roadmap.md](local-models-roadmap.md) | the local models measured side by side, what GLM-OCR can and cannot read, which harness steps 1.5.4 took, and the plan for the ~3 GB post-trained pair 1.6.0 ships |
-| | [model-choice.md](model-choice.md) | which model to run: the local models beside five cloud ones (DeepSeek V4.1 Flash, Claude Sonnet 5.5, Claude Opus 5.5, Gemini 3.8 Flash, GPT-6 Luna) on the same evaluation, what each costs, what leaves the machine in each mode, OpenRouter with zero data retention, and the 1.6.0 Mirobody model |
-| | [benchmarks/local_models/](../benchmarks/local_models/README.md) | the evaluation behind it: 24 questions, 12 documents and 15 journal sentences through the product's API on a synthetic record, every grade with its reason, and how to rerun it |
-| | [benchmarks/local_ocr/](../benchmarks/local_ocr/README.md) | GLM-OCR, PaddleOCR-VL-1.6 and MinerU2.5 end to end on synthetic printed and handwritten pages, and why GLM-OCR stays the document reader |
-| | [repository-layout.md](repository-layout.md) | the directory map and the two forms the code ships in (library vs application) |
-| | [backup-restore.md](backup-restore.md) | what to copy, how to get it back, and what changes on upgrade |
-| | [testing.md](testing.md) | test layout, markers, snapshots, release gates |
 
-Start at [quickstart.md](quickstart.md) if you have not run it yet,
-[repository-layout.md](repository-layout.md) if you want the map rather than a
-specific subsystem, and [roadmap.md](roadmap.md) for known gaps and deferred
-work — each entry states the measurement that motivated it.
+## Contributing
 
-The six guides `README.zh-CN.md` links also have Chinese editions, named
-`<guide>.zh-CN.md`: [provider-setup](provider-setup.zh-CN.md),
-[standardization](standardization.zh-CN.md), [walkthrough](walkthrough.zh-CN.md),
-[repository-layout](repository-layout.zh-CN.md),
-[genetics](genetics.zh-CN.md) and [model-choice](model-choice.zh-CN.md); [local-models-roadmap](local-models-roadmap.zh-CN.md),
-which model-choice links, has one too. Edit the pair together, the way the two
-READMEs are. Everything else here is English: these pages track the code
-closely, and a stale translation of a contributor guide is worse than none.
+[provider-guide.md](provider-guide.md) writes a device provider end to end;
+[testing.md](testing.md) covers test layout and markers;
+[`benchmarks/`](../benchmarks/README.md) explains how a resolver change is
+scored; [roadmap.md](roadmap.md) lists known gaps, each with the measurement
+behind it.
 
-## Package READMEs
+Each package also carries a short `README.md` about that package only, for
+example [`mirobody/collect/`](../mirobody/collect/README.md),
+[`mirobody/translate/`](../mirobody/translate/README.md),
+[`mirobody/agent/`](../mirobody/agent/README.md) and
+[`mirobody/agent/tools/`](../mirobody/agent/tools/README.md).
 
-Short, and about *that package only*:
+## Editing these files
 
-- [`mirobody/collect/`](../mirobody/collect/README.md) — ① Collect
-- [`mirobody/translate/`](../mirobody/translate/README.md) — ② Translate
-- [`mirobody/agent/`](../mirobody/agent/README.md) — ③ Agent
-- [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md) — the MCP tool surface
-- [`mirobody/collect/providers/apple/`](../mirobody/collect/providers/apple/README.md) — Apple Health import
-- [`mirobody/translate/aggregate/`](../mirobody/translate/aggregate/README.md) — daily rollups
-- [`mirobody/translate/`](../mirobody/translate/README.md) — health indicators, units & standardization
-- [`mirobody/schema/`](../mirobody/schema/README.md) — database schema, contract and bootstrap
-- [`mirobody/collect/providers/`](../mirobody/collect/providers/README.md) — provider directory layout
-- [`mirobody/utils/config/`](../mirobody/utils/config/README.md) — configuration
-- [`mirobody/units/`](../mirobody/units/README.md) — UCUM units, families, conversions
-- [`mirobody/kernel/`](../mirobody/kernel/__init__.py) — the kernel; the module docstring is its README (the stage → module map)
-- [`mirobody/documents/`](../mirobody/documents/__init__.py) — documents → text; likewise
-
-## Adding documentation
-
-Ask which one you are writing:
-
-- **"What is this package?"** → the package's own `README.md`. Keep it short
-  enough that someone reads all of it.
-- **"How do I do X?"** → a new file here, named for the task in
-  `lower-case-with-hyphens.md`, linked from the table above.
-
-Not `GUIDE`, not `DESIGN`, not `NOTES`, and never `CLAUDE.md` — that name is
-reserved for the gitignored working file at the repo root and must never be
-committed.
+- **"What is this package?"** goes in the package's own `README.md`, short
+  enough to read in full. **"How do I do X?"** goes here, in a file named for
+  the task (`lower-case-with-hyphens.md`), linked from the tables above.
+- A guide with a Chinese edition is named `<guide>.zh-CN.md`. Edit the pair
+  together, as with the two READMEs; a heading that other pages link keeps its
+  English id in the Chinese edition (`<a id="…"></a>` above the heading).
+- Never commit a `CLAUDE.md`: that name is reserved for a gitignored working
+  file at the repository root.

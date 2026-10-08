@@ -310,7 +310,7 @@ replace all three.
 The old entry here asked for "one write path" for a table that had four. The
 table was the problem. `permissions jsonb DEFAULT '{"all": 1}'` is
 read-everything, on by default, chosen by the other party — and
-`docs/images/your-care-circle.svg`, the diagram the README embedded then (the
+the care-circle diagram the README embedded then (the
 four promises are a table in `docs/walkthrough.md` since 1.4.4), promised the
 opposite in four places: "acceptance required to join", "health stays off until
 you allow it", "your switch — off by default", "mutual — each member controls
