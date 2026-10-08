@@ -19,7 +19,7 @@ COPY pyproject.toml MANIFEST.in README.md CHANGELOG.md SECURITY.md LICENSE LICEN
 COPY config.yaml config.llm.yaml config.devices.yaml ./
 COPY docker/constraints.txt docker/constraints.txt
 COPY scripts/build_backend.py scripts/build_backend.py
-ARG MIROBODY_VERSION=1.5.3.dev0
+ARG MIROBODY_VERSION=1.5.4.dev0
 # Resolve the full application extra before copying the source. Code changes
 # then rebuild only the small project wheel, not every native dependency.
 RUN mkdir mirobody \

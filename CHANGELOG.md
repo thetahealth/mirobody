@@ -1,4 +1,4 @@
-## Unreleased
+## 1.5.4
 
 ### Upgrade notes
 
