@@ -5,7 +5,8 @@
 
      It carries the README's own pitch: the headline, the two ways to run it,
      and a real frame of the product (frame 124 of docs/images/ask-own-demo.gif,
-     cropped to the main panel and saved as social-preview-frame.png). 317/317 is the README's gated score;
+     cropped to the main panel and saved as social-preview-frame.png). The four spellings in the
+     Translate strip all resolve to 718-7 (`mirobody resolve`). 317/317 is the README's gated score;
      nothing here is gated, so re-read it off the README before re-rendering. -->
 <html><head><meta charset="utf-8"><title>Mirobody social preview</title>
 <style>
@@ -26,19 +27,25 @@ h1 em{font-style:normal;color:#7aa7f0}
   background:rgba(255,255,255,.04);width:max-content}
 .chip code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:18px;color:#7aa7f0}
 .dot{width:10px;height:10px;border-radius:50%}
-.foot{position:absolute;left:64px;bottom:44px;font-size:18px;color:#8598ab}
+.foot{position:absolute;left:64px;bottom:32px;font-size:18px;color:#8598ab}
 .foot b{color:#dbe4ec;font-weight:600}
-.shot{position:absolute;right:56px;top:104px;width:580px;border-radius:16px;overflow:hidden;
+.shot{position:absolute;right:56px;top:64px;width:580px;border-radius:16px;overflow:hidden;
   border:1px solid rgba(255,255,255,.16);box-shadow:0 30px 80px rgba(0,0,0,.55)}
 .shot .bar{height:30px;background:#1b2330;display:flex;align-items:center;gap:7px;padding-left:14px}
 .shot .bar i{width:11px;height:11px;border-radius:50%;background:#3a4556;display:block}
 .shot img{display:block;width:100%}
+.tr{position:absolute;right:56px;top:468px;width:580px;display:flex;align-items:center;gap:20px;
+  padding:10px 18px;border-radius:14px;border:1px solid rgba(111,207,151,.35);background:rgba(111,207,151,.07)}
+.tr .lab{font-size:16px;font-weight:700;letter-spacing:.08em;color:#6fcf97;text-transform:uppercase}
+.tr .names{font-size:20px;line-height:1.35;color:#dbe4ec;margin-top:4px}
+.tr .arrow{font-size:26px;color:#6fcf97}
+.tr .code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:24px;font-weight:700;color:#6fcf97;white-space:nowrap}
 </style></head><body><div class="page">
   <div class="mark">MIROBODY</div>
 
   <div class="left">
     <h1>Turn scattered health data into <em>answers you can trace.</em></h1>
-    <div class="sub">Lab reports, wearables and genetic files in one <span style="white-space:nowrap">self-hosted</span> record.</div>
+    <div class="sub">Lab reports, wearables and genetic files in one standardized, <span style="white-space:nowrap">self-hosted</span> record.</div>
     <div class="chips">
       <div class="chip"><span class="dot" style="background:#7aa7f0"></span><code>./deploy.sh</code> + one model key</div>
       <div class="chip"><span class="dot" style="background:#6fcf97"></span>or every model local, on llama.cpp</div>
@@ -46,6 +53,12 @@ h1 em{font-style:normal;color:#7aa7f0}
   </div>
 
   <div class="shot"><div class="bar"><i></i><i></i><i></i></div><img src="social-preview-frame.png" alt=""></div>
+
+  <div class="tr">
+    <div style="flex:1"><div class="lab">② Translate · offline</div>
+      <div class="names">血红蛋白 · ヘモグロビン<br>Hemoglobin · Гемоглобин</div></div>
+    <div class="arrow">→</div><div class="code">LOINC 718-7</div>
+  </div>
 
   <div class="foot"><b>317/317</b> checkup-panel coverage &nbsp;·&nbsp; Apache-2.0 &nbsp;·&nbsp; <b>github.com/thetahealth/mirobody</b></div>
 </div></body></html>
