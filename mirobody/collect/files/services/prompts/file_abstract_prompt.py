@@ -6,10 +6,10 @@ FILE_ABSTRACT_PROMPT = """Please generate a detailed abstract and filename for t
 
 ## Return Format Requirements:
 ```json
-{{
+{
   "file_name": "2024-03-15_Blood_Test_Report_Hospital.pdf",
   "file_abstract": "PDF medical report: Complete blood count results show normal white blood cell count, all red blood cell indicators within reference range, no abnormalities detected."
-}}
+}
 ```
 
 ## Filename Generation Requirements (file_name):

@@ -1,88 +1,37 @@
-"""
-Setup functions for the Pulse system
-"""
+"""Registering the platforms and their providers at server start."""
 
-import asyncio
 import logging
 
 from .providers.apple.platform import AppleHealthPlatform
 
 from .manager import platform_manager
-from mirobody.collect.providers._platform.base import BasePullProvider
 from mirobody.collect.providers._platform.platform import ProviderPlatform
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.config import global_config
 
 logger = logging.getLogger(__name__)
 
 
-async def setup_platform_system_async(providers: list[BasePullProvider] | None = None):
-    """
-    Asynchronously initialize Platform system
-
-    Register all Platforms and Providers (async version)
-    
-    Args:
-        providers: List of additional BasePullProvider instances to register (optional)
-    """
+async def setup_platform_system_async() -> None:
+    """Register the provider platform and the Apple Health platform with
+    `platform_manager`, and every provider the provider platform loads.
+    `Config.init()` has run by then: this reads the loaded configuration."""
     logger.info("Starting platform system setup...")
 
-    # 1. Create and register Platforms
-    # Config.init() has already run by this point (server startup); this is
-    # the accessor, not a loader. It previously took `config_file_path` and
-    # silently dropped it.
-    cfg = global_config()
-    
-    theta_platform = ProviderPlatform(cfg)
+    theta_platform = ProviderPlatform(global_config())
     apple_platform = AppleHealthPlatform()
-
-    # Register Platforms
     platform_manager.register_platform(theta_platform)
     platform_manager.register_platform(apple_platform)
 
-    # 3. Load providers using ProviderPlatform's method
     theta_providers = theta_platform.load_providers()
-
-    # 4. Append additional providers if provided
-    if providers:
-        for provider in providers:
-            theta_providers.append(provider)
-
-    # 5. Register all providers to the platform
     for provider in theta_providers:
         try:
             theta_platform.register_provider(provider)
             logger.info(f"Loaded provider: [{provider.info.slug}]")
         except Exception as e:
-            logger.error(f"Error registering provider {provider.info.slug}: {str(e)}")
-            continue
+            logger.error("provider registration failed: provider=%s error_type=%s", provider.info.slug,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
 
     logger.info("Platform system setup completed:")
     logger.info(f"  - provider platform loaded {len(theta_providers)} providers")
     logger.info("  - Apple Health platform initialized with built-in providers")
-
-
-def setup_platform_system():
-    """
-    Initialize Platform system (sync version)
-
-    Register all Platforms and Providers
-    """
-    # Get current event loop, create new one if none exists
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    # Run async version
-    loop.run_until_complete(setup_platform_system_async())
-
-
-def get_platform_manager():
-    """
-    Get Platform manager instance
-
-    Returns:
-        PlatformManager instance
-    """
-    return platform_manager

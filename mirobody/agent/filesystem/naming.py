@@ -57,10 +57,12 @@ def strip_display_alias(text: str) -> str:
     return _ALIAS_RE.sub(r"\1", text or "")
 
 
-def disambiguate(name: str, key: str) -> str:
+def disambiguate(name: str, key: str, *, width: int | None = 8) -> str:
     """The second name for a duplicate: ``report.pdf`` → ``report-1a2b3c4d.pdf``,
-    tagged with the tail of the record's key so it is stable across listings."""
-    tag = (str(key or "").rsplit("/", 1)[-1].rsplit(".", 1)[0] or "dup")[-8:]
+    tagged with the last ``width`` characters of the record key's stem (all of
+    it with ``None``) so it is stable across listings and keeps its suffix."""
+    key_stem = str(key or "").rsplit("/", 1)[-1].rsplit(".", 1)[0] or "dup"
+    tag = key_stem if width is None else key_stem[-width:]
     stem, dot, ext = name.rpartition(".")
     return f"{stem}-{tag}{dot}{ext}" if dot else f"{name}-{tag}"
 

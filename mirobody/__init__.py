@@ -25,7 +25,7 @@ rather than asking for one answer. It is deliberately not re-exported here, so
 ``import mirobody`` stays exactly as cheap as the paragraph below says.
 
 Exports resolve lazily (PEP 562), and that is load-bearing rather than style:
-``import mirobody`` must not import numpy, must not open the 15 MB data bundle,
+``import mirobody`` must not import numpy, must not open the data bundle,
 and must not drag in the extraction stack. Measured, it costs about as much as
 ``import json``.
 """
@@ -68,8 +68,9 @@ def __getattr__(name: str):
         return getattr(importlib.import_module(f".{_EXPORTS[name]}", __name__), name)
     if name == "BUNDLE_VERSION":
         # The corpus release the shipped bundle was cut from, e.g.
-        # `2026.08.28-963df348633d`. Deliberately not a module constant: it
-        # reads a tar member, and `import mirobody` is meant to be free.
+        # `loinc-2.83+2026.09.17-aacb2c715b56`. Deliberately not a module
+        # constant: it reads a tar member, and `import mirobody` is meant to
+        # be free.
         from ._bundle import bundle_version
 
         return bundle_version()
@@ -84,13 +85,14 @@ def __dir__() -> list[str]:
 #   1. importlib.metadata, once the package is installed (wheel or editable).
 #   2. MIROBODY_VERSION, which CI exports from the git tag before
 #      `python -m build`; the isolated build env has no installed metadata.
-#   3. The literal below, the canonical version of this source tree and what
-#      `pip install -e .` bakes in. Bump it per release to match the CHANGELOG
-#      and the tag: the release workflow refuses a tag that disagrees, and the
-#      suite pins it to the CHANGELOG and the READMEs.
+#   3. The literal below: this tree's version, which `pip install -e .`
+#      bakes in. The release workflow refuses a tag that disagrees, and
+#      `scripts/check_versions.py` fails CI when compose.yaml, server.json or
+#      the Dockerfile name another version.
+import importlib.metadata
+
 try:
-    from importlib.metadata import version as _version
-    __version__ = _version("mirobody")
-except Exception:
+    __version__ = importlib.metadata.version("mirobody")
+except importlib.metadata.PackageNotFoundError:
     import os
     __version__ = os.environ.get("MIROBODY_VERSION") or "1.5.3"

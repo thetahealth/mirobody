@@ -46,10 +46,10 @@ every path returns an envelope, including the ones that failed.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from mirobody.kernel import query, tools
+from mirobody.kernel import query, series, tools
 from ._authz import refused
 from ._base import RecordTool
 from ._render import awaited, envelope_meta, render_compact
@@ -103,7 +103,8 @@ class HealthIndicatorsService(RecordTool):
     input_schema = query.TOOL_SCHEMA
 
     def __init__(self, health_query: Any = None, *, now: Any = None, catalog_cap: int | None = None,
-                 row_cap: int = query.ROW_CAP, bucket_cap: int = query.BUCKET_CAP) -> None:
+                 row_cap: int = query.ROW_CAP, bucket_cap: int = query.BUCKET_CAP,
+                 outside_note: bool = True) -> None:
         self._health_query = health_query
         self._now = now  # injected in tests; production reads the clock
         # A browser's catalogue and reading list are tables it scrolls, not a
@@ -111,6 +112,9 @@ class HealthIndicatorsService(RecordTool):
         self._catalog_cap = catalog_cap
         self._row_cap = row_cap
         self._bucket_cap = bucket_cap
+        # The note costs a whole-record catalogue on every dated call, and is
+        # written for a model; a caller that renders no notes turns it off.
+        self._outside_note = outside_note
 
     def _query(self) -> Any:
         if self._health_query is None:
@@ -195,8 +199,11 @@ class HealthIndicatorsService(RecordTool):
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
+        outside = ""
+        if self._outside_note and method != "catalog" and (request.start or request.end):
+            outside = _outside_note(await awaited(hq.catalog(subject_id, None)), rows, window)
         return _envelope_for(method, request, window, rows, fell_back=fell_back, bucket_cap=self._bucket_cap,
-                             row_cap=self._row_cap)
+                             row_cap=self._row_cap, outside=outside)
 
     async def _dispatch(
         self, hq: Any, method: str, subject_id: str, request: query.QueryRequest, window: query.Window
@@ -236,6 +243,7 @@ def _envelope_for(
     fell_back: bool = False,
     bucket_cap: int = query.BUCKET_CAP,
     row_cap: int = query.ROW_CAP,
+    outside: str = "",
 ) -> tools.Envelope:
     rows = list(rows)
     dated = bool(request.start or request.end)
@@ -262,6 +270,8 @@ def _envelope_for(
     assumptions: list[str] = []
     if dated and window.note:
         assumptions.append(window.note)
+    if outside:
+        assumptions.append(outside)
     if fell_back:
         assumptions.append("no indicator matched those terms; this is what this person has on file")
     if method == "catalog" and request.view_unapplied:
@@ -340,6 +350,38 @@ def _raw_cut_note(rows: Sequence[Mapping[str, Any]], cap: int) -> str:
     span = f", {times[0][:16]} to {times[-1][:16]}" if times else ""
     return (f"Only part of the data is shown: the latest {cap} readings per indicator{span}. "
             f"Older data {_NOT_MISSING}. For it, call again with {' or with '.join(ways)}.")
+
+
+def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str, Any]],
+                  window: query.Window) -> str:
+    """One note naming each answered series that has readings before or after
+    a window the caller named, from the whole-record catalogue; "" for none.
+
+    Unsaid, a window reads as the whole story: asked how cholesterol moved, a
+    small model read a window holding 2 of 3 readings and answered from those
+    (newcomer review M5, 2026-10-07). With one end named the other is the
+    default span, so the bounds compared are the ones the rows were read
+    from, not the dates the caller wrote."""
+    answered = {str(r.get("series") or "") for r in rows} - {""}
+    zone = series.zone(window.tz)
+    first_day = datetime.fromtimestamp(window.start_ms / 1000, zone).date().isoformat()
+    last_day = datetime.fromtimestamp((window.end_ms - 1) / 1000, zone).date().isoformat()
+    outside = []
+    for entry in catalog:
+        if str(entry.get("series") or "") not in answered:
+            continue
+        first, last = str(entry.get("first_date") or ""), str(entry.get("last_date") or "")
+        spans = []
+        if first and first < first_day:
+            spans.append(f"from {first}")
+        if last and last > last_day:
+            spans.append(f"until {last}")
+        if spans:
+            outside.append(f"{entry.get('indicator')} ({', '.join(spans)})")
+    if not outside:
+        return ""
+    return (f"this window ({first_day}..{last_day}) leaves out readings of " + "; ".join(outside)
+            + "; call again with a wider start or end to include them")
 
 
 def _day_before(stamp: str) -> str:

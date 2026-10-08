@@ -30,12 +30,11 @@ import logging
 from pathlib import PurePosixPath
 from typing import Any
 
-from deepagents.backends.protocol import EditResult, FileUploadResponse, WriteResult
-
 from mirobody.collect import GeneticHandler
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.db import execute_query
 from .backend import PgFilesystemBackend, _is_text_mime
-from .naming import guess_mime, safe_basename
+from .naming import disambiguate, guess_mime, safe_basename
 
 logger = logging.getLogger(__name__)
 
@@ -46,11 +45,6 @@ _MAX_LIBRARY_FILES = 200
 _MAX_SESSION_FILES = 50
 _ARCHIVE_MIMES = frozenset({"application/zip", "application/x-zip-compressed",
                            "application/gzip", "application/x-gzip"})
-
-_READONLY = (
-    "This path is a read-only view of your stored files. Write scratch notes to "
-    "the workspace root (/) instead."
-)
 
 
 class ThFilesBackend(PgFilesystemBackend):
@@ -68,9 +62,9 @@ class ThFilesBackend(PgFilesystemBackend):
     ):
         if scope not in ("uploads", "library"):
             raise ValueError(f"ThFilesBackend scope must be uploads|library, got {scope!r}")
-        # session_id is irrelevant to a projection: the row key is the file, and
-        # `/uploads/` narrows by the keys this request named rather than by session.
-        super().__init__(user_id=user_id, session_id="", scope=scope,
+        # The row key is the file, and `/uploads/` narrows by the keys this
+        # request named rather than by session.
+        super().__init__(user_id=user_id, scope=scope,
                          supports_file_block=supports_file_block, supports_image=supports_image)
         self._keys = [str(k) for k in (file_keys or [])][:_MAX_SESSION_FILES]
         # file_key -> the name THIS request attached the file under. `/uploads/`
@@ -109,7 +103,13 @@ class ThFilesBackend(PgFilesystemBackend):
         }
 
     async def _files(self) -> list[dict[str, Any]]:
-        """Live `th_files` rows for this scope, newest first, de-duped by name."""
+        """Live `th_files` rows of this record for this scope, newest first,
+        de-duped by name.
+
+        The record is `query_user_id` (the uploader's own id when unset): a file
+        a care-circle member filed into this record has the member as
+        `user_id`, so filtering on the uploader hid it, the turn's own
+        attachment included, from every turn about this record."""
         params: dict[str, Any] = {"uid": self._user_id}
         if self._scope == "uploads":
             if not self._keys:
@@ -141,12 +141,10 @@ class ThFilesBackend(PgFilesystemBackend):
                        content_hash, decrypt_content(original_text) AS original_text,
                        text_length, created_at, updated_at
                   FROM th_files
-                 WHERE user_id = :uid AND is_del = false
+                 WHERE COALESCE(query_user_id, user_id) = :uid AND is_del = false
                    AND scene IS DISTINCT FROM 'genetic' {where}
                    AND NOT EXISTS (
-                       SELECT 1 FROM th_genotype_set g
-                        WHERE g.user_id = th_files.user_id
-                          AND g.file_key = th_files.file_key
+                       SELECT 1 FROM th_genotype_set g WHERE g.file_key = th_files.file_key
                    )
                  ORDER BY created_at DESC
                  LIMIT :limit
@@ -154,8 +152,6 @@ class ThFilesBackend(PgFilesystemBackend):
                 params=params,
             )
         except Exception as exc:
-            from mirobody.kernel.ops import is_driver_exception
-
             logger.warning("stored-file projection failed: scope=%s error_type=%s",
                            self._scope, type(exc).__name__,
                            exc_info=not is_driver_exception(exc))
@@ -186,13 +182,17 @@ class ThFilesBackend(PgFilesystemBackend):
             base = safe_basename(pinned or r.get("file_name") or r.get("file_key") or "")
             if not base:
                 continue
-            # Newest wins; a repeat name gets its key appended rather than
-            # shadowing the older file, matching what the sync did.
+            # Newest wins; a repeat name is tagged with its key rather than
+            # shadowing the older file. The tag goes before the suffix
+            # (`naming.disambiguate`): "lab.pdf__thf_<key>" ended in no known
+            # suffix, so the read skipped extraction and sent the bytes as an
+            # octet-stream block, which qwen and DeepSeek answer with a 400.
             if base in seen:
                 key = str(r.get("file_key") or "")
-                suffix = safe_basename(key)[:8]
-                base = f"{base}__thf_{suffix}" if suffix else base
-                if base in seen:
+                # The whole key when two share their last eight characters.
+                base = next((name for name in (disambiguate(base, key), disambiguate(base, key, width=None))
+                             if name not in seen), "")
+                if not base:
                     continue
             seen.add(base)
             out.append(self._row_from_file(dict(r), f"/{base}"))
@@ -222,16 +222,3 @@ class ThFilesBackend(PgFilesystemBackend):
             logger.info("stored-file genotype read refused: scope=%s", self._scope)
             return None
         return raw
-
-    # ── writes are refused ───────────────────────────────────────────────────
-
-    async def awrite(self, file_path: str, content: str) -> WriteResult:
-        return WriteResult(error=_READONLY)
-
-    async def aedit(self, file_path: str, old_string: str, new_string: str,
-                    replace_all: bool = False) -> EditResult:
-        return EditResult(error=_READONLY)
-
-    async def aupload_files(self, files) -> list[FileUploadResponse]:
-        return [FileUploadResponse(path=getattr(f, "path", ""), error=_READONLY)
-                for f in (files or [])]

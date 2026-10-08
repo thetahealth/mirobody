@@ -12,7 +12,7 @@ class LinkType(str, Enum):
 
     OAUTH1 = "oauth1"  # OAuth 1.0a (like Garmin)
     OAUTH2 = "oauth2"  # OAuth 2.0 (like Whoop)
-    OAUTH = "oauth"   # Keep for backward compatibility, defaults to OAuth2
+    OAUTH = "oauth"   # the default a client sends; the routers read it as OAuth 2.0
     PASSWORD = "password"
     TOKEN = "token"
     API_KEY = "api_key"

@@ -19,14 +19,12 @@ payload the web client renders) byte-for-byte what it was.
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from typing import Any
 
 from mirobody.kernel import metrics
-logger = logging.getLogger(__name__)
 
 
 class HealthDataType(Enum):
@@ -128,92 +126,58 @@ StandardIndicator = Enum(  # type: ignore[misc]
     {m.member: _info(m) for m in metrics.ROWS},
     module=__name__,
 )
-StandardIndicator.__doc__ = "Standard health indicators — one member per catalogue row (``res/catalog/metrics.tsv``)."
-StandardIndicator.identifier = property(lambda self: self.value.name)  # type: ignore[attr-defined]
-StandardIndicator.identifier.__doc__ = "Return the string identifier for backward compatibility."
+StandardIndicator.__doc__ = "Standard health indicators: one member per catalogue row (``res/catalog/metrics.tsv``)."
 
 
-# ============================================================================
-# UTILITY VARIABLES AND FUNCTIONS
-# ============================================================================
-
-# Valid indicators set for fast lookup (unique names only for backward compatibility)
-VALID_INDICATORS: set[str] = {indicator.identifier for indicator in StandardIndicator}
-
-# Create a dictionary for efficient lookup
-_INDICATOR_LOOKUP = {
-    indicator.value.name: indicator.value for indicator in StandardIndicator
-}
-
-# Case-insensitive lookup: lowercase → canonical name (W1.4)
-_INDICATOR_NAME_NORMALIZE = {
-    indicator.value.name.lower(): indicator.value.name
-    for indicator in StandardIndicator if indicator.value.name
-}
+# One lookup for every name helper, lower-cased and first-wins. Five sleep
+# stages are declared under two or three members each; the members are equal
+# in every field, and the first is the one a linear scan always returned.
+# The helpers were case-sensitive while the upload path normalised case, so
+# a device's `bloodglucoses` was classified as neither summary nor series
+# and dropped.
+_BY_NAME: dict[str, StandardIndicator] = {}
+for _member in StandardIndicator:
+    if _member.value.name:
+        _BY_NAME.setdefault(_member.value.name.lower(), _member)
 
 
 def normalize_indicator_name(raw_name: str) -> str:
-    """Normalize indicator name to canonical case from StandardIndicator.
-
-    Case-insensitive match: 'bloodglucoses' → 'bloodGlucoses'.
-    Unrecognized names are returned as-is.
-    """
-    if not raw_name:
-        return raw_name
-    return _INDICATOR_NAME_NORMALIZE.get(raw_name.lower(), raw_name)
+    """The catalogue's spelling of `raw_name`, matched case-insensitively
+    ('bloodglucoses' -> 'bloodGlucoses'); an unknown name as given."""
+    member = _BY_NAME.get(raw_name.lower()) if raw_name else None
+    return member.value.name if member else raw_name
 
 
 def is_summary_indicator(indicator: str) -> bool:
     """A defined indicator whose data_type is SUMMARY or MIX."""
-    if not indicator:
-        return False
-    std_indicator = get_indicator_by_str(indicator)
-    if std_indicator is not None:
-        return std_indicator.value.data_type in (HealthDataType.SUMMARY, HealthDataType.MIX)
-    return False
+    member = get_indicator_by_str(indicator)
+    return member is not None and member.value.data_type in (HealthDataType.SUMMARY, HealthDataType.MIX)
 
 
 def is_series_indicator(indicator: str) -> bool:
     """A defined indicator whose data_type is SERIES or MIX; an empty name counts as series."""
     if not indicator:
         return True
-    std_indicator = get_indicator_by_str(indicator)
-    if std_indicator is not None:
-        return std_indicator.value.data_type in (HealthDataType.SERIES, HealthDataType.MIX)
-    return False
+    member = get_indicator_by_str(indicator)
+    return member is not None and member.value.data_type in (HealthDataType.SERIES, HealthDataType.MIX)
 
 
 def is_valid_indicator(indicator: str) -> bool:
-    """Check if indicator is a valid standard indicator"""
-    return indicator in VALID_INDICATORS
+    """Whether `indicator` names a catalogue indicator, in any case."""
+    return get_indicator_by_str(indicator) is not None
 
 
 def get_standard_unit(indicator: str) -> str:
-    """Get standard unit for indicator"""
-    info = _INDICATOR_LOOKUP.get(indicator)
-    if info:
-        return info.standard_unit
-    raise ValueError(f"Unknown indicator: {indicator}")
+    """The catalogue's unit for `indicator`; `ValueError` when it names none."""
+    member = get_indicator_by_str(indicator)
+    if member is None:
+        raise ValueError("unknown indicator")
+    return member.value.standard_unit
 
 
 def get_indicator_by_str(indicator: str) -> StandardIndicator | None:
-    """
-    Get StandardIndicator enum member by string identifier
-
-    Args:
-        indicator: The indicator string to search for
-
-    Returns:
-        StandardIndicator enum member if found, None otherwise
-    """
-    if not indicator:
-        return None
-
-    for std_indicator in StandardIndicator:
-        if std_indicator.value.name == indicator:
-            return std_indicator
-    logger.warning(f"indicator {indicator} not found in StandardIndicator")
-    return None
+    """The member `indicator` names, in any case; `None` when it names none."""
+    return _BY_NAME.get(indicator.lower()) if indicator else None
 
 
 def get_indicators_in_same_categories(
@@ -226,7 +190,7 @@ def get_indicators_in_same_categories(
 
     Used by the data-repair reconcile to sweep sibling indicators in the same
     family. Example: a corrected sleep re-upload may only re-confirm
-    `sleepAnalysis_Asleep(Deep)`, but TH-449-style corruption left duplicate rows
+    `sleepAnalysis_Asleep(Deep)`, while a night stored twice left duplicate rows
     under sibling stage indicators (`sleepAnalysis_Awake`, `_InBed`, ...). Expanding
     to the whole SLEEP category lets the sweep remove those siblings while still
     scoping to the relevant family (categories the batch never touched are excluded).

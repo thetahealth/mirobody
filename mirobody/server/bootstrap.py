@@ -29,6 +29,8 @@ import logging
 import os
 import secrets
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 _SCHEMA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "schema")
@@ -59,6 +61,8 @@ def enforce_production_auth_safety(config) -> None:
       its removal.
     * any config value still reading the `REPLACE_THIS_VALUE_IN_PRODUCTION`
       placeholder: the sentinel's own name says when it must be gone.
+    * an empty `JWT_KEY`: the server would come up with no JWT middleware, so
+      no request is signed in and the sign-in routes are not rate-limited.
 
     Failing the boot makes the operator fix these deliberately instead of us
     guessing which of them were intentional.
@@ -97,6 +101,13 @@ def enforce_production_auth_safety(config) -> None:
             f"placeholder ({', '.join(placeholders)}). Replace each "
             "REPLACE_THIS_VALUE_IN_PRODUCTION with a real secret, then start "
             "again."
+        )
+
+    if not config.get_str("JWT_KEY"):
+        raise RuntimeError(
+            "PRODUCTION is set but JWT_KEY is empty: no request could sign in and the "
+            "sign-in routes would not be rate-limited. Set JWT_KEY to a long random "
+            "secret (openssl rand -hex 32), then start again."
         )
 
 
@@ -138,19 +149,17 @@ async def create_schema(config) -> None:
     pg_config = config.get_postgresql()
 
     try:
-        conn_ctx = await pg_config.get_async_client(cursor_factory=None)
+        conn_ctx = await pg_config.get_async_client()
     except Exception as e:
-        # A first run with no Postgres used to end here, in a bare
-        # OperationalError printed BEFORE the config banner: the first thing a
-        # new reader saw was a database traceback. Outside production the
-        # server runs fine without the replay, so it says so and continues.
-        # Production still fails loudly: a real outage must not become a quiet
-        # half-written schema.
+        # `ensure_postgres_reachable` has just reached Postgres, so this is an
+        # outage in the moments since. Outside production the boot goes on
+        # without the replay and says so; production fails loudly: a real
+        # outage must not become a quiet half-written schema.
         if is_production(config):
             raise
-        logger.warning(  # phi: ok a host, a port and a connection error, not a record
-            f"schema bootstrap skipped: Postgres at {pg_config.host}:{pg_config.port} is unreachable ({e}). "
-            "Start it, or set BOOTSTRAP_SCHEMA=false to stop trying."
+        logger.warning(  # phi: ok a host and a port from config
+            f"schema bootstrap skipped: Postgres at {pg_config.host}:{pg_config.port} is unreachable "
+            f"({type(e).__name__}). Start it, or set BOOTSTRAP_SCHEMA=false to stop trying."
         )
         return
 
@@ -162,7 +171,8 @@ async def create_schema(config) -> None:
                         await cur.execute(f"CREATE SCHEMA IF NOT EXISTS {schema};")
                         logger.info(f"Schema {schema} has been created.")
                     except Exception as e:
-                        logger.error(str(e), exc_info=True)
+                        logger.error("schema creation failed: error_type=%s", type(e).__name__,
+                                     exc_info=not is_driver_exception(e))
 
             # The DDL ships INSIDE the package: `mirobody serve` creating its own
             # tables is a capability, so it has to travel with the wheel. It is
@@ -185,10 +195,31 @@ async def create_schema(config) -> None:
                     await conn.commit()
                     logger.info(f"SQL file {filename} executed successfully.")
                 except Exception as e:
-                    logger.error(str(e), exc_info=True, extra={"sql_filename": filename})
+                    logger.error("SQL file failed: file=%s error_type=%s",  # phi: ok a shipped DDL file name
+                                 filename, type(e).__name__, exc_info=not is_driver_exception(e))
                     await conn.rollback()
 
             logger.info("SQL files initialization completed.")
+
+
+
+async def realign_dose_slots(config) -> None:
+    """Dose events recorded under a slot name their plan no longer projects
+    get the name it does (`collect.meds.store.realign_dose_slots`). Gated
+    like the schema replay; a failure is logged and the boot goes on, as a
+    day that reads as missed is not worth a server that does not start."""
+    if not should_bootstrap(config):
+        return
+    from mirobody.collect import realign_dose_slots as realign
+
+    try:
+        renamed_count = await realign()
+    except Exception as e:
+        logger.error("dose slot realignment failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return
+    if renamed_count:
+        logger.info("dose events realigned to their plan's slot names: count=%d", renamed_count)
 
 
 #: Seconds a boot waits for Postgres before it says it cannot reach it.
@@ -285,4 +316,17 @@ async def seed_demo_data(config) -> None:
     try:
         await seed(members)
     except Exception as e:
-        logger.error("demo seed failed: %s", e, exc_info=True)
+        logger.error("demo seed failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
+
+
+async def start_schedulers() -> None:
+    """Load the device platforms and register the background jobs the server
+    runs: the vendor pull, the aggregation of readings and the derived
+    indicators. A failure stops the boot."""
+    from mirobody.collect import setup_platform_system_async, start_theta_pull_scheduler
+    from mirobody.translate import start_aggregate_indicator_scheduler, start_derived_scheduler
+
+    await setup_platform_system_async()
+    await start_theta_pull_scheduler()
+    await start_aggregate_indicator_scheduler()
+    await start_derived_scheduler()

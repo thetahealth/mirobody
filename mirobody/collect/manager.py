@@ -4,6 +4,8 @@ import logging
 
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
+
 from .base import LinkRequest, Platform, UserProvider
 from .core import LinkType
 
@@ -38,7 +40,8 @@ class PlatformManager:
                 all_providers.extend(providers)
                 logger.info(f"Got {len(providers)} providers from platform {platform_name} for user {user_id}")
             except Exception as e:
-                logger.error(f"Error getting user providers from platform {platform_name}: {str(e)}")
+                logger.error("user providers lookup failed: platform=%s user_id=%s error_type=%s", platform_name,
+                             user_id, type(e).__name__, exc_info=not is_driver_exception(e))
                 continue
 
         logger.info(f"Total providers for user {user_id}: {len(all_providers)}")
@@ -109,12 +112,12 @@ class PlatformManager:
 
         try:
             result_data = await target_platform.link(request)
-            logger.info(f"Link successful for provider {request.provider_slug}")
-            return result_data
-
         except Exception as e:
-            logger.error(f"Error linking provider {request.provider_slug}: {str(e)}")
-            raise e
+            logger.error("provider link failed: provider=%s error_type=%s", request.provider_slug, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            raise
+        logger.info(f"Link successful for provider {request.provider_slug}")
+        return result_data
 
     async def unlink_provider(self, user_id: str, provider_slug: str, platform: str) -> dict[str, Any]:
         """
@@ -142,8 +145,9 @@ class PlatformManager:
             # An unconfigured provider is the caller's 400, not a 500.
             raise
         except Exception as e:
-            logger.error(f"Error unlinking provider {provider_slug}: {str(e)}")
-            raise RuntimeError(f"Failed to unlink provider: {str(e)}")
+            logger.error("provider unlink failed: provider=%s error_type=%s", provider_slug, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            raise RuntimeError("Failed to unlink provider.") from e
 
     async def post_data(
             self,
@@ -159,11 +163,12 @@ class PlatformManager:
 
         try:
             result = await target_platform.post_data(provider_slug, data, msg_id)
-            logger.info(f"Post data result for provider {provider_slug}: {result}")
-            return result
         except Exception as e:
-            logger.error(f"Error posting data to provider {provider_slug}: {str(e)}")
+            logger.error("provider post failed: platform=%s provider=%s msg_id=%s error_type=%s", platform,
+                         provider_slug, msg_id, type(e).__name__, exc_info=not is_driver_exception(e))
             return False
+        logger.info(f"Post data result for provider {provider_slug}: msg_id={msg_id} success={result}")
+        return result
 
     async def update_llm_access(
             self, user_id: str, provider_slug: str, platform: str, llm_access: int
@@ -199,8 +204,9 @@ class PlatformManager:
             return result_data
 
         except Exception as e:
-            logger.error(f"Error updating LLM access for provider {provider_slug}: {str(e)}")
-            raise RuntimeError(f"Failed to update LLM access: {str(e)}")
+            logger.error("provider LLM access update failed: provider=%s error_type=%s", provider_slug,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            raise RuntimeError("Failed to update LLM access.") from e
 
 
 # Global singleton instance

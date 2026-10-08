@@ -28,7 +28,7 @@ files into coded rows and explains a report only from resolved evidence.
 - **The model key comes from the user.** Ask for it, or for which provider they
   use, or whether they want every model on this machine instead (llama.cpp:
   the default small pair needs 16 GB of memory and no GPU, and on a CPU alone
-  a first answer takes 2–3 minutes; the large size needs about 20 GB;
+  a first answer takes minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server; the large size needs about 20 GB;
   `docs/local-models.md`). Never invent a key, never
   print one back, never paste it into a chat reply. Write it into `.env` and
   nowhere else, or leave it to the first-run page `./deploy.sh` links.
@@ -36,8 +36,9 @@ files into coded rows and explains a report only from resolved evidence.
   `docker volume rm`, removing the checkout. `docker compose down` without
   `-v` keeps the database and uploads, and needs no confirmation.
 - **Do not expose port 18060 beyond the machine** without reading
-  `SECURITY.md` with the user first. The default deployment is for one
-  machine or one home network.
+  `SECURITY.md` with the user first. The default deployment answers on this
+  machine only; `MIROBODY_BIND=0.0.0.0` offers it to the network, where the
+  demo code is public.
 - **Never commit `.env`.** `deploy.sh` creates it with mode 0600 and the
   repository ignores it; leave both as they are.
 - **One stack per name.** Compose names a stack after its folder, so a second
@@ -59,8 +60,8 @@ git --version
 ```
 
 The download is about 390 MB (the app image about 230 MB, Postgres about
-160 MB), and the stack uses ports `18060` (app) and `18062` (Postgres, bound
-to localhost only). If either port is taken, set `MIROBODY_HOST_PORT` or
+160 MB), and the stack uses ports `18060` (app) and `18062` (Postgres), both
+bound to localhost only. If either port is taken, set `MIROBODY_HOST_PORT` or
 `PG_HOST_PORT` in `.env` before step 2; `deploy.sh` checks both and names the
 one to change. No Python, Node.js, GPU or Git LFS is needed on the host, and
 no Git either: the release tarball
@@ -98,9 +99,11 @@ vision, text extraction):
 | DeepSeek | `DEEPSEEK_API_KEY` |
 | DashScope | `DASHSCOPE_API_KEY` |
 
-Any OpenAI-compatible gateway works through `<PROVIDER>_BASE_URL` and
-`<PROVIDER>_MODEL`; the model must be multimodal, because report photos go
-to it. `config.llm.yaml` names which model each key selects.
+Any OpenAI-compatible gateway works through `<PROVIDER>_BASE_URL` beside its
+key (`OPENAI_API_KEY` → `OPENAI_BASE_URL`). Each `config.llm.yaml` entry names
+the variable that replaces its model (`model_env`: `OPENAI_CHAT_MODEL` for
+chat, `OPENAI_UTILS_MODEL` for documents), and the utilities model must be
+multimodal, because report photos go to it.
 
 **After editing `.env`, run `docker compose up -d`, not `restart`.** Compose
 reads the env file when it creates a container; `restart` keeps the old

@@ -16,8 +16,9 @@ Pure functions; the consumer decides what a code means for its queue
 from __future__ import annotations
 
 import math
+from typing import NamedTuple
 
-from . import metrics
+from . import metrics, series
 from mirobody import units
 from .series import Fact
 
@@ -67,45 +68,52 @@ def value_gate(value: float | None, unit: str) -> str:
     return ""
 
 
-def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> tuple[float | None, str, str, str]:
+class ReconciledUnit(NamedTuple):
+    """A fact's value and unit after :func:`reconcile_unit`; ``flag`` and
+    ``error`` are ``""`` when there is nothing to say."""
+
+    value: float | None
+    unit: str
+    flag: str
+    error: str
+
+
+def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> ReconciledUnit:
     """Bring a fact's unit to the metric's canonical unit.
 
-    Returns ``(value, unit, flag, error)``. Convertible units are converted
-    and flagged ``unit_converted``; two units the engine *both* knows with
-    different dimensions are an ``ERR_UNIT_DIMENSION_CONFLICT`` (a
-    temperature filed under a mass); a unit the engine does not know is
-    admitted as-is with ``unverified_unit``: an unfamiliar but correct unit
-    must not lock real data in quarantine.
+    Convertible units are converted and flagged ``unit_converted``; two units
+    the engine knows in *different* families are an
+    ``ERR_UNIT_DIMENSION_CONFLICT`` (a temperature filed under a mass). A
+    unit the engine does not know, or one of the metric's own family with no
+    factor to it yet, is admitted as-is with ``unverified_unit``: a correct
+    unit must not lock real data in quarantine.
     """
     incoming = units.normalize_unit(raw_unit) or raw_unit
     if not expected_ucum or not incoming or incoming == expected_ucum:
-        return value, expected_ucum or incoming, "", ""
+        return ReconciledUnit(value, expected_ucum or incoming, "", "")
     if units.convertible(incoming, expected_ucum):
         converted = units.convert_value(value, incoming, expected_ucum) if value is not None else None
-        return (converted if converted is not None else value), expected_ucum, FLAG_UNIT_CONVERTED, ""
-    if units.unit_family(incoming) and units.unit_family(expected_ucum):
-        return value, incoming, "", ERR_UNIT_DIMENSION_CONFLICT
-    return value, incoming, FLAG_UNVERIFIED_UNIT, ""
+        return ReconciledUnit(converted, expected_ucum, FLAG_UNIT_CONVERTED, "")
+    family_in, family_expected = units.unit_family(incoming), units.unit_family(expected_ucum)
+    if family_in and family_expected and family_in != family_expected:
+        return ReconciledUnit(value, incoming, "", ERR_UNIT_DIMENSION_CONFLICT)
+    return ReconciledUnit(value, incoming, FLAG_UNVERIFIED_UNIT, "")
 
 
 def overcount_suspect(total_ms: float, span_ms: float, *, tolerance_ratio: float = 1.0, floor_ms: float = 0.0) -> bool:
     """A total duration that exceeds the wall-clock span it was measured in.
     This is arithmetic, not a heuristic: the union of intervals inside a span
     cannot be longer than the span. Fires on every aggregation pass, so a
-    re-aggregation of a repaired cell is checked again, not just the first."""
-    return total_ms > span_ms * tolerance_ratio + floor_ms
+    re-aggregation of a repaired cell is checked again, not just the first.
+    The election's ``series.coverage_bound`` applies the same test."""
+    return series._exceeds_span(total_ms, span_ms, tolerance_ratio, floor_ms)
 
 
 def is_echo(value: float | str | None, last_value: float | str | None) -> bool:
     """A source re-reporting the value it last stored. A profile field on a
     wearable comes back on every sync with today's date; storing it again
     manufactures a fresh-looking candidate that can beat a real scale."""
-    if last_value is None:
-        return False
-    try:
-        return math.isclose(float(value), float(last_value), rel_tol=1e-9, abs_tol=1e-9)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
-        return value == last_value
+    return last_value is not None and not series._differs(value, last_value)
 
 
 def cross_source_ratio(a: float, b: float) -> float:
@@ -117,14 +125,13 @@ def cross_source_ratio(a: float, b: float) -> float:
     return max(a, b) / min(a, b)
 
 
-def shape_for(system: str, metric_key: str) -> metrics.Mapping | None:
-    """Convenience: the catalogue mapping a normaliser needs, or ``None``,
-    which the caller turns into ``ERR_NO_TRUSTED_MAPPING``."""
-    return metrics.mapping_for(system, metric_key)
+#: The catalogue mapping a normaliser needs, or ``None``, which the caller
+#: turns into ``ERR_NO_TRUSTED_MAPPING``: ``metrics.mapping_for`` itself.
+shape_for = metrics.mapping_for
 
 
 __all__ = [
     "ERR_UNIT_DIMENSION_CONFLICT", "ERR_IMPOSSIBLE_TIME_RANGE", "ERR_IMPOSSIBLE_VALUE", "ERR_NO_TRUSTED_MAPPING", "ERR_TRANSIENT",
     "FLAG_UNIT_CONVERTED", "FLAG_UNVERIFIED_UNIT", "MAX_INTERVAL_MS", "FUTURE_TOLERANCE_MS",
-    "time_gate", "value_gate", "reconcile_unit", "overcount_suspect", "is_echo", "cross_source_ratio", "shape_for",
+    "ReconciledUnit", "time_gate", "value_gate", "reconcile_unit", "overcount_suspect", "is_echo", "cross_source_ratio", "shape_for",
 ]

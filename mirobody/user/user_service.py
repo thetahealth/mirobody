@@ -20,9 +20,23 @@ from .account_merge import merge_accounts
 from . import activation
 from .auth.email import DummyEmailCodeValidator
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query, json_response_with_code, json_response, Request, Response, Route
 
 logger = logging.getLogger(__name__)
+
+#: The answer to a body that is not a JSON object. The parser's own message
+#: said where it stopped reading, which is the caller's input played back.
+_NOT_A_JSON_OBJECT = "The request body must be a JSON object."
+
+
+async def _json_object(request: Request) -> dict | None:
+    """The request body when it is a JSON object, else None."""
+    try:
+        data = await request.json()
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
 
 #-----------------------------------------------------------------------------
 
@@ -120,16 +134,19 @@ class UserService:
         if not self._email_validator:
             return json_response_with_code(-1, "Invalid email validator.", request=request)
 
+        data = await _json_object(request)
+        if data is None:
+            return json_response_with_code(-3, _NOT_A_JSON_OBJECT, request=request)
+        email = data.get("email")
+
         try:
-            data = await request.json()
-            email = data.get("email")
-
             err = await self._email_validator.send(email)
-            if err:
-                return json_response_with_code(-2, err, request=request)
-
         except Exception as e:
-            return json_response_with_code(-3, str(e), request=request)
+            logger.error("sign-in code send failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-3, "The code could not be sent. Try again.", request=request)
+        if err:
+            return json_response_with_code(-2, err, request=request)
 
         return json_response_with_code(data={"email": email}, request=request)
     
@@ -142,18 +159,21 @@ class UserService:
         if not self._email_validator:
             return json_response_with_code(-1, "Invalid email validator.", request=request)
 
-        try:
-            data = await request.json()
-            email = data.get("email")
-            code = data.get("code")
+        data = await _json_object(request)
+        if data is None:
+            return json_response_with_code(-3, _NOT_A_JSON_OBJECT, request=request)
+        email = data.get("email")
+        code = data.get("code")
 
+        try:
             err = await self._email_validator.verify(email, code)
-            if err:
-                return json_response_with_code(-2, err, request=request)
-        
         except Exception as e:
-            return json_response_with_code(-3, str(e), request=request)
-        
+            logger.error("sign-in code check failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-3, "The code could not be checked. Try again.", request=request)
+        if err:
+            return json_response_with_code(-2, err, request=request)
+
         #-------------------------------------------------
 
         id = await ensure_user(email)
@@ -183,9 +203,11 @@ class UserService:
 
     @staticmethod
     def _read_credentials(data: dict) -> tuple[str, str]:
-        """`email` or `username`: both name the same column; whichever arrived."""
-        email = (data.get("email") or data.get("username") or "").strip().lower()
-        return email, data.get("password") or ""
+        """`email` or `username`: both name the same column; whichever arrived.
+        Read as text: a number there was an AttributeError, which the handlers'
+        broad except used to turn into a reply."""
+        email = str(data.get("email") or data.get("username") or "").strip().lower()
+        return email, str(data.get("password") or "")
 
     async def password_register_handler(self, request: Request) -> Response:
         """Create a NEW account with a password. An existing email is refused.
@@ -201,11 +223,10 @@ class UserService:
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
 
-        try:
-            data = await request.json()
-            email, password = self._read_credentials(data)
-        except Exception as e:
-            return json_response_with_code(-1, str(e), request=request)
+        data = await _json_object(request)
+        if data is None:
+            return json_response_with_code(-1, _NOT_A_JSON_OBJECT, request=request)
+        email, password = self._read_credentials(data)
 
         if not email or "@" not in email:
             return json_response_with_code(-2, "A valid email is required.", request=request)
@@ -249,10 +270,10 @@ class UserService:
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
 
-        try:
-            email, password = self._read_credentials(await request.json())
-        except Exception as e:
-            return json_response_with_code(-1, str(e), request=request)
+        data = await _json_object(request)
+        if data is None:
+            return json_response_with_code(-1, _NOT_A_JSON_OBJECT, request=request)
+        email, password = self._read_credentials(data)
 
         if not email or not password:
             return json_response_with_code(-2, "Email and password are required.", request=request)
@@ -307,20 +328,23 @@ class UserService:
 
         current_user_id = request.state.user_id
 
+        data = await _json_object(request)
+        if data is None:
+            return json_response_with_code(-4, _NOT_A_JSON_OBJECT, request=request)
+        email = data.get("email")
+        code  = data.get("code")
+
+        if not email or not code:
+            return json_response_with_code(-2, "Email and code are required.", request=request)
+
         try:
-            data = await request.json()
-            email = data.get("email")
-            code  = data.get("code")
-
-            if not email or not code:
-                return json_response_with_code(-2, "Email and code are required.", request=request)
-
             err = await self._email_validator.verify(email, code)
-            if err:
-                return json_response_with_code(-3, err, request=request)
-
         except Exception as e:
-            return json_response_with_code(-4, str(e), request=request)
+            logger.error("address-binding code check failed: user_id=%s error_type=%s", current_user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            return json_response_with_code(-4, "The code could not be checked. Try again.", request=request)
+        if err:
+            return json_response_with_code(-3, err, request=request)
 
         #-------------------------------------------------
 
@@ -331,7 +355,9 @@ class UserService:
             existing_owner = row["id"] if row else 0
 
         except Exception as e:
-            return json_response_with_code(-5, str(e), request=request)
+            logger.error("address-binding lookup failed: user_id=%s error_type=%s", current_user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            return json_response_with_code(-5, "The address could not be bound. Try again.", request=request)
 
         #-------------------------------------------------
 
@@ -352,10 +378,10 @@ class UserService:
                 reason          = "email_link",
             )
             if err:
-                logger.error(
-                    f"merge_accounts failed: losing={current_user_id} winning={existing_owner}: {err}",
-                    extra={"affected": affected}
-                )
+                # `merge_accounts` logged the failure; `affected` is the
+                # tables it reached before it rolled back.
+                logger.error("account merge refused the binding: losing_id=%s winning_id=%s table_count=%d",  # phi: ok ids
+                             current_user_id, existing_owner, len(affected))
                 return json_response_with_code(-6, err, request=request)
 
             return await self._generate_auth_response(existing_owner, lower_email, "email_bind", request)
@@ -374,7 +400,9 @@ class UserService:
                     await conn.commit()
 
         except Exception as e:
-            return json_response_with_code(-7, str(e), request=request)
+            logger.error("address binding failed: user_id=%s error_type=%s", current_user_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+            return json_response_with_code(-7, "The address could not be bound. Try again.", request=request)
 
         return await self._generate_auth_response(current_user_id, lower_email, "email_bind", request)
 
@@ -432,8 +460,8 @@ class UserService:
     async def user_update_name_handler(self, request: Request) -> Response:
         """Update the current user's display name (health_app_user.name).
 
-        Used to overwrite a placeholder nickname supplied by an identity
-        provider. Email/Google users can use it too.
+        Used to overwrite a placeholder nickname, such as the address's local
+        part an email sign-in starts with.
         """
         if request.method == "OPTIONS":
             return json_response_with_code(disable_log=True)
@@ -446,12 +474,11 @@ class UserService:
 
         user_id = request.state.user_id
 
-        try:
-            data = await request.json()
-        except Exception as e:
-            return json_response_with_code(-1, f"Invalid JSON: {e}", request=request)
+        data = await _json_object(request)
+        if data is None:
+            return json_response_with_code(-1, _NOT_A_JSON_OBJECT, request=request)
 
-        name = data.get("name") if isinstance(data, dict) else None
+        name = data.get("name")
         if not isinstance(name, str):
             return json_response_with_code(-2, "name is required.", request=request)
 
@@ -498,7 +525,7 @@ class UserService:
         try:
             token, expires_at = await activation.create(creator, member_id, data.get("email") or "")
         except activation.ActivationError as e:
-            return json_response_with_code(e.code, str(e), request=request)
+            return json_response_with_code(e.code, e.message, request=request)
         from mirobody.utils.http import request_origin
 
         return json_response_with_code(data={
@@ -580,10 +607,10 @@ class UserService:
                 password=password, access=access, proven=proven)
         except activation.ActivationError as e:
             await activation.release(act.id)
-            return json_response_with_code(e.code, str(e), request=request)
+            return json_response_with_code(e.code, e.message, request=request)
         except Exception as e:
             await activation.release(act.id)
-            logger.error("activation failed: error_type=%s", type(e).__name__)
+            logger.error("activation failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             return json_response_with_code(-9, "Could not finish. Nothing was changed; try again.", request=request)
         logger.info("managed account handed over: member_id=%s owner_id=%s", act.member_id, owner_id)
         return await self._generate_auth_response(owner_id, act.email, "activation", request)

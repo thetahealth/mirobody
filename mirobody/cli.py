@@ -22,8 +22,8 @@ Commands:
 * ``mirobody serve [config.yaml ...]``  the full HTTP server (chat, MCP,
   API). Requires the ``[app]`` extra; checked up front with a plain message
   instead of a traceback from deep inside an import chain.
-* ``mirobody worker [config.yaml ...]``: the background task worker
-  (IndicatorSync, ProfileRefresh queues).
+* ``mirobody worker [config.yaml ...]``: the background task worker (the
+  profile refresh queue, and any task a ``TASK_DIRS`` entry declares).
 * ``mirobody doctor [config.yaml ...]``, which LLM provider each surface
   (chat, vision, structured extraction, text, embeddings) would select with
   the current configuration, and what to set where one has none. Needs no
@@ -31,6 +31,13 @@ Commands:
   ``[parse]``.
 * ``mirobody fetch cpic --version vX.Y.Z`` downloads and validates a CPIC data
   extract without executing the upstream SQL or requiring a database.
+* ``mirobody import apple <export.zip>`` decodes an Apple Health export into
+  facts, offline, with no key, database or extra.
+* ``mirobody mcp``                      the stdio MCP server over the offline
+  vocabularies: no key, no database.
+* ``mirobody migrate-observations``, ``mirobody migrate-genotypes`` and
+  ``mirobody recode`` move stored rows into the current model, or recode them
+  under the installed vocabulary: maintenance after an upgrade (``[app]``).
 """
 
 from __future__ import annotations
@@ -39,6 +46,8 @@ import argparse
 import unicodedata
 import asyncio
 import importlib.util
+import json
+import logging
 import os
 import sys
 
@@ -167,19 +176,23 @@ def _cmd_dev(args: argparse.Namespace) -> None:
     # builds its `FernetEncrypter` from `get_fernet_key("CONFIG_ENCRYPTION_KEY")`
     # BEFORE it loads any YAML, so a value supplied in config can never satisfy
     # it: the run logs "CONFIG_ENCRYPTION_KEY is not set" at ERROR and encrypts
-    # with a publicly-known key. `LOG_ENCRYPTION_KEY` reads the same way.
+    # with a publicly-known key.
     generated = []
-    for name, nbytes in (("JWT_KEY", 32), ("CONFIG_ENCRYPTION_KEY", 16), ("LOG_ENCRYPTION_KEY", 16)):
+    for name, nbytes in (("JWT_KEY", 32), ("CONFIG_ENCRYPTION_KEY", 16)):
         if not os.environ.get(name):
             os.environ[name] = secrets.token_hex(nbytes)
             generated.append(name)
     jwt_key = os.environ["JWT_KEY"]
     config_key = os.environ["CONFIG_ENCRYPTION_KEY"]
 
+    pg = _pg_from_url(pg_url)
+    # Every value from the URL goes in as a JSON string, which YAML reads back
+    # verbatim. Written bare, a password holding ` #` lost the rest, one holding
+    # `: ` became a mapping, one starting `*` an alias, and `07` the number 7.
     overlay = _DEV_CONFIG.format(
-        host=args.host, port=args.port,
+        host=json.dumps(args.host, ensure_ascii=False), port=args.port,
         jwt_key=jwt_key, config_key=config_key,
-        **_pg_from_url(pg_url),
+        **{key: json.dumps(value, ensure_ascii=False) for key, value in pg.items()},
     )
 
     print(f"mirobody dev — http://{args.host}:{args.port}")
@@ -187,8 +200,7 @@ def _cmd_dev(args: argparse.Namespace) -> None:
         print(f"  generated for this run only: {', '.join(generated)}")
         print("  sessions and encrypted config values do NOT survive a restart.")
         print("  set them in the environment to keep them.")
-    print(f"  postgres: {_pg_from_url(pg_url)['pg_host']}:{_pg_from_url(pg_url)['pg_port']}"
-          f"/{_pg_from_url(pg_url)['pg_dbname']}")
+    print(f"  postgres: {pg['pg_host']}:{pg['pg_port']}/{pg['pg_dbname']}")
     print()
 
     from mirobody.server import Server
@@ -222,6 +234,10 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
 
     async def configure() -> None:
         await Config.init(yaml_filenames=args.configs)
+        # The table is this command's output; at INFO it sat under the
+        # libraries' JSON lines (every statement `settings.apply` ran, among
+        # them). A warning still shows.
+        logging.getLogger().setLevel(logging.WARNING)
         # The setup page's choice, as the server applies it at boot: a
         # deployment set up in the browser has no key in .env, and this
         # reported "no model" for it. Without a database it says nothing,
@@ -423,8 +439,12 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
             print(f"  {_pad(term, width)}  {loinc:<16}  {r.canonical}"
                   + (f"   [{r.candidates} candidates]" if r.candidates > 1 else ""))
         else:
-            why = _complaint_axis_hint(term) or (
-                "not in the lexical index, and no code is given rather than a guessed one")
+            # A refusal is about a word the index HAS: 血脂 is four analytes,
+            # and "not in the lexical index" sent people looking for a row.
+            missing = ("a category or several tests in one name" if r.method == "refused"
+                       else "not in the lexical index")
+            why = _complaint_axis_hint(term) or r.rejected_reason or (
+                f"{missing}, and no code is given rather than a guessed one")
             print(f"  {_pad(term, width)}  unresolved: {why}")
 
 
@@ -456,7 +476,7 @@ def _cmd_parse(args: argparse.Namespace) -> None:
     The no-key case gets the same treatment as the missing extra in
     `_require_extra`, and for the same reason. It used to surface as a
     twenty-line traceback ending in a `ValueError` from four frames inside
-    `unified_file_extract`: the message was correct and nobody would read it
+    the vision surface: the message was correct and nobody would read it
     there. `parse` is the second command the README hands a new user, right
     after `resolve`, which needs no key at all; being told which environment
     variable to set is the entire content of the failure.

@@ -19,6 +19,8 @@ import logging
 import os
 from typing import Any, Protocol
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,17 +51,16 @@ def _as_list(raw: Any) -> list:
 
     YAML gives a real list; an environment variable can only give a string, so
     a JSON-encoded list is accepted too, and a bare string is a one-element
-    list.
+    list. A bare string is valid input, so it is not reported: a
+    `PROMPTS=agent/prompts/mirobody.jinja` used to log a JSON decode ERROR,
+    with a traceback, at every boot.
     """
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
-        except Exception as e:
-            logger.error(str(e), exc_info=True)
-        else:
-            if isinstance(parsed, list):
-                return parsed
-        return [raw]
+        except ValueError:
+            return [raw]
+        return parsed if isinstance(parsed, list) else [raw]
     return raw if isinstance(raw, list) else []
 
 
@@ -99,7 +100,8 @@ def load_prompt_templates(cfg: _Reader, key: str = "PROMPTS") -> dict[str, str]:
                     value = f.read()
                 key = explicit_key or _default_key(file_path)
             except Exception as e:
-                logger.warning(str(e), exc_info=True)
+                logger.warning("prompt template not read from a file: error_type=%s", type(e).__name__,
+                               exc_info=not is_driver_exception(e))
                 value = file_path
 
         elif dist and dist.is_dir():
@@ -107,7 +109,8 @@ def load_prompt_templates(cfg: _Reader, key: str = "PROMPTS") -> dict[str, str]:
                 value = dist.joinpath(file_path).read_text(encoding="utf-8")
                 key = explicit_key or _default_key(file_path)
             except Exception as e:
-                logger.warning(str(e), exc_info=True)
+                logger.warning("prompt template not read from the package: error_type=%s", type(e).__name__,
+                               exc_info=not is_driver_exception(e))
                 value = file_path
 
         if not key:
@@ -140,8 +143,8 @@ def parse_providers(cfg: _Reader, key: str = "MODELS") -> dict[str, dict]:
     if isinstance(raw, str):
         try:
             parsed = json.loads(raw)
-        except Exception as e:
-            logger.error(str(e), exc_info=True)
+        except ValueError as e:
+            logger.error("%s is a string but not JSON: error_type=%s", key, type(e).__name__)
         else:
             if isinstance(parsed, (dict, list)):
                 raw = parsed

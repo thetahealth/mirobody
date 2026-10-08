@@ -1,4 +1,5 @@
-"""Whether a model server serves a model that can see.
+"""Whether a model server serves a model that can see, and whether it has
+loaded it yet.
 
 For entries whose address is configuration (`LOCAL_BASE_URL`): the model behind
 it can be swapped for a text-only one (MiniCPM5-2B, a quant served without its
@@ -28,7 +29,11 @@ _TTL_SEC = 300.0
 #: model yet says nothing, and says it once the setup page has loaded it.
 _UNKNOWN_TTL_SEC = 30.0
 _TIMEOUT_SEC = 3.0
+#: How long a router's status for a model stands. Every chat turn asks, and a
+#: model that finished loading must not read as loading for long after.
+_STATUS_TTL_SEC = 5.0
 _cache: dict[tuple[str, str], tuple[float, bool | None]] = {}
+_status_cache: dict[tuple[str, str], tuple[float, str | None]] = {}
 _refreshing: set[tuple[str, str]] = set()
 _lock = threading.Lock()
 
@@ -47,14 +52,19 @@ def _vision_of(props: Any) -> bool | None:
     return None
 
 
+def _listed(root: str, model: str) -> dict | None:
+    """`model`'s row in the server's `/models` listing, or None."""
+    listing = _fetch(f"{root}/models").get("data") or []
+    return next((m for m in listing if m.get("id") == model), None)
+
+
 def _ask(root: str, model: str) -> bool | None:
     try:
         props = _fetch(f"{root}/props")
     except Exception:
         props = None
     if isinstance(props, dict) and props.get("role") == "router":
-        listing = _fetch(f"{root}/models").get("data") or []
-        row = next((m for m in listing if m.get("id") == model), None)
+        row = _listed(root, model)
         if row is None:
             return None
         status = row.get("status") or {}
@@ -111,6 +121,29 @@ def served_vision(base_url: str, model: str) -> bool | None:
     return hit[1]
 
 
+def served_status(base_url: str, model: str) -> str | None:
+    """What llama.cpp's router reports for `model`: `unloaded`, `loading`
+    (its download included) or `loaded`. None from a server that reports no
+    status (a single-model server, Ollama) or cannot be reached. Cached for
+    five seconds; it blocks for up to one timeout, so async callers run it in
+    a thread."""
+    if not base_url or not model:
+        return None
+    key = (base_url, model)
+    hit = _status_cache.get(key)
+    if hit is not None and time.monotonic() - hit[0] < _STATUS_TTL_SEC:
+        return hit[1]
+    try:
+        row = _listed(base_url.rstrip("/").removesuffix("/v1"), model)
+    except Exception:
+        row = None
+    status = (row or {}).get("status")
+    value = status.get("value") if isinstance(status, dict) else None
+    answer = str(value) if value else None
+    _status_cache[key] = (time.monotonic(), answer)
+    return answer
+
+
 def sees(spec: Any) -> bool:
     """Whether a resolved route can be sent an image: a declared `false` is
     final; an address from configuration asks the server; otherwise the
@@ -124,4 +157,4 @@ def sees(spec: Any) -> bool:
     return True
 
 
-__all__ = ["sees", "served_vision"]
+__all__ = ["sees", "served_status", "served_vision"]

@@ -39,10 +39,13 @@ _COMPARATORS = {"<": "<", "<=": "<=", "≤": "<=", ">": ">", ">=": ">=", "≥": 
 _SCALE_TO_KIND = {"qn": KIND_QUANTITY, "ord": KIND_ORDINAL, "nom": KIND_NOMINAL, "nar": KIND_NARRATIVE}
 
 _NUM = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
-#: A doubled dash is one separator: check-up books print "120--200", and with a
-#: single dash the second number was read as negative, so "35.0--45.0" was
-#: stored as -45.0..35.0 (benchmarks/local_ocr, 2026-10-06).
-_RANGE = re.compile(rf"^\s*({_NUM})\s*(?:--|－－|-|~|～|－|–|—|to|至)\s*({_NUM})")
+#: What a printed range puts between its two ends, as a regex alternation:
+#: dashes and tildes in both widths, and 至. A doubled dash is one separator:
+#: check-up books print "120--200", and with a single dash the second number
+#: was read as negative, so "35.0--45.0" was stored as -45.0..35.0
+#: (benchmarks/local_ocr, 2026-10-06). The table rules read cells with it too.
+RANGE_SEPARATOR = r"--|－－|-|~|～|－|–|—|至"
+_RANGE = re.compile(rf"^\s*({_NUM})\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUM})")
 _BOUND = re.compile(rf"^\s*([<>≤≥]=?)\s*({_NUM})")
 #: The comparator and number a value cell opens with; what follows is the
 #: printed unit, or prose. Text that opens with a divisor, a power or a

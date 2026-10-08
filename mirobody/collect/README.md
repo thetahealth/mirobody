@@ -23,7 +23,8 @@ PlatformManager (singleton)
 Vendor API → Provider.pull_from_vendor_api()
   → Provider.save_raw_data_to_db()     (raw JSON → health_data_<name>)
   → Provider.format_data()             (raw → StandardPulseData)
-  → StandardHealthService.process()    (StandardPulseData → observations.ingest)
+  → StandardHealthService.process_standard_data()
+                                       (summaries → observations, points → series_data)
   → translate/aggregate                (a day of points → one published number)
 ```
 
@@ -47,13 +48,13 @@ providers are discovered at startup by `ProviderPlatform._load_providers_from_di
 | **Providers** | `providers/` | ~5.8k | Devices and health platforms: Garmin, Oura and WHOOP pulled on a schedule, Apple and CDA documents pushed | `providers/_platform/platform.py` |
 | **Files** | `files/` | ~7.8k | A file is a source too: upload, storage, PDF/CSV/Excel/Office/image/text/genetic | `files/file_upload_manager.py` |
 | *— what happens to it —* | | | | |
-| **Ingest** | `ingest/` | ~1.1k | `StandardPulseData` → the writer. Every source above converges here | `ingest/services/upload_health.py` |
+| **Ingest** | `ingest/` | ~0.7k | `StandardPulseData` → the writer and the point buffer. Every device source converges here | `ingest/services/upload_health.py` |
 | *— how it is kept, and read back —* | | | | |
-| **Observations** | `observations.py` | ~1.1k | THE writer. One transaction: freeze the extraction, fold, parse, place the local day, insert, code, refresh the series | `observations.ingest` |
-| **Query** | `query.py` | ~0.6k | THE reader, over `v_observation`: the Postgres half of `kernel.query.HealthQuery` | `PostgresHealthQuery` |
+| **Observations** | `observations.py` | ~1.4k | THE writer. One transaction: freeze the extraction, fold, parse, place the local day, insert, code | `observations.ingest` |
+| **Query** | `query.py` | ~0.9k | THE reader, over `v_observation`: the Postgres half of `kernel.query.HealthQuery` | `PostgresHealthQuery` |
 | *— what they all stand on —* | | | | |
-| **Core** | `core/` | ~0.5k | The provider contract types, DB base classes, push | `core/constants.py`, `core/models.py` |
-| **Meds** | `meds/` | ~0.4k | A Postgres store for `kernel.meds`, not a collector | `meds/__init__.py` |
+| **Core** | `core/` | ~0.2k | The provider contract types, and the push from a provider to its platform | `core/constants.py`, `core/models.py` |
+| **Meds** | `meds/` | ~0.7k | A Postgres store for `kernel.meds`, not a collector | `meds/__init__.py` |
 
 What a value MEANS is not here. The indicator catalogue, units, value ranges
 and fhir_id are `mirobody/translate/` since 1.4.4, which is what makes "collect
@@ -115,7 +116,7 @@ a web framework.
 ### Data processing pipeline
 - `ingest/models/requests.py` — `StandardPulseData`, `StandardPulseRecord`, `StandardPulseMetaInfo`
 - `ingest/services/upload_health.py` — `StandardHealthService.process_standard_data()`
-- `ingest/repositories/health_data.py` — DB queries for health data
+- `ingest/repositories/health_data.py` — `series_data` upserts, and the repair sweep's delete
 
 ### Aggregate indicators
 **Not in this package** since 1.4.4: a daily total is the same quantity on a
@@ -124,7 +125,7 @@ different time axis, which is a LOINC axis change, so it went to ② Translate.
 - `mirobody/translate/derive/rules.py` — quantities nothing measured
 
 ### Writing and reading a reading
-- `observations.py` — `ingest`, `amend`, `retract`, `redate`, `erase`, `recode`
+- `observations.py` — `ingest`, `amend`, `retract`, `retract_unconfirmed`, `redate`, `erase`, `recode`, `merge_accounts`
 - `query.py` — `PostgresHealthQuery`, the only read path
 - `migrate_observations.py` — `mirobody migrate-observations`, the one-time move
 
@@ -184,18 +185,19 @@ def process():
     return get_standard_unit(indicator)
 ```
 
-**Incident**: TH-126 introduced `from ..core.fhir_mapping` as a lazy import
-inside `_prepare_summary_record()`. The relative path was wrong — it resolved
+**Incident**: a lazy import, `from ..core.fhir_mapping`, sat inside
+`_prepare_summary_record()`. The relative path was wrong — it resolved
 to `ingest/core/`, and the module was `core/fhir_mapping.py` at the time — but
 nothing said so, because the bug only ran on the SUMMARY path and the tests
 only exercised SERIES. A top-level import would have failed at startup.
 `fhir_mapping` itself was retired in 1.5.0 with the table it indexed; the
 lesson is about lazy imports, not about that module.
 
-### Sleep data uses 18:00-18:00 time window
-Sleep data uses previous-day 18:00 to current-day 18:00, NOT 00:00-24:00. This affects `data_begin` calculation in SQL. See `mirobody/translate/aggregate/windows.py` for the implementation.
-
-Related sleep indicators missed by `LIKE '%sleep%'`: `napDuration`, `inBedStartTime`, `endSleepReportTimeOffset`, `startSleepReportTimeOffset`.
+### A night is one day, from 18:00 to 18:00
+A metric's local day comes from the catalogue: `metrics.METRICS[name].window`
+is `00:00` for a calendar day and `18:00` for a night (the sleep stages,
+`napDuration`). Never test a name for "sleep"; see
+`mirobody/translate/aggregate/windows.py`.
 
 ### Query timing — query BEFORE insert
 ```python
@@ -221,9 +223,11 @@ ephemeral = global_config().get_ephemeral()
 # GOOD — evaluated per call, after startup
 async def store_state(key: str, value: str) -> None:
     await global_config().get_ephemeral().set(key, value, ex=900)
+```
+
 ```python
-# BAD:  def func(items=List[str]):     # uses type object as default!
-# GOOD: def func(items: Optional[List[str]] = None):
+# BAD:  def func(items=list[str]):        # uses a type object as the default!
+# GOOD: def func(items: list[str] | None = None):
 ```
 
 ## Commands
@@ -247,21 +251,22 @@ from mirobody.collect.ingest.models.requests import (
     StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord,
 )
 from mirobody.collect.providers._platform.base import BasePullProvider
-from mirobody.collect.providers._platform.normalize import DataFormatter, TimeUtils
+from mirobody.collect.providers._platform.normalize import records_from_facts
 from mirobody.utils.config import safe_read_cfg, global_config
 ```
 
 ### Provider factory method pattern
 ```python
 @classmethod
-def create_provider(cls, config: Dict[str, Any]) -> Optional['XxxProvider']:
+def create_provider(cls, config: dict[str, Any]) -> "XxxProvider | None":
     try:
         if not safe_read_cfg("XXX_API_KEY"):
-            logging.info("XxxProvider disabled: missing config")
+            logger.info("XxxProvider disabled: missing config")
             return None
         return cls()
     except Exception as e:
-        logging.warning(f"Failed to create provider: {e}")
+        logger.warning("provider not created: error_type=%s", type(e).__name__,
+                       exc_info=not is_driver_exception(e))
         return None
 ```
 

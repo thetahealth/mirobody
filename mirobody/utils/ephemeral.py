@@ -103,7 +103,7 @@ class EphemeralStore:
         if self._pool is None or self._pool_loop is not loop:
             if self._pool is not None:
                 self._pool.abandon()
-            self._pool = _Connections(lambda: self._pg_config.get_async_client(cursor_factory=None), POOL_MAX)
+            self._pool = _Connections(lambda: self._pg_config.get_async_client(), POOL_MAX)
             self._pool_loop = loop
         return self._pool.connection()
 
@@ -167,21 +167,6 @@ class EphemeralStore:
                 "DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),),
             )
             return cursor.rowcount
-
-    async def delete_if_value(self, key: str, expected: str) -> bool:
-        """Release a lock only while its owner still matches."""
-        async with self._connection() as conn:
-            row = await (await conn.execute(
-                "SELECT value_ciphertext FROM th_ephemeral WHERE key_hash = %s "
-                "AND (expires_at IS NULL OR expires_at > now()) FOR UPDATE",
-                (self._hash(key),),
-            )).fetchone()
-            if row is None:
-                return True
-            if self._open(row[0]) != expected:
-                return False
-            await conn.execute("DELETE FROM th_ephemeral WHERE key_hash = %s", (self._hash(key),))
-            return True
 
     async def take_if_value(self, key: str, expected: str) -> bool:
         """Consume a one-time code only if it matches, with the row locked."""

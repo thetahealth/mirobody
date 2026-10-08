@@ -9,21 +9,27 @@ from collections.abc import Awaitable, Callable
 from psycopg_pool import AsyncConnectionPool
 from mirobody.utils.ephemeral import EphemeralStore
 
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.responses import JSONResponse, Response
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from mirobody.kernel.ops import is_driver_exception
+from mirobody.translate import zone_for
+from mirobody.server.envelope import err
 from mirobody.utils.i18n import language_from_headers
 
 from mirobody.user import JwtTokenValidator
-from mirobody.user.auth.bearer import bearer_subject, mcp_resource
-from mirobody.utils.http import request_origin
+from mirobody.user.auth.bearer import aal2_required_response, bearer_subject, lacks_second_factor, mcp_resource
+from mirobody.utils.http import loggable_path, request_origin
 
 logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
 
 #: Paths an AAL1 session of an MFA account may still reach: the WebAuthn and
-#: session routes that raise it to AAL2, and the settings read the web client's
+#: session routes that raise it to AAL2 (registering a passkey asks
+#: `lacks_second_factor` itself), and the settings read the web client's
 #: `ensureAAL2` makes to learn whether a passkey is registered. Matched as a
 #: substring so an `API_PREFIX` in front does not matter.
 _AAL1_REACHABLE = ("/auth/webauthn/", "/auth/session/")
@@ -56,38 +62,6 @@ def _aal1_reachable(method: str, path: str) -> bool:
     return method == "GET" and any(path.endswith(p) for p in _AAL1_REACHABLE_GETS)
 
 
-def aal2_required_response() -> Response:
-    # The web client's interceptor keys on `detail.code`, runs the passkey
-    # upgrade and retries the request (the same shape as the session routes'
-    # ERROR_SESSION_MAX_LIFETIME).
-    return JSONResponse(
-        {"detail": {"code": "ERROR_AAL2_REQUIRED", "message": "This account requires a passkey for this request."}},
-        status_code=403,
-    )
-
-
-async def lacks_second_factor(
-    user_id: int,
-    claims: dict | None,
-    requires_second_factor: Callable[[int], Awaitable[bool]] | None,
-) -> bool:
-    """Whether this token is too weak for this account: the account needs an
-    AAL2 token (a passkey) and the token's `aal` is lower.
-
-    The JWT middleware asks this for a token in the Authorization header. A
-    route that takes its token from the query string must ask it itself: the
-    middleware never sees that token, so `GET /files/...?access_token=` and the
-    upload socket's `?token=` accepted an MFA account's AAL1 token.
-    """
-    if user_id <= 0 or requires_second_factor is None:
-        return False
-    try:
-        aal = int((claims or {}).get("aal") or 0)
-    except (TypeError, ValueError):
-        aal = 0
-    return aal < 2 and await requires_second_factor(user_id)
-
-
 #: On every response. `nosniff` stops a browser from running an uploaded file
 #: served as text; SAMEORIGIN keeps the page out of other sites' frames; and
 #: `same-origin` keeps the full URL out of the Referer sent to other sites,
@@ -98,28 +72,77 @@ SECURITY_HEADERS = {
     "Referrer-Policy": "same-origin",
 }
 
-
-def _with_security_headers(response: Response) -> Response:
-    for name, value in SECURITY_HEADERS.items():
-        response.headers.setdefault(name, value)
-    return response
-
 #-----------------------------------------------------------------------------
 
-def get_request_info(request):
-    try:
-        url = str(request.url)
-        path = str(request.url.path)
-    except Exception:
-        host = request.headers.get("Host", "unknown")
-        url = f"{request.scheme}://{host}{request.path}"
-        path = request.path
+class ResponseHeadersMiddleware:
+    """The outermost middleware: every HTTP response carries `SECURITY_HEADERS`
+    and the request's `X-Request-Id`.
 
-    method = request.method
-    base_url = str(request.base_url)
+    Pure ASGI, so it sees what the JWT middleware, which used to add them,
+    never did: a CORS preflight, an unhandled 500, every response of a server
+    without JWT_KEY. The id goes in the scope's state, where the layers below
+    log under it.
+    """
 
-    return {"url": url, "base_url": base_url, "path": path, "method": method}
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
 
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        trace_id = _trace_id_from(Headers(scope=scope))
+        scope.setdefault("state", {})["trace_id"] = trace_id
+
+        async def stamped(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for name, value in {**SECURITY_HEADERS, TRACE_HEADER: trace_id}.items():
+                    headers.setdefault(name, value)
+            await send(message)
+
+        await self.app(scope, receive, stamped)
+
+
+class UnhandledErrorMiddleware:
+    """A request that raised is logged by the house rule and answered with the
+    envelope's 500.
+
+    It used to reach Starlette's own handler, which answered plain text (the
+    traceback in debug mode) and re-raised for the server to log the
+    traceback: a driver's quotes the SQL and its parameters. Installed inside
+    the CORS middleware, so a cross-origin client can still read the 500.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        started = False
+
+        async def tracked(message: Message) -> None:
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, receive, tracked)
+        except Exception as e:
+            trace_id = scope.get("state", {}).get("trace_id", "")
+            logger.error("request failed: trace_id=%s error_type=%s", trace_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            # Once the response has started there is nothing left to answer
+            # with: the server closes the connection.
+            if not started:
+                answer = JSONResponse(err(500, "Internal server error.").model_dump(), status_code=500)
+                await answer(scope, receive, send)
+
+#-----------------------------------------------------------------------------
 
 class JwtMiddleware(BaseHTTPMiddleware):
     def __init__(
@@ -159,11 +182,10 @@ class JwtMiddleware(BaseHTTPMiddleware):
         # Record current time.
         request.state.start_time = time.time()
 
-        # Every request gets one, signed in or not, and it goes back to the
-        # caller: the id is only useful for debugging if the person reporting
-        # a failure can quote it. Before, it was minted only for signed-in
-        # requests and never left the server.
-        trace_id = _trace_id_from(request.headers)
+        # Every request gets one, signed in or not, and `ResponseHeadersMiddleware`
+        # sends it back: the id is only useful for debugging if the person
+        # reporting a failure can quote it.
+        trace_id = getattr(request.state, "trace_id", "") or _trace_id_from(request.headers)
         request.state.trace_id = trace_id
         ctx: dict[str, Any] = {"trace_id": trace_id}
 
@@ -195,21 +217,16 @@ class JwtMiddleware(BaseHTTPMiddleware):
         if (request.state.user_id > 0
                 and not _aal1_reachable(request.method, request.url.path)
                 and await lacks_second_factor(request.state.user_id, claims, self._requires_second_factor)):
-            refused = aal2_required_response()
-            refused.headers[TRACE_HEADER] = trace_id
-            return _with_security_headers(refused)
+            return aal2_required_response()
 
         #-------------------------------------------------
 
         if request.state.user_id > 0:
             ctx["user_id"] = request.state.user_id
-            try:
-                ctx.update(get_request_info(request))
-            except Exception:
-                # Best-effort log enrichment. `ctx` already carries the user_id,
-                # which is the part anything downstream reads; failing the
-                # request because a header could not be parsed would be worse.
-                pass
+            # What `utils/log.py` reads from the context besides the trace id.
+            # A capability path (/mcp/<token>, /api/share/<id>) is digested.
+            ctx["path"] = loggable_path(request.url.path)
+            ctx["method"] = request.method
 
             # Get user's language. Parsed by `utils.i18n`, which the WebSocket
             # upload handshake also calls: this used to be the only copy, and
@@ -231,9 +248,7 @@ class JwtMiddleware(BaseHTTPMiddleware):
 
         #-------------------------------------------------
 
-        response = await call_next(request)
-        response.headers[TRACE_HEADER] = trace_id
-        return _with_security_headers(response)
+        return await call_next(request)
 
 #-----------------------------------------------------------------------------
 
@@ -260,11 +275,19 @@ class UserInfoUpdaterMiddleware(BaseHTTPMiddleware):
             len(request.state.timezone) > 0 and \
             len(request.state.language) > 0:
 
+            # The zone comes from the client's X-Timezone header and becomes
+            # the account's, which places every reading without one; a name
+            # no zone answers to keeps the stored zone instead.
+            try:
+                zone_for(request.state.timezone)
+                timezone = request.state.timezone
+            except ValueError:
+                timezone = None
             async with self._pg_pool.connection() as conn:
                 async with conn.cursor() as cur:
                     await cur.execute(
-                        "UPDATE health_app_user SET lang=%s,tz=%s,update_at=CURRENT_TIMESTAMP WHERE id=%s;",
-                        (request.state.language, request.state.timezone, request.state.user_id)
+                        "UPDATE health_app_user SET lang=%s,tz=COALESCE(%s,tz),update_at=CURRENT_TIMESTAMP WHERE id=%s;",
+                        (request.state.language, timezone, request.state.user_id)
                     )
                     await conn.commit()
     

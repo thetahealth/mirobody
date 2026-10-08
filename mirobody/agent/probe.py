@@ -15,8 +15,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import tempfile
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -66,9 +64,10 @@ async def _chat(name: str | None = None, resolve: Any = None, entry: dict | None
     the entry itself, when they are not what the environment says, as for a
     key and model the setup page has not saved yet."""
     from mirobody.agent.models.clients import build_chat_model
-    from mirobody.utils.config.llm import chat_default, chat_entries
+    from mirobody.utils.config.llm import default_model
+    from mirobody.utils.config.llm import chat_entries
 
-    name = name or chat_default()
+    name = name or default_model()
     if not name:
         return False, "no chat entry is usable"
     model = build_chat_model(entry or chat_entries()[name], alias=name, resolve=resolve).bind_tools([_TOOL])
@@ -96,18 +95,13 @@ async def _text() -> tuple[bool, str]:
 async def _vision() -> tuple[bool, str]:
     from mirobody.documents.render import text_image
     from mirobody.utils.config.llm import resolve_route
-    from mirobody.utils.llm.file_processors.dispatch import unified_file_extract
+    from mirobody.utils.llm import vision_extract
 
     spec = resolve_route("vision")
     if spec is None:
         return False, "no vision entry is usable"
-    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as handle:
-        handle.write(text_image("Glucose 5.4 mmol/L"))
-    try:
-        text = await unified_file_extract(handle.name, "Transcribe the text in this image exactly.", content_type="image/png")
-    finally:
-        os.unlink(handle.name)
-    return "5.4" in (text or ""), f"{spec.alias}: {(text or '').strip()[:80]!r}"
+    text = await vision_extract(text_image("Glucose 5.4 mmol/L"), "image/png", "Transcribe the text in this image exactly.")
+    return "5.4" in text, f"{spec.alias}: {text.strip()[:80]!r}"
 
 
 async def _ocr() -> tuple[bool, str]:
@@ -123,10 +117,11 @@ async def _ocr() -> tuple[bool, str]:
 def _local_models() -> set[tuple[str, str]]:
     """(endpoint, model) for every surface on a local server: an entry whose
     base_url is a variable, the way the shipped local entries are written."""
-    from mirobody.utils.config.llm import chat_default, chat_entries, endpoint_value, is_endpoint_name, resolve_route
+    from mirobody.utils.config.llm import default_model
+    from mirobody.utils.config.llm import chat_entries, endpoint_value, is_endpoint_name, resolve_route
 
     pairs = set()
-    name = chat_default()
+    name = default_model()
     entry = chat_entries().get(name) or {} if name else {}
     base = str(entry.get("base_url") or "")
     if is_endpoint_name(base) and endpoint_value(base):

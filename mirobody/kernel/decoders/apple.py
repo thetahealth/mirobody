@@ -110,6 +110,16 @@ SLEEP_STAGES: dict[str, str] = {
     "HKCategoryValueSleepAnalysisAsleepREM": "sleepAnalysis_Asleep(REM)",
 }
 
+#: Apple writes one record per stage and never a total, so each stage that
+#: is time asleep also lands as this one. InBed and Awake are not asleep.
+ASLEEP_TOTAL = "sleepAnalysis_Asleep(Total)"
+ASLEEP_STAGES = frozenset({
+    "sleepAnalysis_Asleep(Deep)",
+    "sleepAnalysis_Asleep(Core)",
+    "sleepAnalysis_Asleep(REM)",
+    "sleepAnalysis_Asleep(Unspecified)",
+})
+
 SLEEP_TYPE = "HKCategoryTypeIdentifierSleepAnalysis"
 BLOOD_PRESSURE = "HKCorrelationTypeIdentifierBloodPressure"
 
@@ -118,13 +128,15 @@ DATA_TYPES: tuple[str, ...] = (*QUANTITY, *CATEGORY, SLEEP_TYPE, BLOOD_PRESSURE)
 #: Every catalogue metric this table can emit. Derived, so it cannot drift
 #: from what `decode` produces; `connect.Coverage` is built from it.
 METRICS: frozenset[str] = (
-    frozenset(QUANTITY.values()) | frozenset(CATEGORY.values()) | frozenset(SLEEP_STAGES.values())
+    frozenset(QUANTITY.values())
+    | frozenset(CATEGORY.values())
+    | frozenset(SLEEP_STAGES.values())
+    | {ASLEEP_TOTAL}
 )
 
-#: Conversions `mirobody.units` declines, measured 2026-09-15. Fahrenheit is
-#: affine and the library is factor-based (`convertible("[degF]", "Cel")` is
-#: False); `mi` folds to the US survey mile, which has no metre factor there,
-#: while Apple means the international mile.
+#: The one conversion `mirobody.units` declines: `mi` folds to the US survey
+#: mile, which has no metre factor there, while Apple means the international
+#: mile.
 _MI_TO_M = 1609.344
 #: `mmol/L` → `mg/dL` needs the molar mass, which the library reaches through
 #: a LOINC code. 2339-0 is glucose in blood.
@@ -143,13 +155,15 @@ def _to_catalogue(metric: str, value: float, unit: str) -> float | None:
     """
     raw = (unit or "").strip()
     target = metrics.METRICS[metric].standard_unit
+    if raw == "%" and target == "%":
+        # HealthKit's percent unit is a fraction: an oxygen saturation of 98%
+        # is `value="0.98" unit="%"`, in `export.xml` and from the phone alike.
+        return value * 100
     if not raw or raw == target:
         return value
     want = units.normalize_unit(target) or target
     if raw in ("mi", "[mi_i]", "[mi_us]") and want == "m":
         return value * _MI_TO_M
-    if raw in ("degF", "[degF]") and want == "Cel":
-        return (value - 32.0) * 5.0 / 9.0
     got = units.normalize_unit(raw)
     if not got:
         return None
@@ -210,7 +224,8 @@ def decode(
         metric = SLEEP_STAGES.get(str(item.get("value") or ""))
         if not metric or end <= start:
             return []
-        return [fact(metric, float(end - start), start, end, **common)]
+        stages = (metric, ASLEEP_TOTAL) if metric in ASLEEP_STAGES else (metric,)
+        return [fact(m, float(end - start), start, end, **common) for m in stages]
 
     metric = CATEGORY.get(data_type)
     if metric:

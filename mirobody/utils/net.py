@@ -20,11 +20,8 @@ two drift.
 from __future__ import annotations
 
 import ipaddress
-import logging
 import socket
 from urllib.parse import urlparse
-
-log = logging.getLogger(__name__)
 
 DEFAULT_TIMEOUT_S = 15.0
 MAX_REDIRECTS = 3

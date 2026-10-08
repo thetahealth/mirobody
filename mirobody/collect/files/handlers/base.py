@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from mirobody.collect.files.services.conversation_summary import update_message_content
 from mirobody.collect.files.services.report_date import resolve_report_date
 import abc
-import asyncio
 import hashlib
 import logging
-import os
 import uuid
 from dataclasses import dataclass
 from typing import Any
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 
 # `fastapi` lives in the [app] extra, but file parsing is advertised engine
 # functionality: a bare `pip install mirobody` must import this module. Every
@@ -20,35 +17,19 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
-from mirobody.utils.file_types import with_extension
+
+    from mirobody.collect.files.services.file_abstract_extractor import FileAbstractExtractor
+    from mirobody.collect.files.services.file_uploader import FileUploader
+    from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
+    from mirobody.collect.files.services.temp_file_manager import TempFileManager
+from mirobody.collect.files.errors import UploadError, failure_reason
+from mirobody.documents.extract import PartialText
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
+from mirobody.utils.tasks import spawn
 
 logger = logging.getLogger(__name__)
-
-#: What the text-side abstract asks for. Closed (`additionalProperties: false`)
-#: like every json_schema the product sends: OpenAI answers HTTP 400 to an open
-#: nested object (measured through OpenRouter, 2026-10-06). This flat one was
-#: accepted open; closed, a nested field added later cannot bring the 400 back.
-ABSTRACT_SCHEMA = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "file_name": {
-            "type": "string",
-            "description": "Generated filename with extension"
-        },
-        "file_abstract": {
-            "type": "string",
-            "description": "Brief summary of file content (max 150 chars)"
-        }
-    },
-    "required": ["file_name", "file_abstract"]
-}
-
-# Import services type hints (avoid circular imports if possible, or use Any)
-# In a real scenario, we might use Protocol or specific imports if avoiding circular deps.
-# For now we assume services are passed in and duck-typed or we use Any.
 
 @dataclass
 class FileProcessingContext:
@@ -57,7 +38,7 @@ class FileProcessingContext:
     message_id: str | None
     query: str = ""
     query_user_id: str = ""
-    progress_callback: Callable[[int, str], None] | None = None
+    progress_callback: Callable[[int, str], Awaitable[None]] | None = None
     file_key: str | None = None
     skip_upload_oss: bool = False
     original_filename: str | None = None
@@ -75,25 +56,37 @@ class FileProcessingContext:
         return self.original_filename or self.file.filename
         
     @property
-    def content_type(self) -> str:
+    def content_type(self) -> str | None:
         return self.file.content_type
+
+
+def _no_answer_reason() -> str:
+    """Why no model answered an extraction: no text entry is routable (the
+    sentence names the key to set), or the routed one's call failed. ONE route
+    is tried, never a second: config.llm.yaml states it ("selection happens
+    once; a failed call is reported, never retried elsewhere")."""
+    from mirobody.utils.config.llm import no_provider_message, resolve_route
+
+    route = resolve_route("text")
+    if route is None:
+        return no_provider_message("text")
+    return (f"indicator extraction failed: {route.alias} ({route.model}) returned an error, and a failed call "
+            "is not retried on another provider (see the server log for the provider's message); re-upload "
+            "after fixing it, or point UTILS_TEXT_MODEL elsewhere")
+
 
 class BaseFileHandler(abc.ABC):
     def __init__(
-        self, 
-        uploader=None, 
-        temp_manager=None, 
-        content_extractor=None, 
-        indicator_extractor=None,
-        abstract_extractor=None
-    ):
+        self,
+        uploader: FileUploader | None = None,
+        temp_manager: TempFileManager | None = None,
+        indicator_extractor: IndicatorExtractor | None = None,
+        abstract_extractor: FileAbstractExtractor | None = None,
+    ) -> None:
         self.uploader = uploader
         self.temp_manager = temp_manager
-        self.content_extractor = content_extractor
         self.indicator_extractor = indicator_extractor
         self.abstract_extractor = abstract_extractor
-        # Strong references to background tasks to prevent GC before completion
-        self._background_tasks: set[asyncio.Task] = set()
 
     async def process(self, ctx: FileProcessingContext) -> dict[str, Any]:
         """Template method for file processing"""
@@ -101,24 +94,18 @@ class BaseFileHandler(abc.ABC):
         try:
             language = request_language()
             
+            await ctx.file.seek(0)
+            if not await ctx.file.read(1):
+                raise UploadError(localize("file_empty", language, "temp_file_manager"))
+
             # 1. Generate unique filename if needed
             unique_filename = self._get_unique_filename(ctx)
             
             # 2. Upload or Get URL (Common step, but can be overridden or skipped by subclasses)
             full_url = await self._handle_upload(ctx, unique_filename, language)
-            
-            # 3. Save to temp (Common step). Deleted as soon as the handler has
-            # read it: nothing did, so every upload left a copy of the document
-            # in /tmp (eight lab reports in the demo container, measured
-            # 2026-09-28). Nothing reads it after `_process_content` returns;
-            # extraction continues from `original_text`.
-            temp_file_path = await self._save_to_temp(ctx, language)
 
-            # 4. Core processing (Specific to file type)
-            try:
-                result_data = await self._process_content(ctx, temp_file_path, unique_filename, full_url, language)
-            finally:
-                self.temp_manager.cleanup_temp_file(temp_file_path)
+            # 3. The text, stored on the row at once, and the abstract
+            result_data = await self._process_content(ctx, unique_filename, language)
 
             # 4.5. Auto-start background indicator extraction for any handler that returns original_text
             original_text = result_data.get("original_text")
@@ -127,7 +114,7 @@ class BaseFileHandler(abc.ABC):
                 # we know why. Reporting success here rendered "indicators:
                 # none" over a working-looking upload (#68); the failure and
                 # its reason belong on the upload itself.
-                raise RuntimeError(f"could not read the document: {ctx.extraction_error}")
+                raise UploadError(f"could not read the document: {ctx.extraction_error}")
             if original_text and original_text.strip() and self.indicator_extractor:
                 self._start_background_indicator_extraction(
                     original_text=original_text,
@@ -137,19 +124,8 @@ class BaseFileHandler(abc.ABC):
                     message_id=ctx.message_id,
                 )
 
-            # 5. Abstract extraction (Common step, but check if already extracted)
-            if "file_abstract" in result_data and result_data["file_abstract"]:
-                file_abstract = result_data["file_abstract"]
-                # Use file_name from result if available
-                file_name = result_data.get("file_name", ctx.filename)
-            elif "extracted_abstract_hint" in result_data and result_data["extracted_abstract_hint"]:
-                 file_abstract = result_data["extracted_abstract_hint"]
-                 file_name = result_data.get("file_name", ctx.filename)
-            else:
-                file_abstract, file_name = await self._extract_abstract(ctx, unique_filename, language)
-            
-            # 6. Construct final response
-            return self._build_response(ctx, result_data, unique_filename, full_url, file_abstract, file_name, language)
+            # 5. Construct final response
+            return self._build_response(ctx, result_data, unique_filename, full_url, language)
             
         except Exception as e:
             return await self._handle_error(ctx, e, unique_filename)
@@ -163,50 +139,31 @@ class BaseFileHandler(abc.ABC):
         return f"web_uploads/{str(uuid.uuid4())}.{extension}"
 
     async def _handle_upload(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> str:
-        if ctx.progress_callback:
-            await ctx.progress_callback(35, localize("uploading_file", language, "file_processor"))
+        """The stored file's URL: uploaded here, or signed afresh when the
+        caller stored the file already (`skip_upload_oss`). A failed upload
+        raises: answered with "", the upload reported success over a file that
+        was never stored."""
+        await self._progress(ctx, 35, "uploading_file", language)
+        if not ctx.skip_upload_oss:
+            full_url = await self.uploader.upload_file_and_get_url(ctx.file, unique_filename, ctx.content_type)
+            logger.info("upload stored: file_key=%s", unique_filename)
+            return full_url
 
-        if ctx.skip_upload_oss:
-            # File already uploaded, generate signed URL
-            from mirobody.utils.config.storage import get_storage_client
-            try:
-                storage = get_storage_client()
-                full_url, err = await storage.generate_signed_url(unique_filename, content_type=ctx.content_type)
-                if err:
-                    logger.warning(err)
+        from mirobody.utils.config.storage import get_storage_client
 
-                full_url = full_url or ""
-                logger.info(f"Skipping OSS upload, using existing file: {unique_filename}")
-                return full_url
-            except Exception as url_error:
-                logger.warning(f"Failed to get URL for existing file: {url_error}")
-                return ""
-        else:
-            # Upload
-            try:
-                full_url = await self.uploader.upload_file_and_get_url(
-                    ctx.file, unique_filename, ctx.content_type
-                )
-                logger.info(f"File upload completed: {unique_filename}, URL: {full_url}")
-                return full_url
-            except Exception as e:
-                # Some handlers might want to proceed even if upload fails (like text), 
-                # others might fail. For now, log and return empty string.
-                logger.warning(f"File upload failed: {e}")
-                return ""
+        # The file is stored; a URL that cannot be signed now is signed again
+        # when the file list is read (`drive_listing.regenerate_file_url`).
+        try:
+            full_url, err = await get_storage_client().generate_signed_url(unique_filename, content_type=ctx.content_type)
+        except Exception as e:
+            logger.warning("signing a stored file's url failed: file_key=%s error_type=%s", unique_filename,
+                           type(e).__name__, exc_info=not is_driver_exception(e))
+            return ""
+        if err:
+            logger.warning("signing a stored file's url failed: file_key=%s", unique_filename)
+        return full_url or ""
 
-    async def _save_to_temp(self, ctx: FileProcessingContext, language: str) -> str | None:
-        if ctx.progress_callback:
-            await ctx.progress_callback(45, localize("saving_temp_file", language, "file_processor"))
-            
-        temp_file_path, _ = await self.temp_manager.save_upload_file_to_temp(ctx.file)
-        return str(temp_file_path) if temp_file_path else None
-
-    async def _extract_original_text(
-        self,
-        ctx: FileProcessingContext,
-        file_type: str,
-    ) -> tuple[str | None, str | None]:
+    async def _extract_original_text(self, ctx: FileProcessingContext) -> tuple[str | None, str | None]:
         """
         Read the upload's bytes and extract original text.
 
@@ -218,145 +175,88 @@ class BaseFileHandler(abc.ABC):
 
         Returns:
             Tuple of (original_text, content_hash), or (None, None) on empty
-            content / extraction failure.
+            content / extraction failure. A text with pages missing
+            (`PartialText`) comes without its hash: stored under it, it would
+            be what the next upload of these bytes reads instead of the pages.
         """
         try:
             await ctx.file.seek(0)
             file_content = await ctx.file.read()
 
             if not file_content:
-                logger.warning(f"[BaseFileHandler] Empty file content: {ctx.message_id}")
+                logger.warning("upload is empty: message_id=%s", ctx.message_id)
                 return None, None
 
             content_hash = hashlib.sha256(file_content).hexdigest()
 
             original_text = await self.abstract_extractor.extract_file_original_text(
                 file_content=file_content,
-                file_type=file_type,
+                file_type=self.get_type_name(),
                 filename=ctx.filename,
                 content_type=ctx.content_type,
             )
+            if isinstance(original_text, PartialText):
+                logger.warning("text extracted with pages missing: message_id=%s missing_page_count=%d",
+                               ctx.message_id, len(original_text.missing_pages))
+                return original_text, None
             return original_text, content_hash
 
         except Exception as e:
-            logger.error(
-                f"[BaseFileHandler] Failed to extract original text for {ctx.filename}: {e}",
-                exc_info=True
-            )
-            ctx.extraction_error = f"{type(e).__name__}: {e}"
+            logger.error("text extraction failed: message_id=%s error_type=%s", ctx.message_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            ctx.extraction_error = failure_reason(e)
             return None, None
 
-    async def _extract_abstract_from_text(
-        self,
-        original_text: str,
-        filename: str,
-        language: str,
-    ) -> tuple[str, str]:
-        """
-        Generate file abstract and filename from pre-extracted original text.
-        
-        Args:
-            original_text: Pre-extracted text content
-            filename: Original file name
-            language: User language
-            
-        Returns:
-            Tuple of (file_abstract, file_name)
-        """
+    async def _abstract(self, ctx: FileProcessingContext, original_text: str | None, language: str) -> tuple[str, str]:
+        """`(abstract, file_name)` for the upload: read off its text by the text
+        model, or for an image with no text, off the image by the vision model;
+        the fallback sentence, under the upload's own name, when neither answered."""
+        file_abstract, file_name = "", ctx.filename
         try:
-            from mirobody.utils.llm import async_get_structured_output
-
-            # `language` reaches this prompt because it used to be an unused
-            # parameter, and "use the same language as the content" was one
-            # bullet in a list the model ignored. An English lab report came
-            # back named `2025-10-15_Laborbericht_Lipide_Glukose.pdf`, and on a
-            # second run `..._Rapport_labo_lipides_glycemie.pdf`: German, then
-            # French, for the same English document. Two runs, two wrong
-            # languages, so it was not one bad sample.
-            prompt = f"""Based on the document content below, generate:
-1. file_name: A descriptive filename in format: Date_Content_Description, with no extension
-   - Include date if found (YYYY-MM-DD format)
-   - Keep it concise (15-40 chars excluding extension)
-   - LANGUAGE: write it in the language the DOCUMENT ITSELF uses. An English
-     report gets an English name; a 体检报告 gets a Chinese one. Never translate
-     into a third language. If the document's own language is genuinely
-     ambiguous, fall back to: {language}
-
-2. file_abstract: A brief summary (max 150 characters)
-   - Identify document type
-   - Extract key information
-   - Highlight main findings
-   - Same language rule as above
-
-Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
-
-            messages = [
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": f"Original filename: {filename}\n\nDocument content:\n{original_text[:8000]}"}
-            ]
-            
-            result = await async_get_structured_output(
-                messages=messages,
-                response_format={"type": "json_schema", "json_schema": {"name": "abstract_response", "schema": ABSTRACT_SCHEMA}},
-                temperature=0.1,
-                max_tokens=32000
-            )
-            
-            if result and isinstance(result, dict):
-                file_abstract = result.get("file_abstract", "")[:200]
-                file_name = with_extension(str(result.get("file_name") or ""), os.path.splitext(filename or "")[1]) or filename
-                logger.info(f"Abstract from text, abstract_len={len(file_abstract)}")
-                return file_abstract, file_name
-            
-            return "", filename
-            
+            if original_text and original_text.strip():
+                file_abstract, file_name = await self.abstract_extractor.abstract_from_text(
+                    original_text, ctx.filename, language)
+            elif self.get_type_name() == "image" and not ctx.extraction_error:
+                await ctx.file.seek(0)
+                file_abstract, file_name = await self.abstract_extractor.describe_image(
+                    bytes(await ctx.file.read()), ctx.filename)
         except Exception as e:
-            logger.warning(f"[BaseFileHandler] Failed to extract abstract from text: {e}")
-            return "", filename
-
-    async def _extract_abstract(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> tuple[str, str]:
-        file_abstract = ""
-        file_name = ctx.filename
-        
-        try:
-            if ctx.progress_callback:
-                await ctx.progress_callback(95, "Extracting file summary...")
-            
-            await ctx.file.seek(0)
-            file_content = await ctx.file.read()
-            
-            # Get simple file type string (e.g., 'pdf', 'image')
-            simple_type = self.get_type_name()
-            
-            result_data = await self.abstract_extractor.extract_file_abstract(
-                file_content=file_content,
-                file_type=simple_type,
-                filename=ctx.filename,
-                content_type=ctx.content_type
-            )
-            
-            file_abstract = result_data.get("file_abstract", "")
-            # Use generated file name if available, otherwise keep original
-            extracted_name = result_data.get("file_name")
-            if extracted_name:
-                file_name = extracted_name
-                
-            logger.info(f"{simple_type} abstract extracted: {ctx.message_id}, abstract length: {len(file_abstract)}")
-        except Exception as e:
-            logger.warning(f"Abstract extraction failed: {ctx.message_id}, error: {e}")
-            # Fallback
-            simple_type = self.get_type_name()
-            fallback = self.abstract_extractor._create_fallback_abstract(ctx.filename, simple_type)
-            file_abstract = fallback.get("file_abstract", "")
-            
+            logger.warning("abstract failed: message_id=%s error_type=%s", ctx.message_id, type(e).__name__,
+                           exc_info=not is_driver_exception(e))
+        if not file_abstract:
+            return self.abstract_extractor.fallback_abstract(ctx.filename, self.get_type_name()), ctx.filename
         return file_abstract, file_name
 
-    @abc.abstractmethod
-    async def _process_content(self, ctx: FileProcessingContext, temp_file_path: str, unique_filename: str, full_url: str, language: str) -> dict[str, Any]:
-        """
-        Core logic to extract content/indicators.
-        Should return a dict with keys like 'raw', 'indicators', 'llm_ret', etc.
-        """
+    async def _progress(self, ctx: FileProcessingContext, percent: int, key: str, language: str) -> None:
+        if ctx.progress_callback:
+            await ctx.progress_callback(percent, localize(key, language, "file_processor"))
+
+    async def _process_content(self, ctx: FileProcessingContext, unique_filename: str, language: str) -> dict[str, Any]:
+        """The upload's text and its abstract, the same for every kind of
+        document: a PDF, a photo, a workbook, a Word file or a text. The text
+        is written to the row as soon as it is read: a chat attachment's row
+        exists before processing starts, and the agent reads the text there.
+        Indicator extraction starts from `original_text` in `process`."""
+        await self._progress(ctx, 55, "extracting_content", language)
+        original_text, content_hash = await self._extract_original_text(ctx)
+        if original_text:
+            await self._save_original_text_to_db(
+                file_key=unique_filename,
+                original_text=original_text,
+                text_length=len(original_text),
+                content_hash=content_hash or "",
+            )
+        await self._progress(ctx, 70, "extracting_abstract", language)
+        file_abstract, file_name = await self._abstract(ctx, original_text, language)
+        await self._progress(ctx, 90, f"{self.get_type_name()}_processing_success", language)
+        return {
+            "raw": original_text or "",
+            "file_abstract": file_abstract,
+            "file_name": file_name,
+            "original_text": original_text or "",
+            "text_length": len(original_text) if original_text else 0,
+            "content_hash": content_hash or "",
+        }
 
     @abc.abstractmethod
     def get_type_name(self) -> str:
@@ -368,8 +268,6 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         result_data: dict[str, Any], 
         unique_filename: str, 
         full_url: str, 
-        file_abstract: str, 
-        file_name: str,
         language: str
     ) -> dict[str, Any]:
         
@@ -379,8 +277,6 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             "type": self.get_type_name(),
             "filename": ctx.filename,
             "full_url": full_url,
-            "file_abstract": file_abstract,
-            "file_name": file_name,
             "message_id": ctx.message_id,
             "file_key": unique_filename,
         }
@@ -395,40 +291,24 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         return response
 
     async def _handle_error(self, ctx: FileProcessingContext, e: Exception, file_key: str | None = None) -> dict[str, Any]:
+        """The failed upload's answer, its reason included: "Image processing
+        failed" alone sent the reporter of #68 into the server logs for a
+        cause that was one sentence long ("no vision provider: set one of
+        these keys"). The reason is `failure_reason`'s, never a driver's or a
+        vendor's message."""
         language = request_language()
-        error_msg = str(e)
-        logger.error(f"File processing failed: {ctx.filename}, file_key: {file_key}, error: {error_msg}", exc_info=True)
-
-        if ctx.message_id:
-            try:
-                await update_message_content(
-                    message_id=ctx.message_id,
-                    content=f"❌ {localize('file_upload_failed', language, 'file_processor')}\n\n{localize('error', language, 'file_processor')}: {error_msg}",
-                    reasoning=f"Error occurred during file processing: {error_msg}",
-                )
-            except Exception as update_error:
-                logger.error(f"Failed to update message status: {str(update_error)}", stack_info=True)
+        reason = failure_reason(e)
+        logger.error("file processing failed: message_id=%s file_key=%s error_type=%s", ctx.message_id, file_key,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
 
         user_message = localize(f"{self.get_type_name()}_processing_failed", language, "file_processor")
-        if not user_message:
-             user_message = localize('file_upload_failed', language, 'file_processor')
-        # The reason travels with the message: "Image processing failed" alone
-        # sent the reporter of #68 into the server logs for a cause that was
-        # one sentence long ("no vision provider: set one of these keys").
-        if error_msg:
-            user_message = f"{user_message}: {error_msg}"
-
-        # Some specialized error handling for JSON parsing if needed
-        if "JSON parsing failed" in error_msg:
-             user_message = localize("json_parsing_failed", language, "file_processor") or "File processing failed: Invalid response format"
-
         return {
             "success": False,
-            "message": user_message,
+            "message": f"{user_message}: {reason}",
             "status": "error",
             "message_id": ctx.message_id,
             "filename": ctx.filename,
-            "error": error_msg,
+            "error": reason,
             "type": self.get_type_name(),
             "raw": f"Processing failed: {ctx.filename}",
             "file_key": file_key or "",  # Include file_key even on failure
@@ -465,7 +345,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         file_key: str,
         message_id: str | None = None,
     ):
-        """Start background indicator extraction with GC-safe task reference.
+        """Start indicator extraction in the background.
 
         `message_id` is the upload session the file arrived in; it is how the
         task's two progress events find the client's WebSocket (see
@@ -473,27 +353,22 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         passes None: the agent asks about the date instead.
         """
         if not self._indicator_extraction_enabled():
-            logger.info(
-                f"⏭️  {self.get_type_name()} upload completed, indicator extraction "
-                f"skipped (ENABLE_INDICATOR_EXTRACTION=0): {file_key}"
-            )
+            logger.info("indicator extraction off (ENABLE_INDICATOR_EXTRACTION=0): file_key=%s", file_key)
             return
 
-        task = asyncio.create_task(
+        # `spawn` holds the task: the handler is discarded once `process`
+        # returns, and a task only it referenced could be collected mid-run.
+        spawn(
             self._async_extract_indicators(
                 original_text=original_text,
                 user_id=user_id,
                 file_name=file_name,
                 file_key=file_key,
                 message_id=message_id,
-            )
+            ),
+            name="indicator-extraction",
         )
-        self._background_tasks.add(task)
-        task.add_done_callback(self._background_tasks.discard)
-        logger.info(
-            f"{self.get_type_name()} upload completed, "
-            f"background indicator extraction started: {file_key}"
-        )
+        logger.info("indicator extraction started: file_key=%s", file_key)
 
     @staticmethod
     async def _push_upload_event(message_id: str | None, event: dict[str, Any]) -> None:
@@ -516,7 +391,8 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             payload = {**event, "messageId": message_id, "sessionId": session.get("session_id", "")}
             await manager.send_message_by_message_id(message_id, payload)
         except Exception as e:
-            logger.debug(f"upload event {event.get('type')} not delivered for {message_id}: {e}")
+            logger.debug("upload event not delivered: message_id=%s event=%s error_type=%s",  # phi: ok one of the two event types above
+                         message_id, event.get("type"), type(e).__name__)
 
     async def _async_extract_indicators(
         self,
@@ -525,138 +401,77 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
         file_name: str,
         file_key: str,
         message_id: str | None = None,
-    ):
+    ) -> None:
         """Background task: extract indicators from text and update th_files.
 
         Two steps, two events. The date is probed FIRST (one small model call,
         a few seconds) and announced as `report_date_detected`, so the Data
         page can ask about a missing date while the 15-25 s indicator
         extraction is still running; `extraction_completed` follows with the
-        count and the date the readings were actually filed under.
+        count stored and the date the readings were actually filed under.
         """
-        file_type = self.get_type_name()
+        from mirobody.collect.files.services.content_formatter import ContentFormatter
+        from mirobody.collect.files.services.file_db_service import FileDbService
+
+        filed = None
+        formatted_raw = original_text
+        failed_reason = ""
         try:
-            logger.info(f"Starting async indicator extraction for {file_type}: {file_key}")
-
-            indicators = []
-            llm_ret = {}
-            report = None
-            formatted_raw = original_text
-            extraction_failed_reason = ""
-
-            try:
-                from mirobody.collect.files.services.content_formatter import ContentFormatter
-                from mirobody.collect.files.services.file_db_service import FileDbService
-
-                probed = await self.indicator_extractor.probe_report_date(original_text)
-                probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
-                probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
-                # On the file row now, not after extraction: the bar's answer
-                # (set_file_report_date) reads and writes this row, and the
-                # readings that land later look here for a manual date.
-                await FileDbService.rows_ready(message_id)
-                await FileDbService.update_file_content(file_key, probe_report)
-                await self._push_upload_event(message_id, {
-                    "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
-                })
-
-                (indicators, llm_ret, report) = await self.indicator_extractor.extract_indicators_from_text(
-                    original_text=original_text,
-                    user_id=user_id,
-                    ocr_db_id=0,
-                    source_table="th_files",
-                    file_name=file_name,
-                    file_key=file_key,
-                    save_to_db=True,
-                    report_date=(probe_dt, probe_source),
-                )
-                count = len(indicators) if indicators else 0
-
-                # Three kinds of "zero indicators", told apart (#68). The file
-                # is stored either way, but the UI must not render 1 and 2 like
-                # 3: reporting them as "complete" showed a green status over an
-                # empty list with the cause only in the server logs.
-                #   1. no provider can do structured extraction: configuration
-                #   2. a provider was selected and its call failed: see the log
-                #   3. a model read the document and found none: normal
-                if count == 0 and llm_ret is None:
-                    from mirobody.utils.config.llm import no_provider_message, resolve_route
-
-                    route = resolve_route("text")
-                    if route is None:
-                        extraction_failed_reason = no_provider_message("text")
-                    else:
-                        # ONE route is tried, never a second: config.llm.yaml
-                        # states it ("selection happens once; a failed call is
-                        # reported, never retried elsewhere"). Saying "every
-                        # configured provider" sent readers hunting for three
-                        # failures in a log that holds one.
-                        extraction_failed_reason = (
-                            f"indicator extraction failed: {route.alias} ({route.model}) "
-                            "returned an error, and a failed call is not retried on another "
-                            "provider (see the server log for the provider's message) — "
-                            "re-upload after fixing it, or point UTILS_TEXT_MODEL elsewhere"
-                        )
-                    logger.warning(
-                        f"Indicator extraction for {file_type} {file_key} produced 0 rows: "
-                        f"{extraction_failed_reason}"
-                    )
-                if not extraction_failed_reason:
-                    logger.info(
-                        f"Async indicator extraction completed for {file_type}: {file_key}, "
-                        f"count: {count}"
-                    )
-
-                # Format content
-                if isinstance(llm_ret, dict) and "formatted_content" in llm_ret:
-                    formatted_raw = llm_ret["formatted_content"]
-                elif indicators and llm_ret:
-                    try:
-                        formatted_raw = ContentFormatter.format_parsed_content(
-                            file_results=[{"type": file_type, "raw": original_text}],
-                            file_names=[file_key],
-                            llm_responses=[llm_ret],
-                            indicators_list=[indicators],
-                        )
-                    except Exception:
-                        formatted_raw = original_text
-            except Exception as e:
-                # The fourth kind of "zero indicators", and the one that got
-                # away: extraction RAISED. `extraction_failed_reason` was left
-                # empty here, so the row below was written `status: completed`
-                # with `indicators_count: 0`: a green file over an empty list,
-                # cause visible only in this warning. That is exactly how the
-                # bytearray bug (#B-1) stayed invisible: every PDF uploaded
-                # through the web client raised `TypeError: Invalid input type
-                # 'bytearray'` right here and was then reported as processed.
-                extraction_failed_reason = (
-                    f"indicator extraction failed: {type(e).__name__}: {e} "
-                    f"(see the server log for the full traceback)"
-                )
-                logger.warning(f"Async indicator extraction failed for {file_type}: {file_key}, error: {e}")  # phi: ok an extraction error, not document contents
-
-            # Update th_files with indicator results
-            from mirobody.collect.files.services.file_db_service import FileDbService
-
+            probed = await self.indicator_extractor.probe_report_date(original_text)
+            probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
+            probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
+            # On the file row now, not after extraction: the bar's answer
+            # (set_file_report_date) reads and writes this row, and the
+            # readings that land later look here for a manual date.
             await FileDbService.rows_ready(message_id)
-            await self._update_file_indicators(
-                file_key=file_key,
-                formatted_raw=formatted_raw,
-                indicators_count=len(indicators) if indicators else 0,
-                failed_reason=extraction_failed_reason,
-                report=report,
-            )
+            await FileDbService.update_file_content(file_key, probe_report)
             await self._push_upload_event(message_id, {
-                "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
-                "indicators_count": len(indicators) if indicators else 0,
-                "failed": bool(extraction_failed_reason),
-                **(report or {}),
+                "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
             })
 
-            logger.info(f"Async indicator extraction finished for {file_type}: {file_key}")
-
+            filed = await self.indicator_extractor.extract_indicators_from_text(
+                original_text, user_id, file_key, report_date=(probe_dt, probe_source))
+            # Three kinds of "zero indicators", told apart (#68). The file is
+            # stored either way, but the UI must not render 1 and 2 like 3.
+            #   1. no provider can do structured extraction: configuration
+            #   2. a provider was selected and its call failed: see the log
+            #   3. a model read the document and found none: normal
+            if filed.answer is None:
+                failed_reason = _no_answer_reason()
+            elif filed.indicators:
+                formatted_raw = ContentFormatter.format_parsed_content(
+                    file_results=[{"type": self.get_type_name(), "raw": original_text}],
+                    file_names=[file_key],
+                    llm_responses=[filed.answer],
+                    indicators_list=[filed.indicators],
+                )
         except Exception as e:
-            logger.error(f"Async indicator extraction failed for {file_type} {file_key}: {e}", exc_info=True)
+            # The fourth kind, and the one that got away: extraction RAISED
+            # (a write that stored nothing, the bytearray bug #B-1) and the
+            # row was written `status: completed` over an empty list.
+            failed_reason = f"indicator extraction failed: {failure_reason(e)}"
+            logger.error("indicator extraction failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+
+        stored_count = filed.stored if filed else 0
+        status = "failed" if failed_reason else "completed"
+        report = filed.report if filed else None
+        await FileDbService.rows_ready(message_id)
+        await self._update_file_indicators(
+            file_key=file_key,
+            formatted_raw=formatted_raw,
+            indicators_count=stored_count,
+            failed_reason=failed_reason,
+            report=report,
+        )
+        await self._push_upload_event(message_id, {
+            "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
+            "indicators_count": stored_count,
+            "failed": bool(failed_reason),
+            **(report or {}),
+        })
+        logger.info("indicator extraction finished: file_key=%s stored_count=%d status=%s", file_key, stored_count,
+                    status)
 
     async def _save_original_text_to_db(
         self,
@@ -689,7 +504,8 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
             )
 
         except Exception as e:
-            logger.warning(f"Failed to save original text to th_files: {file_key}, error: {e}")
+            logger.warning("saving a file's text failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                           exc_info=not is_driver_exception(e))
 
     async def _update_file_indicators(
         self,
@@ -732,8 +548,7 @@ Return JSON format: {{"file_name": "...", "file_abstract": "..."}}"""
                 updates=updates,
             )
 
-            logger.info(f"Updated th_files indicators: {file_key}")
-
         except Exception as e:
-            logger.warning(f"Failed to update file indicators: {e}")
+            logger.warning("recording a file's readings failed: file_key=%s error_type=%s", file_key,
+                           type(e).__name__, exc_info=not is_driver_exception(e))
 

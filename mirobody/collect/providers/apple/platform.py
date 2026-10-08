@@ -15,6 +15,7 @@ from mirobody.utils.distributed_lock import pull_task_lock_manager
 from mirobody.collect.ingest import FormatDataContext, FormatDataInput
 from mirobody.collect.ingest import StandardHealthService
 from mirobody.utils.tasks import spawn
+from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +62,6 @@ class AppleHealthPlatform(Platform):
         cda_provider = CDAProvider(self)
         self._providers[cda_provider.info.slug] = cda_provider
 
-        logger.info(f"Registered built-in providers for {self.name} platform")
 
     async def get_providers(self, nocache: bool = False) -> list[ProviderInfo]:
         return []
@@ -91,7 +91,7 @@ class AppleHealthPlatform(Platform):
         try:
             provider = self.get_provider(provider_slug)
             if not provider:
-                logger.error(f"Provider {provider_slug} not found in apple platform")
+                logger.error("post_data for an unregistered provider: provider=%s", provider_slug)
                 return False
 
             user_id = data.get("user_id")
@@ -108,13 +108,12 @@ class AppleHealthPlatform(Platform):
                 standard_data = await provider.format_data(fmt_input)
 
                 if not standard_data or not standard_data.healthData:
-                    logger.info(f"No data formatted by provider {provider_slug}")
                     return True
 
                 success = await self.health_service.process_standard_data(standard_data, user_id)
-
-                logger.info(f"Apple platform processed {len(standard_data.healthData)} records for user {user_id}, "
-                    f"success: {success}")
+                record_count = len(standard_data.healthData)
+                logger.info("Apple data stored: provider=%s user_id=%s record_count=%d success=%s",
+                            provider_slug, user_id, record_count, success)
 
                 # Fire-and-forget: kick incremental aggregation so the frontend
                 # sees fresh daily summaries without waiting for the 4-min
@@ -126,11 +125,13 @@ class AppleHealthPlatform(Platform):
                 return success
 
             except Exception as e:
-                logger.error(f"Error processing data: {str(e)}", stack_info=True)
+                logger.error("Apple data processing failed: provider=%s msg_id=%s error_type=%s", provider_slug,
+                             msg_id, type(e).__name__, exc_info=not is_driver_exception(e))
                 return False
 
         except Exception as e:
-            logger.error(f"Error in post_data for provider {provider_slug}: {str(e)}", stack_info=True)
+            logger.error("Apple post_data failed: provider=%s msg_id=%s error_type=%s", provider_slug, msg_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
 
     async def _trigger_aggregation_after_ingest(self, user_id: str) -> None:
@@ -159,23 +160,16 @@ class AppleHealthPlatform(Platform):
             last_ts = await pull_task_lock_manager.get_last_execution_timestamp(
                 "aggregate_indicator"
             )
-            result = await service.process_incremental(
-                last_timestamp=last_ts,
-                user_id=None,
-            )
-            logger.info(
-                f"[AppleHealth] Post-ingest aggregation triggered for user {user_id}: "
-                f"status={result.get('status')}, "
-                f"summaries={result.get('summaries_created', 0)}, "
-                f"users_affected={result.get('users_affected', 0)}, "
-                f"time_ms={result.get('execution_time_ms', 0):.1f}, "
-                f"cursor={last_ts}"
-            )
+            result = await service.process_incremental(last_timestamp=last_ts)
+            summary_count = result.get("summaries_created", 0)
+            user_count = result.get("users_affected", 0)
+            logger.info("post-ingest aggregation done: user_id=%s status=%s summary_count=%d user_count=%d "  # phi: ok status is the service's own result code
+                        "duration_ms=%.1f", user_id, result.get("status"), summary_count, user_count,
+                        result.get("execution_time_ms", 0))
         except Exception as e:
-            logger.warning(
-                f"[AppleHealth] Post-ingest aggregation failed (ignored, "
-                f"scheduled task will catch up): {e}"
-            )
+            # The scheduled AggregateIndicatorTask catches up; nothing is lost.
+            logger.warning("post-ingest aggregation failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                           exc_info=not is_driver_exception(e))
 
     async def update_llm_access(self, user_id: str, provider_slug: str, llm_access: int) -> dict[str, Any]:
         """

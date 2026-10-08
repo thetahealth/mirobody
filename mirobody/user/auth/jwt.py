@@ -163,7 +163,7 @@ class JwtTokenValidator(AbstractTokenValidator):
             return payload, None
         
         except Exception as e:
-            return None, f"Failed to decode JWT token: {str(e)}"
+            return None, f"Failed to decode JWT token: {type(e).__name__}"
     
     #-----------------------------------------------------
 
@@ -208,7 +208,7 @@ class JwtTokenValidator(AbstractTokenValidator):
             return payload, None
 
         except Exception as e:
-            return None, f"Failed to decode JWT token: {str(e)}"
+            return None, f"Failed to decode JWT token: {type(e).__name__}"
 
     #-----------------------------------------------------
 

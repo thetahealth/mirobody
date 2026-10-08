@@ -1,7 +1,6 @@
 """What every stage in this package stands on.
 
-    database.py          the DB base classes
-    push_service.py      delivering a push to a provider
+    push_service.py      delivering a provider's pull to its platform
     constants.py         LinkType, ProviderStatus, CacheConfig
     models.py            the provider contract's own types
 
@@ -17,13 +16,9 @@ and authentication are not something a collection package should own.
 
 from typing import TYPE_CHECKING
 
-# Lazy (PEP 562), matching `mirobody/collect/__init__.py`,
-# `mirobody/agent/__init__.py` and `mirobody/collect/providers/__init__.py`.
-# Importing any submodule ran this __init__, which imported `.database` and
-# pulled SQLAlchemy and FastAPI into the process, making the indicator
-# catalogue (pure data, no I/O) unusable without the server stack installed.
-# Every `from mirobody.collect.core import X` keeps working; each export simply
-# pays its own import cost at first use.
+# Lazy (PEP 562), matching `mirobody/collect/__init__.py`: importing any
+# submodule runs this __init__, and an eager one would load every export's
+# dependencies with it. Each export pays its own import cost at first use.
 _EXPORTS = {
     'CacheConfig'             : 'constants',
     'LinkType'                : 'constants',

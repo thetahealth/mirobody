@@ -36,12 +36,14 @@ GGUF files the preset fetches, document reader included; memory is the most
 
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, Apple M1 Pro 16 GB | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
-| **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | about 20 GB | about 2 min, Apple M4 Pro 48 GB | looked at | 16 of 16 earlier questions with no number the record lacks (a different question set) |
+| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, Apple M1 Pro 16 GB, on its GPU | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
+| **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | about 20 GB | about 2 min (134 s median on the earlier set), Apple M4 Pro 48 GB, on its GPU | looked at | from an earlier set of 8 questions, each asked twice: 16 of 16 runs passed, no number the record lacks. Not yet run on the 24-question evaluation |
 
 Small runs on any computer with 16 GB of memory and no GPU, Windows, Linux or
 macOS; the stack beside it takes about 1 GB more. Large wants a 32 GB Mac or a
-24 GB NVIDIA GPU. Two other answering models were measured and dropped:
+24 GB NVIDIA GPU. The two rows come from different question sets, so they do
+not say which size answers better: the large one has not been run on the 24
+questions yet. Two other answering models were measured and dropped:
 MiniCPM5-1B answered 2 of the 24 questions with every expected fact for 0.4 GB
 less download, and Qwen3.5-9B did not fit beside the stack on 16 GB.
 
@@ -55,21 +57,33 @@ evaluation behind the figures, its cases and how to rerun it.
 ### Without a GPU
 
 The times above are Apple silicon's, where llama.cpp runs on the GPU. On the
-CPU alone a first answer takes minutes. Measured on Linux on 2026-10-07, in
-llama.cpp's CPU image (`ghcr.io/ggml-org/llama.cpp:server`, the `local-cpu`
-profile below) with 4 vCPUs (colima, arm64):
+CPU alone an answer takes minutes, and how many depends on the processor.
+Both measurements below ran the small size in llama.cpp's CPU image (the
+`local-cpu` profile below) with 4 vCPUs, on 2026-10-07:
 
-- MiniCPM5-2B reads a prompt at about 50 tokens a second and writes at about
-  18. A 6.8k-token prompt was answered in 137 s, so expect 2–3 minutes for
-  a first answer; later turns reuse the server's prompt cache and read only
-  what is new.
-- GLM-OCR reads a photographed page in about 17 s, its two passes together.
+| | Apple M1 Pro, in colima's arm64 VM | Intel Xeon Gold 5220R, Linux x86 (an external review) |
+| --- | --- | --- |
+| MiniCPM5-2B reads a prompt | about 50 tokens a second | not measured |
+| MiniCPM5-2B writes | about 18 tokens a second | 3 to 7 tokens a second |
+| A first answer | 2–3 minutes (a 6.8k-token prompt answered in 137 s) | up to about 15 minutes, the models' download included |
+| A report photo | GLM-OCR read a page in about 17 s, its two passes together | up to about 9 minutes until the upload was processed |
+| A PDF page | not measured | up to about 12 minutes until the upload was processed |
+
+- Later turns reuse the server's prompt cache and read only what is new; a
+  new conversation reads its whole prompt again (6.8k and 8.4k tokens in the
+  two measurements). The preset gives each model two slots (`np = 2`), so a
+  title or a summary written in the background takes cores from the answer.
 - Both models loaded hold about 6.0 GiB in the container, so Docker's VM
   needs at least 8 GB of memory. Docker Desktop gives it half the computer's
   by default, 8 GB on a 16 GB machine; colima starts with 2 GB unless given
   `--memory 8`.
 - The product's tool-call probe (`doctor --probe`) passed through this
   service, and both models load from its cache volume once downloaded.
+- The cache is the `mirobody_models` volume of one compose project: a second
+  checkout, or another `COMPOSE_PROJECT_NAME`, downloads the models again.
+- This image logs `warning: no usable GPU found, --gpu-layers option will be
+  ignored`: the preset asks for the GPU, which the `local` service uses, and
+  the CPU build ignores the setting.
 
 ## Start the models
 
@@ -79,18 +93,29 @@ answering model and the reader in memory, so choosing another size on the
 setup page unloads the one before.
 
 **Any computer with Docker, no GPU needed** (Windows, Linux or macOS). The
-slowest, a first answer in 2–3 minutes ([Without a GPU](#without-a-gpu)), and
-the one that needs nothing besides Docker, with at least 8 GB of memory for it:
+slowest: a first answer takes from 2–3 minutes on an M1 Pro's cores to about
+15 on a 4-vCPU x86 server ([Without a GPU](#without-a-gpu)). It is the one
+that needs nothing besides Docker, with at least 8 GB of memory for it, and
+it downloads about 3.7 GB the first time: the 3.0 GB of models, and about
+0.7 GB of images (llama.cpp's CPU image about 310 MB, the app about 230 MB,
+Postgres about 160 MB), which take about 2 GB once unpacked (850, 640 and
+460 MB on Linux x86):
 
 ```bash
 COMPOSE_PROFILES=local-cpu ./deploy.sh     # the stack, plus llama.cpp's CPU image beside it
 ```
 
 `deploy.sh` writes `COMPOSE_PROFILES` into `.env`, so a later
-`docker compose up -d` keeps the model service. On a stack that is already
-running, `docker compose --profile local-cpu up -d` starts it beside the app
-(the line the setup page shows; `--profile local` for the GPU service below);
-add `COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
+`docker compose up -d` keeps the model service, and points both local
+entries at it (`LOCAL_BASE_URL` and `LOCAL_OCR_BASE_URL`,
+`http://llama:8080/v1`), so the setup page has nothing to ask. A vendor key
+exported in your shell is left out of `.env`, and one already there is named,
+since its vendor would come first. The first question waits for the models'
+download: `docker compose logs -f llama_cpu` shows it (`llama` for the GPU
+service below). On a stack that is already running,
+`docker compose --profile local-cpu up -d` starts it beside the app (the line
+the setup page shows; `--profile local` for the GPU service below); add
+`COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
 removes it and the next `up` leaves it out.
 
 **Windows**, to use the GPU (Intel, AMD or NVIDIA, through Vulkan; the CPU when
@@ -134,6 +159,13 @@ read the cache. Where huggingface.co is unreachable, point the download at a
 mirror: `HF_ENDPOINT=https://<mirror>` in `.env` for the compose services, or
 in the shell before `llama-server`. The models are the only thing fetched;
 nothing about you is sent.
+
+The two compose services run llama.cpp build b11429, the one the evaluation
+ran: `ghcr.io/ggml-org/llama.cpp:server-b11429` for `local-cpu` and
+`server-cuda-b11429` for `local`. `LLAMA_CPU_IMAGE` and `LLAMA_IMAGE` in
+`.env` replace them, then `docker compose up -d`: with a later build, or,
+where ghcr.io is unreachable, with the same tag on a registry that mirrors
+it (`LLAMA_CPU_IMAGE=<mirror>/ggml-org/llama.cpp:server-b11429`).
 
 **Mirobody itself on Windows** runs in Docker Desktop (WSL 2 backend): open a
 WSL terminal (Ubuntu), clone the repository there and run `./deploy.sh`, as on
@@ -194,11 +226,15 @@ points at the Docker bridge, so a server on the host has to listen there: give
 it the bridge address (`--host 172.17.0.1`, from `ip -4 addr show docker0`),
 not `0.0.0.0`, which also offers the server, with no key, to every machine on
 your network. The `local` and `local-cpu` services need neither: the app
-reaches them on compose's own network.
+reaches them on compose's own network, and they publish no port. The app
+itself is published on `127.0.0.1` only; `MIROBODY_BIND=0.0.0.0` in `.env`
+offers it to your network, where the demo accounts' code, `111111`, is public
+([SECURITY.md](../SECURITY.md) says what to change first).
 
-`failed to initialize router models: ... Is a directory` in the `llama` log
-means Docker could not see the checkout, and mounted an empty directory where
-the preset should be. Colima shares only your home directory by default; keep
+`failed to initialize router models: ... Is a directory` in the model
+service's log (`docker compose logs llama_cpu`, or `llama` on the GPU) means
+Docker could not see the checkout, and mounted an empty directory where the
+preset should be. Colima shares only your home directory by default; keep
 the checkout under it, or add the path to colima's `mounts`.
 
 ## The document reader
@@ -296,9 +332,11 @@ what was eaten.
 ## Things that behave differently from a hosted model
 
 - **Nothing streams while the prompt is read.** A turn that adds 6.6k new
-  tokens waits over a minute for its first byte on an M4 Pro, over two on 4 CPU
-  cores. The `local` entry allows 600 s of silence (`stream_chunk_timeout`); the
-  library default of 120 s fails a long turn.
+  tokens waits over a minute for its first byte on an M4 Pro, over two on an
+  M1 Pro's 4 CPU cores, and longer on a slower processor
+  ([Without a GPU](#without-a-gpu)). The `local` entry allows 600 s of
+  silence (`stream_chunk_timeout`); the library default of 120 s fails a long
+  turn.
 - **The first turn after loading is the slow one.** The server caches the
   prompt it has read, so later turns read only what changed.
 - **A reply can be all reasoning.** The agent asks once more when a reply has

@@ -47,12 +47,14 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 | | 模型在哪里跑 | 你需要 | 什么会离开这台机器 |
 | --- | --- | --- | --- |
 | **一把模型 key** | 在你粘贴 key 的那家厂商：OpenRouter、OpenAI、Gemini、Anthropic、DeepSeek、DashScope，或任何 OpenAI 兼容网关 | Docker 和一把 key | 你的提问、智能体读到的数据行和它读的文档，都会发给那家厂商 |
-| **100% 在本机运行** | **由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供模型服务**，跟服务一起跑；Mirobody 自己不跑模型。默认由 MiniCPM5-2B 回答问题、GLM-OCR-0.9B 读文档；内存更多时可换 Qwen3.8-27B，回答更好。模型名可以自己改（[说明](docs/local-models.md)） | Docker 和 16 GB 内存即可跑默认组合，不需要显卡，Windows、Linux、macOS 都行（Qwen3.8-27B 约需 20 GB）；模型一次性下载 3.0 GB（大号 14.5 GB） | 与你有关的任何数据都不会离开。在 16 GB 的 M1 Pro 上一个回答约 30 秒；没有显卡时，4 核 CPU 上第一个回答要 2–3 分钟（Qwen3.8-27B 在 M4 Pro 上约两分钟） |
+| **100% 在本机运行** | **由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server` 提供模型服务**，跟服务一起跑；Mirobody 自己不跑模型。默认由 MiniCPM5-2B 回答问题、GLM-OCR-0.9B 读文档；内存更多时可换 Qwen3.8-27B，它能直接看照片（还没有跑过 24 道题的评测）。模型名可以自己改（[说明](docs/local-models.md)） | Docker 和 16 GB 内存即可跑默认组合，不需要显卡，Windows、Linux、macOS 都行（Qwen3.8-27B 约需 20 GB）；一次性下载 3.0 GB 模型（大号 14.5 GB）和约 0.7 GB 镜像（用 NVIDIA 镜像时约 3 GB） | 与你有关的任何数据都不会离开。在 16 GB 的 M1 Pro 上用 GPU 一个回答约 30 秒；没有显卡时第一个回答要几分钟：M1 Pro 的 4 个核上 2–3 分钟，4 vCPU 的 x86 服务器上最长约 15 分钟（Qwen3.8-27B 在 M4 Pro 的 GPU 上约两分钟） |
 | **只用库** | 不需要模型：`pip install mirobody` 或 `uvx --python 3.12 mirobody` 把名称解析到 LOINC、单位换算到 UCUM | Python 3.12 | 什么都不会离开：词表随包发布 |
 
 用模型 key 时只需要 Docker：不用 Python，不用 Node.js，不用 GPU，不用 Git LFS，连 Git 都可以不装（`curl -L https://github.com/thetahealth/mirobody/archive/refs/heads/main.tar.gz | tar xz && cd mirobody-main` 得到的是同一份检出）。`deploy.sh` 会把密钥和你的 key 写进 `.env`，拉取预构建镜像，拉不到时才用当前检出在本机构建；端口被占用、或同名的另一套 Mirobody 已经在跑时，它会停下来并说清楚怎么改。镜像要和自己的 Postgres 一起跑，所以单独 `docker run` 是跑不起来的。之后再加 key：写进 `.env`，然后 `docker compose up -d`；`restart` 不会重新读 `.env`。
 
-1. **登录。** 登录页会直接给出演示账号：「邮箱验证码」页签，`you@mirobody.ai`，验证码 `111111`。`SEED_DEMO_DATA` 默认打开，一开始两个账号就合计有 **2,019 条读数**：你自己，和把记录以只读方式共享给你的 `mom@mirobody.ai`。
+应用只在本机监听（`127.0.0.1:18060`）。要从别的机器访问，在 `.env` 里设 `MIROBODY_BIND=0.0.0.0` 再 `docker compose up -d`，但先读 [SECURITY.md](SECURITY.md)：演示账号的验证码 `111111` 是公开的，能连上这个端口的人都能用它登录。
+
+1. **登录。** 登录页会直接给出演示账号：「邮箱验证码」页签，`you@mirobody.ai`，验证码 `111111`。`SEED_DEMO_DATA` 默认打开，一开始两个账号就合计有 **2,019 条读数**：你自己，和把记录以只读方式共享给你的 `mom@mirobody.ai`。演示账号的验证码是公开的，自己的文档请放在自己的账号里：登录页的 **注册** 页签可以新建一个。
 2. **把一份文件拖到 Data 页。** [`demo/upload/`](demo/) 里放着四份种子数据故意没写进库的文件：化验单 PDF 和另一家化验所导出的 CSV 是你的，打印报告的照片和表格是妈妈的，要用她的账号上传。每一项分析物都带着数值、单位和编码被抽出来，并链回它来源的那一页。
 3. **提问。**「我的胆固醇怎么变的？」会把带着这一项的文件全都找出来，不管化验所怎么写，画出趋势，并说明每个数字出自哪份文件。同一个问题问到共享给你的那份记录上，答案就来自你只能看、不能改的数据。
 4. **用自己的话记下感受。** 在「数据 › 记录」里写一句 `昨晚开始头疼，血压150/95，没发烧，每天早晚吃二甲双胍500mg`：一句话变成一条带码的症状、两条带码的读数和一条用药，「没发烧」不会被当成发烧记下来。

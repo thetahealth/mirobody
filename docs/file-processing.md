@@ -29,7 +29,7 @@ This module provides comprehensive health data file processing capabilities, inc
 - ✅ **Smart File Recognition**: Automatically identifies file types and selects the appropriate handler
 - ✅ **Health Indicator Extraction**: Uses LLM to automatically extract health indicator data from medical reports
 - ✅ **Multi-format Support**: Supports PDF, images, Office documents, text, genetic data and more
-- ✅ **PDF Parallel Processing**: Multi-page PDFs are processed in parallel for improved efficiency
+- ✅ **PDF Text First**: a PDF's text layer is read directly; only its scanned pages go to the OCR model, several at once
 - ✅ **File Summary Generation**: Automatically generates file content summaries
 - ✅ **Cascade Deletion**: Automatically cleans up associated health data when files are deleted
 
@@ -43,15 +43,21 @@ This module provides comprehensive health data file processing capabilities, inc
 | Images | `image/*` | `ImageHandler` | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.heic`, `.heif`, `.tif`, `.tiff`; downscaled and OCR'd, then the same extraction path as PDF |
 | Genetic Data | Raw genotype export, `.txt` / `.csv` / VCF: WeGene, 23andMe, AncestryDNA, MyHeritage, FTDNA; plain, gzip, BGZF, or a ZIP holding one VCF with bounded BED/TXT sidecars | `GeneticHandler` | Recognised by its column header; uploaded rows enter `th_genotype_set` / `th_genotype` and become queryable only after atomic activation. The old `th_series_data_genetic` table is migration input only. See [genetics.md](genetics.md) |
 | Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.htm`, `.log` decoded directly, same extraction path as PDF |
-| Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget. `.xls` and `.xlsb` upload but do not parse: openpyxl reads only the zip formats, and `detect.LEGACY_OFFICE_SUFFIXES` names them so a reader is told the file could not be read rather than handed container bytes as prose |
+| Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget. `.xls` and `.xlsb` are refused at upload: openpyxl reads only the zip formats |
 | Word / PowerPoint | OOXML | `DocumentHandler` | `.docx`, `.pptx` as markdown (headings, paragraphs, tables, slides) |
 
-Two lists, and they are not the same list. `mirobody/utils/file_types.py` is
-the UPLOAD accept-list: what a user is allowed to hand the server. It carries
-`.xls` and `.xlsb`, which no parser here reads. What a file can be READ as is
+Two lists, and they are not the same list.
+`collect/files/services/file_uploader.SUPPORTED_EXTENSIONS` is the UPLOAD
+accept-list, checked by `POST /files/upload` and by the WebSocket's
+`upload_start` before a byte is taken: it also holds the genotype containers
+(`.vcf`, `.gz`, `.zip`). What a file can be READ as is
 `mirobody/documents/detect.py`: `EXTRACTABLE_SUFFIXES` (15, through a parser
 or OCR) plus `TEXT_EXTENSIONS` (8, decoded directly) is the 23 the README
-counts. When this table and that module disagree, the module is the contract.
+counts, and the handler is chosen by `detect.kind` (the name, the declared
+type and the first bytes), so a photo sent as `application/octet-stream` is
+still a photo. A file it names no kind for fails with "File type not
+supported". When this table and that module disagree, the module is the
+contract.
 
 Whatever the handler, the TEXT of a document comes from one place:
 `mirobody/documents/` (`detect.kind` by extension, content type and, when
@@ -418,45 +424,36 @@ Authorization: Bearer <token>
 
 #### 2. File Type Recognition (30-35%)
 
-The system automatically identifies file types via `FileHandlerFactory`:
+`FileHandlerFactory` picks the handler:
 
 ```python
-# Handler selection priority
-1. GeneticHandler  - Genetic data files
-2. ImageHandler    - Image files (image/*)
-3. PDFHandler      - PDF documents
+# Handler selection
+1. GeneticHandler  - a genotype export, by its content
+2. detect.kind     - pdf, image, xlsx, docx/pptx, text: by name, declared type and bytes
+3. none            - "File type not supported"
 ```
 
 #### 3. Content Processing Phase (35-90%)
 
-**PDF File Processing:**
-```
-Single/few page PDF:
-  35-65%: File upload and save
-  65-90%: LLM indicator extraction
+Every kind but a genotype export takes the same steps (`BaseFileHandler`),
+reported in each file's share of the batch's progress:
 
-Multi-page PDF (>2 pages):
-  35-50%: File upload and PDF splitting
-  50-70%: Parallel page processing
-  70-90%: Result merging and deduplication
 ```
-
-**Image File Processing:**
-```
-35-55%: Image upload
-55-90%: Recognition + indicator extraction
+35%: storing the file (a failed upload fails the file)
+55%: extracting its text (`documents.extract_text`, cached by content hash)
+70%: generating its abstract and a name (the text model; an image with no
+     text is described by the vision model)
+90%: done; indicator extraction starts in the background
 ```
 
-#### 4. Summary Generation Phase (90-95%)
+#### 4. Indicator Extraction (after the upload completes)
 
-- Generate file content summary using LLM
-- Generate intelligent file name
-
-#### 5. Result Saving Phase (95-100%)
-
-- Save processing results to database
-- Write the extracted indicators as observations (`th_observation`, coded on the way in)
-- Update user health profile
+- The report's date is probed first and sent as `report_date_detected`
+- The table rules read every table; the model reads what they left
+- The readings are written as observations (`th_observation`, coded on the
+  way in), the file row records the count STORED, and `extraction_completed`
+  says whether it worked: rows read and none stored fail the file with the reason
+- The user's health profile is refreshed
 
 ---
 
@@ -637,10 +634,13 @@ Authorization: Bearer <token>
 When deleting files, the system automatically performs cascade deletion:
 
 1. **Storage Deletion**: Delete file from object storage (S3/OSS)
-2. **Database Update**: Update file list in `th_messages` table
-3. **Health Data Cleanup**: Erase the observations extracted from the file (`observations.erase`, cascading to their coding and day authority)
-4. **Genetic Data Cleanup**: If genetic file, delete its `th_genotype_set` and cascading `th_genotype` rows, plus any unmigrated `th_series_data_genetic` rows
-5. **Message Marking**: If all files are deleted, mark message as deleted
+2. **Database Update**: Mark the file's `th_files` row deleted (`is_del`)
+3. **Derived Profile**: Invalidate the health profile of each record a deleted file was filed in
+4. **Health Data Cleanup**: Erase the observations extracted from the file (`observations.erase`, cascading to their coding and day authority), under the owner of the record it was filed in
+5. **Genetic Data Cleanup**: If genetic file, delete its `th_genotype_set` and cascading `th_genotype` rows, plus any unmigrated `th_series_data_genetic` rows
+
+Steps 4 and 5 run in the background, every file on its own: one whose erase
+fails is logged and does not stop the others.
 
 ---
 
@@ -715,7 +715,7 @@ interface FileProcessingResult {
     "type": "upload_error",
     "messageId": "message-id",
     "status": "failed",
-    "message": "Upload start failed: <error_details>"
+    "message": "File type .xls not supported. Supported types: ..."
 }
 ```
 
@@ -724,7 +724,7 @@ interface FileProcessingResult {
 ```json
 {
     "code": 1,
-    "msg": "File upload failed: <error_details>",
+    "msg": "All 1 files failed to upload",
     "data": null
 }
 ```

@@ -398,19 +398,6 @@ def sniff_stream(source: BinaryIO) -> GenotypeFormat | None:
         source.seek(original)
 
 
-def genotype_of(cells: list[str], shape: str) -> str:
-    """The row's two alleles as one string, or `NO_CALL`."""
-    if shape == SHAPE_ALLELES:
-        a, b = (cells[3] if len(cells) > 3 else ""), (cells[4] if len(cells) > 4 else "")
-        if a in _NO_CALL_SPELLINGS or b in _NO_CALL_SPELLINGS:
-            return NO_CALL
-        return (a + b).upper()
-    value = cells[3] if len(cells) > 3 else ""
-    if value.upper() in _NO_CALL_SPELLINGS:
-        return NO_CALL
-    return value.upper()
-
-
 def _value(cells: list[str], columns: tuple[str, ...], field: str) -> str:
     index = _column_index(columns, field)
     return cells[index] if index is not None and index < len(cells) else ""
@@ -459,8 +446,6 @@ def records(lines: Iterable[str], fmt: GenotypeFormat, *, sample: str | None = N
             if result:
                 yield result
             continue
-        if _declared_format(line, fmt.vendor, fmt.build):
-            continue
         if fmt.shape == SHAPE_REPORT:
             rsid = cells[1] if len(cells) > 1 else ""
             chrom = _value(cells, fmt.columns, "chromosome")
@@ -505,14 +490,6 @@ def records(lines: Iterable[str], fmt: GenotypeFormat, *, sample: str | None = N
         yield GenotypeRecord(rsid, canonical_chromosome(chrom), position, genotype, fmt.strand)
 
 
-def rows(lines: Iterable[str], fmt: GenotypeFormat) -> Iterator[tuple[str, str, int, str]]:
-    """Legacy four-column array rows; VCF/TOP need ``records`` metadata."""
-    if fmt.shape == SHAPE_VCF or fmt.strand == "top":
-        raise ValueError("VCF GT or TOP strand requires records() and normalization")
-    for record in records(lines, fmt):
-        yield record.rsid, record.chromosome, record.position, record.genotype_raw
-
-
 __all__ = [
     "GenotypeFormat",
     "GenotypeRecord",
@@ -524,10 +501,8 @@ __all__ = [
     "SHAPE_WIDE",
     "SNIFF_BYTES",
     "canonical_chromosome",
-    "genotype_of",
     "open_lines",
     "records",
-    "rows",
     "sniff",
     "sniff_stream",
 ]

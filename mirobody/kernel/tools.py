@@ -10,8 +10,10 @@ travels out of band in a :class:`ToolResult`. Three rules from production:
 * A call that failed as ``unrecoverable`` is not retried with the same
   arguments rephrased. :class:`RetryLedger` keys calls by their *normalised*
   arguments, so ``["a","b"]`` and ``["b","a"]`` are one call.
-* Caps on how many times a tool runs per turn are the agent framework's job
-  (``ToolCallLimitMiddleware``); this module does not count budgets.
+* The ledger caps repeats of ONE call (``RetryLedger.limit``). How many times
+  a tool may run per turn whatever its arguments, and how many model calls a
+  turn may make, are the agent framework's caps (``ToolCallLimitMiddleware``,
+  ``ModelCallLimitMiddleware``), not this module's.
 
 Pure; stdlib only. The middleware that plugs these into an agent framework
 lives with that framework.
@@ -89,8 +91,12 @@ _FAULT_HINT = {
 
 def fault_text(kind: str, tool_name: str, exc: BaseException | None = None) -> str:
     """The JSON the model sees in place of a crashed tool result: tool name,
-    fault kind, exception type, guidance. Never the exception message."""
-    body = {"error": f"{tool_name} failed ({kind})", "error_kind": kind, "hint": _FAULT_HINT[kind]}
+    error kind, exception type, guidance. Never the exception message.
+
+    ``error_kind`` is the envelope's vocabulary (`error_kind_for`), so the
+    text and the artifact `fault_envelope` attaches name the fault alike."""
+    error_kind = error_kind_for(kind)
+    body = {"error": f"{tool_name} failed ({error_kind})", "error_kind": error_kind, "hint": _FAULT_HINT[kind]}
     if exc is not None:
         body["exception_type"] = type(exc).__name__
     return json.dumps(body, ensure_ascii=False)
@@ -107,7 +113,7 @@ ERROR_UNRECOVERABLE = "unrecoverable"
 
 #: The closed set of ``error_kind`` values a tool may report.
 ERROR_KINDS = frozenset(
-    {"invalid_arguments", "timeout", "unavailable", "no_data", "denied", "internal", "repeated_call"}
+    {"invalid_arguments", "unavailable", "no_data", "denied", "internal", "repeated_call"}
 )
 
 #: Fault kind → whether retrying the same call can help, and the kind reported.
@@ -295,7 +301,7 @@ class RetryLedger:
         return json.dumps(
             {
                 "error": f"{tool} not run",
-                "error_kind": "retry_refused",
+                "error_kind": "repeated_call",
                 "hint": why + " Change the question, or answer with what you have.",
             },
             ensure_ascii=False,

@@ -204,15 +204,15 @@ class UniversalPromptCachingMiddleware(AgentMiddleware):
         # native Anthropic. ChatAnthropicVertex pops it and places a breakpoint on
         # the last message block, caching the full prefix (system + tools + all
         # messages, including large tool results such as PDF file blocks) across
-        # turns. Falls back to the claude config if the model name is unusual.
+        # turns.
         if client_type == "anthropic-vertex":
-            return CacheStrategy.MODEL_SETTINGS, model_config or MANUAL_CACHE_MODELS["claude"]
+            return CacheStrategy.MODEL_SETTINGS, model_config
 
         # OpenRouter with Claude/Gemini - use message content blocks
         if client_type == "openai" and is_openrouter:
             return CacheStrategy.MESSAGE_CONTENT, model_config
 
-        # Google Vertex AI (including Claude via Vertex) - no cache_control support
+        # Gemini on Vertex AI (ChatVertexAI): no cache_control parameter
         if client_type == "google-vertexai":
             logger.debug(
                 f"Model '{model_name}' using Google Vertex AI, "

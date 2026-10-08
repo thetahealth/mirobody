@@ -3,6 +3,9 @@ import logging
 
 from psycopg_pool import AsyncConnectionPool
 
+from mirobody.collect import observations
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 # Tables where merging is a plain UPDATE col = winning WHERE col = losing:
@@ -181,43 +184,10 @@ async def _merge_care_circle_members(cur, losing_id: int, winning_id: int) -> in
 
 
 async def _merge_observations(cur, losing_str: str, winning_str: str) -> int:
-    """th_observation has a unique identity that includes user_id, and
-    th_day_authority is keyed by (user_id, series_id, day).
-
-    A losing observation whose identity the winner already holds (the same
-    report uploaded to both accounts) is dropped; the rest move over. The
-    loser's day authority is deleted, so it never names a row the fact table
-    no longer gives that person.
-    """
+    """The observation tables, through their one writer."""
     if not await _table_exists(cur, "th_observation"):
         return 0
-
-    await cur.execute(
-        """
-        DELETE FROM th_observation l
-         WHERE l.user_id = %(losing)s
-           AND EXISTS (
-             SELECT 1 FROM th_observation w
-              WHERE w.user_id = %(winning)s
-                AND w.name_key = l.name_key
-                AND w.observed_start = l.observed_start
-                AND w.observed_end = l.observed_end
-                AND w.source_ref = l.source_ref
-                AND COALESCE(w.source_record_id, '') = COALESCE(l.source_record_id, '')
-                AND COALESCE(w.member_of, 0) = COALESCE(l.member_of, 0)
-                AND COALESCE(w.amends, 0) = COALESCE(l.amends, 0)
-           );
-        """,
-        {"losing": losing_str, "winning": winning_str},
-    )
-    total = cur.rowcount or 0
-
-    await cur.execute("UPDATE th_observation SET user_id=%s WHERE user_id=%s;", [winning_str, losing_str])
-    total += cur.rowcount or 0
-    if await _table_exists(cur, "th_day_authority"):
-        await cur.execute("DELETE FROM th_day_authority WHERE user_id=%s;", [losing_str])
-        total += cur.rowcount or 0
-    return total
+    return await observations.merge_accounts(cur, losing_str, winning_str)
 
 
 async def _merge_th_user_avatar_managed(cur, losing_str: str, winning_str: str) -> int:
@@ -331,14 +301,10 @@ async def merge_accounts(
                         )
 
     except Exception as e:
-        logger.error(str(e), extra={
-            "losing_user_id"  : losing_user_id,
-            "winning_user_id" : winning_user_id,
-            "reason"          : reason,
-            "affected_so_far" : affected,
-        })
-
-        return affected, str(e)
+        logger.error("account merge failed: losing_user_id=%s winning_user_id=%s reason=%s error_type=%s",  # phi: ok a caller's literal label
+                     losing_user_id, winning_user_id, reason, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
+        return affected, "The accounts could not be merged. Nothing was changed; try again."
 
     return affected, None
 

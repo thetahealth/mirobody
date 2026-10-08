@@ -17,6 +17,262 @@
   `--verify-only` first: nothing recorded those erasures, so a plain run would
   write them back. That run writes nothing, marks what is already moved and
   counts the rest.
+- **The app answers on `127.0.0.1` unless `MIROBODY_BIND` says otherwise.**
+  `compose.yaml` published port 18060 on every interface. It now publishes
+  `${MIROBODY_BIND:-127.0.0.1}:${MIROBODY_HOST_PORT:-18060}`, as it already
+  did Postgres (Security, below).
+  - Anything that reached the app from another machine needs
+    `MIROBODY_BIND=0.0.0.0` (or one address of this host) in `.env`, then
+    `docker compose up -d`, after reading SECURITY.md. That includes a
+    browser elsewhere on the network and a phone posting to `/apple/health`.
+  - A reverse proxy on the same host reaches `127.0.0.1` unchanged.
+
+  To tell: `docker compose config` shows `host_ip: 127.0.0.1` on the app's
+  port.
+- **The pre-1.4.1 configuration spellings are no longer read.** These were
+  still read as their successors, from a file and from the environment:
+  - `PROVIDERS` and `PROVIDERS_DEEP` (now `MODELS`);
+  - `PROMPTS_DEEP` (now `PROMPTS`);
+  - `ALLOWED_TOOLS_DEEP` (now `ALLOWED_TOOLS`);
+  - `DISALLOWED_TOOLS_DEEP` (now `DISALLOWED_TOOLS`);
+  - `DEFAULT_PROVIDER` and `DEFAULT_PROVIDER_DEEP` (now `DEFAULT_MODEL`).
+
+  Each is now named once at boot and ignored, like the keys removed
+  outright: "config key PROVIDERS is renamed `MODELS` (a provider is a
+  device); it is being ignored." Rename them before upgrading.
+
+  `WHOOP_CONCURRENT_REQUESTS` and `WHOOP_MAX_DETAIL_RECORDS` are no longer
+  read either, with no warning. The layer that read them, WHOOP's second
+  fetch of every record, is gone.
+- **`LOG_ENCRYPTION_KEY` is retired.** It encrypted an `encrypted_info` log
+  field that nothing sets.
+  - `deploy.sh` no longer generates it, `mirobody dev` no longer sets it,
+    and the quickstart no longer names it.
+  - Boot no longer logs "LOG_ENCRYPTION_KEY is not set" at ERROR where it
+    was missing.
+  - An old value in `.env` is ignored without a warning and can be deleted.
+- **A default `config.yaml` is read and never rewritten.**
+  - Before: `Config.init` took any `config.yaml` in the working directory
+    as Mirobody's defaults. It wrote every plaintext
+    `*_KEY`/`*_PASSWORD`/`*_TOKEN` value back encrypted, under an all-zeros
+    key when `CONFIG_ENCRYPTION_KEY` was unset.
+  - `mirobody parse`, the MCP stdio server and `POST /api/standardize` all
+    reach `Config.init`, so running one in another project's directory
+    rewrote that project's `config.yaml`. The same write-back reached a
+    checkout's tracked `config.yaml` and the wheel's shipped defaults.
+  - Now a working-directory `config.yaml` counts only with
+    `config.llm.yaml` beside it, and the default file and its INCLUDEs are
+    never written.
+  - A file the caller names is still encrypted in place: `mirobody serve
+    extra.yaml`, `config.{ENV}.yaml`, a `*.key.yaml`.
+
+  A plaintext secret in the default `config.yaml` now stays plaintext, so
+  keep secrets in one of those named files.
+- **`POST /api/share/share/deactivate` answers 404.** The doubled-prefix
+  alias is gone; `/api/share/deactivate` is the route.
+- **Device links that need action after the upgrade.**
+  - **Garmin.** Accounts linked before this release stored an empty
+    Garmin user id, and pushes are matched to accounts by that id. They
+    must relink before their pushes match. To tell:
+    `health_user_provider.username` is non-empty for `theta_garmin`.
+  - **CUSTOMIZED links.** `connect_info` was stored in plaintext and is now
+    encrypted; a plaintext value is not read, so such a link must be made
+    again. Only plugins use this link type; the shipped providers do not.
+    The old soft-deleted rows keep their plaintext until a migration clears
+    them.
+  - **Leftover `vital_*` rows.** The filter that hid them is gone. A
+    deployment that still has them should run `UPDATE health_user_provider
+    SET is_del = TRUE WHERE provider LIKE 'vital\_%'`.
+  - **Oura, WHOOP and Garmin re-pulls.** A reading's identity is now the
+    vendor's record id (Fixed, below). Rows stored before keep their old
+    identity. So the first re-pull after the upgrade stores one more copy
+    of each reading still in the pull window, and none after.
+- **Reply codes that changed.** Each reply is still `{code, msg, data}`. The
+  web client reads only `code === 0` and `data`, which are unchanged for a
+  success.
+  - A care-circle denial that reaches the app handler: `code` 403 (was
+    -403), status 403 as before.
+  - The data-distribution and uploaded-files routes: a refusal is 403 (was
+    -2), a failure 500 (was -2 and -1).
+  - Deleting files: 400, 404 or 500 with an empty `data` (was 1).
+  - The share routes: `{code, msg, data}` with a fixed sentence under the
+    code they already used.
+  - The chat endpoint: a body that is an empty object is -1 "Invalid request
+    body." (was -2).
+  - `/personal/mcp` for a deleted account: -3 "Not a valid session." (was -4
+    "Invalid user ID."), both 401.
+  - The OAuth refresh grant's `error_description` names the JWT library's
+    exception type, not its text.
+  - `PUT /api/user/settings` writes only the fields sent (Fixed, below).
+  - Linking a device provider that is not registered answers 400 (it was
+    answered as a successful link).
+  - A device webhook whose payload saved nothing answers an error (was
+    success), so the vendor retries.
+  - `GET /google` is a prefix left from the removed Sign in with Google. It
+    now gets the web client's page, as any path without a backend owner
+    does, instead of 404.
+- **Log fields an operator's dashboards may read.** The PHI filter now runs
+  on every handler (Security, below).
+  - Only the `extra` keys in `kernel.ops.LOG_FIELDS` survive.
+  - A message over 300 characters is cut ("… [N chars truncated by
+    PHIFilter]").
+  - `execute_query` logs `row_count` and `duration_ms` (were `records` and
+    `time_cost`) and `param_count`.
+  - SQL statements log at DEBUG, not INFO.
+  - HTTP lines log `status`, `error_code`, `request_id`, `duration_ms`,
+    `size_bytes`, `result_type`, `count` and `content_types`. They no
+    longer log the client address, `X-Platform`, `X-Ver` or a redirect's
+    `Location`.
+  - A route failure logs "<action> failed: error_type=…" from the
+    `mirobody.server.envelope` logger, not the router's.
+- **A device provider plugin implements the smaller contract.**
+  - `pull_from_vendor_api(credentials, days)` is abstract and replaces
+    `(username, password)`.
+  - `format_data` is abstract again, so a provider without it no longer
+    loads.
+  - `is_data_already_processed` is removed.
+  - A provider declares `raw_table`, `pull_interval_hours`, `pull_days` and
+    `backfill_days`. The pull task reads the interval from the provider;
+    there is no table of intervals by slug.
+  - `mirobody.collect.TimeUtils` is removed. It answered a missing time with
+    now().
+  - From `collect.base`, `AuthType` (use `LinkType`), `setup_platform_system`,
+    `get_platform_manager` and `setup_platform_system_async(providers=)`
+    are removed.
+
+  `docs/provider-guide.md` is the reference, and the example plugin
+  implements the new signature.
+- **Python names removed or moved**, each with what replaces it:
+  - **`mirobody.utils`:**
+    - `utils.sse.ping_while_pending` (the chat stream writes its own
+      heartbeat); `utils.tasks.pending_count`;
+      `utils.file_types.IMAGE_MEDIA_TYPES`,
+      `is_excel_file`, `is_document_file`, `is_text_file` and the
+      `EXCEL_*` and `DOCUMENT_*` sets (`documents.detect.kind` routes an
+      upload);
+    - `utils.log.init_log_tqdm` and `TqdmLoggingHandler`; the `secret_key=`
+      parameter of `init_log`, `init_log_console` and `init_log_file`, and
+      `LogConfig.secret_key`;
+    - `Config.get_mcp_options()` and `Config.get_agent_options()` (read
+      `config.mcp_tool_dirs` and `config.agent_dirs`); `Config.refresh()`
+      takes no argument;
+    - `execute_query(**kwargs)`, whose unknown keywords were dropped
+      silently; `PostgreSQLConfig.get_async_client()`,
+      `utils.config.doctor.provider_report()` and `LocalStorage()` lose
+      their unused arguments; `utils.crypto`'s `key_hex=` is `key=`;
+    - the scheduler's lock-duration plumbing: `PullTask(lock_duration_hours=)`,
+      `PROVIDER_LOCK_DURATIONS`, `custom_lock_duration`, and the lock
+      manager's `force` and `lock_duration_hours`;
+    - its status and manual-trigger surface: `get_status`, `get_full_status`,
+      `get_lock_status`, `get_task_stats`, `manual_trigger`,
+      `Scheduler.trigger_task`, `get_task`, `ScheduleType.MANUAL`,
+      `clear_last_execution_timestamp`, `save_task_stats`;
+    - `EphemeralStore.delete_if_value`.
+  - **`mirobody.utils.llm`** (vision):
+    - `unified_file_extract(path, ...)`, the `FileProcessor` shim,
+      `clean_json_response` and `openai_compatible_file_extract` are
+      replaced by `vision_extract(image, mime, prompt, *, provider, model,
+      json_mode, max_tokens)`, which reads one image held in memory; an
+      empty answer raises `ImageNotRead`;
+    - `backends_anthropic.client_for` is
+      `AIClientManager.anthropic_for_spec`;
+    - `utils.llm.hipaa_policy` (`export_to_env`), and the package's
+      `__version__ = "2.0.0"` and `__author__`;
+    - `documents.render.pdf_pages_as_images`, `documents.detect.is_document`
+      and `documents.extract.pdf_text_layer`.
+  - **`mirobody.server`:**
+    - `Server()` no longer takes `mcp_server_url` or `api_keys`, and takes
+      `tool_dirs` and `agent_dirs`;
+    - `mirobody.server.routers.middleware` is gone; its four start-up
+      awaits are `bootstrap.start_schedulers()`;
+    - `server.middlewares.lacks_second_factor` and `aal2_required_response`
+      are now in `mirobody.user.auth.bearer`.
+  - **The agent and MCP layers:**
+    - `agent.checkpointer.close_checkpointer` (the saver lives for the
+      process);
+    - `filesystem.parser.FileParser` and `PreparedFile` (the module is
+      `parser.extract_text`); `filesystem.coercion.coerce_to_list` and
+      `coerce_to_bool`; `PgFilesystemBackend(session_id=)`;
+    - `McpService(protocol_version=, **kwargs)`;
+      `tools.genetic_service.NO_CALL`.
+  - **`mirobody.collect`:**
+    - `collect.lookup_extracted_text`;
+    - `observations.erase(name_pattern=)` is `name_contains=` and takes the
+      plain name; `observations.Report.written` (use `inserted`);
+    - `collect/ingest/services/base.py` (`BaseHealthService`), with
+      `TYPE_MAPPING`, `get_service_name` and
+      `StandardHealthService.normalize_health_data_unit`;
+    - `RepairReconciler.reconcile(user_timezone=)` and
+      `HealthDataRepository.sweep_th_series_data_repair`; the repair
+      result's `th_series_soft_deleted` key is `observations_retracted`;
+    - in `collect/files`: `ContentExtractor`;
+      `genotype_format.genotype_of` and `rows`;
+      `TempFileManager.create_temp_file_from_content`;
+      `FileDbService.TABLE_NAME` and the module-level `file_db_service`;
+      `file_upload_manager.websocket_file_upload_manager` (call
+      `get_websocket_file_upload_manager()`); `update_message_content`;
+    - `regenerate_file_url(file_key, original_filename, content_type)` is
+      `(file_key, content_type)`;
+    - `extract_indicators_from_text` loses `progress_callback`,
+      `ocr_db_id`, `source_table`, `save_to_db`, `file_name` and
+      `comment=`, and requires `file_key`;
+    - `save_indicators_to_db` raises on failure and returns the
+      `observations.Report`.
+  - **`mirobody.translate`:**
+    - `translate.get_all_units_info`; `canonical_units.STANDARD_UNITS`,
+      `UnifiedUnitConverter`, `INDICATOR_SPECIFIC_CONVERSIONS` and the
+      module-level `canonical_units.convert_unit` (use
+      `translate.terminology.convert_unit` or `mirobody.units.convert_value`).
+      `UNIT_CONVERSIONS` stays, same shape, every factor now from
+      `mirobody.units`;
+    - `value_scale.SCALE_COMPAT`, and the `semiqn` row of `GATE_SCALES`;
+    - `StandardIndicator.identifier` (use `.value.name`),
+      `VALID_INDICATORS` and `_INDICATOR_LOOKUP`;
+    - in `translate.aggregate`: `register_custom_rule`,
+      `get_source_indicators`, `TimeWindow`, `AggregationType`,
+      `ProcessingStats`, `AggregatorProtocol`,
+      `windows.all_windowed_names`, `AggregationRule.time_window`,
+      `enabled` and `priority`, the `AggregateIndicatorService(aggregator=,
+      db_service=)` arguments, `process_incremental(user_id=)`,
+      `AggregateDatabaseService.batch_save_summary_data(batch_size=)`, the
+      translate tasks' `get_task_info`, and the package-level re-exports;
+    - a failed `process_incremental` answers `error_type`, not `error`;
+    - `start_aggregate_indicator_scheduler()` takes no argument.
+  - **`mirobody.kernel`:**
+    - `tools.fault_text` puts the error kind (`unavailable`, `no_data`,
+      `invalid_arguments`) in `error_kind`, where it put the fault kind
+      (`transient`, `not_found`, `bad_arguments`);
+    - `RetryLedger`'s refusal says `repeated_call` (was `retry_refused`);
+    - `timeout`, which nothing produced, is gone from `ERROR_KINDS`;
+    - `decoders.whoop.canonical_type` and its plural aliases are gone;
+    - `decoders.apple_export.Counts.skipped_types` is gone.
+  - **Device link requests** carry `return_url` only. `redirect_url` and
+    `default_return_url`, which no shipped provider read, are no longer
+    passed.
+- **Library answers that change for the same input.** Recorded results may
+  differ after an upgrade; details are in Changed and Fixed.
+  - **Units.** `units.normalize_unit` gives `None` for `寸` and `尺`,
+    `meq/(24.h)` for `mEq/24h` and `meq/kg` for `mEq/kg`.
+    `units.canonical_unit("mm[Hg]")` is `"Pa"` (was `None`).
+    `units.convertible("[degF]", "Cel")` is `True`, while
+    `conversion_factor` stays `None` for that pair.
+  - **Values and zones.** `classify_value("-2.5")` is `"qn"` (was `"nar"`).
+    `series.zone("UTC+08:00")` is a fixed-offset `datetime.timezone` (it was
+    UTC, a `ZoneInfo`), and `meds` reads an empty zone as UTC where it
+    raised.
+  - **Resolver and quality gate.** 192 `resolve()` answers built on a
+    blocked category word are withdrawn. `quality.reconcile_unit` converts a
+    °F or kJ reading where it reported a dimension conflict, and returns a
+    `ReconciledUnit` that equals the old tuple.
+  - **Medications.** A plan combining a once-daily and an as-needed
+    instruction names its daily slot `day`, not `day#0`.
+  - **Decoders.**
+    - Garmin's table is keyed `stressDetails`, `pulseox` and
+      `allDayRespiration` (were `stress`, `pulseOx` and `respiration`).
+    - WHOOP accepts its own names only.
+    - Apple emits `sleepAnalysis_Asleep(Total)` beside each asleep stage,
+      and a HealthKit fraction as percent.
+    - `parse_ts_smart` reads an explicit `Z` or `+00:00` midnight as UTC.
 
 ### Added
 
@@ -54,20 +310,23 @@
   reads documents, and one of two sizes answers, picked on the setup page by
   what each downloads and needs. Small, MiniCPM5-2B, the default: 3.0 GB with
   the reader, 5.7 GB of memory at most, 29 s a median answer on a 16 GB M1
-  Pro, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
+  Pro's GPU, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
   all 140 printed rows of 12 documents stored with their units and ranges as
   printed, and 22 of 31 journal entries written. Large, Qwen3.8-27B:
-  14.5 GB, about 20 GB of memory; on an Apple M4 Pro 16 of 16 earlier test
+  14.5 GB, about 20 GB of memory; on an Apple M4 Pro's GPU 16 of 16 earlier test
   questions with no number the record lacks, about two minutes an answer, 27
   of 27 demo readings. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
   the 1B answered 2 of the 24 questions with every expected fact, and the 9B
   did not fit beside the stack on 16 GB. `docker compose --profile local`
   (NVIDIA) or `--profile local-cpu` runs the server next to the app. With no
-  GPU it is minutes, not seconds: in llama.cpp's CPU image on 4 vCPUs (colima,
-  2026-10-07) MiniCPM5-2B read prompts at about 50 tokens a second and wrote
-  at about 18, a 6.8k-token prompt was answered in 137 s, GLM-OCR read a
-  photographed page in about 17 s, the two models held about 6.0 GiB (so
-  Docker needs at least 8 GB), and the tool-call probe passed. Each model
+  GPU it is minutes, not seconds, and how many depends on the processor. In
+  llama.cpp's CPU image on 4 vCPUs (2026-10-07), on an Apple M1 Pro in
+  colima's arm64 VM, MiniCPM5-2B read prompts at about 50 tokens a second and
+  wrote at about 18, a 6.8k-token prompt was answered in 137 s, GLM-OCR read
+  a photographed page in about 17 s, the two models held about 6.0 GiB (so
+  Docker needs at least 8 GB), and the tool-call probe passed; on an Intel
+  Xeon Gold 5220R (an external review) it wrote 3 to 7 tokens a second and a
+  first answer took up to about 15 minutes, the download included. Each model
   server keeps at most 1 GiB of prompt cache, the reader none: llama.cpp's
   default is 8 GiB per model, and two small models filled a 16 GB Mac's disk
   with swap. Both slots of a model share one KV pool (`kv-unified`), so one
@@ -118,8 +377,8 @@
   born-digital PDF's tables off its text layer, a scan's from the local OCR
   model's tables pass, a CSV's and a sheet's as they are. With a vendor key
   the vendor's model now extracts readings only from what the rules left; it
-  still writes the file's title and summary from the first 3,000 characters of
-  the document's text (`file_abstract_extractor`), so the rows are not kept
+  still writes the file's title and summary from the first 8,000 characters of
+  the document's text (`FileAbstractExtractor.abstract_from_text`), so the rows are not kept
   from it. Rows under a header the rules know (项目名称 / 结果 / 参考值 /
   单位, Analyte / Result / Unit, a CSV's first line), including two panels
   side by side, are stored as printed and labelled `rules:table@v1`, with only
@@ -138,19 +397,53 @@
   the turn then files, and its message now says so instead of "uploaded
   successfully". With it, the files land in the record and extraction
   starts, as a Data-page upload does.
+- **Library additions.**
+  - **In the numpy-only layer:**
+    - `series.offset_name`, which spells a fixed offset `UTC±HH:MM`;
+    - `series.zone(name, strict=)`, which reads an IANA name or such an
+      offset;
+    - `meds.SlotKey`, a NamedTuple equal to the plain `(plan_id,
+      local_date, slot)` tuple;
+    - `MedicationPlan.last_day` and `quality.ReconciledUnit`;
+    - `query.reject_view`, the view check both record tools share;
+    - `limit=` on `meds.plan_rows`, `log_rows` and `history_rows` (default
+      `MAX_ROWS`);
+    - `sleepAnalysis_Asleep(Total)` in `metrics.METRICS`.
+  - **In `[parse]`:**
+    - `utils.config.llm.default_model()`, the one rule for which model a
+      turn uses;
+    - `utils.llm.vision_extract` and `ImageNotRead`;
+    - `engine.parse.ExtractionError`, a `RuntimeError` with fixed
+      sentences.
+  - **In `[agent]`:** `middleware.ModelCallBudgetMiddleware` and
+    `filesystem.naming.disambiguate(width=)`.
+  - **In `[app]`:**
+    - `observations.merge_accounts`, `retract_unconfirmed`,
+      `contains_pattern`, `value_ranges()` and the coding cause
+      `CAUSE_CORRECT`;
+    - `PostgresHealthQuery.records(notes=)`, whose rows gain
+      `observed_start`, `observed_end`, `value_num` and `unit_ucum`;
+    - `collect.realign_dose_slots`;
+    - for providers: `_platform/http.get_json` and `get_pages` with
+      `VendorAuthError`, and `ProviderDatabaseService.mark_reconnect`.
+
+  A replacement agent (`AGENT_DIRS`) receives `may_write` through
+  `generate_response`'s `**kwargs`: whether the asker may change the record
+  the turn is about.
 
 ### Security
 
-Each item below was reproduced on a running server on 2026-10-01 before its
-fix, and re-run after it; `mirobody/tests/test_security_gates.py` pins the
-decisions.
+Each item below was reproduced before its fix and re-run after it: on a
+running server on 2026-10-01, or later by a test that fails on the previous
+code (for a log line, the PHI lint). `mirobody/tests/test_security_gates.py`
+pins the decisions.
 
 - **MFA covers file links and the upload socket.** The JWT middleware asks
   for a second factor only of a token in the Authorization header. A file
   link (`GET /files/{path}?access_token=`) and the upload socket (`?token=`)
   take their token from the query string, so with MFA on, an account's
   code-only token (`aal` 1) still read its lab report and opened the socket.
-  Both now ask the same rule (`middlewares.lacks_second_factor`): the link
+  Both now ask the same rule (`user.auth.bearer.lacks_second_factor`): the link
   answers 403 `ERROR_AAL2_REQUIRED`, and the socket is closed with 1008.
 - **Passkeys and MFA work once `WEBAUTHN_RP_ID` is set.** `Server.start()`
   never passed `config.get_webauthn_options()`, so the setting never reached
@@ -179,7 +472,8 @@ decisions.
   read a demo account's files. A reverse proxy on the same machine puts a
   loopback server on the internet. Every run without a real key now gets
   one made for it, wherever it listens, so sessions end at restart until
-  `JWT_KEY` is set. `deploy.sh` sets one.
+  `JWT_KEY` is set; with `PRODUCTION: true`, a placeholder or empty
+  `JWT_KEY` stops the boot instead. `deploy.sh` sets one.
 - **Response headers, and no API docs in production.** No response carried
   `nosniff`, a frame policy or a referrer policy, and the referrer matters
   here: `/mcp/<token>` and `/share/<id>` are credentials. Every response now
@@ -193,6 +487,245 @@ decisions.
   the SQL with its bound parameters. They now log a key fingerprint and the
   exception's type, and answer with a fixed message. The PHI baseline loses
   nine entries.
+- **The app is published on this machine only.**
+  - **Precondition:** anyone on the same network as a default Compose
+    deployment.
+  - **Impact:** `compose.yaml` published the app on every interface, and
+    `config.yaml` gives the two demo accounts a public code (111111, printed
+    by `deploy.sh` and offered on the sign-in page). Anyone there could sign
+    in as `you@mirobody.ai` and read what was uploaded there, which is where
+    the README has a newcomer upload.
+
+  The port is now bound to `127.0.0.1` unless `MIROBODY_BIND` names another
+  address (Upgrade notes). For any address other than loopback, `deploy.sh`
+  prints the link on it, warns that the public code signs anyone in, and
+  points at SECURITY.md. To tell: `docker compose config` shows `host_ip:
+  127.0.0.1`.
+- **A first factor alone no longer enrols a passkey.**
+  - **Precondition:** someone holding the first factor (email code or
+    password) of an account with MFA and a passkey.
+  - **Impact:** sign-in gives such an account an AAL1 fallback token, so
+    that a first passkey can be enrolled. Both registration routes checked
+    only that the token was valid. So it registered a passkey of the
+    holder's choosing, and `register/verify` answered with an AAL2 token.
+
+  A registration call from an AAL1 token, on an account that already
+  requires a second factor, now answers 403 `ERROR_AAL2_REQUIRED`. The web
+  client upgrades and retries on that shape. A first enrolment and an AAL2
+  session are unchanged. To tell: `register/options` with an AAL1 token on
+  such an account answers 403.
+- **A care-circle read grant no longer exports the member's genome.**
+  - **Precondition:** a care-circle member with a read grant.
+  - **Impact:** `GET /api/v1/genomics/export.vcf?target_user_id=<member>`
+    streamed every mapped call of the member's active genotype set. The
+    readings export has been owner-only since 1.5.3.
+
+  The VCF export now answers 403 "Only the record owner can export it." for
+  any record but the caller's, before it reads anything. `export.fhir.json`
+  keeps its care-circle read; it is capped at fifty rsIDs a call.
+- **Changing someone else's record from the chat takes their write grant.**
+  - **Precondition:** a care-circle member with a read-only grant.
+  - **Impact:** a chat turn on the shared record checked only the read
+    grant. It then filed the turn's attachments into that record and
+    extracted readings from them; `POST /files/upload` asks for the write
+    grant for the same thing. The `ask_user` date answer redated any file
+    key the model named: on the turn's own record with no check, and on a
+    third record against the record owner's grant rather than the asker's.
+
+  A turn with an attachment now needs the write grant and is otherwise
+  refused with "No permission to add files to this user's record". A date
+  answer files only the turn's record's files, and only with the write
+  grant. A plain question still needs only the read grant.
+- **The attachment note reads only the record's own files.**
+  - **Precondition:** any signed-in user who names another account's file
+    key in a chat request.
+  - **Impact:** the note to the model looked each attached key up with no
+    owner filter, so that file's report date and source went into this
+    conversation.
+
+  One query now reads the attached keys among the record's live files. An
+  attachment with no row of its own adds nothing.
+- **An error reply is a fixed sentence, never an exception's text.**
+  - **Precondition:** any client. No session is needed for the public share
+    link `GET /api/share/{id}`, `/email/login`, the OAuth registration and
+    token endpoints, the device webhooks, the theta token route and the
+    vendor OAuth callback.
+  - **Impact:** replies passed on `str(e)`, which can quote:
+    - a database driver's message, the statement with its bound
+      parameters. A share id that was not a UUID reached the database and
+      came back as its error;
+    - an email validator's message, with the address in it;
+    - pydantic's message, quoting the readings an Apple Health upload sent;
+    - a vendor's or storage backend's response.
+
+    `POST /api/standardize` also echoed up to 200 characters of the model's
+    reading of the report.
+
+  These now answer a fixed sentence under the same code and log the
+  exception's type:
+  - the file, data-distribution, Apple, share and chat routes;
+  - sign-in, verification, registration, address binding, renaming and
+    deletion, and the passkey ceremonies;
+  - the OAuth endpoints and the device provider routes;
+  - MCP `tools/call` and the terminology tools.
+
+  An upload's failure reason is now one written for the uploader, or the
+  error's type. That applies in the handler's answer, the WebSocket report,
+  the socket messages, the file row's `error`, and the deletion's
+  `"error"`.
+
+  Specific answers:
+  - a share id that is not a UUID answers "Share session not found" without
+    a query;
+  - a body that is not a JSON object answers "The request body must be a
+    JSON object.";
+  - a failing MCP tool answers "<tool> failed (<Type>).";
+  - `POST /api/standardize` echoes only `ExtractionError`'s fixed
+    sentences.
+
+  To tell: `curl 127.0.0.1:18060/api/share/x` answers `{"code": -1, "msg":
+  "Share session not found", ...}`.
+- **The device OAuth completion page carries one escaped value, posts only
+  to this deployment, and holds no token.**
+  - **Precondition:** none, since the callback route takes no session; and
+    any page that opened the popup.
+  - **Impact:**
+    - the page put the provider's result, or the exception's text, into a
+      `<script>` through `json.dumps`, which does not escape `</`;
+    - it put the platform and provider names into JavaScript string
+      literals;
+    - it sent the outcome with `postMessage(message, "*")`, so any opener
+      received it;
+    - the OAuth2 callbacks put the first 20 characters of the vendor's
+      access token in that outcome.
+
+  The page now carries one JSON value with `<` escaped, and reports a failed
+  callback as the fixed code `oauth_failed`. It posts only to this origin,
+  the http(s) entries of `OAUTH_RETURN_ORIGINS` and the CORS origin, the
+  list `safe_return_url` already accepts. A callback returns the provider
+  slug, the stage and the return URL only. An unknown platform or an
+  unconfigured provider answers 400 "That provider is not available here."
+  To tell: a callback whose provider result holds `</script><script>`
+  renders a page with one `</script>`.
+- **A CUSTOMIZED device link's secrets are stored encrypted.**
+  - **Precondition:** anyone who can read the database or a dump of it.
+  - **Impact:** `connect_info` holds every field the provider declares,
+    `password`-typed ones included. It was written to its JSONB column in
+    the clear, next to the encrypted copy of the same password.
+
+  It is now one encrypted string, decrypted by both read paths. Old links
+  must be made again (Upgrade notes).
+- **A secret written where a key name belongs is never repeated.**
+  - **Precondition:** an operator wrote a key itself in a `MODELS` entry's
+    `api_key`, which should name a variable.
+  - **Impact:** the key was logged at WARNING on every boot. Through the
+    error the agent built from it, it was streamed to any signed-in user who
+    picked that model in the chat.
+
+  A reference is now repeated only when it looks like a variable name
+  (`[A-Z][A-Z0-9_]*`), and the chat's error is a fixed sentence. To tell:
+  the boot warning for such an entry says "(a value that is not a variable
+  name)".
+- **No response carries a traceback, and every response carries its
+  headers once.**
+  - **Precondition:** any client; no session needed.
+  - **Impact:**
+    - with any DEBUG log level, `PRODUCTION` included, a request that raised
+      got FastAPI's debug page. That is a traceback, which for a driver's
+      exception quotes the SQL and its parameters. Otherwise it got plain
+      text;
+    - a CORS preflight, an unhandled 500, and every response of a server
+      without `JWT_KEY` lacked `nosniff`, the frame and referrer policies,
+      and `X-Request-Id`;
+    - every answer carried `Access-Control-Allow-Origin` twice, which
+      browsers refuse: uvicorn added the configured CORS headers beside
+      `CORSMiddleware`'s;
+    - "GET,POST" was read as one method.
+
+  Now:
+  - two ASGI middlewares stamp the headers on every response, and answer an
+    unhandled error with `{"code": 500, "msg": "Internal server error.",
+    "data": {}}` and status 500;
+  - `debug` is off under `PRODUCTION`;
+  - uvicorn gets the configured headers without `Access-Control-*`;
+  - the CORS lists are split on ",".
+
+  `PRODUCTION: true` with an empty `JWT_KEY` booted with no JWT middleware
+  and no rate limit on the sign-in routes. It now refuses to start, naming
+  `JWT_KEY`.
+
+  To tell: a CORS preflight (`curl -i -X OPTIONS -H 'Origin: <the CORS
+  origin>' -H 'Access-Control-Request-Method: POST'`) shows one
+  `Access-Control-Allow-Origin`, `X-Request-Id` and
+  `X-Content-Type-Options: nosniff`.
+- **The setup page's state route refuses a token guesser.**
+  - **Precondition:** none.
+  - **Impact:** `GET /api/setup` says whether the `X-Setup-Token` it was
+    given is right. A wrong one was recorded but never refused, so guesses
+    were unlimited, while the save route refused after ten in ten minutes.
+    The per-client failure list also grew with every guess.
+
+  After ten wrong tokens in ten minutes, a wrong token on `GET` is now
+  refused with 429 "Too many wrong setup tokens. Wait ten minutes." At most
+  ten times are kept per client. A request with the right token, or none,
+  is unchanged.
+- **The PHI filter runs on every log handler.**
+  - **Precondition:** anyone who reads the server's or the worker's logs.
+  - **Impact:** `Config.init` installs the root handlers twice, and the
+    filter reached only the first set. So in the server and the worker no
+    line was filtered: extras outside `kernel.ops.LOG_FIELDS`, driver
+    tracebacks and 40 kB messages went out as logged. Among them, the
+    server pool logged every statement at INFO with its bound parameters;
+    `update_user_name` binds the person's name.
+  - A driver error wrapped in another exception also passed both the filter
+    and the `exc_info=not is_driver_exception(e)` guard. The provider base
+    class re-raises a failed link that way, as `RuntimeError(str(e)) from
+    e`.
+
+  Every root handler now runs the filter. Statements log at DEBUG with
+  `duration_ms` and `row_count`, never their parameters. The driver check
+  walks the exception's cause chain. To tell: no SQL at INFO, and a message
+  over 300 characters ends "… [N chars truncated by PHIFilter]".
+- **Log lines carry ids, counts and types, not values.**
+  - **Precondition:** anyone who reads the logs.
+  - **Impact:** lines logged, among others:
+    - a vendor user's address at INFO on every find-or-create, and a whole
+      database row;
+    - the health scenario a profile was matched to (screening for masked
+      hypertension, say);
+    - a person's mean glucose and GMI;
+    - a refused value ("value 412.5 violates rule <=350");
+    - a failed WHOOP save's whole payload;
+    - the presigned URL of a stored upload, a link to the document good for
+      30 hours;
+    - pydantic's message quoting an Apple push, and the measured types an
+      Apple push dropped;
+    - S3 and OSS failures with the object key, which is a file name;
+    - characters of the configuration passphrase, from `get_fernet_key`;
+    - the arguments of an invalid tool call, which are the person's
+      question;
+    - a failed background batch as `ExceptionGroup`, which the driver check
+      did not recognise, so the statement and its parameters kept their
+      traceback;
+    - the public share route's share id, which is the credential;
+    - the settings read's `Accept-Language`, and each upload chunk's
+      client-sent type.
+
+  These lines now log ids, counts, a key's or token's fingerprint, and
+  `error_type=`, with a traceback only for an exception that is not a
+  driver's. A storage failure answers "<backend action> failed
+  (<ErrorType>)". CI now runs the PHI log lint (Changed).
+- **A plugin tool class publishes exactly what its `__tools__` names.**
+  - **Precondition:** an MCP client of a deployment that loads a tool class
+    from `MCP_TOOL_DIRS`, where the class declares `__tools__` and has
+    another public method sorting after its first tool.
+  - **Impact:** from the second method on, the class's `input_schema`
+    replaced the allow-list. So such a helper was listed in `tools/list` and
+    callable over MCP.
+
+  The shipped tools were not affected: the previous loader, run on the
+  shipped classes, publishes exactly their seven tools. To tell:
+  `tools/list` names only the declared methods.
 
 ### Changed
 
@@ -255,9 +788,9 @@ decisions.
   `mirobody` skill name llama.cpp as the local model runtime: the README's
   first paragraph and its mode table say that llama.cpp's `llama-server`
   serves the local models and Mirobody runs none itself. The table gives the
-  default size (MiniCPM5-2B with GLM-OCR: 16 GB of memory, no GPU, 3.0 GB to
-  download, minutes a first answer on a CPU alone) before the large one
-  (Qwen3.8-27B, about 20 GB).
+  default size (MiniCPM5-2B with GLM-OCR: 16 GB of memory, no GPU, 3.0 GB of
+  models and about 0.7 GB of images to download, minutes a first answer on a
+  CPU alone) before the large one (Qwen3.8-27B, about 20 GB).
 - **The README links the benchmarks.** ESL-Bench, MedHall-Bench and
   MedHarm-Bench each drew 4,000+ Hugging Face downloads in the 30 days to
   2026-10-01, and none of their cards linked here, nor did either README link
@@ -265,12 +798,14 @@ decisions.
   "Numbers you can check" tables now carry one row for them.
 - **Two commands to a running stack.** `deploy.sh` writes a model key given in
   its environment into `.env` (`OPENROUTER_API_KEY=sk-or-... ./deploy.sh`),
-  under the variable names `config.llm.yaml` reads, so a first run needs no
+  under the variable names `config.llm.yaml` reads, and says where it sends
+  data; with `COMPOSE_PROFILES=local` or `local-cpu` it takes none. So a
+  first run needs no
   second step; a key added later goes in through Settings › Model, or in
   `.env` followed by `docker compose up -d`. The README (both editions), the
   skills and the Docker Hub copy say so, and name the source tarball as the
   way in without Git. To tell: after that one command, `mirobody doctor` names
-  a provider.
+  the model each surface uses.
 - **The sign-in page offers the demo account while it is seeded.** Only
   `deploy.sh`'s last line and the README said `you@mirobody.ai` / `111111`.
   `/mirobody.json` carries `__DEMO_SIGN_IN__` under the seed's own three
@@ -317,8 +852,11 @@ decisions.
   medication, with "no fever" kept out (`docs/images/journal-demo.gif` and its
   zh-CN twin).
 - **Docs say what the tree does.** AGENTS.md, CONTRIBUTING.md and
-  `docs/testing.md` count 268 tests in four shipped modules, 255 passing and
-  13 strict xfails (they said 147 in two); `pyproject.toml`'s note on extras
+  `docs/testing.md` count 332 tests in four shipped modules, 319 passing and
+  13 strict xfails with `[app]` (they said 147 in two); on `[test]` or
+  `[test,parse]` 238 pass and `test_security_gates.py`'s 81 skip, and the
+  three installs hold 20, 77 and 148 packages (`uv pip freeze`, measured
+  2026-10-08); `pyproject.toml`'s note on extras
   names the three runtime extras; `demo/README.md` stops quoting 1.4.4 and
   1.5.0; the README no longer says the docs site is rendered from `docs/`,
   which its MCP page is not.
@@ -343,9 +881,9 @@ decisions.
   source ref under an existing version tag without moving the release tag.
 - **Readings carry the printed range and a flag.** Readings and latest
   values from `query_health_indicators` now include `ref`, the range as
-  printed (empty when none was), and `flag`: the report's own when a table
-  rule read the row, the extracting model's high/low/normal against that
-  range otherwise. Without the range a model judged a value against one it
+  printed (empty when none was), and `flag`: `high` or `low` as the report
+  printed it, or a model's status when the printed value and range agree
+  with it, else empty. Without the range a model judged a value against one it
   remembered.
 - **`th_series` is gone.** The per-person catalogue was rewritten on every
   write and read by nothing: `catalog()` groups `v_observation` directly,
@@ -358,6 +896,280 @@ decisions.
   as `true` for every account, and `PUT` accepted and dropped them: nothing
   shares, tracks or notifies. Both groups are gone from the answer; a client
   that still sends them is not refused.
+- **`deploy.sh` says where each adopted variable sends data, and the local
+  profiles take no vendor key.**
+  - **Before:** it copied every `api_key`, `base_url` and `model_env`
+    variable set in the caller's shell into `.env`, silently, whatever
+    `COMPOSE_PROFILES` said. An `export OPENAI_API_KEY=...` in `~/.bashrc`
+    sent every question and document to OpenAI after the person chose
+    `COMPOSE_PROFILES=local-cpu`, and the setup page then refused local with
+    409.
+  - **Now** each adopted variable prints one line naming it and where data
+    goes.
+  - **With `local` or `local-cpu`:**
+    - no vendor key is adopted ("Not using OPENAI_API_KEY from your shell:
+      with COMPOSE_PROFILES=local-cpu every model runs on this machine.");
+    - a key already in `.env` is named as still sending data to its vendor;
+    - `LOCAL_BASE_URL` and `LOCAL_OCR_BASE_URL` default to
+      `http://llama:8080/v1`, so the setup page needs no click;
+    - the run ends by saying the models run on this machine, and which
+      service's log shows their download.
+
+  `OPENROUTER_API_KEY=sk-or-... ./deploy.sh` adopts the key as before.
+- **The llama.cpp images are pinned to the measured build, and the proxy
+  variables are passed only when set.**
+  - The `local` and `local-cpu` services ran the floating tags
+    `server-cuda` and `server`. They now run `server-cuda-b11429` and
+    `server-b11429`, the build the shipped preset was measured on.
+    `LLAMA_IMAGE` and `LLAMA_CPU_IMAGE` (now documented, with a mirror
+    example) name another.
+  - `HTTP_PROXY` and `HTTPS_PROXY` reach the app only when the shell or
+    `.env` sets one. They were empty in every container.
+  - `docs/local-models.md` explains that "no usable GPU found,
+    --gpu-layers option will be ignored" is expected on the CPU image.
+
+  To tell: `docker compose --profile local-cpu config` names
+  `server-b11429` and no empty proxy variable.
+- **Local-model timings name the hardware they ran on, and the download
+  counts the images.**
+  - The only CPU figures were an Apple M1 Pro's, in colima's arm64 VM:
+    about 18 tokens a second, and a first answer in 2–3 minutes. They were
+    given as what any 4-core machine does. An external review on a 4-vCPU
+    Intel Xeon Gold 5220R measured 3 to 7 tokens a second, and a first
+    answer in up to about 15 minutes with the download.
+  - The README (both editions), the quickstart, `docs/local-models.md`, both
+    model-choice guides, the Docker Hub text and the `mirobody` skill now
+    give both machines. They say the Apple answer times are on the GPU, and
+    count about 0.7 GB of images (about 3 GB with the NVIDIA image) beside
+    the 3.0 GB of models.
+  - The setup page's tiers read "Measured on Apple M1 Pro GPU (Metal), 16
+    GB".
+  - Qwen3.8-27B is no longer said to answer better. Its figures come from
+    the earlier eight-question set, and it has not been run on the
+    24-question evaluation.
+- **`mirobody doctor` reports what a turn would use.**
+  - **Vision:** on the small local pair the vision row printed `--` and six
+    vendor links, although the OCR entry reads every photo. It now reads
+    `OK  (via ocr: <entry>)`.
+  - **Untried keys:** a key read from `.env`, the environment or a config
+    file printed `OK` before it had answered anything. It now reads
+    `present (unverified)`, with a line pointing at `--probe`. A key the
+    setup page saved, and a local server with no key, still read `OK`.
+  - **Chat row:** it reported the first ready entry, while the agent answers
+    with `DEFAULT_MODEL` when it names a ready one. With
+    `DEFAULT_MODEL=keyed` it said `local`.
+  - **Log noise:** once the configuration is loaded, the command lowers the
+    root logger to WARNING, so library INFO lines no longer bury the table.
+  - **Boot lines:** they fit the log filter's 300 characters with the
+    `docker compose up -d` advice intact. A surface's line points at
+    `mirobody doctor` rather than listing every key and vendor link.
+- **One unit engine converts every reading, and it knows energy, pressure
+  and temperature.**
+  - **Before:** `translate.canonical_units` converted a device reading
+    through its own tables, keyed by exact spellings. `mmol/l`, `mg/dl`,
+    `lbs`, `beats/min`, `degF`, `℉`, `Cal` and `[lb_av]` matched nothing,
+    and were stored unconverted, under a unit their indicator is not kept
+    in. Energy, pressure and US volumes existed only there, so the MCP
+    `convert_unit` refused `kcal` to `kJ` and `mmHg` to `kPa` as measuring
+    different things.
+  - **Now** `mirobody.units` converts, by UCUM's definitions:
+    - energy (J, cal and prefixes);
+    - pressure (Pa, bar, m[Hg], m[H2O], [psi] and prefixes);
+    - the US customary volumes, and the US survey foot and inch;
+    - °C, °F and K through Celsius, in `convert_value` and `convertible`.
+      An offset is not a factor, so `scale` and `conversion_factor` keep
+      them atomic.
+
+    A shipped test holds every factor to UCUM's own table (191 units).
+    Device readings convert through this engine.
+  - **Measured over every indicator × 87 spellings:**
+    - 188 conversions appear;
+    - 16 change by at most 2 ppm (`ft` and `in` are the survey units);
+    - 186 disappear. All are spellings the engine does not read as units:
+      `rmssd`, `ratio`↔`%`, `Hz`, bare `psi`, bare `C` and `F` (in UCUM,
+      coulomb and farad), `pao2`. Those readings are kept as given.
+  - **The quality gate** converts a °F or kJ reading on a °C or kcal metric
+    and flags it `unit_converted`; it reported a dimension conflict.
+  - **`convert_unit`** says "same kind of quantity, no factor yet" for two
+    units of one LOINC property it cannot convert.
+
+  To tell: `convert_unit(98.6, "°F", "°C")` answers 37.0, and
+  `convert_unit(1, "kcal", "kJ")` 4.184.
+- **The resolver is faster, with the same answers.**
+  - **Before:** the first `resolve()` re-read the bundle for a skip list
+    that can never meet a posting, a 124 ms gunzip. The unit tokenizer
+    tested 699 morphemes at each position.
+  - **Timings:**
+    - first resolve: 131.9 ms → 0.3 ms;
+    - mean resolve: 109.6 → 86.4 µs on the 317 coverage terms, and 51.3 →
+      39.1 µs over 30,000 terms;
+    - a value through `parse_value_unit`: 952 → 25 µs.
+  - **Same answers:** `resolve()`, `resolve_reading()` over eight shapes,
+    `unit_variants()` and `axes_of()` are byte-identical on 66,761 terms,
+    and the tokenizer on 41,307 inputs.
+
+  The bundle build refuses a cut whose skip list names a kept code.
+- **`mirobody resolve` says why a refused term has no code.** Every term
+  without a code printed "not in the lexical index". That included `血脂`,
+  which is in the index as a category, and `血糖(HbA1c)`, which names two
+  analytes. It now prints:
+  - the resolver's reason when it has one ("'血糖' gives 2339-0 and 'HbA1c'
+    gives 4548-4: two analytes in one name");
+  - "a category or several tests in one name" for a refused word;
+  - "not in the lexical index" only for a real miss.
+
+  The README's resolve GIFs show the new line. To tell: `mirobody resolve
+  血脂`.
+- **The model a turn uses is named a model, and one rule picks the
+  default.**
+  - The chat said "Provider 'x' not configured" and "Available providers"
+    about `MODELS` entries; in this project a provider is a device. It now
+    says "Model 'x' is not configured. Using the default, 'y'." and "Model
+    'x' cannot be used: …".
+  - The default is `DEFAULT_MODEL` when it names a ready chat entry, else
+    the first ready one. The chat, `mirobody doctor`, `doctor --probe` and
+    `/api/models` all use it. `/api/models` now lists it first, so the web
+    client preselects it.
+  - An entry declaring only `embedding: true` (no `chat: false`) is now
+    built as a chat client.
+  - The request field `provider` and `th_messages.provider` keep their
+    names.
+- **A stored flag is `high`, `low` or nothing.**
+  - **Before:** `flag_text` held whatever the reader wrote: a table rule's
+    `high`, a model's `normal`, or the printed `↑`, `L` or `偏高`, four
+    spellings of one answer. A model's `status` was its own comparison, not
+    what the report printed. On the demo check-up, MiniCPM5-2B stored the
+    printed `L` on `Resting Heart Rate 57 (60-100)` as high, and `normal` on
+    8 rows that printed no flag.
+  - **Now** a reading stores `high` or `low`: a flag printed after the
+    value first, else the row's status. A model's status is kept only when
+    it is high or low and the printed value and range do not contradict it.
+    A table rule's printed `正常` stores nothing.
+
+  To tell: `4.1↑` is stored with flag `high`.
+- **Uploads are routed by what they are, and a type nothing reads is refused
+  at the start.**
+  - **Before:**
+    - the factory chose the image and PDF handlers by the declared content
+      type alone, so a photo or PDF sent as `application/octet-stream` was
+      "not supported";
+    - a `.xls` or `.xlsb` went to the Excel handler, which reads nothing,
+      and completed with no text and 0 readings;
+    - the WebSocket upload, the one the web client uses, had no extension
+      gate.
+  - **Now:**
+    - `documents.detect.kind` (name, declared type, first 64 KiB) picks the
+      handler;
+    - `upload_start` refuses a file outside `SUPPORTED_EXTENSIONS` before a
+      session or a byte exists ("File type .xls not supported"). A
+      bgzipped VCF (`.vcf.bgz`, `.bgzf`) is in that set, and is stored as
+      `application/gzip`;
+    - every kind takes one processing path, so progress reads "extracting
+      content", "extracting abstract" and the kind's success message for
+      all of them;
+    - a text upload without a key is stored under
+      `web_uploads/<uuid>.<ext>`, like every other upload.
+- **Large uploads and long reports no longer stall the server.**
+  - **Genotype export:** parsed on one worker thread, a batch at a time.
+    The longest event-loop stall loading a 200,000-row export fell from
+    4,721 ms to 21 ms, with identical rows stored.
+  - **Table rules:** they run off the event loop, and the leftover-text
+    pass does its per-row work once. A 400-row book takes 0.42 s, down from
+    1.37 s, with identical output.
+  - **Apple Health import:** traced peak memory on a 416,000-item export
+    went from 35.3 MB to 0.2 MB, with an identical output hash.
+- **Devices are pulled on their own schedule, through one bounded client.**
+  - **Schedules:** Oura pulled 30 days of ten collections every hour. It now
+    backfills 30 days after a link and pulls 2 days on schedule. WHOOP is
+    pulled every 24 hours, and Oura every hour, by each provider's own
+    declaration.
+  - **Bounded retries:** a 429, a 5xx, a timeout or a dropped connection is
+    retried, four attempts in all, each wait at most 60 s. A 401 or 403
+    stops at once.
+  - **No duplicate fetches:** WHOOP no longer fetches every record a second
+    time by id.
+  - **Nothing pulled that nothing decodes:** WHOOP's profile (a name and an
+    email) and Oura's `session` and `sleep_time` are no longer pulled. Raw
+    WHOOP rows already stored keep their plural `data_type` names.
+- **`GET /api/data` reads through the shared records query.** The
+  developer API's listing had its own copy of the query, and spliced the
+  caller's text into `ILIKE`, so `_` or `%` listed every reading. It now
+  asks `PostgresHealthQuery.records`. Its JSON is identical for the
+  unfiltered and paged listings; the name filter also matches the display
+  name and takes `%` literally.
+- **Logs are quieter and say what they claim.**
+  - SQL statement text, 71 of the 403 lines a local deployment wrote, is
+    DEBUG.
+  - Fewer lines: the upload socket no longer logs one line per chunk; the
+    provider listing loses four INFO lines per provider; secret reads lose
+    three INFO lines each; the scheduler no longer logs a DEBUG timestamp
+    every minute.
+  - A refused OAuth token logs at WARNING with its fingerprint in the
+    message; the fingerprint passed as an extra was dropped by the filter. A
+    refresh that cannot mint tokens stays at ERROR.
+  - A set `ENV` now tags every line as `env`; it needed a `log_extra` no
+    caller passes.
+  - The boot no longer logs "start init db...", which touched no database.
+  - A locale key a bundle lacks is logged once, by name.
+- **CI checks log lines, import contracts and release versions.**
+  - **PHI log lint:** `mirobody.testing.phi_lint` scans `documents/`,
+    `engine/` and `kernel/` too, and runs in `test-build.yml`. The
+    pre-commit hook, which `--no-verify` skips, was the only gate.
+  - **Lint rules:** an `extra=` key passes the lint only if the runtime
+    filter keeps it (`ops.LOG_FIELDS`, which gains the id, count and type
+    keys the code logs on purpose). A name ending in `reason` or `type` is
+    no longer safe by shape. The baseline is regenerated from 456 lines to
+    80, so a log shape the pass removed cannot come back unflagged.
+  - **Import contract:** the translate contract forbade
+    `mirobody.translate.units`, a module that does not exist; it names
+    `canonical_units`.
+  - **Release versions:** `scripts/check_versions.py` fails a release cut
+    whose four version files disagree: compose.yaml's image tag,
+    `mirobody/__init__.py`, `server.json` and the Dockerfile default. So a
+    cut cannot ship a `./deploy.sh` that pulls the previous image.
+  - **Resolver overrides:** the checkout suite checks every
+    `resolver_overrides.tsv` row for a malformed row, a repeated term, a
+    dead target, and a row that does not make its term resolve. A stale
+    path had made the old checks find no file.
+- **Docs say what the code does.**
+  - **`docs/provider-guide.md`:** its walkthrough of about 1,900 lines
+    taught a contract the providers no longer had. Among other things, it
+    showed a time that falls back to now(), a refresh failure that deletes
+    the link, and a token prefix in a callback. It is now a reference of a
+    few hundred lines with a regenerated coverage table.
+  - **`docs/provider-setup.md` (both editions):** only Garmin pushes; WHOOP
+    and Oura are pulled, and the reconnect mark is described.
+  - **`docs/apple-health.md`:** a record that does not fit the model fails
+    the request with a 400. The `processingInfo` it promised is not
+    returned.
+  - **`docs/file-processing.md`:** it describes one path for every document
+    kind and the deletion as it runs.
+  - **`docs/pipeline.md`:** none of `quality.overcount_suspect`, `is_echo`
+    or `reconcile_unit` is called in the application; election records its
+    winner in `th_day_authority`.
+  - **`docs/medications.md`:** a spring-forward slot's default rule is
+    `shift_forward`, which moves 02:30 to 03:30, and the golden suite counts
+    77.
+  - **The configuration guide:** console logs go to stderr, every handler
+    filters a line, SQL is logged at DEBUG, `PG_TIMEOUT` is applied, and it
+    says which files are encrypted in place.
+  - **The tools package and its README** list `query_pharmacogenomics` and
+    `__tools__`, and give `user_info` as it is.
+  - **`docs/answers.md`** describes the model-call budget's last call, the
+    window note, and the refusal by its kind (`repeated_call`).
+  - **`translate/`, `collect/` and `collect/providers/`:** their READMEs and
+    package docstrings name the files that exist.
+- **Internal.** 30 commits change no behaviour:
+  - comments and docstrings brought in line with the code;
+  - one body for rules written twice (13,141 and 5,508 outputs identical
+    before and after);
+  - dead code removed;
+  - PHI-lint escapes and named counts on closed-vocabulary fields;
+  - a docs rewrap;
+  - test fixes;
+  - a regression fixed inside the pass before release.
+
+  The refactors that also removed public names are in Upgrade notes.
 
 ### Fixed
 
@@ -414,7 +1226,7 @@ decisions.
   and `阳性 偏高`, `Positive H` and `++ H` with the flag in a word result. Now
   an arrow or 偏高/偏低 comes off after anything, and `H` after a unit or a
   result word; `L` still only when the printed range says low (`1.5 L` of
-  urine is litres). To tell: `1.69 g/L↑` is stored as 1.69 g/L, flag ↑.
+  urine is litres). To tell: `1.69 g/L↑` is stored as 1.69 g/L, flag `high`.
 - **A page's print date no longer dates its readings.** A row's own
   `date_time` was always honoured, and reading a book a page at a time the
   model put a page's `Printed: 2026-08-23` on two rows, filed a fortnight
@@ -464,8 +1276,8 @@ decisions.
   tokens plus 4 per character, at most 32,000), and an answer cut off at
   that bound keeps every value that closed before the cut; the repeats a
   loop wrote are dropped as duplicates. An answer that ends normally but
-  does not parse is still a failed call. To check: the log says "hit
-  max_tokens; kept its complete part" instead of a JSON error.
+  does not parse is still a failed call. To check: the log says "structured
+  output hit max_tokens, its complete part kept" instead of a JSON error.
 - **The thyroid panel resolves as its slips print it.** `TT4` answered
   3024-7, FREE thyroxine, so a total T4 of 114.5 nmol/L would be stored as
   free T4, and `总甲状腺素(TT4)` was refused as naming two analytes; `TRAb`
@@ -491,7 +1303,7 @@ decisions.
   its spans, LaTeX the characters it typesets (`μmol/L`, `×10^9/L`, `↑`), and
   a line or phrase repeated 64 times in a row one copy, with a warning that
   carries only counts. An OCR model's pass is capped at 8,192 tokens, five
-  times the longest answer measured (`unified_file_extract(max_tokens=)`, sent
+  times the longest answer measured (`vision_extract(max_tokens=)`, sent
   under the name the endpoint takes, on the Anthropic backend too). GLM-OCR's
   answers hold none of this and are unchanged. To tell: with PaddleOCR-VL as
   `local-ocr`, a scanned report's stored text holds `<table>` and `μmol/L`,
@@ -541,7 +1353,8 @@ decisions.
   stays in. Text left for the model: GLM-OCR 15,747 → 5,542 characters,
   PaddleOCR-VL 22,053 → 5,374, MinerU 17,686 → 9,105; every printed row the
   rules leave that was in the model's text before is in it still. To tell: a
-  page whose rows the rules read logs `indicators read off tables, no model`.
+  page whose rows the rules read whole stores them labelled `rules:table@v1`,
+  and its `indicators read:` log line says `unread_row_count=0`.
 - **One printed row read by the rules and by the model is stored once.** The
   merge dropped a model row only under the rule row's name or a name a
   misread character apart, so the small-model eval stored `血红蛋白（HGB） 153`
@@ -579,7 +1392,7 @@ decisions.
     the way the table rules do, `L` read as litres unless the range says
     low, and keeps the printed flag over the model's `status`.
   To check: `mirobody.translate.parse_range("35.0--45.0")` is `(35.0, 45.0)`;
-  a report whose result column prints `6.49↑` stores 6.49 with the flag ↑.
+  a report whose result column prints `6.49↑` stores 6.49 with the flag `high`.
 - **Long reports, clinic notes and home logs give their readings.** Three
   shapes of document came back with none:
   - a multi-page report sent to a small model in one request: MiniCPM5-2B
@@ -756,9 +1569,6 @@ decisions.
   response, which nests the list under `providers`, and it said to restart, which
   keeps the old mounts. Both editions are fixed. To tell: the guide's steps, run
   on a fresh clone, print `"theta_oura"`.
-- **`convert_unit` says why Fahrenheit does not convert.** It refused °F→°C, by
-  design (conversions here are a factor), but blamed percentages and molar mass.
-  It now says temperature scales also differ by an offset, and gives the formula.
 - **The README's badges render on GitHub.** Docker Hub, Downloads and GitHub
   stars showed as broken images, and PyPI did at other times. GitHub serves
   README images through its proxy, camo, which gives up at about 4.5 s. A
@@ -816,9 +1626,11 @@ decisions.
 - **`deploy.sh` stops before Docker does, and says why.** A port another
   program held ended the run in Docker's words ("port is already
   allocated"); a second checkout under the same folder name took over the
-  first stack's containers and its database volume without a word. It now
-  names the port and the variable to set, and refuses a Compose project name
-  another checkout already runs, naming the folder.
+  first stack's containers and its database volume without a word. Both
+  ports are now checked before anything is pulled; each taken one is named
+  with the variable to set and a port nothing listens on (18070 and 18072
+  when the defaults are taken), and a Compose project name another checkout
+  already runs is refused, naming the folder.
 - **A genotype file dropped on the Files tab goes to the Genomics tab.**
   There it is checked as one and replacing the active set is confirmed; on
   Files it skipped both, and a VCF was refused as a type the tab does not
@@ -888,6 +1700,423 @@ decisions.
   Russian; test names such as LDL or HbA1c do not count); a local model
   answered Chinese questions in English. One Chinese term in an English
   question leaves the answer in English.
+- **A turn that uses up its model calls still answers.**
+  `ModelCallLimitMiddleware(exit_behavior="end")` stopped a run before the
+  call past the budget. A model that called a tool on every step never
+  wrote an answer: the turn stored "Model call limits exceeded" and showed
+  the empty-turn line. Before the last allowed call, the harness now adds
+  one instruction (answer from the tool results, and say what could not be
+  looked up). It makes that call with tool calls switched off. The tools
+  stay declared, so a reasoning model's earlier thinking stays valid. A
+  model that ignores the switch is still stopped by the limit.
+- **A question asked while the local model loads is answered at once.**
+  After the setup page chose a local model, it reported ready while
+  llama.cpp was still downloading. A question asked meanwhile waited in
+  silence for the download and load: 14 minutes on a 4-core CPU in the
+  2026-10-07 review. When a turn's entry is local and the router reports it
+  `loading`, the turn now answers at once, in the asker's language: "The
+  local model is still loading (the first start downloads it). Please ask
+  again in a few minutes."
+- **A turn's time zone, a failed turn and a turn's title read right.**
+  - **Time zone.** A turn whose zone was `GMT+8`, `UTC+8`, `+08:00`, `CST`
+    or `Etc/Unknown` failed every turn of that user with "The system prompt
+    could not be rendered". The agent now reads the zone with the kernel's
+    resolver, the one the record tools use. An offset is kept, spelled
+    `UTC+08:00`, and renders the prompt's "now". A name it cannot read falls
+    back to `DEFAULT_TIMEZONE`, else UTC. To tell: with `UTC+8` stored, the
+    prompt's day and the readings tool's day agree.
+  - **Failed turn.** An unrenderable template reached the client as
+    "internal error (TypeError)", and the malformed-call give-up as
+    "internal error (RuntimeError)". They now say what failed: "The system
+    prompt could not be rendered (TypeError); check PROMPTS in the
+    configuration.", and "The model kept sending tool calls that were not
+    valid JSON after N repair attempts. Please retry, or choose another
+    model."
+  - **Questions to the user.** A turn that ends on `ask_user` is no longer
+    shown the "no answer" line, nor stored as `finish_reason=empty`.
+  - **Title.** A conversation's fallback title no longer starts "User: ".
+- **"Not today" is not an answer of "today".** The upload-date question read
+  any reply holding a keep-word as "the upload day". So "不是今天，是上周三"
+  and "not today" filed the readings under the one date the person had just
+  rejected. A keep-word after a negation (不是, 不按, 不要, 别按, 并非, not,
+  n't) no longer counts. A month-day in the reply files under that day, and
+  with none the model asks again.
+- **Concurrent first turns share one conversation memory.** Turns that
+  arrived together each built a checkpointer pool. A turn that arrived
+  during a failing setup took a saver whose pool the failure then closed,
+  so both turns ran without memory. Start-up is now serialised, and a saver
+  is published only once its tables exist.
+- **The chat's files list, read and grep as the model is told.**
+  - **Same-named files.** The older of two same-named files was listed as
+    `lab_report.pdf__thf_<key8>`, a name with no suffix the read path
+    knows. It was sent as raw bytes, which qwen and DeepSeek answer with a
+    400. It is now `lab_report-<key8>.pdf` and read as a document.
+  - **Grep.** It compiled its pattern as a regular expression, while
+    deepagents tells the model the pattern is literal. "LDL-C (mg/dL)"
+    matched nothing, and "a|b" matched every line with either letter. A grep
+    that matched the health profile raised `KeyError`. Grep is now literal
+    and honours `max_count`.
+  - **Reading past the end.** A read past the last line said "File exists
+    but has empty contents". It now answers "Line offset N exceeds file
+    length (M lines)".
+  - **Files filed by a care-circle member.** A file a member filed into
+    someone's record is now in that record's `/uploads/` and `/library/`,
+    the turn's own attachment included.
+- **A dated readings answer says when readings fall outside its window.** A
+  call with a start or an end read only that window, and said nothing of
+  the series' other readings. "How has my cholesterol moved?" was answered
+  from 2 of 3 readings. The chat and MCP tools now add one note: "this
+  window (…) leaves out readings of <indicator> (from …, until …); call
+  again with a wider start or end to include them". The REST route, which
+  shows no notes, skips the extra catalogue read.
+- **The latest value is the newest day's.** `latest()` ranked an elected
+  reading from an older day above today's, so the tool's latest value
+  disagreed with `stats().last` for the same window. It now takes the newest
+  day first, and election decides only within it.
+- **A readings or medications call reads its dates and zone right.**
+  - **Impossible dates.** "2025-06-31" passed the date check. The readings
+    tool then ended its window at now, and the medications tool failed as
+    bad arguments. It is now refused as "not a calendar date".
+  - **Reversed range.** A start after the end was moved to a day nobody
+    asked about. The pair is now swapped, and the note says "start and end
+    swapped".
+  - **Offset zones.** A person whose zone is stored as `UTC+08:00` (the
+    spelling the observation writer uses for an offset-only source) had day
+    bounds, local dates and windows cut at UTC, and a medications call
+    failed. One resolver now reads such an offset everywhere. An empty zone
+    is UTC in medications too; it raised.
+- **Medication answers match the plan.**
+  - **Schedule text.** "Once daily" showed the model "500 mg 0x/day", and a
+    weekly plan lost its clock times ("wd1,4"). They now read "500 mg
+    1x/day" and "21:00 wd1,4".
+  - **Today's plan.** It showed a slot's oldest answer, while adherence
+    counted the latest: a dose skipped at 08:05 and taken at 09:00 read
+    "skipped".
+  - **Stopped plans.** A plan stopped after its end date reported a course
+    running to the stop date, and appeared in windows that held none of its
+    doses. It now ends on the earlier of the two dates.
+  - **Slot names.** Adding an as-needed dose renamed every slot key of a
+    plan's daily dose. Two plans due together came out in an order that
+    changed between runs.
+  - **Truncation.** An answer of exactly 200 rows was flagged partial; only
+    more than 200 is.
+
+  Doses recorded under the old `day#0` name are renamed once at boot to the
+  name their plan now projects, so they still answer their slot. Read as
+  missed, such a day counted the dose as an extra: 0% adherence over the
+  plan's whole history. To tell: the boot logs "dose events realigned to
+  their plan's slot names: count=N".
+- **A genotype row says which allele a homozygous call carries.**
+  - `query_genetic_data` rendered the stored `homozygous`, and its columns
+    show neither `ref` nor `alt`. So a small local model read VKORC1
+    rs9923231 TT as homozygous reference. Each row's `zygosity` is now
+    derived from its call: `homozygous_ref`, `heterozygous`,
+    `homozygous_alt`, `hemizygous_ref` or `hemizygous_alt`. The stored
+    column is unchanged.
+  - A call carrying only a placeholder `build` rendered its profile row
+    under the variant columns, "(no rows)" above "rows=1". It now renders
+    the profile.
+  - The pharmacogenomics note names the normalizer version, as the
+    genetics note does.
+  - In the FHIR variant export, a homozygous or hemizygous alternate call
+    carries its allelic state (LOINC 53034-5). A reference call, exported
+    as Absent, carries none.
+- **Blocked category words stay blocked inside a longer name.** A term
+  whose override is `!unresolved` was refused only as written. The stems
+  derived from a longer name reached some narrow assay:
+  - `Stool OB` answered 102489-2, a budgerigar-droppings IgE;
+  - `电解质计数` answered an electrolytes panel;
+  - `流感 FLU` answered an influenza assay;
+  - `Serum lipid panel` answered the code the block refuses.
+
+  Stems, trailing tokens and a parenthetical's measure stem of a blocked
+  term are now refused too. On 66,761 terms, 192 answers are withdrawn and
+  none changes code; coverage stays 317/317. To tell:
+  `resolve("Stool OB").resolved` is False.
+- **The unit gate admits the units LOINC declares, and the evidence says
+  what corroborated a code.**
+  - **Declared units.** `resolve_reading("BMI", "24", "kg/m2")` was refused.
+    1,247 codes were refused one of their own example units. kg/m2 on BMI,
+    and the urine ratios' mg/mmol, umol/g, mmol/g and nmol/mg, are now
+    admitted. 1,087 remain, held as a ceiling by a test. `%` on FEV1/FVC
+    and FEV1 measured/predicted stays refused, because the alias index
+    sends `FEV1` and `FEV1/FVC` to the predicted ratio 19925-7
+    (`docs/roadmap.md`).
+  - **Evidence and axes.** `空腹血糖(GLU)` answered with no evidence and no
+    axes, where `空腹血糖` gave `("name",)` and its axes. 458 answers gain
+    them.
+  - **Scale.** A negative result (`-2.5`, a base excess) was read as prose
+    and put no scale constraint on its reading, and prose (`见报告`) counted
+    as scale evidence. Both are fixed; 12 readings change. A signed whole
+    number alone (`+1`, a dipstick grade) is still no scale evidence, so
+    `尿蛋白 +1` keeps its presence code 2887-8.
+
+  No `resolve()` code changes. To tell: the BMI reading answers 39156-5
+ .
+- **A printed unit that does not normalize picks no code variant.** `空腹血糖
+  6.1 mmol/l(空腹)`, whose unit does not normalize, was coded to the name's
+  default 1558-6 (mass). It joined the mg/dL series with no canonical
+  value. It now needs input, with the reason `unit:unrecognized`, and its
+  decision id takes the printed unit's folded key. Ids for readings whose
+  unit normalized, or that had none, are unchanged, so `mirobody recode`
+  rewrites only those codings.
+- **寸 and 尺 are not centimetre and foot, and a 24-hour excretion is not a
+  concentration.**
+  - `寸` (1/30 m) was a morpheme of `cm`, and `尺` (1/3 m) an alias of the
+    foot. Both now normalize to nothing, which the gate reports as an
+    unrecognized unit.
+  - `mEq/24h` and `mEq/kg` were spellings of `meq/L`, so
+    `resolve_reading("sodium", "150", "mEq/24h")` answered serum sodium
+    2951-2. They now normalize to `meq/(24.h)` and `meq/kg`, and that
+    reading is refused, because the unit fits sodium only in stool or urine
+   .
+- **A zone is stored only when it is one, and a settings save writes what
+  was sent.**
+  - The web client sends only the changed field, and `PUT
+    /api/user/settings` filled the rest with defaults. So saving a birth
+    date reset the gender to "other", and saving a time zone reset the
+    language to English. Only sent fields are written now.
+  - A zone was stored as sent: by PUT and POST, and by the `X-Timezone`
+    header on any signed-in request. An unknown one was later read as UTC
+    wherever a day was cut. A zone `translate.zone_for` cannot place now
+    answers `code` 400 "That is not a time zone. Use an IANA name, such as
+    Europe/Paris." and writes nothing. In the header, it leaves the stored
+    zone as it was.
+- **Shared records carry their gender, blood type and age.** The record
+  switcher (`/api/beneficiary-users`) answered `None` for all three on
+  every shared record since the care-circle rewrite; they are now filled.
+  One parser reads the birth column. A birth written with a time after the
+  date now has an age in the switcher, and one written with slashes has an
+  age in the profile and the chat's context.
+- **A record id is read as a number.** Twelve routes resolve
+  `target_user_id`: genomics, indicators, medications, journal, files and
+  providers. Eleven of them passed it on as sent once the grant check had
+  passed, and that check compares ids as numbers. So a write for "07", "08"
+  or " 8 " was filed under that string, a record nobody reads. Every route
+  now runs on the canonical id.
+- **Sharing a conversation again works, and a history outage says so.** A
+  stopped share keeps its row, and `session_id` is unique. So sharing the
+  same conversation again failed for good; it now gets a fresh link. A
+  failed history read returned an empty list, so an outage read as "no
+  conversations". It now answers a sentence.
+- **Sign-in reads a credential that is not text.** `{"email": 7}` raised and
+  became a 500. It is now a refusal: "Email and password are required." or
+  "Incorrect email or password.".
+- **MCP answers one caller, and a body it cannot read is an invalid
+  request.**
+  - **One caller.** On `/mcp/{secret}`, `tools/call` preferred a bearer
+    token sent beside the link, while `tools/list` read only the link. So
+    with both sent, the call read the bearer's record, not the link's. On
+    bare `/mcp`, an OAuth client's tool list was not gated by its own
+    account. Now the link's subject wins on `/mcp/{secret}`, and the
+    bearer's account decides on `/mcp`, for both methods.
+  - **Unreadable bodies.** A body of `null`, a number or a string was an
+    unauthenticated 500. It is now -32600 "Invalid request". `arguments`
+    that are not an object get -32602 "Tool arguments must be an object".
+  - **Boot.** A tool function without a docstring, or a tool class whose
+    constructor raised, stopped the server from starting. The module is now
+    left out and logged.
+- **Configuration does what it says.**
+  - **Blank keys.** A key written with no value (`LOG_NAME:`) read as the
+    string "None". That gave file logging to a file named "None",
+    `None/files/...` links, `Server: None/1.5.3`, and a zone named "None".
+    It now reads as its default.
+  - **`PG_TIMEOUT`** (default 10 s) was passed to nothing. It is now the
+    connect timeout of the pool, the single connection and the SQLAlchemy
+    engine.
+  - **A bare-string `PROMPTS`**, which is valid, logged a JSON ERROR with a
+    traceback at every boot.
+  - **`POST /api/standardize`** re-ran `Config.init` on every request. That
+    replaced a server's `-c` configuration, its log handlers and its
+    access-log filter. A parse now initializes only when nothing is loaded.
+  - **`mirobody dev --pg-url`** wrote the URL's parts into YAML bare. A
+    password holding " #" or ": ", starting "*", or "07" was changed. Each
+    part is now written as a JSON string, non-ASCII characters included, and
+    read back verbatim.
+- **The log file keeps the boot.** The file handler opened with mode "w+",
+  and uvicorn's `dictConfig` closes every handler. So the file was
+  truncated when uvicorn started, and the boot lines were lost. It now
+  appends, in UTF-8.
+- **A provider pull runs once per interval across instances.** Each
+  instance decided from its own memory whether a pull was due, and released
+  the lock when it finished. So with two instances, every pull ran twice. An
+  instance now reads the persisted last run under the lock, and skips inside
+  the interval. The aggregation job also stops writing a stats row to
+  `th_ephemeral` every four minutes, which nothing read.
+- **An OSS download no longer blocks the server.** `get_object` ran in the
+  executor, but the stream was read on the event loop. That held every
+  other request for as long as the file took.
+- **Garmin data arrives, and decodes under the names Garmin sends.**
+  - **Pull.** The pull loop wrote the account id over the batch's Garmin id
+    and set no `theta_user_id`. So the backfill, the only pull Garmin does,
+    was filed under "data" and decoded to nothing.
+  - **Link.** The callback asked `/user/id` before the access-token
+    exchange. So the link stored an empty Garmin user id, and every later
+    push was dropped while the webhook answered 200.
+  - **Decoding.** `stressDetails`, `pulseox` and `allDayRespiration` pushes
+    decoded to nothing, and stress read a field no payload carries.
+    Activities read fields Garmin does not send. HRV samples were offset
+    from calendar-date midnight instead of the night's start. Moderate and
+    vigorous minutes were swapped between medium and high intensity.
+
+  All are fixed; existing links must relink (Upgrade notes). To tell:
+  Garmin stress, SpO2 and respiration series appear.
+- **A device re-pull stores no second copy, and a webhook that saved nothing
+  says so.**
+  - **Duplicate copies.** Oura, WHOOP and Garmin passed the per-pull
+    `msg_id` as each record's identity. So every re-pull of the same daily
+    summary inserted another copy, a regression against 1.4.4. The identity
+    is now the vendor's own record id.
+  - **Silent failures.** `post_data` answered success when the payload
+    saved nothing, such as a Garmin push for an account nobody linked, so
+    the vendor never retried. It now answers failure when the payload
+    carried anything. An empty payload, and a Garmin deregistration, still
+    succeed.
+  - **Unregistered slugs.** A link to an unregistered slug was answered as
+    linked; it now answers 400.
+
+  To tell: re-pull twice, and the count is unchanged.
+- **Device readings carry the right value and time.**
+  - **WHOOP calories.** A cycle's kilojoules, the whole day's energy, were
+    filed as active calories, on top of the workouts. They are now
+    `dailyTotalCalories`.
+  - **UTC midnight.** An explicit `Z` or `+00:00` midnight was read as the
+    person's local midnight.
+  - **Missing times.** WHOOP records without a start, and recoveries
+    without `created_at`, were stamped with the pull time. They now decode
+    to nothing. Open Wearables dropped a sample whose timestamp already
+    carried a negative offset.
+  - **Apple sleep.** `mirobody import apple` gave a night no total sleep,
+    while a push did. Both now emit it.
+  - **Apple percentages.** A watch's SpO2 or body fat of 0.98 (a HealthKit
+    fraction) was stored as 0.98 %. Push and import now store 98 %.
+  - **Offset zones.** A summary for a person with an offset zone
+    (`+08:00`) moved 8 hours.
+  - **Case variants.** A device's `bloodglucoses` was dropped; the
+    indicator lookup is now case-insensitive behind every helper.
+  - **Out-of-range summaries.** They were stored as ordinary readings. They
+    are now refused and counted; an out-of-range series point keeps its
+    tag.
+- **A vendor outage no longer costs a link.**
+  - **Lost links.** Any WHOOP refresh failure, a timeout included, deleted
+    the link. A refused refresh (`invalid_grant`) now marks the link
+    "reconnect" and keeps it, and a timeout or a 5xx retries next run.
+  - **Expired credentials.** Three vendor outages expired a working
+    credential for the life of the process; only a vendor refusal counts
+    now.
+  - **Bad pages.** WHOOP's paginator stored a 401 as an empty record, and
+    sent one collection's page token with the next.
+  - **Endless retries.** Oura retried a 429 forever.
+  - **Ignored push failures.** A failed push now fails the account's run.
+- **Erasing, correcting and merging readings keep the record whole.**
+  - **Erasing a corrected reading.** It left the original behind, and the
+    view showed it again; erasing an older row of the chain failed. The
+    whole amendment chain now goes.
+  - **Erasing by name.** `DELETE /api/data?indicator=%` (or `_`) erased
+    every reading. The name is now matched literally. An erase by name, or
+    of everything, also deletes the matching device points in
+    `series_data`.
+  - **Device re-syncs.** A re-sync re-sending the original value amended a
+    person's correction back. A correction now holds against a re-sent
+    value; corrections made before this release are not protected.
+  - **No-op edits.** A redate onto the time a reading already had, and an
+    `amend` that changed nothing, wrote a duplicate amendment. They now
+    write nothing.
+  - **Account merges.** A merge aborted on the foreign key when the losing
+    account had corrected a reading both accounts held. Such a chain is now
+    kept once, on the winner.
+  - **Repair sweeps.** The repair sweep compared its window shifted by the
+    UTC offset, so in Asia/Shanghai it retracted the wrong readings.
+- **Daily summaries and derived values are computed, and on the right day.**
+  - **Derived values.** Sleep efficiency, heart-rate range and glucose CV
+    were never written: their query called a SQL function no schema
+    defines. They now use the day's elected inputs, and carry their unit and
+    zone.
+  - **All-users recalculation.** It bound every task to no person, and
+    wrote nothing.
+  - **Trigger cursor.** On a host off UTC it lost updates; it is now UTC.
+  - **Daylight-saving days.** They were summed over 25 or 23 hours. A day
+    now ends at the same wall clock the next day, in the row's zone.
+  - **Non-numeric points.** One non-numeric point stopped aggregation for
+    everyone. It is now skipped, and each person-day fails on its own.
+  - **Sleep onset latency.** It read 12:00–12:00, so a nap started the
+    night. It now reads the 18:00 window from the night's first in-bed.
+  - **Election.** It stopped after 5,000 cells, so a window's newest days
+    were never elected. A duplicated sync's 40-hour sleep total was
+    elected; it is now rejected.
+  - **Large days.** A day with more than 5,000 tasks skipped GMI and the
+    custom derived methods.
+  - **Failed queries.** A query that failed reported "no data"; it now
+    fails.
+
+  A summary row now carries its zone. So a day whose series zone differs
+  from the account's is written as a new row at its first re-aggregation,
+  not as an amendment.
+- **"My son has a cough" is not the writer's cough.** The journal
+  lower-cased only the assertion. So a model answering `"subject": "Other"`
+  was read as the writer, and a kind spelled `"Symptom"` was refused. Kind
+  and subject are now read whatever their case. A subject outside the enum
+  is skipped as unclear.
+- **Uploads read what the file holds.**
+  - **Text files starting "BM".** A CSV or text file starting `BM`
+    (`BMI,Weight,Date`, `BMD L1-L4`) was taken for a bitmap.
+  - **Encodings.** A UTF-16 export decoded as mojibake. A GBK CSV was
+    stored empty and reported a success, and a UTF-8 BOM stayed in front of
+    the first header cell.
+  - **Transparent images.** A transparent PNG lost its black text against a
+    black background.
+  - **Spreadsheets.** A cell holding a line break or a `|` split one
+    spreadsheet row into two or added a column.
+  - **Word tables.** They all landed under the last heading.
+  - **Photos without text.** A photo with no text failed its upload as if
+    no vision model were configured.
+  - **HEIC photos.** They were sent labelled `image/jpeg`. They now go as
+    `image/heic`, and a model that cannot read HEIC refuses them.
+  - **Full-width ranges.** A range printed `3.5～5.5` was not read by the
+    table rules.
+  - **The demo check-up PDF.** A label line above the table hid its nine
+    rows from the rules.
+  - **Failed OCR pages.** A PDF whose page failed OCR was cached by its
+    hash, and the page was never read again.
+
+  To tell: `demo/upload/you_annual_checkup_2026-05.pdf` stores its nine
+  rows labelled `rules:table@v1`.
+- **An upload that failed says so, and its count is what was stored.**
+  - **Storage failures.** A storage failure was logged and the upload went
+    on to report success. It now fails the upload.
+  - **Readings that were not stored.** A batch whose readings could not be
+    stored read "12 readings, completed" over an empty record. It now
+    fails the file with the reason, for example "none of the 2 readings
+    could be stored (impossible_time_range=2)". `indicators_count` is what
+    was stored.
+  - **Misread years.** A report date misread more than a day ahead (2062
+    for 2026) dated every reading. The time gate then refused them all. It
+    now counts as no date.
+  - **Abstracts.** A failed abstract read "Contains relevant content,
+    processed successfully". It now says no summary could be generated, and
+    a text upload's abstract is written by the text model.
+  - **Untranslated messages.** Seven progress and error messages showed
+    their locale key, such as `excel_processing_success`.
+
+  To tell: a file whose readings are all refused shows as failed with its
+  reason.
+- **Chat attachments and deletions act on their own file.**
+  - **Same-named attachments.** Two attachments named `image.png` both
+    wrote their result to the first one's row, and left the second
+    unprocessed. A failed attachment was shown as completed.
+  - **Failed attachments.** A failed attachment replaced the person's
+    question in the chat history with "File upload failed ... Error: …".
+  - **Deletions.** Deleting a batch of files spanning two care-circle
+    records erased every file's readings under the first file's owner, and
+    stopped at the first erase that raised.
+  - **WebSocket uploads.** An upload accepted a chunk index outside the
+    declared count, and kept failed files' bytes until the socket closed.
+    It reported a genotype file's size on another file.
+- **An `llm_type: anthropic` entry behaves like the others.**
+  - A key the setup page replaced never reached the Anthropic client built
+    first. The entry's `timeout` and `max_retries` reached no client.
+  - A structured answer cut at `max_tokens` lost every row. It now keeps
+    its complete part, as the OpenAI-compatible path did.
 
 ## 1.5.3
 

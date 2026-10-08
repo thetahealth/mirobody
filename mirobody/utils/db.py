@@ -131,8 +131,7 @@ async def execute_query(
     params: dict | list[dict] | None = None,
     db_config: str = "",
     log_sql: bool = True,
-    **kwargs,
-):
+) -> list[dict] | dict:
     if not query:
         raise ValueError("SQL script cannot be empty")
 
@@ -153,11 +152,13 @@ async def execute_query(
 
         if log_sql:
             extra: dict[str, Any] = {
-                "records": len(ret) if isinstance(ret, list) else ret["record_count"],
-                "time_cost": round((time.perf_counter() - start) * 1e3, 2),
+                "row_count": len(ret) if isinstance(ret, list) else ret["record_count"],
+                "duration_ms": round((time.perf_counter() - start) * 1e3, 2),
             }
-            logged_query = _summarize_sql(query)  # the statement text: placeholders, no values
-            logger.info(logged_query, extra=extra, stacklevel=2)
+            # DEBUG: the statement text (placeholders, no values) was 71 of the
+            # 403 lines a local deployment logged at INFO.
+            logged_query = _summarize_sql(query)
+            logger.debug(logged_query, extra=extra, stacklevel=2)
         return ret
 
     except Exception as e:
@@ -167,7 +168,7 @@ async def execute_query(
         extra = {
             "error_type": type(e).__name__,
             "param_count": len(params) if isinstance(params, list) else (len(params) if params else 0),
-            "time_cost": round((time.perf_counter() - start) * 1e3, 2),
+            "duration_ms": round((time.perf_counter() - start) * 1e3, 2),
         }
         logger.error("execute_query failed", extra=extra, stacklevel=2,
                      exc_info=not is_driver_exception(e))

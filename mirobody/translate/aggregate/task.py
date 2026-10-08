@@ -2,11 +2,12 @@
 Aggregate Indicator Task
 
 Implements PullTask interface to integrate with the unified scheduler.
-Uses base class cache services for timestamp and stats management.
+Uses the base class's timestamp service for its incremental position.
 """
 
 import logging
-from datetime import datetime
+
+from mirobody.kernel.ops import is_driver_exception
 
 from .service import AggregateIndicatorService
 from mirobody.utils.scheduler import PullTask, ScheduleType
@@ -31,7 +32,6 @@ class AggregateIndicatorTask(PullTask):
             schedule_type=ScheduleType.INTERVAL,
             interval_minutes=4,  # Check every 4 minutes
             execution_interval_hours=4 / 60,  # Execute every 4 minutes
-            lock_duration_hours=12 / 60  # Lock for 12 minutes
         )
 
         self.service = AggregateIndicatorService()
@@ -43,7 +43,6 @@ class AggregateIndicatorTask(PullTask):
         Uses base class abilities:
         - get_last_execution_timestamp() to get last processing position
         - update_last_execution_timestamp() to update position
-        - save_task_stats() to save execution statistics
         
         Returns:
             True if execution successful, False otherwise
@@ -67,16 +66,11 @@ class AggregateIndicatorTask(PullTask):
                 if new_timestamp:
                     await self.update_last_execution_timestamp(new_timestamp)
                 
-                # Use base class ability: save stats
-                # Define aggregate_indicator specific stats structure
                 stats_dict = {
-                    "executed_at": datetime.now().isoformat(),
                     "summaries_created": result.get('summaries_created', 0),
                     "users_affected": result.get('users_affected', 0),
                     "execution_time_ms": result.get('execution_time_ms', 0),
-                    "mode": result.get('mode', 'normal')
                 }
-                await self.save_task_stats(stats_dict)
 
                 logger.info(
                     f"[AggregateIndicatorTask] Completed successfully: "
@@ -94,27 +88,5 @@ class AggregateIndicatorTask(PullTask):
             return False
 
         except Exception as e:
-            logger.error(f"[AggregateIndicatorTask] Execution error: {e}", exc_info=True)
-            self._capture_error(e)
+            logger.error("aggregate task failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
             return False
-
-    async def get_task_info(self) -> dict:
-        """
-        Get comprehensive task information
-        
-        Uses base class ability: get_full_status()
-        
-        Returns:
-            Dictionary with task details including cached data
-        """
-        # Use base class async full status method
-        full_status = await self.get_full_status()
-
-        # Add aggregate-specific metadata
-        full_status.update({
-            "task_name": "Aggregate Indicator Calculation",
-            "description": "Calculate summary indicators from series data",
-            "execution_frequency": "Every 4 minutes",
-        })
-
-        return full_status

@@ -1,9 +1,27 @@
 
+import logging
 from typing import BinaryIO
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.file_types import guess_mime
 
+logger = logging.getLogger(__name__)
+
 #-----------------------------------------------------------------------------
+
+
+def storage_failure(action: str, key: str, exc: Exception) -> str:
+    """Log a failed storage call by the key's fingerprint and the error's type,
+    and return the message the caller gets back. Neither carries the error's
+    text: a vendor's message can quote the object key, and a key can hold the
+    uploaded file's name."""
+    from mirobody.utils.log import secret_fingerprint
+
+    error_type = type(exc).__name__
+    logger.error("%s failed: key=%s error_type=%s", action, secret_fingerprint(key), error_type,
+                 exc_info=not is_driver_exception(exc))
+    return f"{action} failed ({error_type})"
+
 
 class AbstractStorage:
     """Abstract base class for all storage backends"""

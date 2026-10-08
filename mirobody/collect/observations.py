@@ -43,6 +43,7 @@ from typing import Any
 
 from mirobody import translate, units
 from mirobody.kernel import metrics, quality, series
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import db
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,12 @@ GRAIN_DAY = "day"
 STAT_AS_REPORTED = "as-reported"
 
 CAUSE_INGEST = "ingest"
+#: A source re-sent a changed value for a row it wrote (`ON_CONFLICT_AMEND`),
+#: or a row was retracted.
 CAUSE_AMEND = "amend"
+#: A person corrected a row (`amend()`). A source re-sending its value, the
+#: old one or a new one, never amends a correction back.
+CAUSE_CORRECT = "correct"
 CAUSE_RECODE_RELEASE = "recode-release"
 CAUSE_RECODE_RULES = "recode-rules"
 CAUSE_RECODE_ALIAS = "recode-alias"
@@ -87,7 +93,7 @@ CAUSE_RECODE_ALIAS = "recode-alias"
 #: What a collision on the identity index means. `skip`: a retry, not a
 #: duplicate (a report re-uploaded, a batch re-sent after a timeout).
 #: `amend`: the source re-sent the truth (a device sync, a re-aggregation),
-#: and a changed value becomes an amendment of the row it replaces.
+#: and a changed value amends the row it replaces, unless a person corrected it.
 #: `reassert`: the person typed it again. A row they retracted no longer holds
 #: the identity, so the new row amends the retraction. Under the other two a
 #: retraction stands, and a re-sync does not bring back what was deleted.
@@ -198,10 +204,6 @@ class Report:
     coded: int = 0
     #: One `OUTCOME_*` per draft, in the order given.
     outcomes: list[str] = field(default_factory=list)
-
-    @property
-    def written(self) -> int:
-        return self.inserted
 
     def reject(self, reason: str) -> None:
         self.rejected[reason] = self.rejected.get(reason, 0) + 1
@@ -449,9 +451,13 @@ INSERT INTO th_coding_history (observation_id, cause, {_CODING_COLUMNS})
 SELECT :new_id, :cause, {_CODING_COLUMNS} FROM th_coding_current WHERE observation_id = :old_id
 """
 
-# The visible row that already holds an identity: the one a re-sent value amends.
+# The visible row that already holds an identity: the one a re-sent value
+# amends, unless a person corrected it.
 _SELECT_CURRENT = """
-SELECT id, fingerprint FROM th_observation o
+SELECT id, fingerprint,
+       EXISTS (SELECT 1 FROM th_coding_history h
+                WHERE h.observation_id = o.id AND h.cause = 'correct') AS corrected
+  FROM th_observation o
  WHERE o.user_id = :user_id AND o.name_key = :name_key
    AND o.observed_start = :observed_start AND o.observed_end = :observed_end AND o.source_ref = :source_ref
    AND COALESCE(o.source_record_id, '') = COALESCE(:source_record_id, '')
@@ -502,7 +508,7 @@ SELECT id FROM th_observation o
 """
 
 _SELECT_BY_SOURCE = """
-SELECT id, observed_start, observed_end FROM v_observation
+SELECT id, observed_start, observed_end, tz FROM v_observation
  WHERE user_id = :user_id AND source_ref = :source_ref
 """
 
@@ -581,12 +587,13 @@ async def _write_concept(tx: db.Transaction, coding: translate.Coding) -> None:
     })
 
 
-_range_rules: Any = None
+_range_rules: translate.ValueRangeValidator | None = None
 
 
-async def _ranges() -> Any:
-    """The ingestion ranges, loaded once per process. A load that fails
-    passes every value, as it does for a device batch."""
+async def value_ranges() -> translate.ValueRangeValidator:
+    """The ingestion ranges (`indicator_valid_rules`), loaded once per
+    process and shared by every writer that checks them. A load that fails
+    passes every value."""
     global _range_rules
     if _range_rules is None:
         rules = translate.ValueRangeValidator()
@@ -625,7 +632,8 @@ async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> 
     `OUTCOME_SKIPPED` when the identity is already held by an equal row (or,
     under `skip`, by any row), or `OUTCOME_DIFFERS` under `verify`/`repair`
     when it is held by a different one. Under `amend`, a changed value is
-    inserted as an amendment; under `reassert`, an identity whose row was
+    inserted as an amendment, unless the row it would amend is a person's
+    correction (`CAUSE_CORRECT`); under `reassert`, an identity whose row was
     retracted is written again; under `repair`, see `ON_CONFLICT_REPAIR`."""
     inserted = await tx.execute(_INSERT_OBSERVATION, row)
     if inserted:
@@ -644,7 +652,7 @@ async def _insert(tx: db.Transaction, row: dict[str, Any], on_conflict: str) -> 
             return None, OUTCOME_SKIPPED
     elif on_conflict == ON_CONFLICT_AMEND:
         current = await tx.execute(_SELECT_CURRENT, row)
-        if not current or str(current[0]["fingerprint"]) == row["fingerprint"]:
+        if not current or current[0]["corrected"] or str(current[0]["fingerprint"]) == row["fingerprint"]:
             return None, OUTCOME_SKIPPED
     else:
         return None, OUTCOME_SKIPPED
@@ -675,8 +683,8 @@ async def ingest(
     does. `payload` is the extraction's verbatim output when the batch came
     from one (an LLM's JSON, a vendor's records); the drafts themselves are
     frozen when it is not given and `provenance.extractor` names one.
-    `on_conflict` says what a row that already exists means: see
-    `ON_CONFLICT_SKIP` and `ON_CONFLICT_AMEND`. A list of provenance records
+    `on_conflict` says what a row that already exists means, one of the
+    five `ON_CONFLICT_*` policies. A list of provenance records
     codes a mixed API batch in one transaction; extraction payloads require
     the single-provenance form."""
     report = Report()
@@ -708,7 +716,7 @@ async def ingest(
             report.extraction_id = int(rows[0]["id"]) if rows else None
 
         aliases = await _load_aliases(tx, str(user_id))
-        ranges = await _ranges() if any(p.source_class == series.SOURCE_MANUAL for p in sources) else None
+        ranges = await value_ranges() if any(p.source_class == series.SOURCE_MANUAL for p in sources) else None
         for ix, (draft, row_source) in enumerate(zip(drafts, sources, strict=True)):
             try:
                 row = prepare(draft, row_source, str(user_id), user_tz, now=now)
@@ -735,7 +743,8 @@ async def ingest(
                     await _write_coding(tx, observation_id, row, coding, CAUSE_INGEST if row.get("amends") is None else CAUSE_AMEND)
             except Exception as e:
                 # Counts and a type: the row is health data and stays out of the log.
-                logger.warning("observation not written: row_ix=%d error_type=%s", ix, type(e).__name__)
+                logger.warning("observation not written: row_ix=%d error_type=%s", ix, type(e).__name__,
+                               exc_info=not is_driver_exception(e))
                 report.reject(REJECT_WRITE_ERROR)
                 continue
             report.inserted += 1
@@ -762,23 +771,57 @@ async def retract(user_id: str, observation_ids: list[int], *, note: str = "") -
     A row already amended or retracted is left alone."""
     if not observation_ids:
         return 0
-    count = 0
     async with db.transaction() as tx:
-        for oid in observation_ids:
-            rows = await tx.execute(_SELECT_ROW, {"id": int(oid), "user_id": str(user_id)})
-            if not rows:
-                continue
-            old = dict(rows[0])
-            new = {c: old.get(c) for c in _OBSERVATION_COLUMNS}
-            new.update({"status": "entered-in-error", "amends": int(oid), "note_text": note})
-            inserted = await tx.execute(_INSERT_OBSERVATION, new)
-            if not inserted:
-                continue
-            new_id = _inserted_id(inserted[0], new)
-            await tx.execute(_COPY_CURRENT, {"new_id": new_id, "old_id": int(oid)})
-            await tx.execute(_COPY_HISTORY, {"new_id": new_id, "old_id": int(oid), "cause": CAUSE_AMEND})
-            count += 1
+        return await _retract(tx, str(user_id), observation_ids, note)
+
+
+async def _retract(tx: db.Transaction, user_id: str, observation_ids: list[int], note: str) -> int:
+    count = 0
+    for oid in observation_ids:
+        rows = await tx.execute(_SELECT_ROW, {"id": int(oid), "user_id": user_id})
+        if not rows:
+            continue
+        old = dict(rows[0])
+        new = {c: old.get(c) for c in _OBSERVATION_COLUMNS}
+        new.update({"status": "entered-in-error", "amends": int(oid), "note_text": note})
+        inserted = await tx.execute(_INSERT_OBSERVATION, new)
+        if not inserted:
+            continue
+        new_id = _inserted_id(inserted[0], new)
+        await tx.execute(_COPY_CURRENT, {"new_id": new_id, "old_id": int(oid)})
+        await tx.execute(_COPY_HISTORY, {"new_id": new_id, "old_id": int(oid), "cause": CAUSE_AMEND})
+        count += 1
     return count
+
+
+# What a device repair batch did not re-confirm: the visible readings of its
+# vendors and names observed inside its window, under any batch but its own.
+# `legacy_provenance` files a repair batch under `device:<vendor>:<task id>`.
+_SELECT_UNCONFIRMED = """
+SELECT id FROM v_observation
+ WHERE user_id = :user_id AND source_kind = 'device'
+   AND vendor = ANY(:vendors) AND name_text = ANY(:names)
+   AND observed_start >= :start AND observed_start <= :end
+   AND source_ref <> 'device:' || vendor || ':' || :task_id
+"""
+
+
+async def retract_unconfirmed(
+    user_id: str, *, vendors: list[str], names: list[str], start: datetime, end: datetime, task_id: str
+) -> int:
+    """The sweep of a device repair batch (`task_id`, `repair-<uuid>`): retract
+    every visible reading of `vendors` and `names` observed in `[start, end]`
+    that another batch wrote. `start` and `end` are aware instants, compared
+    with `observed_start` as such. Retracted, never deleted: each retraction
+    is a row that says why (`repair:<task id>`). Returns how many."""
+    if not vendors or not names:
+        return 0
+    async with db.transaction() as tx:
+        rows = await tx.execute(_SELECT_UNCONFIRMED, {
+            "user_id": str(user_id), "vendors": list(vendors), "names": list(names),
+            "start": start, "end": end, "task_id": task_id,
+        })
+        return await _retract(tx, str(user_id), [int(r["id"]) for r in rows or []], f"repair:{task_id}")
 
 
 async def amend(
@@ -794,8 +837,10 @@ async def amend(
     now: datetime | None = None,
 ) -> int | None:
     """Correct one observation: a new row with the change, pointing at the
-    old one, re-coded from the corrected text. Returns the new id, or `None`
-    when the id is not this person's or nothing changed."""
+    old one, re-coded from the corrected text. Returns the new row's id;
+    `observation_id` itself when the change leaves the row's fingerprint as
+    it was and no note is given, and nothing is written; `None` when the id
+    is not this person's."""
     async with db.transaction() as tx:
         rows = await tx.execute(_SELECT_ROW, {"id": int(observation_id), "user_id": str(user_id)})
         if not rows:
@@ -819,6 +864,8 @@ async def amend(
             derived_from=tuple(old.get("derived_from") or ()),
         )
         row = prepare(draft, provenance, str(user_id), user_tz, now=now or datetime.now(tz=translate.zone_for("UTC")))
+        if row["fingerprint"] == old["fingerprint"] and not note:
+            return int(observation_id)
         row["extraction_id"] = old.get("extraction_id")
         row["amends"] = int(observation_id)
         inserted = await tx.execute(_INSERT_OBSERVATION, row)
@@ -827,25 +874,25 @@ async def amend(
         new_id = _inserted_id(inserted[0], row)
         aliases = await _load_aliases(tx, str(user_id))
         coding = coding_for(row, aliases)
-        await _write_coding(tx, new_id, row, coding, CAUSE_AMEND)
+        await _write_coding(tx, new_id, row, coding, CAUSE_CORRECT)
     return new_id
 
 
 async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str = "UTC") -> tuple[int, int]:
     """Move every visible observation of one source to `when` (a report whose
-    date came from the upload time, answered by the person). Each move is an
-    amendment. Returns `(moved, skipped)`, where a skipped row already sat on
-    that time, or an equal row already holds the target identity."""
+    date came from the upload time, answered by the person). A naive `when`
+    is wall clock in each row's own zone, as `amend` reads it. Each move is
+    an amendment. Returns `(moved, skipped)`, where a skipped row already sat
+    on that time, or an equal row already holds the target identity."""
     rows = await _select_by_source(user_id, source_ref)
     moved = skipped = 0
     for r in rows:
-        start = r["observed_start"]
-        target = when if when.tzinfo else when.replace(tzinfo=start.tzinfo)
-        if start == target and r["observed_end"] == target:
+        target = when if when.tzinfo else when.replace(tzinfo=translate.zone_for(r["tz"]))
+        if r["observed_start"] == target and r["observed_end"] == target:
             skipped += 1
             continue
         new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
-        if new_id is None:
+        if new_id is None or new_id == int(r["id"]):
             skipped += 1
         else:
             moved += 1
@@ -858,40 +905,77 @@ async def _select_by_source(user_id: str, source_ref: str) -> list[dict[str, Any
     return [dict(r) for r in rows or []]
 
 
+def contains_pattern(text: str) -> str:
+    """An ILIKE pattern that matches `text` literally anywhere in a value:
+    `%` and `_` in a name are letters, not wildcards."""
+    escaped = text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
+# The rows an erase selects, and every row of their amendment chains in both
+# directions. `v_observation` shows only a chain's last row, so deleting the
+# id a reader was given left the original behind and it became visible again;
+# deleting an older row alone broke the `amends` reference of the next one.
+_ERASE_CHAINS = """
+WITH RECURSIVE chain(id) AS (
+    SELECT id FROM th_observation WHERE user_id = :user_id AND {where}
+  UNION
+    SELECT o.id
+      FROM chain c
+      JOIN th_observation x ON x.id = c.id
+      JOIN th_observation o ON o.user_id = :user_id AND (o.id = x.amends OR o.amends = x.id)
+)
+DELETE FROM th_observation WHERE user_id = :user_id AND id IN (SELECT id FROM chain) RETURNING id
+"""
+
+
 async def erase(
     user_id: str,
     *,
     ids: list[int] | None = None,
     source_ref: str | None = None,
-    name_pattern: str | None = None,
+    name_contains: str | None = None,
     everything: bool = False,
 ) -> int:
     """The privacy path: physically delete a person's observations, by id,
-    by source document, by a name pattern, or all of them. Coding, day
-    authority and check rows go with them (`ON DELETE CASCADE`). The same
-    readings still waiting in the retired 1.4 table are marked deleted too,
-    or `mirobody migrate-observations` would write them back: by source
-    document (a file's), by name pattern and all of them; a row erased by id
-    has a copy there only once it has been moved, and a moved row is never
-    read again. Returns how many observations were deleted."""
+    by source document, by a piece of the printed name (matched literally,
+    case-insensitively), or all of them. Each selected row goes with its
+    whole amendment chain, the corrected and retracted rows behind it
+    included. Coding, day authority and check rows go with them (`ON DELETE
+    CASCADE`).
+
+    Erasing by name or everything also deletes the device points of those
+    names in `series_data`, which the aggregation reads. The same readings
+    still waiting in the retired 1.4 table are marked deleted too, or
+    `mirobody migrate-observations` would write them back: by source
+    document (a file's), by name and all of them; a row erased by id has a
+    copy there only once it has been moved, and a moved row is never read
+    again. Returns how many rows of `th_observation` were deleted, the hidden
+    rows of each chain included."""
+    params: dict[str, Any] = {"user_id": str(user_id)}
     if ids:
-        where, params = "id = ANY(:ids)", {"ids": [int(i) for i in ids]}
+        where, params["ids"] = "id = ANY(:ids)", [int(i) for i in ids]
     elif source_ref:
-        where, params = "source_ref = :source_ref", {"source_ref": source_ref}
-    elif name_pattern:
-        where, params = "name_text ILIKE :pattern", {"pattern": name_pattern}
+        where, params["source_ref"] = "source_ref = :source_ref", source_ref
+    elif name_contains:
+        where, params["pattern"] = "name_text ILIKE :pattern", contains_pattern(name_contains)
     elif everything:
-        where, params = "TRUE", {}
+        where = "TRUE"
     else:
         return 0
-    params["user_id"] = str(user_id)
     async with db.transaction() as tx:
-        deleted = await tx.execute(f"DELETE FROM th_observation WHERE user_id = :user_id AND {where} RETURNING id", params)
+        if everything:
+            deleted = await tx.execute("DELETE FROM th_observation WHERE user_id = :user_id RETURNING id", params)
+        else:
+            deleted = await tx.execute(_ERASE_CHAINS.format(where=where), params)
         if source_ref:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id AND source_ref = :source_ref", params)
         elif everything:
             await tx.execute("DELETE FROM th_extraction WHERE user_id = :user_id", params)
-        retired_where = _retired_where(source_ref, name_pattern, everything)
+        if everything or name_contains:
+            points = "TRUE" if everything else "indicator ILIKE :pattern"
+            await tx.execute(f"DELETE FROM series_data WHERE user_id = :user_id AND {points}", params)
+        retired_where = _retired_where(source_ref, name_contains, everything)
         if retired_where and (await tx.execute("SELECT to_regclass(:name) IS NOT NULL AS present", {"name": RETIRED_READINGS}))[0]["present"]:
             await tx.execute(
                 f"UPDATE {RETIRED_READINGS} SET deleted = 1 WHERE user_id = :user_id AND deleted = 0 AND {retired_where}",
@@ -904,14 +988,56 @@ async def erase(
 RETIRED_READINGS = "th_series_data_retired_15"
 
 
-def _retired_where(source_ref: str | None, name_pattern: str | None, everything: bool) -> str:
+def _retired_where(source_ref: str | None, name_contains: str | None, everything: bool) -> str:
     """The retired table's rows an `erase` covers, by the columns that held
     the same facts there; "" when none can be told apart (an erase by id)."""
     if source_ref:
         return "source_table = 'th_files' AND source_table_id = :file_id" if source_ref.startswith("th_files:") else ""
-    if name_pattern:
+    if name_contains:
         return "indicator ILIKE :pattern"
     return "TRUE" if everything else ""
+
+
+# The losing account's chains whose first row has an identity the winning
+# account already holds (the same report uploaded to both), every later row of
+# each chain included. Dropping the first row alone broke the `amends`
+# reference of its correction and aborted the whole merge.
+_MERGE_DROP_HELD = """
+WITH RECURSIVE held(id) AS (
+    SELECT l.id FROM th_observation l
+     WHERE l.user_id = %(losing)s AND l.amends IS NULL
+       AND EXISTS (
+         SELECT 1 FROM th_observation w
+          WHERE w.user_id = %(winning)s AND w.amends IS NULL
+            AND w.name_key = l.name_key
+            AND w.observed_start = l.observed_start AND w.observed_end = l.observed_end
+            AND w.source_ref = l.source_ref
+            AND COALESCE(w.source_record_id, '') = COALESCE(l.source_record_id, '')
+            AND COALESCE(w.member_of, 0) = COALESCE(l.member_of, 0))
+  UNION
+    SELECT o.id FROM held h JOIN th_observation o ON o.amends = h.id
+)
+DELETE FROM th_observation WHERE id IN (SELECT id FROM held)
+"""
+
+
+async def merge_accounts(cur: Any, losing_user_id: str, winning_user_id: str) -> int:
+    """Give the winning account every observation of the losing one, on the
+    caller's psycopg cursor: an account merge is one transaction over many
+    tables (`user/account_merge.py`), so this runs inside it.
+
+    A chain of the same reading on both accounts keeps the winner's: the
+    loser's chain goes whole, its corrections included. The rest moves over.
+    The loser's day authority is deleted rather than moved, so it never names
+    a row the winner's election did not choose. Returns the rows deleted and
+    moved."""
+    params = {"losing": str(losing_user_id), "winning": str(winning_user_id)}
+    await cur.execute(_MERGE_DROP_HELD, params)
+    total = cur.rowcount or 0
+    await cur.execute("UPDATE th_observation SET user_id = %(winning)s WHERE user_id = %(losing)s", params)
+    total += cur.rowcount or 0
+    await cur.execute("DELETE FROM th_day_authority WHERE user_id = %(losing)s", params)
+    return total + (cur.rowcount or 0)
 
 
 # --- recoding: the same frozen rows under a newer vocabulary or rule -------
@@ -1215,6 +1341,7 @@ async def ingest_legacy_rows(rows: list[dict[str, Any]], *, on_conflict: str = O
 __all__ = [
     "AGGREGATE_TASK_IDS",
     "CAUSE_AMEND",
+    "CAUSE_CORRECT",
     "CAUSE_INGEST",
     "CAUSE_RECODE_ALIAS",
     "CAUSE_RECODE_RELEASE",
@@ -1263,6 +1390,7 @@ __all__ = [
     "catalog_alias",
     "coding_for",
     "confirm_alias",
+    "contains_pattern",
     "erase",
     "ingest",
     "ingest_legacy",
@@ -1270,9 +1398,12 @@ __all__ = [
     "legacy_draft",
     "legacy_present",
     "legacy_provenance",
+    "merge_accounts",
     "prepare",
     "recode",
     "redate",
     "retract",
+    "retract_unconfirmed",
     "user_tz",
+    "value_ranges",
 ]

@@ -20,19 +20,22 @@ projection that ``/api/history`` and session sharing render, but it is no
 longer fed back into the agent. That split (checkpointer for execution state,
 own table for the readable transcript) is the standard production shape.
 
-Lifecycle: the pool/saver are process singletons (the graph itself is rebuilt
-per request); ``close_checkpointer`` is for shutdown.
+Lifecycle: the saver and its pool are process singletons (the graph itself is
+rebuilt per request), made by the first turn that needs them and kept for the
+life of the process.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from psycopg_pool import AsyncConnectionPool
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
-_pool: AsyncConnectionPool | None = None
 _saver = None
 # Set once the first attempt fails, so a broken setup costs the connect timeout
 # ONCE rather than on every turn. The realistic failure is permanent for the
@@ -40,6 +43,10 @@ _saver = None
 # a database that is genuinely down takes the whole app with it anyway, since
 # the turn cannot be persisted to th_messages either. Restart to retry.
 _unavailable = False
+# Turns that arrive while the first one builds the saver wait for it: without
+# this, each built its own pool, and a turn could take a saver whose setup()
+# had not finished, or whose pool a failed setup was about to close.
+_starting = asyncio.Lock()
 
 _CONNECT_TIMEOUT_SECONDS = 5
 
@@ -48,10 +55,11 @@ def _build_pool() -> AsyncConnectionPool:
     """A dedicated pool for the checkpoint tables.
 
     It mirrors ``PostgreSQLConfig.get_async_pool`` (same conninfo shape, same
-    ``search_path``) but is built here rather than reused, for two reasons:
+    ``search_path``) but is built here rather than reused, for three reasons:
     ``autocommit=True`` (``AsyncPostgresSaver.setup()`` runs DDL and the shared
-    pool does not enable it) and no ``app.encryption_key`` option, which the
-    checkpoint tables never need. ``PostgreSQLConfig.schema`` already has
+    pool does not enable it), no ``app.encryption_key`` option, which the
+    checkpoint tables never need, and its own short connect timeout in place
+    of ``PG_TIMEOUT`` (see below). ``PostgreSQLConfig.schema`` already has
     ``public`` appended, and libpq's ``options`` is whitespace-delimited so the
     comma-joined value must stay space-free.
     """
@@ -86,12 +94,19 @@ async def get_checkpointer():
     stateless graph: the turn still answers, it just has no cross-turn memory,
     which is strictly better than failing the request outright.
     """
-    global _pool, _saver, _unavailable
-    if _saver is not None:
+    global _saver, _unavailable
+    if _saver is not None or _unavailable:
         return _saver
-    if _unavailable:
-        return None
+    async with _starting:
+        if _saver is None and not _unavailable:
+            # Published only once `setup()` has succeeded.
+            _saver = await _start()
+            _unavailable = _saver is None
+    return _saver
 
+
+async def _start():
+    """A saver whose tables exist, or None when there can be none."""
     # Opt-out switch. `setup()` below issues CREATE TABLE, which is consistent
     # with how this project already provisions its schema at startup
     # (`server/bootstrap.create_schema`, same DB user, and compose.yaml's PG
@@ -103,7 +118,6 @@ async def get_checkpointer():
 
     if (safe_read_cfg("AGENT_CHECKPOINTER", "true") or "true").strip().lower() in ("false", "0", "off", "no"):
         logger.info("agent checkpointer disabled by AGENT_CHECKPOINTER; turns will be stateless")
-        _unavailable = True
         return None
 
     try:
@@ -113,28 +127,26 @@ async def get_checkpointer():
             "langgraph-checkpoint-postgres is not installed; the agent will run "
             "without cross-turn memory. Install the [app] extra."
         )
-        _unavailable = True
         return None
 
+    pool = None
     try:
-        _pool = _build_pool()
-        await _pool.open()
-        _saver = AsyncPostgresSaver(_pool)
+        pool = _build_pool()
+        await pool.open()
+        saver = AsyncPostgresSaver(pool)
         # Creates the checkpoint tables if absent; a no-op once they exist.
-        await _saver.setup()
-        logger.info("agent checkpointer ready")
-        return _saver
-    except Exception:
-        logger.warning("checkpointer unavailable; running without cross-turn memory", exc_info=True)
-        if _pool is not None:
+        await saver.setup()
+    except Exception as e:
+        logger.warning("checkpointer unavailable; running without cross-turn memory: error_type=%s",
+                       type(e).__name__, exc_info=not is_driver_exception(e))
+        if pool is not None:
             try:
-                await _pool.close()
-            except Exception:
-                pass
-        _pool = None
-        _saver = None
-        _unavailable = True
+                await pool.close()
+            except Exception as close_error:
+                logger.debug("checkpoint pool close failed: error_type=%s", type(close_error).__name__)
         return None
+    logger.info("agent checkpointer ready")
+    return saver
 
 
 def thread_for(owner_id: str, session_id: str) -> str:
@@ -174,13 +186,3 @@ async def delete_thread(thread_id: str) -> None:
         await saver.adelete_thread(str(thread_id))
     except Exception as e:
         logger.warning("could not delete a checkpoint thread: error_type=%s", type(e).__name__)
-
-
-async def close_checkpointer() -> None:
-    """Close the singleton pool. Call on process shutdown."""
-    global _pool, _saver, _unavailable
-    _saver = None
-    _unavailable = False
-    if _pool is not None:
-        await _pool.close()
-        _pool = None

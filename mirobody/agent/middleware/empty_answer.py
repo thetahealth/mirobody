@@ -24,6 +24,7 @@ import logging
 from langchain.agents.middleware import AgentMiddleware, hook_config
 from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 
+from mirobody.agent.middleware.model_budget import LAST_CALL_NAME
 from mirobody.agent.models.messages import message_reasoning, message_text
 
 logger = logging.getLogger(__name__)
@@ -40,13 +41,15 @@ _MAX_NUDGES_PER_TURN = 1
 
 
 def _nudges(messages: list) -> list:
-    """This turn's nudges: the harness's messages since the person's last one."""
+    """This turn's nudges, since the person's last message. The budget's
+    last-call instruction is the harness speaking too, and kept."""
     found = []
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            if msg.name != NUDGE_NAME:
+            if msg.name == NUDGE_NAME:
+                found.append(msg)
+            elif msg.name != LAST_CALL_NAME:
                 break
-            found.append(msg)
     return found
 
 

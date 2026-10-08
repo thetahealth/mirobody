@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS indicator_valid_rules (
 CREATE INDEX IF NOT EXISTS idx_ivr_rule_set ON indicator_valid_rules (rule_set, enabled);
 
 COMMENT ON TABLE  indicator_valid_rules IS 'Indicator value validation rules. Each row defines rules for one indicator under one rule_set.';
-COMMENT ON COLUMN indicator_valid_rules.rule_set IS 'Rule set name: ingestion_filter (W1.1), healthy_range, diabetic_range, etc.';
+COMMENT ON COLUMN indicator_valid_rules.rule_set IS 'Rule set name. ingestion_filter, the plausible range of a device reading, is the one the code reads.';
 COMMENT ON COLUMN indicator_valid_rules.indicator IS 'Indicator name matching StandardIndicator.name (e.g. heartRates)';
 COMMENT ON COLUMN indicator_valid_rules.rules IS 'JSON array of rule expressions, e.g. [">=25", "<=350"]. All rules AND.';
 COMMENT ON COLUMN indicator_valid_rules.mapping_info IS 'Indicator metadata such as unit type, e.g. {"unit": "%"}';

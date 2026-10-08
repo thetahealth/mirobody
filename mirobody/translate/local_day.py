@@ -21,37 +21,23 @@ tell an exact day from a best-effort one.
 
 from __future__ import annotations
 
-import re
-from datetime import UTC, date, datetime, timedelta, timezone, tzinfo
+from datetime import date, datetime, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from mirobody.kernel import metrics
-from mirobody.kernel.series import local_date
+from mirobody.kernel.series import local_date, offset_name, zone
 
 TZ_IANA = "iana"
 TZ_OFFSET = "offset-only"
 TZ_FLOATING = "floating"
 TZ_USER_DEFAULT = "user-default"
 
-_OFFSET = re.compile(r"^(?:UTC|GMT)?\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$", re.IGNORECASE)
-
 
 def zone_for(tz: str) -> tzinfo:
-    """A `tzinfo` for an IANA name or a `UTC±HH:MM` offset. Raises on
-    anything else: a zone this cannot place must be resolved through
-    `resolve_tz` first, never defaulted here."""
-    text = (tz or "").strip()
-    if not text or text.upper() in ("UTC", "Z", "GMT"):
-        return UTC
-    m = _OFFSET.match(text)
-    if m:
-        sign = 1 if m.group(1) == "+" else -1
-        delta = timedelta(hours=int(m.group(2)), minutes=int(m.group(3) or 0))
-        return timezone(sign * delta)
-    try:
-        return ZoneInfo(text)
-    except (ZoneInfoNotFoundError, ValueError) as e:
-        raise ValueError(f"not a time zone: {text!r}") from e
+    """A `tzinfo` for an IANA name or a `UTC±HH:MM` offset (the kernel's
+    `series.zone`, strict). Raises on anything else: a zone this cannot
+    place must be resolved through `resolve_tz` first, never defaulted here."""
+    return zone(tz, strict=True)
 
 
 def resolve_tz(text: str | None, user_tz: str) -> tuple[str, str]:
@@ -64,30 +50,27 @@ def resolve_tz(text: str | None, user_tz: str) -> tuple[str, str]:
     """
     candidate = (text or "").strip()
     if candidate:
-        m = _OFFSET.match(candidate)
-        if m:
-            hours, minutes = int(m.group(2)), int(m.group(3) or 0)
-            return f"UTC{m.group(1)}{hours:02d}:{minutes:02d}", TZ_OFFSET
+        offset = offset_name(candidate)
+        if offset:
+            return offset, TZ_OFFSET
         try:
             ZoneInfo(candidate)
             return candidate, TZ_IANA
         except (ZoneInfoNotFoundError, ValueError):
             pass
+    # The person's zone may itself be an offset; it read as no zone at all.
     fallback = (user_tz or "").strip()
     try:
-        ZoneInfo(fallback or "UTC")
-    except (ZoneInfoNotFoundError, ValueError):
+        zone(fallback, strict=True)
+    except ValueError:
         fallback = "UTC"
-    return fallback or "UTC", TZ_USER_DEFAULT
+    return offset_name(fallback) or fallback or "UTC", TZ_USER_DEFAULT
 
 
 def window_for(name: str) -> str:
     """The local-day window of a catalogue metric, `"00:00"` for anything
-    else. The aggregate writers suffix the source (`totalSleepTime.apple`),
-    so the head before the first dot is tried too."""
+    else."""
     metric = metrics.METRICS.get(name)
-    if metric is None and "." in name:
-        metric = metrics.METRICS.get(name.split(".", 1)[0])
     return metric.window if metric else "00:00"
 
 
@@ -99,19 +82,10 @@ def local_day(instant: datetime, tz: str, window: str = "00:00") -> date:
     the day comes from the kernel's boundary rule, so a sleep stage at 02:00
     lands on the night that opened at 18:00 the day before.
     """
-    zone = zone_for(tz)
+    tzone = zone_for(tz)  # raises on a zone it cannot place, before the kernel would read it as UTC
     if instant.tzinfo is None:
-        instant = instant.replace(tzinfo=zone)
-    if isinstance(zone, ZoneInfo):
-        return local_date(int(instant.timestamp() * 1000), tz, window)
-    # `series.local_date` takes an IANA name; a fixed offset is placed here
-    # with the same window rule.
-    local = instant.astimezone(zone)
-    hh, mm = (int(p) for p in window.split(":"))
-    day = local.date()
-    if (local.hour, local.minute) < (hh, mm):
-        day = day - timedelta(days=1)
-    return day
+        instant = instant.replace(tzinfo=tzone)
+    return local_date(int(instant.timestamp() * 1000), tz, window)
 
 
 __all__ = [

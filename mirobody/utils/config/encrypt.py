@@ -2,6 +2,8 @@ import logging
 
 from cryptography.fernet import Fernet
 
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 #-----------------------------------------------------------------------------
@@ -13,8 +15,8 @@ class FernetEncrypter:
         try:
             self._fernet = Fernet(self._key)
         except Exception as e:
-            logger.error("unusable CONFIG_ENCRYPTION_KEY (%s)",
-                         type(e).__name__, exc_info=True)
+            logger.error("unusable CONFIG_ENCRYPTION_KEY: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             self._fernet = None
 
     #-----------------------------------------------------

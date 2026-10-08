@@ -41,16 +41,12 @@ class ExampleProvider(BasePullProvider):
             status=ProviderStatus.AVAILABLE,
         )
 
-    # The pull half. A real provider talks to the vendor here and stores the raw
-    # payload in its own table; this one has nothing to pull.
-    async def pull_from_vendor_api(self, username: str, password: str) -> list[dict[str, Any]]:
+    # The pull half. A real provider asks the vendor for the account's last
+    # `days` here (`credentials` holds `username` and `password` for this
+    # auth type) and sets `raw_table` to keep payloads as received; this one
+    # has nothing to pull.
+    async def pull_from_vendor_api(self, credentials: dict[str, Any], days: int) -> list[dict[str, Any]]:
         return []
-
-    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
-        return []
-
-    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
-        return True
 
     # The pure half: vendor payload -> StandardPulseData.
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:

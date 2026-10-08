@@ -28,7 +28,7 @@ from fastapi.responses import StreamingResponse
 from mirobody.collect import RECORD_EXPORT_COLUMNS, PostgresHealthQuery
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
-from mirobody.server.envelope import ErrorResponse, StandardResponse
+from mirobody.server.envelope import ErrorResponse, StandardResponse, failed
 
 logger = logging.getLogger(__name__)
 
@@ -60,12 +60,6 @@ def _manifest(rows: int, *, offset: int, truncated: bool, next_offset: int) -> d
     if truncated:
         entry.update({"truncated": True, "next_offset": next_offset})
     return {"generated_at": datetime.now(UTC).isoformat(), "manifest": [entry]}
-
-
-def _failed(exc: Exception) -> None:
-    # A type name only: a driver exception quotes the SQL with its parameters.
-    logger.error("data export failed: error_type=%s", type(exc).__name__,
-                 exc_info=not is_driver_exception(exc))
 
 
 async def _stream(subject_id: str) -> AsyncIterator[bytes]:
@@ -102,7 +96,9 @@ async def _stream(subject_id: str) -> AsyncIterator[bytes]:
                 break
             offset += len(page["rows"])
     except Exception as exc:
-        _failed(exc)
+        # The status line went out with the header: the footer is the answer.
+        logger.error("data export stream failed: error_type=%s", type(exc).__name__,
+                     exc_info=not is_driver_exception(exc))
         yield _line({"type": "footer", "complete": False, "rows": {DATASET: total},
                      "errors": {DATASET: "unavailable"}})
         return
@@ -136,8 +132,7 @@ async def data_export(
     try:
         page = await _records.records(str(user_id), kind="all", limit=size, offset=offset)
     except Exception as exc:
-        _failed(exc)
-        return ErrorResponse(code=500, msg="This export could not complete.")
+        return failed("data export", exc, "This export could not complete.")
     rows = [_row(r) for r in page["rows"]]
     meta = _manifest(len(rows), offset=offset, truncated=page["has_more"], next_offset=offset + len(rows))
     meta["data"] = {DATASET: rows}

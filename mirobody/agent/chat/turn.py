@@ -41,6 +41,7 @@ from mirobody.agent.wire.blocks import (
     FINISH_STOP,
     FINISH_UNAVAILABLE,
     HEARTBEAT,
+    INTERRUPT,
     START,
     TEXT,
     answer_text,
@@ -87,8 +88,17 @@ async def run(params: ChatStreamRequest) -> AsyncGenerator[dict[str, Any], None]
         params.query_user_id = params.query_user_id or params.user_id
         params.session_id = params.session_id or str(uuid.uuid4())
 
-        if not await _may_chat(params):
+        may_read, may_write = await _access(params)
+        if not may_read:
             yield {"type": ERROR, "message": "No permission to chat for this user"}
+            return
+        # Filing an attachment adds readings to the record: that takes the
+        # write grant the upload route asks for (`file_router`), not the read
+        # grant a question needs.
+        if has_attachment(params.file_list) and not may_write:
+            logger.warning("attachment refused, read-only grant: user_id=%s subject_id=%s",
+                           params.user_id, params.query_user_id)
+            yield {"type": ERROR, "message": "No permission to add files to this user's record"}
             return
 
         # An attachment-only turn asks "read this": say it out loud ONCE,
@@ -115,7 +125,7 @@ async def run(params: ChatStreamRequest) -> AsyncGenerator[dict[str, Any], None]
         if saved:
             spawn(_summarize_once(params.user_id, params.session_id))
 
-        async for block in _pump(_agent_blocks(params), params):
+        async for block in _pump(_agent_blocks(params, may_write=may_write), params):
             yield block
 
     except Exception as e:
@@ -124,17 +134,22 @@ async def run(params: ChatStreamRequest) -> AsyncGenerator[dict[str, Any], None]
         yield {"type": ERROR, "message": client_safe_error(e)}
 
 
-async def _may_chat(params: ChatStreamRequest) -> bool:
-    """Whether the caller may open a chat on `query_user_id`'s record."""
+async def _access(params: ChatStreamRequest) -> tuple[bool, bool]:
+    """Whether the caller may read, and may change, `query_user_id`'s record:
+    both on their own; on anyone else's, what the care circle granted."""
     if not params.query_user_id or params.query_user_id == params.user_id:
-        return True
+        return True, True
+    try:
+        await resolve_subject(params.user_id, params.query_user_id, require_write=True)
+        return True, True
+    except CareCircleDenied:
+        pass
     try:
         await resolve_subject(params.user_id, params.query_user_id)
-    except CareCircleDenied as denied:
-        logger.error("chat refused: user_id=%s subject_id=%s reason=%s",
-                     params.user_id, params.query_user_id, type(denied).__name__)
-        return False
-    return True
+    except CareCircleDenied:
+        logger.warning("chat refused: user_id=%s subject_id=%s", params.user_id, params.query_user_id)
+        return False, False
+    return True, False
 
 
 async def _store_files(params: ChatStreamRequest) -> None:
@@ -221,7 +236,7 @@ async def _record_owner(params: ChatStreamRequest) -> str:
     return row.get("nickname") or row.get("name") or "another person"
 
 
-async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
+async def _agent_kwargs(params: ChatStreamRequest, *, may_write: bool) -> dict[str, Any]:
     """What `AbstractAgent.generate_response` is called with (`registry.py`).
 
     `messages` carries ONLY this turn. The agent's graph is compiled with a
@@ -232,9 +247,12 @@ async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
     """
     return {
         # The person whose data the agent operates on: the help-ask target when
-        # set, the requester otherwise. `_may_chat` already validated it.
+        # set, the requester otherwise. `_access` already authorised it.
         "user_id": params.query_user_id or params.user_id,
         "record_owner": await _record_owner(params),
+        # Whether the asker may change that record: an `ask_user` date answer
+        # is filed only when they may (`hitl.apply_report_date_answer`).
+        "may_write": may_write,
         # The agent keys its conversation memory on this; see `thread_for`.
         "session_id": thread_for(params.user_id, params.session_id),
         "language": params.language,
@@ -246,16 +264,19 @@ async def _agent_kwargs(params: ChatStreamRequest) -> dict[str, Any]:
     }
 
 
-async def _agent_blocks(params: ChatStreamRequest) -> AsyncGenerator[dict[str, Any], None]:
+async def _agent_blocks(params: ChatStreamRequest, *, may_write: bool) -> AsyncGenerator[dict[str, Any], None]:
     """The agent's blocks for this turn, always closed with `end`.
 
-    Why a turn ENDED is a fact about the run, and a client had no way to tell
-    "the model finished" from "the budget ran out" from "it crashed": all three
-    arrived as the same empty `end`, and a reader that cannot distinguish them
-    shows "Answer Completed" over a truncated reply.
+    Why a turn ENDED is a fact about the run: `stop` after an answer, `error`
+    when a block said the turn failed, `unavailable` with no agent, and
+    `_accumulate` reads a `stop` without answer text as `empty`. A turn whose
+    model-call budget ran out is a `stop`, because the budget's last call is
+    the answer (`ModelCallBudgetMiddleware`). They used to arrive as one
+    empty `end`, and a reader that cannot tell them apart shows "Answer
+    Completed" over a truncated reply.
     """
     try:
-        kwargs = await _agent_kwargs(params)
+        kwargs = await _agent_kwargs(params, may_write=may_write)
         # None means no agent class was found in AGENT_DIRS at startup. A
         # constructor that RAISES does not land here; it propagates below.
         agent = new_agent(**kwargs)
@@ -303,9 +324,10 @@ async def _pump(
             if block is None:
                 return
             if block.get("type") == ERROR:
-                # Already `client_safe_error`: every producer of an `error`
-                # block passes provider and driver text through it first.
-                logger.error("error on the wire: %s", block.get("message", ""))  # phi: ok client-safe by construction
+                # The producer logged the failure with its type; the message
+                # is `client_safe_error` or an `AgentError`'s own sentence,
+                # and it can name a client-chosen model, so it stays out.
+                logger.warning("turn sent an error block")
             yield block
     except (GeneratorExit, asyncio.CancelledError):
         logger.warning("Client disconnected; the background turn continues")
@@ -342,8 +364,10 @@ async def _accumulate(
         # can render: it draws an empty bubble under "Answer Completed".
         # Measured 2026-09-11 across two vendors: gemini spent 2,337 of 2,539
         # output tokens on reasoning and qwen 8,943 of 9,862, both finishing
-        # `stop` with no error event and no answer.
-        if completed and not answer_text(transcript).strip():
+        # `stop` with no error event and no answer. A turn that ends on an
+        # `ask_user` question has its answer still to come, and is not empty.
+        asked = any(b.get("type") == INTERRUPT for b in transcript)
+        if completed and not asked and not answer_text(transcript).strip():
             filler = localize("empty_turn", params.language or "en", module="chat")
             merge(transcript, {"type": TEXT, "text": filler})
             await queue.put({"type": TEXT, "text": filler})

@@ -1,12 +1,10 @@
 """LangGraph's stream → the blocks in `blocks.py`.
 
-Three decisions are this renderer's own, and they are why it reads the stream
+Two decisions are this renderer's own, and they are why it reads the stream
 rather than taking `events_bridge`'s finished events:
 
 * only the ``model`` and ``tools`` nodes are user-visible, so a
   summarisation-internal model call never reaches a client;
-* a subagent's text goes to the ``reasoning`` channel, so a delegated run
-  narrates instead of gluing itself into the answer;
 * a tool result's content passes through VERBATIM, multimodal blocks
   included, with the status read off its artifact rather than off its text.
 
@@ -41,7 +39,7 @@ logger = logging.getLogger(__name__)
 FINAL_OUTPUT_NODES: set[str] = {"tools", "model"}
 
 
-def _message_blocks(chunk: Any, metadata: dict[str, Any], *, is_subagent: bool) -> Iterator[dict[str, Any]]:
+def _message_blocks(chunk: Any, metadata: dict[str, Any]) -> Iterator[dict[str, Any]]:
     """One ``messages`` chunk → `text` / `reasoning` blocks."""
     # SummarizationMiddleware's own model calls are not user-facing output.
     if metadata.get("lc_source") == "summarization":
@@ -52,9 +50,7 @@ def _message_blocks(chunk: Any, metadata: dict[str, Any], *, is_subagent: bool) 
         if isinstance(event, ReasoningDelta):
             yield {"type": REASONING, "reasoning": event.text}
         elif isinstance(event, TextDelta):
-            # A subagent's narration streams into the process channel.
-            yield {"type": REASONING if is_subagent else TEXT,
-                   ("reasoning" if is_subagent else "text"): event.text}
+            yield {"type": TEXT, "text": event.text}
 
 
 def _update_blocks(update: Any, seen: set[str], trace_id: str | None) -> Iterator[dict[str, Any]]:
@@ -89,10 +85,9 @@ async def stream_blocks(
     stream_type: str,
     stream_event: Any,
     trace_id: str | None = None,
-    namespace: Any = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """One item of ``agent.astream(stream_mode=["messages", "updates"])`` → its
-    blocks. ``namespace`` non-empty means a subagent subgraph."""
+    blocks. Never raises: an item it cannot read is logged and dropped."""
     try:
         if stream_type == "messages":
             try:
@@ -103,7 +98,7 @@ async def stream_blocks(
                     type(stream_event).__name__, type(e).__name__, trace_id,
                 )
                 return
-            for block in _message_blocks(chunk, metadata, is_subagent=bool(namespace)):
+            for block in _message_blocks(chunk, metadata):
                 yield block
         elif stream_type == "updates":
             for block in _update_blocks(stream_event, set(), trace_id):

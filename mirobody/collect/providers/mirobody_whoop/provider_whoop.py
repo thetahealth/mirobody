@@ -1,85 +1,57 @@
-"""
-Whoop Provider
+"""WHOOP: an OAuth 2.0 provider, pulled once a day."""
 
-Whoop OAuth2 data provider with authentication and data pulling functionality
-"""
-
-import asyncio
-import json
 import logging
 import time
-import uuid
-from datetime import datetime, timedelta, UTC
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import aiohttp
 
 from mirobody.collect.base import ProviderInfo
 from mirobody.collect.core import LinkType, ProviderStatus
-from mirobody.collect.core.push_service import push_service
 from mirobody.collect.ingest import FormatDataInput, StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord
 from mirobody.collect.providers._platform.base import BasePullProvider
-from mirobody.collect.providers._platform.oauth2 import OAuth2Client
+from mirobody.collect.providers._platform.http import VendorError, get_json, get_pages
 from mirobody.collect.providers._platform.normalize import records_from_facts
+from mirobody.collect.providers._platform.oauth2 import OAuth2Client
 from mirobody.kernel import decoders
-from mirobody.utils import execute_query
 from mirobody.utils.config import safe_read_cfg
-from mirobody.utils.tasks import spawn
 from mirobody.utils.log import secret_fingerprint
+from mirobody.utils.tasks import spawn
 
 logger = logging.getLogger(__name__)
 
+#: WHOOP's collections, keyed by the decoder type each one holds.
+COLLECTIONS: dict[str, str] = {
+    "cycle": "/cycle",
+    "sleep": "/activity/sleep",
+    "workout": "/activity/workout",
+    "recovery": "/recovery",
+}
+
 
 class WhoopProvider(BasePullProvider):
-    """Whoop Provider - Whoop OAuth2 Data Integration"""
+    """WHOOP's developer API v2, linked with OAuth 2.0."""
 
-    def __init__(self):
+    pull_interval_hours = 24.0
+    raw_table = "health_data_whoop"
+
+    def __init__(self) -> None:
         super().__init__()
-
-        # Load configuration
         self.client_id = safe_read_cfg("WHOOP_CLIENT_ID")
         self.client_secret = safe_read_cfg("WHOOP_CLIENT_SECRET")
         self.redirect_url = safe_read_cfg("WHOOP_REDIRECT_URL")
-
-        # OAuth2 endpoints (configurable, with defaults)
-        self.auth_url = (
-                safe_read_cfg("WHOOP_AUTH_URL")
-                or "https://api.prod.whoop.com/oauth/oauth2/auth"
-        )
-        self.token_url = (
-                safe_read_cfg("WHOOP_TOKEN_URL")
-                or "https://api.prod.whoop.com/oauth/oauth2/token"
-        )
-
-        # API endpoints (configurable)
-        self.api_base_url = (
-                safe_read_cfg("WHOOP_API_BASE_URL")
-                or "https://api.prod.whoop.com/developer/v2"
-        )
-
-        # Scopes
+        self.auth_url = safe_read_cfg("WHOOP_AUTH_URL") or "https://api.prod.whoop.com/oauth/oauth2/auth"
+        self.token_url = safe_read_cfg("WHOOP_TOKEN_URL") or "https://api.prod.whoop.com/oauth/oauth2/token"
+        self.api_base_url = safe_read_cfg("WHOOP_API_BASE_URL") or "https://api.prod.whoop.com/developer/v2"
         self.scopes = (
-                safe_read_cfg("WHOOP_SCOPES")
-                or "offline read:recovery read:sleep read:cycles read:profile read:workout read:body_measurement"
+            safe_read_cfg("WHOOP_SCOPES")
+            or "offline read:recovery read:sleep read:cycles read:profile read:workout read:body_measurement"
         )
-
-        # Data pull configuration
-        try:
-            self.max_detail_records = int(safe_read_cfg("WHOOP_MAX_DETAIL_RECORDS") or 50)
-        except (ValueError, TypeError):
-            self.max_detail_records = 50
-
-        try:
-            self.concurrent_requests = int(safe_read_cfg("WHOOP_CONCURRENT_REQUESTS") or 5)
-        except (ValueError, TypeError):
-            self.concurrent_requests = 5
-
         try:
             self.request_timeout = int(safe_read_cfg("WHOOP_REQUEST_TIMEOUT") or 30)
         except (ValueError, TypeError):
             self.request_timeout = 30
-
-        # OAuth2 client (encapsulates auth URL, token exchange, refresh)
         self.oauth = OAuth2Client(
             client_id=self.client_id or "",
             client_secret=self.client_secret or "",
@@ -88,52 +60,25 @@ class WhoopProvider(BasePullProvider):
             token_url=self.token_url,
             scopes=self.scopes,
             request_timeout=self.request_timeout,
-            refresh_extra_params={"scope": self.scopes},  # Whoop requires scope on refresh
+            refresh_extra_params={"scope": self.scopes},  # WHOOP requires the scope on a refresh
         )
 
-        if not self.client_id or not self.client_secret:
-            logger.error("Whoop OAuth credentials not configured. Please set WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET")
-        else:
-            logger.info(f"Whoop OAuth configuration validated successfully, client_id:{self.client_id[:3]}, redirect_url:{self.redirect_url}")
-
     @classmethod
-    def create_provider(cls, config: dict[str, Any]) -> Optional['WhoopProvider']:
-        """
-        Factory method to create Whoop provider from config
-        
-        Required config keys:
-        - WHOOP_CLIENT_ID
-        - WHOOP_CLIENT_SECRET
-        
-        Returns:
-            Provider instance if config is valid, None otherwise
-        """
-        try:
-            # Verify config is accessible before creating instance
-            from mirobody.utils.config import safe_read_cfg
-            client_id = safe_read_cfg("WHOOP_CLIENT_ID")
-            client_secret = safe_read_cfg("WHOOP_CLIENT_SECRET")
-            # The vendor OAuth client_secret was in this line, at INFO, on every
-            # provider init. Logging whether it is configured is the useful
-            # part; the value never was.
-            logger.info(
-                "whoop provider %s, secret %s",
-                client_id, secret_fingerprint(client_secret),
-            )
-            if not client_id or not client_secret:
-                # Unset credentials are the usual self-hosted state, not a fault:
-                # at WARNING this read as a failure on every boot.
-                logger.info("Whoop not configured (WHOOP_CLIENT_ID / WHOOP_CLIENT_SECRET unset); provider off")
-                return None
-
-            return cls()
-        except Exception as e:
-            logger.warning(f"Failed to create Whoop provider: {e}")
+    def create_provider(cls, config: dict[str, Any]) -> "WhoopProvider | None":
+        """None unless WHOOP_CLIENT_ID and WHOOP_CLIENT_SECRET are set."""
+        provider = super().create_provider(config)
+        if provider is None:
             return None
+        if not provider.client_id or not provider.client_secret:
+            # Unset credentials are the usual self-hosted state, not a fault.
+            logger.info("WHOOP not configured (WHOOP_CLIENT_ID / WHOOP_CLIENT_SECRET unset); provider off")
+            return None
+        logger.info("WHOOP configured: client_id=%s secret=%s",
+                    provider.client_id, secret_fingerprint(provider.client_secret))
+        return provider
 
     @property
     def info(self) -> ProviderInfo:
-        """Get Provider information"""
         return ProviderInfo(
             slug="theta_whoop",
             name="Whoop",
@@ -145,74 +90,35 @@ class WhoopProvider(BasePullProvider):
         )
 
     async def link(self, request: Any) -> dict[str, Any]:
-        """Link Whoop OAuth2 Provider - generate OAuth2 authorization URL."""
-        user_id = request.user_id
-        options = request.options or {}
-
-        try:
-            logger.info(f"Generating OAuth2 authorization URL for user: {user_id}")
-            return await self.oauth.generate_authorization_url(user_id, options)
-        except Exception as e:
-            logger.error(f"Error linking Whoop provider: {str(e)}")
-            raise RuntimeError(str(e))
+        """The authorization URL the person approves the link at."""
+        return await self.oauth.generate_authorization_url(request.user_id, request.options or {})
 
     async def callback(self, code: str, state: str) -> dict[str, Any]:
-        """Handle OAuth2 callback - exchange authorization code for tokens."""
-        try:
-            logger.info("Processing OAuth2 callback")
-            result = await self.oauth.exchange_code_for_tokens(
-                code, state, self.db_service, self.info.slug
-            )
-
-            # Trigger immediate pull using unified path
-            creds_payload: dict[str, Any] = {
-                "user_id": result["user_id"],
-                "access_token": result["access_token"],
-                "refresh_token": result.get("refresh_token", ""),
-            }
-            spawn(self._pull_and_push_for_user(creds_payload))
-
-            return {
-                "provider_slug": self.info.slug,
-                "access_token": result["access_token"][:20] + "...",
-                "stage": "completed",
-                "return_url": result.get("return_url"),
-            }
-        except Exception as e:
-            logger.error(f"Error in OAuth2 callback: {str(e)}")
-            raise RuntimeError(str(e))
+        """Exchange the authorization code, store the tokens, start the backfill."""
+        result = await self.oauth.exchange_code_for_tokens(code, state, self.db_service, self.info.slug)
+        self._relinked(result["user_id"])
+        spawn(self._pull_and_push_for_user({
+            "user_id": result["user_id"],
+            "access_token": result["access_token"],
+            "refresh_token": result.get("refresh_token", ""),
+            "expires_at": result.get("expires_at"),
+        }, days=self.backfill_days))
+        return {
+            "provider_slug": self.info.slug,
+            "stage": "completed",
+            "return_url": result.get("return_url"),
+        }
 
     async def unlink(self, user_id: str) -> dict[str, Any]:
-        """
-        Unlink Whoop provider by deleting user registration from database
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Unlink result data
-        """
-        try:
-            logger.info(f"Unlinking Whoop provider for user: {user_id}")
-
-            # Delete user registration from database
-            await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-
-            logger.info(f"Successfully unlinked Whoop provider for user {user_id}")
-            return {"success": True, "message": "Successfully unlinked from Whoop"}
-
-        except Exception as e:
-            logger.error(f"Failed to unlink Whoop provider: {str(e)}")
-            raise RuntimeError(f"Failed to unlink provider: {str(e)}")
+        await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
+        logger.info("WHOOP unlinked: user_id=%s", user_id)
+        return {"success": True, "message": "Successfully unlinked from Whoop"}
 
     def _extract_external_user_id(self, saved_data: dict[str, Any]) -> str:
-        """Extract Whoop numeric user ID from data records."""
-        data_items = saved_data.get("data", [])
-        if isinstance(data_items, list) and data_items:
-            return str(data_items[0].get("user_id", ""))
-        if isinstance(data_items, dict):
-            return str(data_items.get("user_id", ""))
-        return ""
+        """WHOOP's numeric user id, which every record carries."""
+        items = saved_data.get("data")
+        first = items[0] if isinstance(items, list) and items else None
+        return str(first.get("user_id") or "") if isinstance(first, dict) else ""
 
     async def format_data(self, fmt_input: FormatDataInput) -> StandardPulseData:
         """WHOOP records → standard records, via ``mirobody.kernel.decoders.whoop``.
@@ -238,498 +144,57 @@ class WhoopProvider(BasePullProvider):
         pulled_at = int(payload.get("timestamp") or 0)
         records: list[StandardPulseRecord] = []
         for item in items:
-            facts = decoders.decode("whoop", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=msg_id)
-            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=msg_id))
-        logger.info("Formatted %d Whoop records from %d %s items", len(records), len(items), data_type)
+            # WHOOP's own record id, never the per-pull msg_id: the id is part
+            # of a reading's identity, so a msg_id stored a new copy per pull.
+            record_id = str(item.get("id") or "") if isinstance(item, dict) else ""
+            facts = decoders.decode("whoop", data_type, item, tz, pulled_at_ms=pulled_at, source_record_id=record_id)
+            records.extend(records_from_facts(facts, slug=self.info.slug, tz=tz, source_id=record_id))
+        logger.info("WHOOP formatted: data_type=%s item_count=%d record_count=%d",  # phi: ok decoder type name
+                    data_type, len(items), len(records))
         return StandardPulseData(
             metaInfo=StandardPulseMetaInfo(userId=ctx.theta_user_id, requestId=request_id, source="theta", timezone=tz),
             healthData=records,
             processingInfo={"provider": "theta_whoop", "data_type": data_type, "msg_id": msg_id, "user_timezone": tz},
         )
 
-    async def pull_from_vendor_api(self, access_token: str, refresh_token: str, days: int | None = None) -> list[dict[str, Any]]:
+    async def pull_from_vendor_api(self, credentials: dict[str, Any], days: int) -> list[dict[str, Any]]:
+        """The last `days` of each WHOOP collection, and the body measurement.
+
+        One package per decoder type: `{"data_type", "data", "timestamp"}`.
+        A collection record is the whole record, the same object WHOOP's by-id
+        endpoint answers, so nothing is fetched twice. A collection that fails
+        is skipped and the rest still arrive; a refused token raises a
+        `PermissionError` for the pull loop to count.
         """
-        Pull data from Whoop API using OAuth2 credentials.
-        If days is provided, limit the collection endpoints to the last N days
-        (aligned with pull_recent_data behavior); otherwise fetch full history.
-        Implements three-layer data fetching strategy:
-        1. Collection data (cycles, sleeps, workouts, recovery)
-        2. Detailed data (by-ID endpoints)
-        3. Static data (user profile, body measurements)
-        """
-        try:
-            if days and days > 0:
-                logger.info(f"Starting Whoop data pull (last {days} days)")
-            else:
-                logger.info("Starting comprehensive Whoop data pull")
-
-            if not access_token:
-                raise ValueError("Access token is required")
-
-            headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
-            all_raw_data = []
-
-            async with aiohttp.ClientSession() as session:
-                # Layer 1: Fetch all collection data
-                logger.info("Layer 1: Fetching collection data")
-                # Optional date range params for recent window
-                collection_params = None
-                if days and days > 0:
-                    end_date = datetime.now(UTC)
-                    start_date = end_date - timedelta(days=days)
-                    collection_params = {
-                        "start": start_date.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                        "end": end_date.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                        "limit": 25,
-                    }
-
-                # Fetch cycles
-                cycles_url = f"{self.api_base_url}/cycle"
-                cycles = await self._fetch_paginated_data(session, cycles_url, headers, collection_params)
-                logger.info(f"Fetched {len(cycles)} cycle records")
-
-                # Fetch sleeps
-                sleeps_url = f"{self.api_base_url}/activity/sleep"
-                sleeps = await self._fetch_paginated_data(session, sleeps_url, headers, collection_params)
-                logger.info(f"Fetched {len(sleeps)} sleep records")
-
-                # Fetch workouts
-                workouts_url = f"{self.api_base_url}/activity/workout"
-                workouts = await self._fetch_paginated_data(session, workouts_url, headers, collection_params)
-                logger.info(f"Fetched {len(workouts)} workout records")
-
-                # Fetch recovery
-                recovery_url = f"{self.api_base_url}/recovery"
-                recoveries = await self._fetch_paginated_data(session, recovery_url, headers, collection_params)
-                logger.info(f"Fetched {len(recoveries)} recovery records")
-
-                # Layer 2: Fetch detailed data concurrently
-                logger.info("Layer 2: Fetching detailed data with concurrent requests")
-
-                # Prepare concurrent detail fetching
-                detail_tasks = []
-
-                # Cycle details
-                if cycles:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, cycles, f"{self.api_base_url}/cycle/{{id}}",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))  # Placeholder
-
-                # Sleep details
-                if sleeps:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, sleeps, f"{self.api_base_url}/activity/sleep/{{id}}",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))
-
-                # Workout details
-                if workouts:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, workouts, f"{self.api_base_url}/activity/workout/{{id}}",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))
-
-                # Recovery by cycle
-                if cycles:
-                    detail_tasks.append(
-                        self._fetch_detail_batch(
-                            session, cycles, f"{self.api_base_url}/cycle/{{id}}/recovery",
-                            "id", headers
-                        )
-                    )
-                else:
-                    detail_tasks.append(asyncio.create_task(asyncio.sleep(0)))
-
-                # Execute all detail fetching concurrently
-                start_time = time.time()
-                results = await asyncio.gather(*detail_tasks, return_exceptions=True)
-                elapsed = time.time() - start_time
-                logger.info(f"Completed concurrent detail fetching in {elapsed:.2f} seconds")
-
-                # Unpack results
-                detailed_cycles = results[0] if not isinstance(results[0], Exception) and results[0] else []
-                detailed_sleeps = results[1] if not isinstance(results[1], Exception) and results[1] else []
-                detailed_workouts = results[2] if not isinstance(results[2], Exception) and results[2] else []
-                cycle_recoveries = results[3] if not isinstance(results[3], Exception) and results[3] else []
-
-                logger.info(f"Fetched details - Cycles: {len(detailed_cycles)}, Sleeps: {len(detailed_sleeps)}, "
-                             f"Workouts: {len(detailed_workouts)}, Recoveries: {len(cycle_recoveries)}")
-
-                # Layer 3: Fetch static data
-                logger.info("Layer 3: Fetching static data")
-
-                # Fetch user profile
-                profile_url = f"{self.api_base_url}/user/profile/basic"
-                profile = await self._fetch_paginated_data(session, profile_url, headers)
-                logger.info("Fetched user profile data")
-
-                # Fetch body measurements
-                body_url = f"{self.api_base_url}/user/measurement/body"
-                body_measurements = await self._fetch_paginated_data(session, body_url, headers)
-                logger.info("Fetched body measurement data")
-
-                # Package all data into raw data format
-                timestamp = int(time.time() * 1000)
-                user_id = ""  # Do not fetch whoop user id; keep empty
-
-                # Add cycle data
-                if detailed_cycles:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "cycles",
-                        "data": detailed_cycles,
-                        "timestamp": timestamp,
-                    })
-
-                # Add sleep data (prefer detailed if available)
-                if detailed_sleeps:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "sleeps",
-                        "data": detailed_sleeps,
-                        "timestamp": timestamp,
-                    })
-                elif sleeps:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "sleeps",
-                        "data": sleeps,
-                        "timestamp": timestamp,
-                    })
-
-                # Add workout data
-                if detailed_workouts:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "workouts",
-                        "data": detailed_workouts,
-                        "timestamp": timestamp,
-                    })
-
-                # Add recovery data
-                if cycle_recoveries:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "recoveries",
-                        "data": cycle_recoveries,
-                        "timestamp": timestamp,
-                    })
-                elif recoveries:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "recoveries",
-                        "data": recoveries,
-                        "timestamp": timestamp,
-                    })
-
-                # Add user data
-                if profile:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "user_profile",
-                        "data": profile,
-                        "timestamp": timestamp,
-                    })
-
-                if body_measurements:
-                    all_raw_data.append({
-                        "user_id": user_id,
-                        "data_type": "body_measurements",
-                        "data": body_measurements,
-                        "timestamp": timestamp,
-                    })
-
-            logger.info(f"Completed comprehensive Whoop data pull: {len(all_raw_data)} data packages")
-            return all_raw_data
-
-        except Exception as e:
-            logger.error(f"Error in Whoop data pull: {str(e)}")
-            return []
-
-    async def _handle_whoop_auth_failure(self, user_id: str, error_details: str) -> None:
-        """Handle Whoop authentication failure by cleaning up invalid credentials."""
-        try:
-            logger.error(f"Whoop authentication failed for user {user_id}: {error_details}")
-
-            # Remove invalid credentials from database
-            await self.db_service.delete_user_theta_provider(user_id, self.info.slug)
-            logger.info(f"Removed invalid Whoop credentials for user {user_id}")
-
-            # Log guidance for user re-authorization
-            logger.error(
-                f"User {user_id} needs to re-authorize Whoop connection. "
-                f"Refresh token has expired. Please have them complete the OAuth flow again."
-            )
-
-        except Exception as e:
-            logger.error(f"Error handling Whoop auth failure for user {user_id}: {str(e)}")
-
-    async def get_valid_access_token(self, user_id: str) -> str | None:
-        """Get a valid access token for the user, refreshing if necessary."""
-        token = await self.oauth.get_valid_access_token(user_id, self.info.slug, self.db_service)
-        if not token:
-            await self._handle_whoop_auth_failure(user_id, "Token refresh failed or no valid credentials")
-        return token
-
-    async def _fetch_paginated_data(
-            self,
-            session: aiohttp.ClientSession,
-            endpoint: str,
-            headers: dict[str, str],
-            params: dict[str, Any] | None = None,
-    ) -> list[dict[str, Any]]:
-        """
-        Generic method to fetch paginated data from WHOOP API
-        
-        Args:
-            session: aiohttp session
-            endpoint: API endpoint URL
-            headers: Request headers (should include Authorization)
-            params: Optional query parameters
-            
-        Returns:
-            List of all records from all pages
-        """
-        all_records = []
-        next_token = None
-        params = params or {}
-
-        while True:
-            # Add nextToken if available
-            if next_token:
-                params["nextToken"] = next_token
-
-            # Retry logic for rate limiting
-            retry_count = 0
-            max_retries = 3
-            data = {}
-
-            while retry_count <= max_retries:
+        access_token = await self.oauth.get_valid_access_token(credentials, self.info.slug, self.db_service)
+        headers = {"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
+        end = datetime.now(UTC)
+        params: dict[str, Any] = {
+            "start": (end - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "end": end.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "limit": 25,
+        }
+        pulled_at = int(time.time() * 1000)
+        packages: list[dict[str, Any]] = []
+        async with aiohttp.ClientSession() as session:
+            for data_type, path in COLLECTIONS.items():
                 try:
-                    async with session.get(endpoint, headers=headers, params=params, timeout=aiohttp.ClientTimeout(total=self.request_timeout)) as resp:
-                        if resp.status == 429:  # Rate limited
-                            retry_after = int(resp.headers.get("Retry-After", "60"))
-                            if retry_count < max_retries:
-                                logger.warning(f"Rate limited on {endpoint}, retrying after {retry_after} seconds")
-                                await asyncio.sleep(min(retry_after, 60))  # Cap at 60 seconds
-                                retry_count += 1
-                                continue
-                            logger.error(f"Max retries exceeded for {endpoint} due to rate limiting")
-                            break
-                        elif resp.status == 401:
-                            # Token should have been validated at entry point, 401 indicates auth failure
-                            text = await resp.text()
-                            logger.error(f"Authentication failed for {endpoint}: {resp.status} - {text}")
-                            break
-                        elif resp.status != 200:
-                            text = await resp.text()
-                            logger.error(f"Failed to fetch {endpoint}: {resp.status} - {text}")
-                            break
-                        else:
-                            data = await resp.json()
-                            break
-                except TimeoutError:
-                    logger.error(f"Timeout fetching {endpoint}")
-                    if retry_count < max_retries:
-                        retry_count += 1
-                        await asyncio.sleep(2 ** retry_count)  # Exponential backoff
-                        continue
-                    break
-                except Exception as e:
-                    logger.error(f"Error fetching {endpoint}: {str(e)}")
-                    if retry_count < max_retries:
-                        retry_count += 1
-                        await asyncio.sleep(2 ** retry_count)
-                        continue
-                    break
-
-            # Check if we successfully got data
-            if retry_count > max_retries:
-                break
-
-            # Extract records and next token
-            if "records" in data:
-                records = data.get("records", [])
-                all_records.extend(records)
-                next_token = data.get("next_token")
-
-                logger.info(f"Fetched {len(records)} records from {endpoint}, total: {len(all_records)}")
-
-                # If no next token, we've reached the end
-                if not next_token:
-                    break
-            else:
-                # Non-paginated response, return as single item list
-                all_records.append(data)
-                break
-
-        return all_records
-
-    async def _fetch_detail_batch(
-            self,
-            session: aiohttp.ClientSession,
-            items: list[dict],
-            url_template: str,
-            id_field: str,
-            headers: dict[str, str],
-    ) -> list[dict[str, Any]]:
-        """
-        Fetch detailed data for a batch of items concurrently
-        
-        Args:
-            session: aiohttp session
-            items: List of items containing IDs
-            url_template: URL template with {id} placeholder
-            id_field: Field name containing the ID
-            headers: Request headers (should include Authorization)
-            
-        Returns:
-            List of detailed records
-        """
-        semaphore = asyncio.Semaphore(self.concurrent_requests)
-
-        async def fetch_one(item: dict) -> dict | None:
-            async with semaphore:
-                item_id = item.get(id_field)
-                if not item_id:
-                    return None
-
-                url = url_template.format(id=item_id)
-                try:
-                    details = await self._fetch_paginated_data(
-                        session, url, headers.copy()
+                    records = await get_pages(
+                        session, f"{self.api_base_url}{path}", headers=headers, params=params,
+                        records_key="records", token_param="nextToken", timeout_s=self.request_timeout,
                     )
-                    return details[0] if details else None
-                except Exception as e:
-                    logger.error(f"Error fetching detail for {id_field}={item_id}: {str(e)}")
-                    return None
-
-        # Create tasks for concurrent execution
-        tasks = [fetch_one(item) for item in items[:self.max_detail_records]]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Filter out None values and exceptions
-        detailed_records = []
-        for result in results:
-            if result and not isinstance(result, Exception):
-                detailed_records.append(result)
-
-        return detailed_records
-
-    async def save_raw_data_to_db(self, raw_data: dict[str, Any]) -> list[dict[str, Any]]:
-        """
-        Save full Whoop payload into health_data_whoop.
-        We store the entire provider response as jsonb for auditing and reprocessing.
-        """
-        try:
-            if not isinstance(raw_data, (dict, list)):
-                return []
-
-            theta_user_id = self._extract_theta_user_id(raw_data)
-            external_user_id = self._extract_external_user_id(raw_data)
-
-            # Generate a simple msg_id using timestamp
-            msg_id = f"whoop_{theta_user_id}_{int(time.time())}" if theta_user_id else f"whoop_{int(time.time())}"
-
-            insert_sql = (
-                "INSERT INTO health_data_whoop "
-                "(create_at, update_at, is_del, msg_id, raw_data, theta_user_id, external_user_id) "
-                "VALUES (CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, :is_del, :msg_id, :raw_data, :theta_user_id, :external_user_id)"
-            )
-            params = {
-                "is_del": False,
-                "msg_id": msg_id,
-                "raw_data": json.dumps(raw_data, ensure_ascii=False),
-                "theta_user_id": theta_user_id,
-                "external_user_id": external_user_id,
-            }
-            await execute_query(query=insert_sql, params=params)
-
-            # Add msg_id to returned data for consistency
-            result_data = raw_data.copy() if isinstance(raw_data, dict) else {"data": raw_data}
-            result_data["msg_id"] = msg_id
-            return [result_data]
-        except Exception as e:
-            logger.info(f"whoop raw_data: {raw_data}")
-            logger.error(f"Error saving Whoop raw data: {str(e)}")
-            return []
-
-    async def is_data_already_processed(self, raw_data: dict[str, Any]) -> bool:
-        return False
-
-    async def _pull_and_push_for_user(self, credentials: dict[str, Any]) -> bool:
-        """
-        Override: unified per-user pull + push using OAuth2 tokens.
-        Accepts credentials dict which may contain access_token/refresh_token/user_id.
-        """
-        try:
-            user_id = credentials.get("user_id") if isinstance(credentials, dict) else None
-            if not user_id:
-                logger.error("[whoop:_pull_and_push_for_user] Missing user_id in credentials")
-                return False
-
-            # Ensure we have a valid access token (handles refresh if needed)
-            access_token = await self.get_valid_access_token(user_id)
-            if not access_token:
-                logger.error(f"[whoop:_pull_and_push_for_user] Unable to get valid access token for user {user_id}")
-                return False
-
-            # Get the latest credentials from database (may include updated refresh_token)
-            latest_credentials = await self.db_service.get_user_credentials(user_id, self.info.slug, self.info.auth_type)
-            if not latest_credentials:
-                logger.error(f"[whoop:_pull_and_push_for_user] Unable to get latest credentials for user {user_id}")
-                return False
-
-            refresh_token = latest_credentials.get("refresh_token")
-            if not refresh_token:
-                logger.warning(f"[whoop:_pull_and_push_for_user] No refresh token available for user {user_id}")
-
-            # Pull recent data
-            raw_data_list = await self.pull_from_vendor_api(access_token, refresh_token, days=2)
-            if not raw_data_list:
-                logger.info(f"No recent whoop data for user {user_id}")
-                return True
-
-            success_count = 0
-            error_count = 0
-            for raw_data in raw_data_list:
-                try:
-                    # Inject system user ID (from credentials DB).
-                    # No need to inject external user ID: _extract_external_user_id
-                    # override reads it from data[0]["user_id"] at every call site.
-                    raw_data["theta_user_id"] = user_id
-                    msg_id = str(uuid.uuid4())
-                    push_success = await push_service.push_data(
-                        platform="theta",
-                        provider_slug=self.info.slug,
-                        data=raw_data,
-                        msg_id=msg_id,
-                    )
-                    if push_success:
-                        success_count += 1
-                    else:
-                        error_count += 1
-                        logger.error(f"Failed to push whoop data for user {user_id} with msg_id {msg_id}")
-                except Exception as e:
-                    error_count += 1
-                    logger.error(f"Error processing whoop data for user {user_id}: {str(e)}")
+                except (VendorError, TimeoutError, aiohttp.ClientError) as e:
+                    logger.warning("WHOOP collection skipped: data_type=%s error_type=%s",  # phi: ok decoder type name
+                                   data_type, type(e).__name__)
                     continue
-
-            logger.info(f"Processed whoop data for user {user_id}: success={success_count}, errors={error_count}")
-            return error_count == 0
-        except Exception as e:
-            logger.error(f"Error in whoop _pull_and_push_for_user: {str(e)}")
-            return False
+                if records:
+                    packages.append({"data_type": data_type, "data": records, "timestamp": pulled_at})
+            try:
+                body = await get_json(session, f"{self.api_base_url}/user/measurement/body",
+                                      headers=headers, timeout_s=self.request_timeout)
+            except (VendorError, TimeoutError, aiohttp.ClientError) as e:
+                logger.warning("WHOOP body measurement skipped: error_type=%s", type(e).__name__)
+                body = None
+            if isinstance(body, dict) and body:
+                packages.append({"data_type": "body", "data": [body], "timestamp": pulled_at})
+        return packages

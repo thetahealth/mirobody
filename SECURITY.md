@@ -128,6 +128,10 @@ others:
   `PRODUCTION: true` the API docs (`/docs`, `/redoc`, `/openapi.json`) are off.
 - Do not expose Postgres. `compose.yaml` binds its host port to `127.0.0.1`
   for local development; restrict access to that port on shared hosts.
+- The app's port is published on `127.0.0.1` too (`MIROBODY_BIND` in
+  `compose.yaml`). `MIROBODY_BIND=0.0.0.0` offers it to the network: set it
+  only behind TLS, after `PRODUCTION: true` and with the demo accounts
+  removed, because their code is public.
 
 Self-hosting means the data stays on your infrastructure, and so does the
 responsibility for it. Mirobody is Apache-2.0 licensed and provided without

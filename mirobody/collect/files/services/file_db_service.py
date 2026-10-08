@@ -8,10 +8,11 @@ nothing from outside the project.
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.req_ctx import request_timezone
 
@@ -43,8 +44,6 @@ class FileDbService:
     Handles all CRUD operations for file records stored in th_files table.
     """
     
-    TABLE_NAME = "th_files"
-
     @staticmethod
     def expect_rows(message_id: str | None) -> None:
         """This upload's rows will be inserted later; writers must wait."""
@@ -157,14 +156,15 @@ class FileDbService:
             if result:
                 file_id = result[0].get("id")
                 if file_id:
-                    logger.info(f"File inserted: id={file_id}, file_key={file_key}")
+                    logger.info("file filed: id=%s file_key=%s", file_id, file_key)
                     return file_id
 
-            logger.warning(f"No id returned for file: file_key={file_key}")
+            logger.warning("file not filed, no id returned: file_key=%s", file_key)
             return None
             
         except Exception as e:
-            logger.error(f"Failed to insert file: {str(e)}", stack_info=True)
+            logger.error("filing a file failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return None
     
     @staticmethod
@@ -219,7 +219,7 @@ class FileDbService:
         for file_info in files_info:
             file_key = file_info.get("file_key")
             if not file_key:
-                logger.warning(f"Skipping file without file_key: {file_info}")
+                logger.warning("a file with no storage key is not filed: created_source_id=%s", created_source_id)
                 continue
             
             # Build file_content with all necessary metadata
@@ -262,7 +262,7 @@ class FileDbService:
             if file_id:
                 inserted_ids.append(file_id)
         
-        logger.info(f"Batch insert completed: {len(inserted_ids)}/{len(files_info)} files")
+        logger.info("files filed: inserted=%d total=%d", len(inserted_ids), len(files_info))
         return inserted_ids
     
     # ============== SELECT Operations ==============
@@ -310,7 +310,8 @@ class FileDbService:
             return record
             
         except Exception as e:
-            logger.error(f"Failed to get file by key: {str(e)}", stack_info=True)
+            logger.error("reading a file row failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return None
     
     @staticmethod
@@ -500,7 +501,7 @@ class FileDbService:
                 if first_row:
                     total = first_row.get("total", 0)
             
-            logger.info(f"Get files paginated: user_id={target_user_id}, total={total}, returned={len(files)}")
+            logger.info("files listed: user_id=%s total=%s returned=%d", target_user_id, total, len(files))
             
             return {
                 "files": files,
@@ -510,8 +511,12 @@ class FileDbService:
             }
             
         except Exception as e:
-            logger.error(f"Failed to get files paginated: {str(e)}", stack_info=True)
-            raise Exception(f"Failed to get uploaded files: {str(e)}")
+            # A fixed sentence up: the caller may show it, and a driver's
+            # message quotes the statement.
+            owner_id = query_user_id or user_id
+            logger.error("listing files failed: user_id=%s error_type=%s", owner_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            raise RuntimeError("Failed to get uploaded files") from e
     
     @staticmethod
     async def get_files_by_source(user_id: str, created_source_id: str) -> list[dict[str, Any]]:
@@ -546,7 +551,8 @@ class FileDbService:
             return files
             
         except Exception as e:
-            logger.error(f"Failed to get files by source: {str(e)}", stack_info=True)
+            logger.error("listing a message's files failed: created_source_id=%s error_type=%s", created_source_id,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return []
     
     # ============== UPDATE Operations ==============
@@ -574,7 +580,7 @@ class FileDbService:
             # First get current file_content
             current = await FileDbService.get_file_by_key(file_key, user_id)
             if not current:
-                logger.warning(f"File not found for update: file_key={file_key}")
+                logger.warning("file not found for update: file_key=%s", file_key)
                 return False
             
             # Merge updates into current content
@@ -613,11 +619,12 @@ class FileDbService:
                 params["user_id"] = str(user_id)
             
             await execute_query(query=sql, params=params)
-            logger.info(f"File content updated: file_key={file_key}, updates={list(updates.keys())}")
+            logger.info("file row updated: file_key=%s field_count=%d", file_key, len(updates))
             return True
             
         except Exception as e:
-            logger.error(f"Failed to update file content: {str(e)}", stack_info=True)
+            logger.error("updating a file row failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return False
     
     @staticmethod
@@ -625,25 +632,24 @@ class FileDbService:
         file_key: str,
         raw: str = "",
         file_abstract: str = "",
-        indicators: list[dict] | None = None,
         file_name: str | None = None,
         original_text: str = "",
         text_length: int = 0,
         content_hash: str = "",
     ) -> bool:
-        """
-        Update file with processing results.
-        
+        """Record a processed file: what it was read as, its abstract and the
+        name a model gave it. The readings and their count are not this
+        update's: the indicator extraction writes them when it finishes.
+
         Args:
             file_key: File key
             raw: Raw extracted content
             file_abstract: File abstract/summary
-            indicators: List of extracted indicators
             file_name: Optional generated file name
             original_text: Original text content (for rerank)
             text_length: Length of original text
             content_hash: SHA256 hash of file content
-            
+
         Returns:
             True if successful
         """
@@ -651,17 +657,15 @@ class FileDbService:
             # Fetch current file to get decrypted file_content for merging
             current = await FileDbService.get_file_by_key(file_key)
             if not current:
-                logger.warning(f"File not found for update: file_key={file_key}")
+                logger.warning("file not found for update: file_key=%s", file_key)
                 return False
 
             current_content = current.get("file_content", {})
             current_content.update({
                 "raw": raw,
                 "file_abstract": file_abstract,
-                "indicators": indicators or [],
-                "indicators_count": len(indicators) if indicators else 0,
                 "processed": True,
-                "processed_at": datetime.now().isoformat(),
+                "processed_at": datetime.now(UTC).isoformat(),
                 "status": "completed",
                 "error": "",
                 "progress": 100,
@@ -708,7 +712,8 @@ class FileDbService:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update file processed: {file_key}, error: {e}")
+            logger.error("recording a processed file failed: file_key=%s error_type=%s", file_key,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
             return False
     
     # ============== DELETE Operations ==============
@@ -745,19 +750,13 @@ class FileDbService:
             )
             
             if result:
-                logger.info(f"File soft deleted: file_key={file_key}")
+                logger.info("file deleted: file_key=%s", file_key)
                 return True
             
-            logger.warning(f"File not found for deletion: file_key={file_key}")
+            logger.warning("file not found for deletion: file_key=%s", file_key)
             return False
             
         except Exception as e:
-            logger.error(f"Failed to soft delete file: {str(e)}", stack_info=True)
+            logger.error("deleting a file row failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return False
-    
-    # ============== URL Regeneration ==============
-    
-
-
-# Singleton instance
-file_db_service = FileDbService()

@@ -1,7 +1,7 @@
 """LLM client construction: one builder for every provider family.
 
-`build_chat_model(entry)` turns one provider entry (the shape of a `MODELS`
-row in config.yaml) into a LangChain chat model; `build_llm_clients(table)`
+`build_chat_model(entry)` turns one `MODELS` entry (config.llm.yaml) into a
+LangChain chat model; `build_llm_clients(table)`
 does it for the whole table and stands in a `_PlaceholderClient` where a key
 is missing, so a zero-key deployment boots and the picker can say what is
 usable.
@@ -53,6 +53,7 @@ from functools import lru_cache
 from collections.abc import Callable
 from typing import Any
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.config import safe_read_cfg
 from mirobody.utils.config.llm import is_endpoint_name, vertex_host, vertex_location
 
@@ -285,14 +286,27 @@ def reasoning_chat_openai() -> type:
 
 # --- references -> values ----------------------------------------------------------------------
 
+#: What a reference must look like to be repeated back: a variable NAME. An
+#: entry that holds the secret itself (`api_key: sk-proj-...`) resolves to
+#: nothing as a name, and the "is not set" warning printed the secret at boot
+#: and showed it to whoever picked that model.
+_VARIABLE_NAME = re.compile(r"[A-Z][A-Z0-9_]*")
+
+
+def _shown(reference: str) -> str:
+    """`reference` when it is a variable name, else a placeholder for it."""
+    return reference if _VARIABLE_NAME.fullmatch(reference) else "(a value that is not a variable name)"
+
+
 class MissingKeyError(RuntimeError):
-    """The entry names an ``api_key`` that resolves to nothing."""
+    """The entry names an ``api_key`` that resolves to nothing. ``key`` is the
+    reference as it may be shown (`_shown`), never a literal written there."""
 
     field = "api_key"
 
     def __init__(self, alias: str, key: str):
-        super().__init__(f"provider {alias!r}: {self.field} {key!r} is not set")
-        self.alias, self.key = alias, key
+        self.alias, self.key = alias, _shown(key)
+        super().__init__(f"model {alias!r}: {self.field} {self.key} is not set")
 
 
 class MissingEndpointError(MissingKeyError):
@@ -486,12 +500,12 @@ def _azure_wif_kwargs(alias: str, endpoint: Any) -> dict[str, Any]:
     token_file = os.environ.get("AZURE_FEDERATED_TOKEN_FILE")
     if not token_file:
         raise RuntimeError(
-            f"provider {alias!r}: auth_type azure_wif needs AZURE_FEDERATED_TOKEN_FILE "
+            f"model {alias!r}: auth_type azure_wif needs AZURE_FEDERATED_TOKEN_FILE "
             "(the federated token is not mounted on this process)"
         )
     endpoint = str(endpoint or "").rstrip("/")
     if not endpoint:
-        raise RuntimeError(f"provider {alias!r}: auth_type azure_wif needs a base_url (the Azure OpenAI endpoint)")
+        raise RuntimeError(f"model {alias!r}: auth_type azure_wif needs a base_url (the Azure OpenAI endpoint)")
     from azure.identity import WorkloadIdentityCredential, get_bearer_token_provider
 
     credential = WorkloadIdentityCredential(
@@ -512,7 +526,7 @@ def _gcp_access_token_provider() -> Callable[[], str]:
     `langchain-openai` accepts a callable `api_key` and calls it per request
     (the same seam `_azure_wif_kwargs` uses for Entra), so the hour-long
     lifetime of an ADC token is handled by refreshing here rather than by
-    rebuilding the client. One credentials object per provider entry: refresh
+    rebuilding the client. One credentials object per `MODELS` entry: refresh
     mutates it in place, and a second object would re-do the metadata-server
     round trip on every call."""
     import google.auth
@@ -555,7 +569,7 @@ def _vertex_maas_kwargs(alias: str, entry: dict, base_url: Any, resolve: Resolve
     else:
         project = _resolve_ref(entry.get("project"), resolve)
         if not project:
-            raise RuntimeError(f"provider {alias!r}: auth_type gcp_adc needs a resolvable project (or a base_url)")
+            raise RuntimeError(f"model {alias!r}: auth_type gcp_adc needs a resolvable project (or a base_url)")
         location = vertex_location(str(_resolve_ref(entry.get("location"), resolve) or ""))
         endpoint = (f"https://{vertex_host(location)}/v1"
                     f"/projects/{project}/locations/{location}/endpoints/openapi")
@@ -595,7 +609,7 @@ def _drop_rejected_sampling(kwargs: dict, alias: str) -> None:
     for field in sorted(_anthropic_rejects() & kwargs.keys()):
         kwargs.pop(field)
         logger.warning(  # phi: ok a config entry name and a parameter name
-            f"provider {alias!r}: the installed anthropic SDK does not accept "
+            f"model {alias!r}: the installed anthropic SDK does not accept "
             f"{field!r}; dropped. Sampling parameters left that API in 1.x."
         )
 
@@ -611,7 +625,7 @@ def _vertex_anthropic_kwargs(alias: str, entry: dict, thinking: str | None, reso
         if field in kwargs:
             kwargs[field] = _resolve_ref(kwargs[field], resolve)
     if not kwargs.get("project"):
-        raise RuntimeError(f"provider {alias!r}: a Vertex model needs a resolvable project")
+        raise RuntimeError(f"model {alias!r}: a Vertex model needs a resolvable project")
     if isinstance(kwargs.get("api_key"), str):
         key = resolve(kwargs["api_key"])
         if key:
@@ -651,7 +665,7 @@ def _gemini_kwargs(alias: str, entry: dict, thinking: str | None, resolve: Resol
     elif entry.get("api_key"):
         raise MissingKeyError(alias, str(entry["api_key"]))
     else:
-        raise RuntimeError(f"provider {alias!r}: a Gemini model needs an api_key (AI Studio) or a project (Vertex)")
+        raise RuntimeError(f"model {alias!r}: a Gemini model needs an api_key (AI Studio) or a project (Vertex)")
     if thinking and thinking != "off":
         kwargs["thinking_budget"] = THINKING_BUDGET_TOKENS[thinking]
         kwargs["include_thoughts"] = True
@@ -695,7 +709,7 @@ def build_chat_model(
     thinking: str | None = None,
     resolve: Resolver | None = None,
 ):
-    """One provider entry → one LangChain chat model.
+    """One `MODELS` entry → one LangChain chat model.
 
     Raises `MissingKeyError` when the entry names a key that is not set,
     `RuntimeError` for an entry its family cannot build (no project for a
@@ -705,11 +719,11 @@ def build_chat_model(
     time gets them as they are.
     """
     if not isinstance(entry, dict) or not entry.get("model"):
-        raise ValueError(f"provider {alias!r}: entry has no 'model'")
+        raise ValueError(f"model {alias!r}: entry has no 'model'")
     resolve = resolve or default_resolver
     model = model_name = str(entry["model"])
     family = llm_type = _llm_type(entry)
-    provider_name, thinking_level = alias, thinking or "-"
+    thinking_level = thinking or "-"
 
     if family in OPENAI_COMPATIBLE_TYPES:
         client = reasoning_chat_openai()(**_openai_kwargs(alias, entry, thinking, resolve), model=model)
@@ -737,34 +751,40 @@ def build_chat_model(
         try:
             client.profile = {**(getattr(client, "profile", None) or {}), **override}
         except Exception as exc:
-            logger.warning("provider %s: capability override not applied (%s)", provider_name, type(exc).__name__)
-    logger.info("provider %s ready: llm_type=%s model_name=%s thinking_level=%s", provider_name, llm_type, model_name, thinking_level)
+            logger.warning("model %s: capability override not applied (%s)",  # phi: ok a MODELS entry name
+                           alias, type(exc).__name__)
+    logger.info("model %s ready: llm_type=%s model_name=%s thinking_level=%s",  # phi: ok a MODELS entry name
+                alias, llm_type, model_name, thinking_level)
     return client
 
 
 # --- the table --------------------------------------------------------------------------------
 
 class _PlaceholderClient:
-    """Stand-in for a provider whose key is missing.
+    """Stand-in for a `MODELS` entry whose key or address is missing.
 
     Holds the model name (so `getattr(client, "model_name")` works for
-    diagnostics) but raises `AttributeError` with the fix on any other
-    attribute: including the `invoke` lookup in
-    `MirobodyAgent._init_llm_client`.
+    diagnostics) and the sentence `unavailable_reason` returns; any other
+    attribute raises `AttributeError` with that sentence, so nothing can call
+    it as a model by mistake.
     """
 
-    def __init__(self, model_name: str, missing_key: str, provider_name: str, hint: str = ""):
-        object.__setattr__(self, "_missing_key", missing_key)
-        object.__setattr__(self, "_provider_name", provider_name)
-        object.__setattr__(self, "_hint", hint or "Get an API key from the provider and set it in .env or the environment")
+    def __init__(self, model_name: str, missing: str, hint: str = ""):
+        hint = hint or "Get an API key from the provider and set it in .env or the environment."
+        object.__setattr__(self, "_reason", f"{missing} is not set. {hint}")
         object.__setattr__(self, "model_name", model_name)
         object.__setattr__(self, "model", model_name)
 
     def __getattribute__(self, name):
-        if name in ("model_name", "model", "_missing_key", "_provider_name", "_hint"):
+        if name in ("model_name", "model", "_reason"):
             return object.__getattribute__(self, name)
-        missing_key = object.__getattribute__(self, "_missing_key")
-        raise AttributeError(f"Missing {missing_key}. {object.__getattribute__(self, '_hint')}")
+        raise AttributeError(object.__getattribute__(self, "_reason"))
+
+
+def unavailable_reason(client: Any) -> str:
+    """Why `client` cannot answer (the missing key or address of a placeholder
+    `build_llm_clients` stood in), or "" for a real model."""
+    return client._reason if isinstance(client, _PlaceholderClient) else ""
 
 
 def build_llm_clients(
@@ -775,38 +795,40 @@ def build_llm_clients(
 ) -> dict[str, Any]:
     """One chat model per `MODELS` entry.
 
-    A provider whose key is not set becomes a `_PlaceholderClient` rather than
+    An entry whose key is not set becomes a `_PlaceholderClient` rather than
     an error, so a zero-key deployment still boots and the model picker can
     say which entries are usable (`registry.available_models`). An entry its
     family cannot build is logged by name and skipped.
     """
     class_name = owner
     if not llm_client_config:
-        logger.warning("[%s] no LLM providers configured", class_name)
+        logger.warning("[%s] no MODELS entries configured", class_name)
         return {}
     clients: dict[str, Any] = {}
     failed: list[tuple[str, str]] = []
     placeholder_count = 0
-    for provider_name, entry in llm_client_config.items():
+    # `model` is an entry's name, the word `DEFAULT_MODEL` and `/api/models` use.
+    for model, entry in llm_client_config.items():
         if not isinstance(entry, dict) or not entry.get("model"):
-            failed.append((provider_name, "entry is not a dict with a 'model'"))
+            failed.append((model, "entry is not a dict with a 'model'"))
             continue
         try:
-            clients[provider_name] = build_chat_model(entry, alias=provider_name, resolve=resolve)
+            clients[model] = build_chat_model(entry, alias=model, resolve=resolve)
         except MissingKeyError as exc:
-            logger.warning("[%s] provider %s: %s %s not set — placeholder", class_name, provider_name, exc.field, exc.key)
+            logger.warning("[%s] model %s: %s %s not set — placeholder", class_name, model, exc.field, exc.key)
             hint = "Set it in .env to the URL of the model server (…/v1)." if isinstance(exc, MissingEndpointError) else ""
-            clients[provider_name] = _PlaceholderClient(str(entry["model"]), exc.key, provider_name, hint)
+            clients[model] = _PlaceholderClient(str(entry["model"]), exc.key, hint)
             placeholder_count += 1
         except Exception as exc:
-            logger.error("[%s] provider %s failed: %s", class_name, provider_name, type(exc).__name__, exc_info=True)
-            failed.append((provider_name, type(exc).__name__))
-    for provider_name, reason in failed:
-        logger.warning("[%s] provider %s skipped: %s", class_name, provider_name, reason)
+            logger.error("[%s] model %s failed: error_type=%s", class_name, model, type(exc).__name__,
+                         exc_info=not is_driver_exception(exc))
+            failed.append((model, type(exc).__name__))
+    for model, error_type in failed:
+        logger.warning("[%s] model %s skipped: error_type=%s", class_name, model, error_type)
     logger.info(
-        "[%s] providers loaded: loaded_count=%d total_count=%d placeholder_count=%d",
+        "[%s] models loaded: loaded_count=%d total_count=%d placeholder_count=%d",
         class_name, len(clients), len(llm_client_config), placeholder_count,
     )
     if not clients:
-        logger.warning("[%s] no providers loaded — the agent may be disabled intentionally", class_name)
+        logger.warning("[%s] no models loaded — the agent may be disabled intentionally", class_name)
     return clients

@@ -1,36 +1,42 @@
-"""
-Indicator extraction service
+"""A document's text read as readings, and the readings filed.
 
-Responsible for extracting health indicators from medical documents
+`IndicatorExtractor.read_indicators` reads the text: the table rules first,
+then the model for what they left; `extract_indicators_from_text` files what
+was read under the document's date (`resolve_report_date`, or the date the
+person set) and writes it (`indicator_store.save_indicators_to_db`).
 """
 
-from mirobody.collect.files.services.indicator_store import save_indicators_to_db
-from mirobody.collect.files.services.report_date import manual_report_date, resolve_report_date
+from __future__ import annotations
+
 import asyncio
-import json
+import logging
 import re
 import time
-import logging
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
-from collections.abc import Callable
 
+from mirobody.collect.files.errors import UploadError
+from mirobody.collect.files.services.indicator_store import save_indicators_to_db
+from mirobody.collect.files.services.prompts.file_indicator_extract import (
+    RESPONSE_SCHEMA_EXTRACT_INDICATORS,
+    get_extract_indicators_prompt,
+)
+from mirobody.collect.files.services.report_date import manual_report_date, resolve_report_date
 from mirobody.collect.files.services.table_indicators import (
     EXTRACTOR as TABLE_EXTRACTOR,
-    _is_unit,
-    _split_flag,
+    is_unit,
     left_for_model,
+    printed_flag,
     same_reading,
+    split_flag,
+    status_of,
     table_indicators,
     value_key,
     without_rows,
 )
 from mirobody.utils.coerce import parse_date
-from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
-from mirobody.collect.files.services.prompts.file_indicator_extract import (
-    get_extract_indicators_prompt,
-    RESPONSE_SCHEMA_EXTRACT_INDICATORS,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +96,8 @@ def answer_budget(text: str) -> int:
     context. At a flat 32,000 a looping MiniCPM5-2B wrote 30,067 tokens for
     13 minutes on one handwritten page (benchmarks/local_ocr, 2026-10-07)."""
     return min(32000, 2048 + 4 * len(text))
+
+
 #: The page header `documents.extract` writes between pages.
 _PAGE_MARK = re.compile(r"(?=^--- page \d+ ---$)", re.MULTILINE)
 
@@ -143,8 +151,71 @@ def _latest_row_date(indicators: list[dict[str, Any]]) -> str:
     return max(dated).strftime("%Y-%m-%d %H:%M:%S") if dated else ""
 
 
+def _as_printed(row: dict[str, Any]) -> dict[str, Any]:
+    """A model-read row whose `status` is kept only as a flag the report could
+    have printed: high or low, and not one the value and the range printed
+    beside it contradict. The prompt also lets the model judge a row against
+    its range: on the demo check-up MiniCPM5-2B stored the printed `L` of
+    `Resting Heart Rate 57 (60-100)` as high, and `normal` on 8 rows that
+    printed no flag. The table rules' rows carry the printed flag itself."""
+    status = printed_flag(str(row.get("status") or ""))
+    value = split_flag(str(row.get("value") or ""), str(row.get("reference_range") or ""))[0]
+    judged = status_of(value, str(row.get("reference_range") or ""))
+    keep = status in ("high", "low") and judged in ("", status)
+    return {**row, "status": status if keep else ""}
+
+
+class NothingStored(UploadError):
+    """A document's readings were read and none of them could be stored. The
+    message is for the person who uploaded it: counts and rejection codes,
+    never a reading."""
+
+
+@dataclass
+class Reading:
+    """What one document's text was read as."""
+
+    #: One row per printed reading (`_deduplicate_indicators`).
+    rows: list[dict[str, Any]]
+    #: The answer the rows came in, the table rules' merged with the model's;
+    #: None when the model was asked and answered nothing.
+    answer: dict[str, Any] | None
+    #: `th_extraction.extractor`: which readers produced the rows.
+    extractor: str
+    #: The document's date as the answer gives it, else the latest a row prints.
+    date: str
+
+
+@dataclass
+class Filed:
+    """What one document's extraction left on the record."""
+
+    indicators: list[dict[str, Any]]
+    #: As `Reading.answer`: None tells "no model answered" from "none found".
+    answer: dict[str, Any] | None
+    #: Rows written, or already there from an earlier upload of the same file.
+    stored: int
+    #: `{"report_date", "date_source"}` the rows were filed under; None when
+    #: there were none.
+    report: dict[str, str] | None
+
+
+async def _filing_date(user_id: int, file_key: str, document_date: str,
+                       probed: tuple[datetime, str] | None) -> tuple[datetime, str]:
+    """The date a document's readings are filed under, and where it came
+    from: the date the person set on the file (they may have answered
+    "which date?" while this ran), else the probe's date when it read one off
+    the document, else this extraction's (`resolve_report_date`)."""
+    manual = await manual_report_date(file_key)
+    if manual is not None:
+        return manual, "manual"
+    if probed is not None and probed[1] == "extracted":
+        return probed
+    return await resolve_report_date(str(user_id), document_date)
+
+
 class IndicatorExtractor:
-    """Indicator extraction service class"""
+    """Reads a document's text as readings, and files them."""
 
     @staticmethod
     async def probe_report_date(original_text: str) -> str:
@@ -158,184 +229,80 @@ class IndicatorExtractor:
             return ""
         from mirobody.utils.llm import async_get_structured_output
 
-        try:
-            ret = await async_get_structured_output(
-                messages=[
-                    {"role": "system", "content": "You read medical documents and report ONE fact: the examination date."},
-                    {"role": "user", "content": f"Document:\n\n{original_text[:12000]}"},
-                ],
-                response_format={"type": "json_schema", "json_schema": {"name": "report_date", "schema": _DATE_PROBE_SCHEMA}},
-                temperature=0,
-                max_tokens=200,
-            )
-        except Exception as e:
-            logger.warning(f"[IndicatorExtractor] date probe failed: {e}")
-            return ""
-        if not ret:
-            return ""
-        result = ret if isinstance(ret, dict) else json.loads(ret)
-        return str(result.get("date_time") or "").strip()
+        answer = await async_get_structured_output(
+            messages=[
+                {"role": "system", "content": "You read medical documents and report ONE fact: the examination date."},
+                {"role": "user", "content": f"Document:\n\n{original_text[:12000]}"},
+            ],
+            response_format={"type": "json_schema", "json_schema": {"name": "report_date", "schema": _DATE_PROBE_SCHEMA}},
+            temperature=0,
+            max_tokens=200,
+        )
+        return str((answer or {}).get("date_time") or "").strip()
+
+    @staticmethod
+    async def read_indicators(original_text: str) -> Reading:
+        """The readings in a document's text. Tables are read by their columns
+        first, whatever model reads the rest: a born-digital PDF's from its
+        text layer, a scan's from the OCR tables pass, a CSV's and a sheet's
+        as they are. The model reads what the rules left, and a rule's row
+        outranks the model's for the same printed row. In every mode, a vendor
+        key included: for three of four cloud references
+        (benchmarks/local_models, ref-*-rules) readings on no printed row fell
+        from about 48 to 27, and the text sent by 37%."""
+        started = time.monotonic()
+        # Off the event loop: both are pure CPU over the whole text.
+        rules, table_date, unread_count = await asyncio.to_thread(table_indicators, original_text)
+        rest = await asyncio.to_thread(without_rows, original_text, rules) if rules else original_text
+        if rules and not unread_count and not left_for_model(rest):
+            answer: dict[str, Any] | None = {"indicators": rules, "content_info": {"date_time": table_date}}
+            extractor = TABLE_EXTRACTOR
+        else:
+            answer = await IndicatorExtractor._llm_extract(rest, request_language(), remainder=bool(rules))
+            if answer:
+                answer = {**answer, "indicators": [_as_printed(i) for i in answer.get("indicators") or []]}
+            extractor = ""
+            if rules:
+                extractor = f"{TABLE_EXTRACTOR}+llm:file-parser@indicators-v1"
+                answer = IndicatorExtractor._merge_rule_rows(rules, table_date, answer)
+        if not answer:
+            logger.warning("indicator extraction: no model answered: rule_row_count=%d", len(rules))
+            return Reading([], None, extractor, "")
+        indicators = answer.get("indicators") or []
+        date = (answer.get("content_info") or {}).get("date_time", "") or _latest_row_date(indicators)
+        rows = IndicatorExtractor._deduplicate_indicators(_row_dates_in_a_log_only(indicators))
+        duration_ms = int((time.monotonic() - started) * 1000)
+        logger.info("indicators read: row_count=%d rule_row_count=%d unread_row_count=%d duration_ms=%d",
+                    len(rows), len(rules), unread_count, duration_ms)
+        return Reading(rows, answer, extractor, date)
 
     @staticmethod
     async def extract_indicators_from_text(
         original_text: str,
         user_id: int,
-        ocr_db_id: int = 0,
-        source_table: str = "th_files",
-        file_name: str = "",
-        file_key: str = None,
-        save_to_db: bool = True,
-        progress_callback: Callable[[int, str], None] | None = None,
-        report_date: tuple[Any, str] | None = None,
-    ) -> tuple[list[dict[str, Any]], Any, dict[str, str] | None]:
+        file_key: str,
+        report_date: tuple[datetime, str] | None = None,
+    ) -> Filed:
+        """Read a document's text (`read_indicators`) and file its readings
+        under `file_key`. `report_date` is the date probe's `(datetime,
+        date_source)`: an "extracted" one wins over this extraction's own
+        date field; an "upload_time" one is only a fallback.
+
+        Raises `NothingStored` when rows were read and none could be written:
+        reported as a document with no readings, a rejected batch or a
+        database that refused every row looked like a finished upload.
         """
-        Extract health indicators from pre-extracted original text.
-        
-        This method uses the already extracted text content instead of
-        processing the original file, which is faster and avoids
-        redundant file processing.
-
-        Args:
-            original_text: Pre-extracted text content from file
-            user_id: User ID
-            ocr_db_id: OCR record ID (optional)
-            source_table: Source table name
-            file_name: Original file name (for logging)
-            file_key: File key from files array
-            save_to_db: Whether to save indicators to database
-            progress_callback: Progress callback function
-            report_date: `(datetime, date_source)` already resolved by the
-                caller (the date probe). An "extracted" one wins over this
-                extraction's own date field; an "upload_time" one is only a
-                fallback, so a date this extraction finds still upgrades it.
-
-        Returns:
-            (indicators, LLM response, report): `report` is
-            `{"report_date", "date_source"}` as resolved by
-            `resolve_report_date` when readings were
-            saved, else None; the handler records it on the th_files row.
-
-            The LLM response is ``None`` when the extraction call itself
-            produced nothing (no provider, or every provider failed) and a
-            dict (possibly with zero indicators) when a model answered. The
-            two used to come back identical (``[], {}``), so "this deployment
-            cannot extract" rendered exactly like "this document has no
-            indicators" (#68).
-        """
-        indicators = []
-        start_time = time.time()
-
-        try:
-            if not original_text or not original_text.strip():
-                logger.warning(f"[IndicatorExtractor] Empty original text provided for: {file_name}")
-                return [], {}, None
-
-            language = request_language()
-            
-            if progress_callback:
-                await progress_callback(65, localize("analyzing_medical_indicators", language, "indicator_extractor", filename=file_name))
-
-            logger.info(f"[IndicatorExtractor] Extracting indicators from text - user_id: {user_id}, text_length: {len(original_text)}")
-
-            # Tables are read by their columns first, whatever model reads the
-            # rest: a born-digital PDF's from its text layer, a scan's from the
-            # OCR tables pass, a CSV's and a sheet's as they are. The model reads
-            # what the rules left, and a rule's row outranks the model's for the
-            # same printed row. In every mode, a vendor key included: for three of
-            # four cloud references (benchmarks/local_models, ref-*-rules) readings
-            # on no printed row fell from about 48 to 27, and the text sent by 37%.
-            extractor = ""
-            rows, table_date, unread_count = table_indicators(original_text)
-            rest = without_rows(original_text, rows) if rows else original_text
-            if rows and not unread_count and not left_for_model(rest):
-                extractor = TABLE_EXTRACTOR
-                llm_ret = {"indicators": rows, "content_info": {"date_time": table_date}}
-                logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, no model - user_id: {user_id}")
-            else:
-                llm_ret = await IndicatorExtractor._llm_extract(rest, language, user_id, remainder=bool(rows))
-                if rows:
-                    extractor = f"{TABLE_EXTRACTOR}+llm:file-parser@indicators-v1"
-                    llm_ret = IndicatorExtractor._merge_rule_rows(rows, table_date, llm_ret)
-                    logger.info(f"[IndicatorExtractor] {len(rows)} indicators read off tables, {unread_count} rows and the text outside them left to the model - user_id: {user_id}")
-
-            if not llm_ret:
-                logger.warning(f"[IndicatorExtractor] LLM returned empty response for text extraction - user_id: {user_id}")
-                return [], None, None
-
-            if progress_callback:
-                await progress_callback(75, localize("parsing_indicator_data", language, "indicator_extractor"))
-
-            # Parse result (async_get_structured_output returns dict directly)
-            result = llm_ret if isinstance(llm_ret, dict) else json.loads(llm_ret)
-            indicators = result.get("indicators", [])
-            exam_date = result.get("content_info", {}).get("date_time", "") or _latest_row_date(indicators)
-            indicators = _row_dates_in_a_log_only(indicators)
-
-            logger.info(f"[IndicatorExtractor] Parsed {len(indicators)} indicators from text - user_id: {user_id}")
-
-            if not indicators:
-                logger.info(f"[IndicatorExtractor] No indicators found in text - user_id: {user_id}, file_name: {file_name}")
-                return [], result, None
-
-            # Deduplicate indicators
-            indicators = IndicatorExtractor._deduplicate_indicators(indicators)
-
-            # Save to database if required
-            report = None
-            if save_to_db and indicators:
-                if progress_callback:
-                    await progress_callback(80, localize("saving_indicators_to_database", language, "indicator_extractor", count=len(indicators)))
-
-                db_start_time = time.time()
-                if report_date and report_date[1] == "extracted":
-                    start_time_dt, date_source = report_date
-                else:
-                    start_time_dt, date_source = await resolve_report_date(str(user_id), exam_date)
-                # The user may have answered "which date?" while this ran (the
-                # Data page bar, or the agent's set_report_date): the file row
-                # then already says `manual`, and that answer outranks anything
-                # read off the document.
-                manual = await manual_report_date(file_key) if file_key else None
-                if manual is not None:
-                    start_time_dt, date_source = manual, "manual"
-                saved_count = await save_indicators_to_db(
-                    str(user_id),
-                    indicators,
-                    start_time_dt,
-                    date_source,
-                    ocr_db_id,
-                    "",
-                    source_table=source_table,
-                    file_key=file_key,
-                    extractor=extractor,
-                )
-                report = {"report_date": start_time_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": date_source}
-                db_duration = time.time() - db_start_time
-                logger.info(f"[IndicatorExtractor] Database save completed - user_id: {user_id}, duration: {db_duration:.2f}s, saved: {saved_count}")
-
-                if progress_callback:
-                    await progress_callback(85, localize("database_save_completed", language, "indicator_extractor", count=saved_count))
-
-            if progress_callback:
-                await progress_callback(90, localize("indicator_extraction_completed", language, "indicator_extractor", count=len(indicators)))
-
-            total_duration = time.time() - start_time
-            logger.info(f"[IndicatorExtractor] Text extraction completed: {file_name}, {len(indicators)} indicators, {total_duration:.2f}s")
-
-            return indicators, result, report
-
-        except json.JSONDecodeError as e:
-            logger.error(f"[IndicatorExtractor] JSON parse failed for text extraction: {e}", exc_info=True)
-            if progress_callback:
-                language = request_language()
-                await progress_callback(90, localize("json_parsing_failed", language, "indicator_extractor"))
-            raise ValueError(f"JSON parsing failed: {str(e)}")
-        except Exception as e:
-            logger.error(f"[IndicatorExtractor] Text extraction failed: {e}", exc_info=True)
-            if progress_callback:
-                language = request_language()
-                await progress_callback(90, localize("indicator_extraction_error", language, "indicator_extractor"))
-            raise e
+        reading = await IndicatorExtractor.read_indicators(original_text)
+        if not reading.rows:
+            return Filed([], reading.answer, 0, None)
+        start, source = await _filing_date(user_id, file_key, reading.date, report_date)
+        report = await save_indicators_to_db(str(user_id), reading.rows, start, source, file_key, reading.extractor)
+        stored = report.inserted + report.skipped
+        if not stored:
+            rejected = ", ".join(f"{reason}={n}" for reason, n in sorted(report.rejected.items())) or "none written"
+            raise NothingStored(f"none of the {len(reading.rows)} readings could be stored ({rejected})")
+        return Filed(reading.rows, reading.answer, stored,
+                     {"report_date": start.strftime("%Y-%m-%d %H:%M:%S"), "date_source": source})
 
     @staticmethod
     def _merge_rule_rows(rows: list[dict], table_date: str, llm_ret: dict | None) -> dict:
@@ -356,28 +323,27 @@ class IndicatorExtractor:
         return result
 
     @staticmethod
-    async def _llm_extract(original_text: str, language: str, user_id: int, *, remainder: bool = False) -> dict | None:
+    async def _llm_extract(original_text: str, language: str, *, remainder: bool = False) -> dict | None:
         """The model's reading of a document: `indicators` and `content_info`,
         or None. A long document is read a page at a time (`_pages`).
         `remainder`: the text is what the table rules left (`REMAINDER_NOTE`)."""
         pages = _pages(original_text)
         if len(pages) == 1:
-            return await IndicatorExtractor._llm_extract_one(original_text, language, user_id, remainder=remainder)
+            return await IndicatorExtractor._llm_extract_one(original_text, language, remainder=remainder)
         gate = asyncio.Semaphore(PAGE_READ_CONCURRENCY)
 
         async def read(page: str) -> dict | None:
             async with gate:
-                return await IndicatorExtractor._llm_extract_one(page, language, user_id, remainder=remainder)
+                return await IndicatorExtractor._llm_extract_one(page, language, remainder=remainder)
 
         answers = await asyncio.gather(*(read(p) for p in pages))
-        failed = sum(1 for a in answers if not isinstance(a, dict))
-        logger.info(f"[IndicatorExtractor] read {len(pages)} pages, {failed} unanswered - user_id: {user_id}")
+        unanswered_count = sum(1 for a in answers if not isinstance(a, dict))
+        logger.info("indicator extraction read page by page: page_count=%d unanswered_count=%d", len(pages),
+                    unanswered_count)
         return _merge_pages(list(answers))
 
     @staticmethod
-    async def _llm_extract_one(
-        original_text: str, language: str, user_id: int, *, remainder: bool = False
-    ) -> dict | None:
+    async def _llm_extract_one(original_text: str, language: str, *, remainder: bool = False) -> dict | None:
         """One request: the whole text given, `indicators` and `content_info`, or None."""
         from mirobody.utils.llm import async_get_structured_output
 
@@ -386,16 +352,12 @@ class IndicatorExtractor:
             {"role": "system", "content": get_extract_indicators_prompt(language=language)},
             {"role": "user", "content": f"{note}Please extract health indicators from the following document content:\n\n{original_text}"},
         ]
-        api_start_time = time.time()
-        llm_ret = await async_get_structured_output(
+        return await async_get_structured_output(
             messages=messages,
             response_format={"type": "json_schema", "json_schema": {"name": "indicators_response", "schema": RESPONSE_SCHEMA_EXTRACT_INDICATORS}},
             temperature=0.1,
             max_tokens=answer_budget(original_text),
         )
-        api_duration = time.time() - api_start_time
-        logger.info(f"[IndicatorExtractor] LLM text extraction completed - user_id: {user_id}, duration: {api_duration:.2f}s")
-        return llm_ret
 
     @staticmethod
     def _deduplicate_indicators(
@@ -422,7 +384,7 @@ class IndicatorExtractor:
         for indicator in indicators:
             name = str(indicator.get("original_indicator") or "").strip()
             value = str(indicator.get("value") or "").strip()
-            if not name or not value or _is_unit(_split_flag(value, "")[0].strip()):
+            if not name or not value or is_unit(split_flag(value, "")[0].strip()):
                 continue
             key = (value_key(value), str(parse_date(str(indicator.get("date_time") or "")) or ""))
             twins = groups.setdefault(key, [])
@@ -433,5 +395,4 @@ class IndicatorExtractor:
             elif fullness(indicator) > fullness(unique_indicators[twin]):
                 unique_indicators[twin] = indicator
 
-        logger.info(f"Indicator deduplication completed: {len(indicators)} -> {len(unique_indicators)}")
         return unique_indicators

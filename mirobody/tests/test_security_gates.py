@@ -20,8 +20,10 @@ from mirobody.collect.files.file_upload_manager import WebSocketFileUploadManage
 from mirobody.server.middlewares import (
     SECURITY_HEADERS,
     JwtMiddleware,
-    lacks_second_factor,
+    ResponseHeadersMiddleware,
+    UnhandledErrorMiddleware,
 )
+from mirobody.user.auth.bearer import lacks_second_factor
 from mirobody.utils.http import safe_return_url
 
 OWN = "http://localhost:18060"
@@ -158,7 +160,7 @@ def test_every_response_carries_the_security_headers():
 
     app = Starlette(
         routes=[Route("/", hello)],
-        middleware=[Middleware(JwtMiddleware, jwt_key="k")],
+        middleware=[Middleware(ResponseHeadersMiddleware), Middleware(JwtMiddleware, jwt_key="k")],
     )
     response = TestClient(app).get("/")
     for name, value in SECURITY_HEADERS.items():
@@ -307,3 +309,821 @@ def test_a_model_typed_beside_the_key_is_the_one_checked_and_kept(monkeypatch):
     assert seen["model"] == "vendor/model-b"
     assert seen["saved"] == {"OPENROUTER_API_KEY": "sk-or-candidate", "OPENROUTER_CHAT_MODEL": "vendor/model-b"}
     assert _key_check(monkeypatch, {"model": "two words"})[0].code == 400
+
+
+# -- the agent and the MCP surface: a secret, a record, a caller ---------------
+
+
+_LITERAL_KEY = "sk-proj-THIS-IS-THE-LITERAL-SECRET"
+
+
+def test_a_secret_written_where_a_key_name_belongs_is_never_repeated(caplog):
+    from mirobody.agent.models.clients import build_llm_clients, unavailable_reason
+
+    table = {"gpt": {"llm_type": "openai", "model": "gpt-x", "api_key": _LITERAL_KEY},
+             "named": {"llm_type": "openai", "model": "gpt-y", "api_key": "OPENAI_API_KEY"}}
+    with caplog.at_level("DEBUG"):
+        clients = build_llm_clients(table, resolve=lambda name: None)
+    assert _LITERAL_KEY not in caplog.text
+    assert _LITERAL_KEY not in unavailable_reason(clients["gpt"])
+    with pytest.raises(AttributeError) as raised:
+        _ = clients["gpt"].invoke
+    assert _LITERAL_KEY not in str(raised.value)
+    # A variable NAME is what tells the operator what to set: it stays.
+    assert "OPENAI_API_KEY" in unavailable_reason(clients["named"])
+
+
+def test_a_turn_on_a_model_whose_key_is_a_literal_never_shows_it(monkeypatch):
+    pytest.importorskip("langchain_core")
+    from mirobody.agent import agent as agent_module
+    from mirobody.agent.errors import ConfigError
+    from mirobody.agent.models.clients import build_llm_clients
+
+    clients = build_llm_clients({"gpt": {"llm_type": "openai", "model": "gpt-x", "api_key": _LITERAL_KEY}},
+                                resolve=lambda name: None)
+    monkeypatch.setattr(agent_module, "llm_client", clients.get)
+    with pytest.raises(ConfigError) as raised:
+        agent_module.MirobodyAgent(timezone="UTC")._chat_model("gpt")
+    assert _LITERAL_KEY not in str(raised.value)
+
+
+def _turn_on_someone_elses_record(monkeypatch, *, grant: str, file_list: list[dict]) -> tuple[list[dict], dict]:
+    from mirobody.agent.chat import turn
+    from mirobody.agent.chat.model import ChatStreamRequest
+    from mirobody.user.care_circle import CareCircleDenied
+
+    seen = {"stored": 0}
+
+    async def resolve(operator, subject, *, require_write=False):
+        if grant == "none" or (require_write and grant != "write"):
+            raise CareCircleDenied("not granted")
+
+    async def store(params):
+        seen["stored"] += 1
+
+    async def save(params):
+        return None
+
+    async def owner(params):
+        return "Mum"
+
+    monkeypatch.setattr(turn, "resolve_subject", resolve)
+    monkeypatch.setattr(turn, "_store_files", store)
+    monkeypatch.setattr(turn, "_save_question", save)
+    monkeypatch.setattr(turn, "_record_owner", owner)
+    params = ChatStreamRequest(question="what does this say", user_id="7", query_user_id="9", file_list=file_list)
+
+    async def collect():
+        return [block async for block in turn.run(params)]
+
+    return asyncio.run(collect()), seen
+
+
+def test_an_attachment_on_someone_elses_record_needs_their_write_grant(monkeypatch):
+    blocks, seen = _turn_on_someone_elses_record(
+        monkeypatch, grant="read", file_list=[{"file_key": "web_uploads/k.pdf", "file_name": "lab.pdf"}])
+    assert blocks == [{"type": "error", "message": "No permission to add files to this user's record"}]
+    assert seen["stored"] == 0
+
+
+def test_a_question_on_someone_elses_record_needs_only_their_read_grant(monkeypatch):
+    blocks, seen = _turn_on_someone_elses_record(monkeypatch, grant="read", file_list=[])
+    assert {"type": "error", "message": "No permission to chat for this user"} not in blocks
+    assert _turn_on_someone_elses_record(monkeypatch, grant="none", file_list=[])[0] == [
+        {"type": "error", "message": "No permission to chat for this user"}]
+
+
+def test_the_agent_is_told_whether_the_asker_may_change_the_record(monkeypatch):
+    from mirobody.agent.chat import turn
+    from mirobody.agent.chat.model import ChatStreamRequest
+
+    async def owner(params):
+        return "Mum"
+
+    monkeypatch.setattr(turn, "_record_owner", owner)
+    params = ChatStreamRequest(question="q", user_id="7", query_user_id="9", session_id="s")
+    assert asyncio.run(turn._agent_kwargs(params, may_write=False))["may_write"] is False
+
+
+def test_a_date_answer_is_filed_only_with_the_askers_write_grant_on_that_record(monkeypatch):
+    pytest.importorskip("langchain_core")
+    import mirobody.collect as collect
+    from mirobody.agent import hitl
+
+    files = {"k-mum": {"user_id": "7", "query_user_id": "9"}, "k-other": {"user_id": "5", "query_user_id": "5"}}
+    filed = []
+
+    async def get_file(file_key, user_id=None):
+        return files.get(file_key)
+
+    async def set_date(owner, file_key, when):
+        filed.append((owner, file_key))
+        return {"report_date": "2026-01-06 00:00:00", "moved": 1, "skipped": 0}
+
+    monkeypatch.setattr(collect.FileDbService, "get_file_by_key", staticmethod(get_file))
+    monkeypatch.setattr(collect, "set_file_report_date", set_date)
+
+    out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum"], "2026-01-06", may_write=False))
+    assert filed == [] and "Nothing was filed" in out
+    out = asyncio.run(hitl.apply_report_date_answer("9", ["k-mum", "k-other"], "2026-01-06", may_write=True))
+    assert filed == [("9", "k-mum")] and "k-other: no such file" in out
+
+
+def test_a_share_link_that_is_not_a_uuid_never_reaches_the_database(monkeypatch):
+    from mirobody.agent.chat import session
+
+    async def execute_query(*args, **kwargs):
+        raise AssertionError("an id that cannot be a share link must not be looked up")
+
+    monkeypatch.setattr(session, "execute_query", execute_query)
+    answer = asyncio.run(session.get_shared_session_history("x' OR '1'='1"))
+    assert answer == {"code": -1, "msg": "Share session not found", "data": {}}
+
+
+def test_a_failed_read_of_a_shared_conversation_answers_with_a_sentence(monkeypatch):
+    from mirobody.agent.chat import session
+
+    async def execute_query(*args, **kwargs):
+        raise RuntimeError("SELECT session_id FROM th_session_share WHERE share_session_id = 'leak-7.31415'")
+
+    monkeypatch.setattr(session, "execute_query", execute_query)
+    answer = asyncio.run(session.get_shared_session_history("2f1c7a52-3c4e-4c5e-9a40-9d6c2c1d8b11"))
+    assert answer["code"] == -4 and "7.31415" not in answer["msg"] and "SELECT" not in answer["msg"]
+
+
+def _request(body: bytes = b"", query: bytes = b""):
+    from starlette.requests import Request
+
+    async def receive():
+        return {"type": "http.request", "body": body, "more_body": False}
+
+    return Request({"type": "http", "method": "POST", "path": "/api/x", "headers": [], "query_string": query,
+                    "client": ("127.0.0.1", 1)}, receive)
+
+
+def _reply(response) -> dict:
+    import json
+
+    return json.loads(response.body)
+
+
+def test_the_chat_service_replies_with_sentences_not_exception_text(monkeypatch):
+    from mirobody.agent.chat import service
+
+    _, response = asyncio.run(service._json_body(_request(b"{not json")))
+    assert _reply(response)["msg"] == "The request body is not valid JSON."
+
+    async def fails(*args, **kwargs):
+        raise RuntimeError("relation th_sessions: leak-7.31415")
+
+    monkeypatch.setattr(service, "get_session_summaries", fails)
+    monkeypatch.setattr(service, "beneficiary_users", fails)
+    chat = object.__new__(service.ChatService)
+    history = asyncio.run(service.ChatService.history_handler.__wrapped__(chat, _request(), "7"))
+    members = asyncio.run(service.ChatService.beneficiary_user_handler.__wrapped__(chat, _request(), "7"))
+    for response in (history, members):
+        assert _reply(response)["code"] == -1 and "7.31415" not in _reply(response)["msg"]
+
+
+def test_the_attachment_note_reads_report_dates_of_the_records_own_files_only(monkeypatch):
+    import json
+
+    import mirobody.utils as utils
+    from mirobody.agent.prompt import report_date_status
+
+    queries = []
+
+    async def execute_query(sql, params=None, **kwargs):
+        queries.append((sql, params))
+        if "COALESCE(query_user_id, user_id) = :user_id" not in sql or params.get("user_id") != "7":
+            return [{"file_key": "k-someone-elses", "file_content": json.dumps({"date_source": "manual",
+                                                                                "report_date": "2020-02-02"})}]
+        return [{"file_key": "k-own", "file_content": json.dumps({"date_source": "extracted",
+                                                                   "report_date": "2026-01-06 00:00:00"})}]
+
+    monkeypatch.setattr(utils, "execute_query", execute_query)
+    note = asyncio.run(report_date_status("7", ["k-own", "k-someone-elses"]))
+    assert len(queries) == 1
+    assert note == "Report dates:\n- file_key=k-own: report date 2026-01-06 (found on the document)"
+
+
+class _DeclaresOneTool:
+    __tools__ = ("a_tool",)
+
+    def a_tool(self, q: str) -> dict:
+        """The tool.
+
+        Args:
+            q: what.
+        """
+        return {}
+
+    def zz_helper(self, x: str) -> dict:
+        """A public helper the allow-list keeps off `tools/list`."""
+        return {}
+
+
+class _DeclaresOneToolWithASchema:
+    __tools__ = ("a_tool",)
+    input_schema = {"type": "object", "properties": {"q": {"type": "string"}}}
+
+    async def a_tool(self, **kw) -> dict:
+        """The tool."""
+        return {}
+
+    async def type(self, **kw) -> dict:
+        """Not a tool."""
+        return {}
+
+
+@pytest.mark.parametrize("klass", [_DeclaresOneTool, _DeclaresOneToolWithASchema])
+def test_a_tool_class_publishes_exactly_the_methods_it_declares(klass):
+    pytest.importorskip("mcp")
+    from mirobody.mcp.tool import load_tools_from_class
+
+    assert sorted(load_tools_from_class(klass, __name__)) == ["a_tool"]
+
+
+def _mcp_request(body, *, secret: str = "", bearer: str = "abc"):
+    import json
+    from unittest.mock import MagicMock
+
+    request = MagicMock()
+    request.method = "POST"
+    request.url.path = "/mcp/x" if secret else "/mcp"
+    request.path_params = {"secret": secret} if secret else {}
+    request.headers = {"authorization": f"Bearer {bearer}", "host": "localhost"} if bearer else {"host": "localhost"}
+
+    async def read():
+        return body if isinstance(body, bytes) else json.dumps(body).encode()
+
+    async def as_json():
+        return json.loads(await read())
+
+    request.body = read
+    request.json = as_json
+    return request
+
+
+@pytest.fixture
+def mcp(monkeypatch):
+    """An MCP service whose bearer tokens are account 222's and whose personal
+    link reads account 111, with one tool that says whose record it read."""
+    pytest.importorskip("mcp")
+    import mirobody.mcp.service as service_module
+
+    async def bearer_subject(payload, *, mcp_resource="", decode=None):
+        return int(payload["sub"])
+
+    class Validator:
+        def verify_token(self, token):
+            return {"sub": "222"}, None
+
+    monkeypatch.setattr(service_module, "bearer_subject", bearer_subject)
+    monkeypatch.setattr(service_module, "get_jwt_token", lambda request: request.headers.get("authorization", ""))
+    svc = service_module.McpService(token_validator=Validator(), name="t", version="0")
+    gated: list[str] = []
+
+    async def resolve_secret(secret):
+        return "111"
+
+    async def gate(user_id):
+        gated.append(user_id)
+        return set()
+
+    async def whose(user_info, **_):
+        return {"success": True, "data": {"read": user_info["user_id"]}}
+
+    svc._resolve_secret_user = resolve_secret
+    svc._data_gated_tools = gate
+    svc._callable = {"whose": {"auth": True, "instance": whose, "parameters": {"user_info": None}}}
+    return svc, gated
+
+
+def _call(svc, body, **kwargs) -> dict:
+    import json
+
+    return json.loads(asyncio.run(svc.mcp_handler(_mcp_request(body, **kwargs))).body)
+
+
+def test_a_personal_link_reads_its_own_record_whatever_bearer_rides_with_it(mcp):
+    svc, gated = mcp
+    called = _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/call", "params": {"name": "whose", "arguments": {}}},
+                   secret="s")
+    assert called["result"]["structuredContent"] == {"read": "111"}
+    _call(svc, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"}, secret="s")
+    assert gated == ["111"]
+
+
+def test_tools_list_on_bare_mcp_is_gated_for_the_bearers_account(mcp):
+    svc, gated = mcp
+    _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    assert gated == ["222"]
+
+
+@pytest.mark.parametrize("body", [b"null", b"5", b'"text"', b'[{"jsonrpc": "2.0", "id": 1, "method": "ping"}]'],
+                         ids=["null", "number", "string", "batch"])
+def test_a_body_that_is_not_an_object_is_an_invalid_request_not_a_500(mcp, body):
+    svc, _ = mcp
+    assert _call(svc, body, bearer="")["error"]["code"] == -32600
+
+
+@pytest.mark.parametrize("arguments", [["a"], "text", 5])
+def test_tool_arguments_that_are_not_an_object_are_refused(mcp, arguments):
+    svc, _ = mcp
+    answer = _call(svc, {"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                         "params": {"name": "whose", "arguments": arguments}})
+    assert answer["error"]["code"] == -32602
+
+
+@pytest.mark.parametrize("member", [None, 222, "222"])
+def test_a_personal_link_request_takes_a_member_id_as_number_null_or_text(mcp, member):
+    svc, _ = mcp
+    caller, subject, refusal = asyncio.run(svc._personal_mcp_subject(_mcp_request({"user_id": member})))
+    assert (caller, subject, refusal) == ("222", "222", None)
+
+
+# ============================================================================
+# Server and user routes (quality pass, 2026-10): whose record a request
+# reads, who may export it, and what every answer carries.
+# ============================================================================
+
+
+def _grants(monkeypatch, granted: dict[tuple[int, int], int]):
+    """The care circle as a table of `(operator, subject) -> health_access`,
+    so the real `resolve_subject` runs without a database."""
+    from mirobody.user import care_circle as cc
+
+    async def accepted_membership(operator_id, subject_id):
+        access = granted.get((int(operator_id), int(subject_id)))
+        return None if access is None else cc.Membership(health_access=access)
+
+    monkeypatch.setattr(cc, "accepted_membership", accepted_membership)
+
+
+@pytest.mark.parametrize("target", [None, "", "7", "07", " 7 "])
+def test_a_request_for_your_own_record_needs_no_grant(monkeypatch, target):
+    from mirobody.server.auth import subject_for
+
+    _grants(monkeypatch, {})
+    assert asyncio.run(subject_for("7", target)) == "7"
+    assert asyncio.run(subject_for("7", target, write=True)) == "7"
+
+
+def test_a_member_is_named_by_the_id_the_check_decided_on(monkeypatch):
+    """`07` passed the check for member 7 and the write was filed under `07`,
+    a record nobody reads."""
+    from mirobody.server.auth import subject_for
+    from mirobody.user.care_circle import ACCESS_EDIT, ACCESS_VIEW
+
+    _grants(monkeypatch, {(7, 8): ACCESS_VIEW, (7, 9): ACCESS_EDIT})
+    assert asyncio.run(subject_for("7", "08")) == "8"
+    assert asyncio.run(subject_for("7", "009", write=True)) == "9"
+
+
+def test_a_grant_is_trimmed_to_what_was_asked(monkeypatch):
+    from mirobody.server.auth import subject_for
+    from mirobody.user.care_circle import ACCESS_NONE, ACCESS_VIEW
+
+    _grants(monkeypatch, {(7, 8): ACCESS_VIEW, (7, 10): ACCESS_NONE})
+    assert asyncio.run(subject_for("7", "8", write=True)) is None
+    assert asyncio.run(subject_for("7", "10")) is None
+    assert asyncio.run(subject_for("7", "11")) is None
+    assert asyncio.run(subject_for("7", "not-an-id")) is None
+
+
+def _router_app(module_name: str, user_id: str = "7"):
+    """`module_name`'s router signed in as `user_id`. The package exports each
+    APIRouter under its module's name, so the module is reached by import."""
+    import importlib
+
+    from fastapi import FastAPI
+
+    from mirobody.server.auth import verify_token
+
+    module = importlib.import_module(f"mirobody.server.routers.{module_name}")
+    app = FastAPI()
+    app.include_router(module.router)
+    app.dependency_overrides[verify_token] = lambda: user_id
+    return TestClient(app), module
+
+
+def test_a_read_grant_does_not_export_a_members_genome(monkeypatch):
+    """A care-circle VIEW grant streamed the member's whole genome as VCF;
+    the readings export has been owner-only since 1.5.3."""
+    from mirobody.user.care_circle import ACCESS_VIEW
+
+    _grants(monkeypatch, {(7, 8): ACCESS_VIEW})
+    client, genomics = _router_app("genomics_router")
+    read = []
+
+    async def execute_query(query, params=None, **kw):
+        read.append(params)
+        return []
+
+    monkeypatch.setattr(genomics, "execute_query", execute_query)
+    answer = client.get("/api/v1/genomics/export.vcf", params={"build": "GRCh38", "target_user_id": "8"})
+    assert answer.json()["code"] == 403 and not read
+    own = client.get("/api/v1/genomics/export.vcf", params={"build": "GRCh38"})
+    assert own.json()["code"] == 404 and read == [{"user_id": "7"}]
+
+
+def _oauth_platform(monkeypatch, callback):
+    """A registered platform `acme` whose one OAuth2 provider's callback is
+    `callback`, as the vendor callback route finds it."""
+    from mirobody.collect import LinkType, platform_manager
+
+    class Provider:
+        info = type("Info", (), {"auth_type": LinkType.OAUTH2})()
+
+        async def callback(self, code, state):
+            return await callback(code, state)
+
+    class Platform:
+        def get_provider(self, slug):
+            return Provider()
+
+    monkeypatch.setitem(platform_manager._platforms, "acme", Platform())
+
+
+def _completion_page(html: str) -> dict:
+    import json
+    import re
+
+    return json.loads(re.search(r"var page = (.*?);\n", html).group(1))
+
+
+def test_a_failed_vendor_callback_shows_a_code_not_the_exception(monkeypatch):
+    async def callback(code, state):
+        raise RuntimeError("token exchange failed for you@mirobody.ai")
+
+    _oauth_platform(monkeypatch, callback)
+    client, _ = _router_app("public_router")
+    html = client.get("/api/v1/pulse/acme/acme_watch/callback", params={"code": "x"}).text
+    assert "mirobody.ai" not in html
+    page = _completion_page(html)
+    assert page["message"]["error"] == "oauth_failed" and page["message"]["success"] is False
+    # The opener is told only on this deployment's own origin, never "*".
+    assert page["targets"] == ["http://testserver"]
+
+
+def test_the_completion_page_cannot_be_closed_from_inside(monkeypatch):
+    async def callback(code, state):
+        return {"note": "</script><script>alert(1)</script>"}
+
+    _oauth_platform(monkeypatch, callback)
+    client, _ = _router_app("public_router")
+    html = client.get("/api/v1/pulse/acme/acme_watch/callback", params={"code": "x"}).text
+    assert html.count("</script>") == 1
+    assert _completion_page(html)["message"]["data"] == {"note": "</script><script>alert(1)</script>"}
+
+
+def _passkeys(monkeypatch, *, enrolled: bool):
+    """A client of a WebAuthn service for an account with MFA on, which has
+    registered a passkey when `enrolled`; a token minted with `aal`; the service."""
+    from mirobody.user import user as user_module
+    from mirobody.user.auth.jwt import JwtTokenValidator
+    from mirobody.user.auth.webauthn import WebAuthnService
+
+    async def active(user_id, minted_at=None):
+        return True
+
+    async def mfa_enabled(user_id):
+        return True
+
+    async def credentials(user_id):
+        return [{"credential_id": b"passkey-1", "transports": ["internal"]}] if enrolled else []
+
+    monkeypatch.setattr(user_module, "is_active_account", active)
+    validator = JwtTokenValidator("k" * 32)
+    service = WebAuthnService(validator, rp_id="localhost", origin="http://localhost:18060")
+    monkeypatch.setattr(service, "_is_mfa_enabled", mfa_enabled)
+    monkeypatch.setattr(service, "get_credentials_for_user", credentials)
+
+    def token(aal: int) -> str:
+        access, _, _ = asyncio.run(validator.generate_tokens(
+            "7", "you@mirobody.ai", gen_claims_func=lambda _u, _e: {"aal": aal}))
+        return access
+
+    return TestClient(Starlette(routes=service.routes)), token, service
+
+
+@pytest.mark.parametrize("route", ["/auth/webauthn/register/options", "/auth/webauthn/register/verify"])
+def test_a_second_passkey_takes_the_first(monkeypatch, route):
+    """The AAL1 token sign-in hands an MFA account enrolled a passkey of the
+    caller's choosing, and registration answered with an AAL2 token."""
+    client, token, _ = _passkeys(monkeypatch, enrolled=True)
+    answer = client.post(route, json={}, headers={"Authorization": f"Bearer {token(1)}"})
+    assert answer.status_code == 403
+    assert answer.json()["detail"]["code"] == "ERROR_AAL2_REQUIRED"
+
+
+def test_the_first_passkey_and_an_aal2_session_still_enrol(monkeypatch):
+    client, token, _ = _passkeys(monkeypatch, enrolled=False)
+    first = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(1)}"})
+    assert first.status_code == 200 and first.json()["data"]["challenge"]
+
+    client, token, _ = _passkeys(monkeypatch, enrolled=True)
+    another = client.post("/auth/webauthn/register/options", headers={"Authorization": f"Bearer {token(2)}"})
+    assert another.status_code == 200 and another.json()["data"]["excludeCredentials"]
+
+
+#: What a failing dependency says in these tests: an address and a reading,
+#: the two things an exception's text has been seen to carry.
+_LEAK = "lookup failed for you@mirobody.ai at 7.3 mmol/L"
+
+
+def _raises():
+    async def fail(*args, **kwargs):
+        raise RuntimeError(_LEAK)
+    return fail
+
+
+def test_a_failing_files_route_answers_a_sentence_not_the_exception(monkeypatch):
+    client, files = _router_app("file_router")
+    monkeypatch.setattr(files, "get_user_data_distribution", _raises())
+    answer = client.get("/api/v1/data/data-distribution")
+    assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
+
+    async def deletion_raised(**kw):
+        return {"success": False, "error": f"Internal error: {_LEAK}", "message_id": "m1"}
+
+    monkeypatch.setattr(files, "delete_all_files_from_message", deletion_raised)
+    answer = client.post("/api/v1/data/delete-files", json={"message_id": "m1"})
+    assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
+
+
+def test_a_public_share_link_answers_a_sentence_not_the_exception(monkeypatch):
+    client, share = _router_app("session_share_router")
+    monkeypatch.setattr(share.chat_session, "get_shared_session_history", _raises())
+    answer = client.get("/api/share/0123e456-7890-4abc-8def-0123456789ab")
+    assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
+
+    # The service catches its own failures and answered "Internal error: <text>";
+    # the id is a UUID, because anything else is refused before the database.
+    monkeypatch.undo()
+    monkeypatch.setattr(share.chat_session, "execute_query", _raises())
+    answer = client.get("/api/share/0123e456-7890-4abc-8def-0123456789ab")
+    assert answer.json()["code"] == -4 and "mirobody.ai" not in answer.text
+
+
+@pytest.mark.parametrize("body", ["7.3 mmol/L, not JSON",
+                                  '{"metaInfo": {"timezone": "UTC"}, "healthData": "7.3 mmol/L"}'])
+def test_an_unreadable_apple_upload_is_refused_without_quoting_it(body):
+    """The decoder's and pydantic's messages quote the input, and the input
+    is readings."""
+    client, _ = _router_app("apple_router")
+    answer = client.post("/apple/health", content=body, headers={"Content-Type": "application/json"})
+    assert answer.status_code == 400 and "7.3" not in answer.text
+
+
+def test_a_failed_sign_in_step_answers_a_sentence_not_the_exception(monkeypatch):
+    from mirobody.user.auth.jwt import JwtTokenValidator
+    from mirobody.user.user_service import UserService
+
+    service = UserService(token_validator=JwtTokenValidator("k" * 32), routes=[])
+    monkeypatch.setattr(service._email_validator, "send", _raises())
+    client = TestClient(Starlette(routes=service.routes))
+    answer = client.post("/email/login", json={"email": "you@mirobody.ai"}).json()
+    assert answer["code"] == -3 and "lookup failed" not in answer["msg"]
+    # The parser's message played the body back; a malformed one gets a sentence.
+    answer = client.post("/password/login", content="7.3 mmol/L").json()
+    assert answer == {"code": -1, "msg": "The request body must be a JSON object.", "data": {}}
+
+
+def test_a_passkey_that_does_not_verify_answers_a_sentence(monkeypatch):
+    from mirobody.user.auth import webauthn
+
+    client, token, service = _passkeys(monkeypatch, enrolled=False)
+
+    async def challenge(key):
+        return b"challenge"
+
+    def verify(**kw):
+        raise RuntimeError(_LEAK)
+
+    monkeypatch.setattr(service, "_get_and_delete_challenge", challenge)
+    monkeypatch.setattr(webauthn, "verify_registration_response", verify)
+    answer = client.post("/auth/webauthn/register/verify", json={"credential": {}},
+                         headers={"Authorization": f"Bearer {token(1)}"}).json()
+    assert answer["code"] == -3 and "mirobody.ai" not in answer["msg"]
+
+
+def test_a_bad_oauth_registration_answers_a_sentence():
+    from mirobody.user.auth.jwt import JwtTokenValidator
+    from mirobody.user.auth.oauth_service import OAuthService
+
+    client = TestClient(Starlette(routes=OAuthService(JwtTokenValidator("k" * 32), routes=[]).routes))
+    answer = client.post("/oauth/register", json=["7.3 mmol/L"])
+    assert answer.status_code == 400
+    assert answer.json() == {"error": "registration_failed", "message": "The registration request could not be read."}
+
+
+
+# -- what every response carries, the failures included ------------------------
+
+
+_CORS = [("Access-Control-Allow-Origin", "http://localhost:18080"),
+         ("Access-Control-Allow-Methods", "GET,POST"),
+         ("Access-Control-Allow-Credentials", "true"),
+         ("Server", "mirobody/test")]
+
+
+def _stacked_app(jwt_key: str = ""):
+    """The server's middleware stack around a route that answers and one
+    that raises with a reading in its message, in debug mode."""
+    from fastapi import FastAPI
+
+    from mirobody.server.middleware_stack import build_middlewares
+
+    app = FastAPI(debug=True, middleware=build_middlewares(http_headers=_CORS, jwt_key=jwt_key))
+
+    @app.get("/api/ping")
+    async def ping():
+        return {"ok": True}
+
+    @app.post("/api/ping")
+    async def ping_post():
+        return {"ok": True}
+
+    @app.get("/api/boom")
+    async def boom():
+        raise RuntimeError(_LEAK)
+
+    return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.mark.parametrize("jwt_key", ["", "k" * 32])
+def test_an_unhandled_failure_answers_the_envelope_with_every_header(jwt_key):
+    """A route that raised reached Starlette's own handler: plain text, or the
+    traceback in debug mode, and none of the headers the JWT middleware adds."""
+    answer = _stacked_app(jwt_key).get("/api/boom", headers={"X-Request-Id": "trace-1",
+                                                             "Origin": "http://localhost:18080"})
+    assert answer.status_code == 500 and "mirobody.ai" not in answer.text
+    assert answer.json() == {"code": 500, "msg": "Internal server error.", "data": {}}
+    assert answer.headers["X-Request-Id"] == "trace-1"
+    # A cross-origin client can read it.
+    assert answer.headers["Access-Control-Allow-Origin"] == "http://localhost:18080"
+    for name, value in SECURITY_HEADERS.items():
+        assert answer.headers[name] == value
+
+
+def test_a_preflight_carries_the_headers_and_one_allowed_origin():
+    client = _stacked_app("k" * 32)
+    preflight = client.options("/api/ping", headers={"Origin": "http://localhost:18080",
+                                                     "Access-Control-Request-Method": "POST"})
+    assert preflight.status_code == 200 and preflight.headers["X-Content-Type-Options"] == "nosniff"
+    assert preflight.headers.get_list("X-Request-Id") and len(preflight.headers.get_list("X-Request-Id")) == 1
+    # "GET,POST" was one method named "GET,POST": POST was refused.
+    assert "POST" in preflight.headers["Access-Control-Allow-Methods"]
+    answer = client.get("/api/ping", headers={"Origin": "http://localhost:18080"})
+    assert answer.headers.get_list("Access-Control-Allow-Origin") == ["http://localhost:18080"]
+
+
+def test_the_http_server_leaves_cors_to_the_middleware():
+    """uvicorn added every configured header to every response, CORS's too, so
+    each answer carried `Access-Control-Allow-Origin` twice and a browser
+    refused it."""
+    from mirobody.server.middleware_stack import server_headers
+
+    assert server_headers(_CORS) == [("Server", "mirobody/test")]
+
+
+class _ProductionConfig:
+    def __init__(self, jwt_key: str):
+        self._values = {"JWT_KEY": jwt_key}
+
+    def get_bool(self, key, default=False):
+        return key == "PRODUCTION"
+
+    def get_dict(self, key, default=None):
+        return {}
+
+    def get_str(self, key):
+        return self._values.get(key, "")
+
+    def placeholder_keys(self):
+        return []
+
+
+def test_production_refuses_to_start_without_a_jwt_key():
+    """Without JWT_KEY the stack has no JWT middleware: nobody signs in and
+    the sign-in routes are not rate-limited."""
+    from mirobody.server.bootstrap import enforce_production_auth_safety
+
+    with pytest.raises(RuntimeError, match="JWT_KEY is empty"):
+        enforce_production_auth_safety(_ProductionConfig(""))
+    enforce_production_auth_safety(_ProductionConfig("k" * 64))
+
+
+def test_a_failure_after_the_response_started_sends_nothing_more():
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        raise RuntimeError(_LEAK)
+
+    sent = []
+
+    async def send(message):
+        sent.append(message)
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    scope = {"type": "http", "method": "GET", "path": "/", "headers": [], "query_string": b""}
+    asyncio.run(ResponseHeadersMiddleware(UnhandledErrorMiddleware(app))(scope, receive, send))
+    assert [m["type"] for m in sent] == ["http.response.start"]
+    assert (b"x-content-type-options", b"nosniff") in sent[0]["headers"]
+
+
+def test_the_setup_state_is_no_unlimited_token_oracle(monkeypatch):
+    """`GET /api/setup` says whether the token it was given is right, and
+    counted wrong ones without ever refusing: unlimited guesses, and a list
+    per client that only grew."""
+    client, setup = _setup_app(monkeypatch, ready=True)
+    for _ in range(12):
+        client.get("/api/setup", headers={"X-Setup-Token": "wrong"})
+    assert client.get("/api/setup", headers={"X-Setup-Token": "wrong"}).json()["code"] == 429
+    assert all(len(times) <= setup._MAX_FAILURES for times in setup._failures.values())
+    # The right token still answers, and without one the page still loads.
+    assert client.get("/api/setup", headers={"X-Setup-Token": "right-token"}).json()["data"]["trusted"] is True
+    assert client.get("/api/setup").json()["code"] == 0
+
+
+# -- log lines: a database driver's text never reaches them ---------------------
+
+
+def _driver_error() -> Exception:
+    """An exception the way psycopg raises one: its message quotes the statement
+    and the bound parameters."""
+    error = type("UniqueViolation", (Exception,), {"__module__": "psycopg.errors"})
+    return error("duplicate key: INSERT INTO th_observation VALUES ('Jane Doe', 'HbA1c 9.1')")
+
+
+def _wrapped(driver: Exception) -> RuntimeError:
+    """The provider base class's shape: `raise RuntimeError(str(e)) from e`."""
+    try:
+        try:
+            raise driver
+        except Exception as e:
+            raise RuntimeError(str(e)) from e
+    except RuntimeError as wrapper:
+        return wrapper
+
+
+def test_a_wrapped_driver_error_is_still_a_driver_error():
+    from mirobody.kernel.ops import is_driver_exception
+
+    assert is_driver_exception(_driver_error())
+    assert is_driver_exception(_wrapped(_driver_error()))
+    assert not is_driver_exception(RuntimeError("no driver below"))
+
+
+def test_the_filter_scrubs_a_wrapped_driver_errors_traceback():
+    import logging
+
+    from mirobody.kernel.ops import PHIFilter, PHIPolicy
+
+    wrapper = _wrapped(_driver_error())
+    record = logging.LogRecord("t", logging.ERROR, __file__, 1, "pull failed", (), (RuntimeError, wrapper, None))
+    PHIFilter(PHIPolicy()).filter(record)
+    assert record.exc_info is None
+    assert record.getMessage() == "pull failed [RuntimeError]"
+
+
+def test_every_handler_config_init_installs_drops_a_value_bearing_extra(monkeypatch, tmp_path):
+    """`Config.init` installs the console handler, then the configured file
+    and console pair; the second install found the filter on the root logger
+    and left the new handlers without it, and a module logger's record passes
+    the root's handlers, never the root logger's filters."""
+    import io
+    import logging
+
+    import mirobody.utils.config.config as cfg_mod
+    from mirobody.kernel.ops import PHIFilter
+    from mirobody.utils.config import Config
+
+    root = logging.getLogger()
+    saved = root.handlers[:], root.filters[:], root.level
+    handlers: list[logging.Handler] = []
+    monkeypatch.setattr(cfg_mod, "_global_config", cfg_mod._global_config)
+    monkeypatch.chdir(tmp_path)
+    overlay = io.StringIO(f"LOG_NAME: gate\nLOG_DIR: {tmp_path}\nLOG_LEVEL: INFO\n")
+    try:
+        asyncio.run(Config.init(yaml_filenames=[overlay], dotenv_filenames=[]))
+        handlers = root.handlers[:]
+        logging.getLogger("mirobody.collect.example").info(
+            "reading stored", extra={"value": "HbA1c 9.1", "row_count": 1})
+        for handler in handlers:
+            handler.flush()
+    finally:
+        root.handlers[:], root.filters[:] = saved[0], saved[1]
+        root.setLevel(saved[2])
+        for handler in handlers:
+            handler.close()
+
+    assert len(handlers) == 2
+    assert all(any(isinstance(f, PHIFilter) for f in h.filters) for h in handlers)
+    (log_file,) = tmp_path.glob("*_gate_*.log")
+    line = log_file.read_text(encoding="utf-8")
+    assert "reading stored" in line and '"row_count":1' in line
+    assert "HbA1c" not in line and "_phi_seen" not in line

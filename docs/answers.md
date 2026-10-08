@@ -132,7 +132,7 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 A view with nothing selected used to be refused ("the catalogue has one
 shape"). In the 2026-10-06 local-model evaluation MiniCPM5-2B opened with
 `view="latest"` and no indicator 3 times and MiniCPM5-1B 7 times, then
-repeated the refused call until the harness stopped it (`retry_refused`, 6
+repeated the refused call until the harness stopped it (`repeated_call`, 6
 times), each attempt a model turn on an 8k-token prompt; DeepSeek V4.1 Flash
 never sent it. Now the call is a catalogue call that teaches: the answer is
 the catalogue, `next_steps` is `use_indicators`, and a note says
@@ -215,6 +215,10 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.
+* A named window that leaves out readings of a series it answered says so,
+  in one note naming the series and the date its readings start or end
+  outside it: a trend question read from a window holding 2 of 3 cholesterol
+  readings was answered from those two (newcomer review, 2026-10-07).
 * Every answer states its **window semantics**: `tz_exact` when the rows carry
   a stored local day, `date_padded_naive` when some row predates that column and
   was found by padding its naive timestamp a day either side. That is the
@@ -265,10 +269,12 @@ strategy.
 
 ## Governance: what stops a loop
 
-Four middlewares, outermost first:
+The harness's own middleware, outermost first (`harness.standard_middleware`;
+deepagents runs its filesystem, summarisation and tool-call patching before
+them, and the `ask_user` pause after):
 
 1. **`ToolFaultMiddleware`** — a crashing tool becomes an error result instead
-   of a dead turn. The text carries the tool name, the fault kind and the
+   of a dead turn. The text carries the tool name, the error kind and the
    exception TYPE; never its message, because driver messages quote SQL with
    bound parameters and models echo what they are given.
 2. **`RetryGovernanceMiddleware`** — a call whose `(tool, normalised arguments)`
@@ -279,11 +285,19 @@ Four middlewares, outermost first:
 3. **`InvalidToolCallRepairMiddleware`** — arguments that never parsed as JSON
    reach no tool at all; this feeds the parse error back, and salvages the
    narrow deterministic cases (`none` for `null`, an unquoted date).
-4. **`ModelCallLimitMiddleware`** + **`ToolCallLimitMiddleware`** — the turn's
-   budget, and a cap on how often the data tool may run.
-   `exit_behavior="continue"` on the second: hitting the cap removes the tool
-   for the rest of the turn rather than ending the turn, so the model still
-   writes its answer from what it has.
+4. **`EmptyAnswerRepairMiddleware`** — a reply with neither text nor a tool
+   call is asked for once more instead of ending the turn blank.
+5. **`ModelCallBudgetMiddleware`** + **`ToolCallLimitMiddleware`** — the turn's
+   budget of model calls, and a cap on how often the data tool may run. The
+   budget's last call is made with tool calls off (`tool_choice` none, the
+   tools still declared) after one instruction to answer from what the model
+   has; a model that calls a tool anyway is stopped there. The cap uses
+   `exit_behavior="continue"`: hitting it removes the tool for the rest of
+   the turn rather than ending the turn, so the model still writes its answer
+   from what it has.
+6. the `eval` interpreter, then the tail: a model that cannot see gets
+   images as their OCR text, genotype rows are kept to the turn that read
+   them, and prompt caching marks the request last.
 
 The data tool itself **never raises**. The `eval` REPL can call it directly
 (PTC), and a PTC call bypasses the tool middleware entirely — there is nothing

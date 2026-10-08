@@ -1,22 +1,26 @@
-"""
-Router composition module
+"""The FastAPI routers `Server.start` mounts, one per surface.
 
-Imports all sub-routers and assembles the public router.
-apple_router is included into public_router (nested prefix).
-All other routers are exported individually for registration in the app.
+`apple_router` is also included into `public_router`, so the Apple Health
+uploads answer under both /apple/* and the provider prefix.
 
-Sub-routers:
-    public_router   /api/v1/pulse/*   main user-facing API (providers, link, webhook, OAuth)
-    file_router     file upload endpoints
-    user_router     user profile endpoints
-    apple_router    Apple Health specific endpoints (included in public_router)
-    session_share_router: session sharing
-    sharing_router  /invitation/*  data-sharing between users
+    public_router         device providers: list, link, vendor OAuth, webhooks (/api/v1/pulse)
+    apple_router          Apple Health uploads from a phone app (/apple)
+    file_router           uploads, stored files, the data page (/files, /ws, /api/v1/data)
+    user_router           settings and managed members (/api/user)
+    session_share_router  a chat shared by link (/api/share)
+    sharing_router        the care circle (/invitation)
+    indicator_router      readings for the web client (/api/v1/health-indicators, /api/v1/data)
+    records_router        the hosted platform's record shapes (/api/data, /api/standardize)
+    journal_router        the journal (/api/v1/journal)
+    genomics_router       genotypes and their exports (/api/v1/genomics)
+    medication_router     medication plans (/api/v1/medications)
+    data_export_router    the whole record as NDJSON (/api/user/data-export)
+    setup_router          the first-run page's API (/api/setup)
 
 Removed: `manage_router` (/api/v1/manage/*), `food_router` (/api/v1/food/*)
 and `skill_router` (/api/skills/*).
-Both were client-less product surfaces with no consumer left in the project:
-the web client called neither, and there is no mobile client. food_router's
+All three were product surfaces with no caller left: the web client called
+none of them, and nothing in the project did. food_router's
 writes were also unreachable by design (it stored records as
 `th_messages.message_type = 'food'`, which `get_chat_history` filters out) so
 only its own /history endpoint could ever read them. skill_router was a CRUD

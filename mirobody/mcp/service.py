@@ -8,7 +8,7 @@ from starlette.responses import Response
 from starlette.routing import Route
 
 
-from mirobody.utils.http import META_PROTOCOL_VERSION, loggable_path, request_origin
+from mirobody.utils.http import META_PROTOCOL_VERSION, request_origin
 
 from mirobody.utils import get_jwt_token, json_response, json_response_with_code, jsonrpc_result, jsonrpc_error
 
@@ -16,6 +16,7 @@ from mirobody.user import AbstractTokenValidator
 from mirobody.user import personal_mcp
 from mirobody.user.auth.bearer import bearer_subject, mcp_resource
 
+from .stdio import PROTOCOL_VERSIONS
 from .tool import load_tools_from_directories, call_tool
 
 logger = logging.getLogger(__name__)
@@ -40,17 +41,10 @@ CODE_UNSUPPORTED_PROTOCOL_VERSION = -32022  # spec-defined (2026-07-28)
 CODE_AUTH_REQUIRED      = -32000
 
 #-----------------------------------------------------------------------------
-# Protocol revisions this server implements, newest first. `initialize`
-# negotiates against this list; per-request `_meta` (2026-07-28's stateless
-# model) is validated against it too.
-_LATEST_PROTOCOL_VERSION = "2026-07-28"
-_SUPPORTED_PROTOCOL_VERSIONS = (
-    "2026-07-28",   # stateless: per-request _meta, resultType, MRTR, no session id
-    "2025-11-25",
-    "2025-06-18",
-    "2025-03-26",
-    "2024-11-05",
-)
+# The protocol revisions this server implements are `stdio.PROTOCOL_VERSIONS`,
+# newest first, the list the stdio server speaks: `initialize` negotiates
+# against it and per-request `_meta` (2026-07-28's stateless model) is
+# validated against it too.
 
 # Declared once: `initialize` and `server/discover` MUST advertise the same
 # capabilities, and they held separate copies of this dict that could drift.
@@ -90,15 +84,6 @@ def _by_name(items: list | None, key: str = "name") -> list:
 
 #-----------------------------------------------------------------------------
 
-async def _live(user_id: str) -> str:
-    """`user_id` when its account still exists, "" otherwise. A token and a
-    personal URL both outlive a deleted account unless this is asked."""
-    from mirobody.user.user import is_active_account
-
-    return user_id if user_id and await is_active_account(user_id) else ""
-
-#-----------------------------------------------------------------------------
-
 class ResponseEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, datetime):
@@ -114,7 +99,6 @@ class McpService:
 
         token_validator         : AbstractTokenValidator | None = None,
 
-        protocol_version        : str = "",
         name                    : str = "",
         version                 : str = "",
 
@@ -122,18 +106,9 @@ class McpService:
         routes                  : list | None = None,
 
         tool_dirs               : list[str] | None = None,
-
-        **kwargs
     ):
-        if tool_dirs is None:
-            tool_dirs = []
         self._token_validator   = token_validator
 
-        # Newest revision we implement. `initialize` negotiates DOWN to whatever
-        # the client asked for when we also support it (see _negotiate_version);
-        # it used to ignore the client's request entirely and echo this back,
-        # which is a spec violation in every revision.
-        self._protocol_version  = protocol_version if protocol_version else _LATEST_PROTOCOL_VERSION
         self._name              = name if name else "mirobody MCP Server"
         self._version           = version if version else "1.0.0"
 
@@ -155,13 +130,7 @@ class McpService:
 
         #----------------------------------------------
 
-        self._callable, self._tool_descriptions = load_tools_from_directories(tool_dirs)
-
-        if not self._callable:
-            self._callable = {}
-
-        if not self._tool_descriptions:
-            self._tool_descriptions = []
+        self._callable, self._tool_descriptions = load_tools_from_directories(tool_dirs or [])
 
         #-------------------------------------------------
 
@@ -205,14 +174,13 @@ class McpService:
         """Pick the revision to speak with this client.
 
         Return the client's request when we implement it, otherwise our newest.
-        Every MCP revision requires this handshake; the old code returned
-        `self._protocol_version` unconditionally, so a client pinned to
-        2024-11-05 was told the server was speaking a revision it had never
-        agreed to.
+        Every MCP revision requires this handshake; the old code returned the
+        newest unconditionally, so a client pinned to 2024-11-05 was told the
+        server was speaking a revision it had never agreed to.
         """
-        if isinstance(requested, str) and requested in _SUPPORTED_PROTOCOL_VERSIONS:
+        if isinstance(requested, str) and requested in PROTOCOL_VERSIONS:
             return requested
-        return self._protocol_version
+        return PROTOCOL_VERSIONS[0]
 
     @staticmethod
     def _request_protocol_version(jsonrpc: dict) -> str | None:
@@ -236,6 +204,25 @@ class McpService:
 
     #-----------------------------------------------------
 
+    async def _caller(self, request: Request, secret_user: str) -> str:
+        """Whose record this request reads, decided one way for every method:
+        the personal link's subject on `/mcp/{secret}`, where a bearer token
+        sent beside it is ignored; otherwise the verified bearer's account;
+        otherwise "". `tools/call` used to prefer the bearer and `tools/list`
+        to read the link only, so a link and a token answered for two people,
+        and an OAuth client on bare `/mcp` was never gated."""
+        if secret_user:
+            return secret_user
+        token = get_jwt_token(request)
+        if not token or not self._token_validator:
+            return ""
+        payload, err = self._token_validator.verify_token(token)
+        if err:
+            logger.info("MCP bearer token refused")
+            return ""
+        resource = mcp_resource(request_origin(request), self._uri_prefix)
+        return str(await bearer_subject(payload, mcp_resource=resource) or "")
+
     async def _resolve_secret_user(self, user_secret: str) -> str:
         """The subject a personal link reads, or "" when it may not be used
         now. Checked on every request (`personal_mcp.authorize`)."""
@@ -246,13 +233,10 @@ class McpService:
     #
     # The observation probe reads `v_observation`, the view the tool reads: a
     # probe on the raw table counted a retracted row (it stays, amended).
+    _GENOTYPE_PROBE = "SELECT 1 FROM th_genotype_set WHERE user_id = :uid AND status = 'active' LIMIT 1"
     _DATA_GATED = {
-        "query_genetic_data":
-            "SELECT 1 FROM th_genotype_set"
-            " WHERE user_id = :uid AND status = 'active' LIMIT 1",
-        "query_pharmacogenomics":
-            "SELECT 1 FROM th_genotype_set"
-            " WHERE user_id = :uid AND status = 'active' LIMIT 1",
+        "query_genetic_data": _GENOTYPE_PROBE,
+        "query_pharmacogenomics": _GENOTYPE_PROBE,
         "query_health_indicators":
             "SELECT 1 FROM v_observation WHERE user_id = :uid LIMIT 1",
         "query_medications":
@@ -316,7 +300,6 @@ class McpService:
             logger.warning(
                 "MCP: malformed JSON-RPC body",
                 extra={
-                    "path": loggable_path(request.url.path),
                     "body_bytes": len(body),
                     "content_type": request.headers.get("content-type", ""),
                 },
@@ -330,6 +313,18 @@ class McpService:
                 request = request
             )
 
+        # A body that parses but is not an object (null, 5, "text", a batch)
+        # is refused before anything reads a key of it: `"id" in 5` raised a
+        # TypeError, an unauthenticated 500.
+        if not isinstance(jsonrpc, dict):
+            return jsonrpc_error(
+                id      = None,
+                code    = CODE_INVALID_REQUEST,
+                msg     = "Invalid request body",
+                method  = "",
+                request = request
+            )
+
         # According to the MCP specification the ID field should always be
         # there, but a request that omits it is still well-formed JSON, and
         # every error branch below used to re-index `jsonrpc["id"]` directly.
@@ -337,18 +332,7 @@ class McpService:
         # inside the handler; with FastAPI debug enabled (which follows
         # LOG_LEVEL, DEBUG by default) that returns a full stack trace to the
         # caller. Extract once here, use `id` everywhere after.
-        id = None
-        if "id" in jsonrpc:
-            id = jsonrpc["id"]
-
-        if not isinstance(jsonrpc, dict):
-            return jsonrpc_error(
-                id      = id,
-                code    = CODE_INVALID_REQUEST,
-                msg     = "Invalid request body",
-                method  = "",
-                request = request
-            )
+        id = jsonrpc.get("id")
 
         if "method" not in jsonrpc or \
             not isinstance(jsonrpc["method"], str) or \
@@ -370,7 +354,7 @@ class McpService:
         secret_user = await self._resolve_secret_user(secret) if secret else ""
         if secret and not secret_user:
             refused = jsonrpc_error(
-                id      = jsonrpc.get("id"),
+                id      = id,
                 code    = CODE_AUTH_REQUIRED,
                 msg     = "This personal MCP link is not valid. Make a new one in Settings.",
                 method  = method,
@@ -406,12 +390,6 @@ class McpService:
 
         #-------------------------------------------------
 
-        # The caller's identity, resolved per request: a JWT on the header, or
-        # the personal link on the path (`secret_user`, checked above).
-        user_id     = ""
-
-        #-------------------------------------------------
-
         #   IMPLEMENTED: tools/list, tools/call, initialize (handshake
         #     revisions only), server/discover (2026-07-28 stateless
         #     discovery), ping; every notification is accepted above (202)
@@ -428,7 +406,7 @@ class McpService:
             # not listed at all (`_DATA_GATED`). Unidentifiable callers (bare
             # /mcp before OAuth) keep the full list: capability discovery must
             # not require auth.
-            hidden = await self._data_gated_tools(user_id or secret_user)
+            hidden = await self._data_gated_tools(await self._caller(request, secret_user))
             if hidden:
                 base_tools = [t for t in self._tool_descriptions if t.get("name") not in hidden]
             else:
@@ -481,19 +459,18 @@ class McpService:
 
             #---------------------------------------------
 
+            arguments = params.get("arguments")
+            if arguments is not None and not isinstance(arguments, dict):
+                return jsonrpc_error(
+                    id      = id,
+                    code    = CODE_INVALID_PARAMS,
+                    msg     = "Tool arguments must be an object",
+                    method  = "tools/call",
+                    request = request
+                )
+
             tool = self._callable[params["name"]]
-            jwt_token = get_jwt_token(request)
-            resource = mcp_resource(url_prefix, self._uri_prefix)
-
-            if tool["auth"] and not user_id and jwt_token and self._token_validator:
-                payload, err = self._token_validator.verify_token(jwt_token)
-                if err:
-                    logger.warning(err)
-                else:
-                    user_id = str(await bearer_subject(payload, mcp_resource=resource) or "")
-
-            if tool["auth"] and not user_id:
-                user_id = secret_user
+            user_id = await self._caller(request, secret_user) if tool["auth"] else ""
 
             if tool["auth"] and not user_id:
                 # MCP authorization: 401, and where to find the authorization
@@ -507,7 +484,7 @@ class McpService:
                 )
                 refused.status_code = 401
                 challenge = f'Bearer resource_metadata="{url_prefix}/.well-known/oauth-protected-resource{self._uri_prefix}/mcp"'
-                if jwt_token:
+                if get_jwt_token(request):
                     challenge += ', error="invalid_token"'
                 refused.headers["WWW-Authenticate"] = challenge
                 return refused
@@ -517,7 +494,7 @@ class McpService:
             result = await call_tool(
                 tools       = self._callable,
                 tool_name   = params["name"],
-                arguments   = params["arguments"] if "arguments" in params else {},
+                arguments   = arguments or {},
                 user_id     = user_id,
             )
 
@@ -613,7 +590,7 @@ class McpService:
                 # requires; this answered `supportedProtocolVersions`, which the
                 # SDK's own client rejected. The identity rides in `_meta`.
                 result  = {
-                    "supportedVersions": list(_SUPPORTED_PROTOCOL_VERSIONS),
+                    "supportedVersions": list(PROTOCOL_VERSIONS),
                     "capabilities": _CAPABILITIES,
                 },
                 cache_hint = _LIST_CACHE_HINT,
@@ -659,23 +636,23 @@ class McpService:
         payload, err = self._token_validator.verify_token(get_jwt_token(request))
         if err:
             return "", "", json_response_with_code(-2, err, request=request, status=401)
-        if not await bearer_subject(payload):
+        # The account the token speaks for, live and not revoked since it was
+        # minted: no second read of `sub`, nor a weaker liveness check after it.
+        caller = await bearer_subject(payload)
+        if not caller:
             return "", "", json_response_with_code(-3, "Not a valid session.", request=request, status=401)
+        user_id = str(caller)
 
+        # An optional body: a request without one is legitimate, and a JSON
+        # client may send the member's id as a number or a null.
         try:
             data = await request.json()
-            beneficiary_user_id = data.get("user_id", "")
-        except Exception as e:
-            # Optional body: a request without one is legitimate, so this is
-            # debug, not a warning.
-            logger.debug("MCP: no JSON body on personal-URL request: %s", e)
-            beneficiary_user_id = ""
+        except ValueError:
+            data = None
+        wanted = data.get("user_id") if isinstance(data, dict) else None
+        beneficiary_user_id = "" if wanted in (None, "") else str(wanted)
 
-        user_id = payload.get("sub")
-        if not user_id or not isinstance(user_id, str) or not await _live(user_id):
-            return "", "", json_response_with_code(-4, "Invalid user ID.", request=request, status=401)
-
-        if len(beneficiary_user_id) > 0 and beneficiary_user_id != user_id:
+        if beneficiary_user_id and beneficiary_user_id != user_id:
             # The personal MCP URL can be minted for someone else's record only
             # if the care circle says so. `check_relationship` used to answer
             # this by parsing a permissions bag out of `th_share_relationship`

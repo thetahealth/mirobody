@@ -11,10 +11,9 @@ out of the graph and takes the whole turn with it:
 
 This middleware turns any such fault into an ordinary error ``ToolMessage``: the
 model sees "that tool failed", can apologise or try another route, and the
-conversation survives. It wraps EVERY tool the agent has (global MCP tools, the
-user's own MCP tools, and deepagents' native filesystem tools) including ones
-added later, which is why it lives here rather than as a decorator on individual
-tools.
+conversation survives. It wraps EVERY tool the agent has (the MCP tools and
+deepagents' native filesystem tools) including ones added later, which is why
+it lives here rather than as a decorator on individual tools.
 
 NOT caught, deliberately:
 
@@ -33,14 +32,17 @@ from langchain.agents.middleware import AgentMiddleware, hook_config
 from langchain_core.messages import AIMessage, ToolMessage
 from langgraph.errors import GraphBubbleUp
 
+from mirobody.agent.errors import AgentError
 from mirobody.kernel import tools as tool_kernel
+from mirobody.kernel.ops import is_driver_exception
+
 logger = logging.getLogger(__name__)
 
 
 def _fault_message(request, exc: Exception) -> ToolMessage:
     """The error ``ToolMessage`` the model sees in place of a crashed tool result.
 
-    The TEXT carries the tool name, the fault kind and the exception TYPE, never
+    The TEXT carries the tool name, the error kind and the exception TYPE, never
     its message: driver messages quote SQL with bound parameters, HTTP messages
     quote payloads, and models have historically echoed such strings to users
     verbatim. The full traceback goes to the log instead.
@@ -53,12 +55,13 @@ def _fault_message(request, exc: Exception) -> ToolMessage:
     consumer, rather than a per-repository table of exception names.
     """
     call = getattr(request, "tool_call", None) or {}
-    name = call.get("name") or "unknown_tool"
+    tool_name = call.get("name") or "unknown_tool"
     kind = tool_kernel.classify_fault(exc)
-    logger.exception("tool %s failed: %s (%s)", name, type(exc).__name__, kind, exc_info=exc)
+    logger.error("tool failed: tool_name=%s error_type=%s fault_kind=%s", tool_name, type(exc).__name__, kind,
+                 exc_info=not is_driver_exception(exc))
     return ToolMessage(
-        content=tool_kernel.fault_text(kind, name, exc),
-        name=name,
+        content=tool_kernel.fault_text(kind, tool_name, exc),
+        name=tool_name,
         tool_call_id=call.get("id") or "",
         status="error",
         artifact=tool_kernel.fault_envelope(exc),
@@ -135,6 +138,11 @@ def _salvage_json_args(raw):
     return parsed if isinstance(parsed, dict) else None
 
 
+def _names(calls: list) -> str:
+    """The tool names of `calls`, for a log line."""
+    return ", ".join(sorted({str(c.get("name") or "?") for c in calls}))
+
+
 _INVALID_CALL_HINT = (
     "Your call to this tool was DROPPED: the arguments were not valid JSON. "
     "Common causes: Python literals (none/None/True/False) instead of JSON "
@@ -189,19 +197,16 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
                 break
 
         if repairs >= _MAX_REPAIRS_PER_TURN:
-            logger.error(
-                "invalid tool calls persisted after %d repairs; giving up: %s",
-                repairs,
-                [c.get("name") for c in invalid],
-            )
+            tool_names = _names(invalid)
+            logger.error("invalid tool calls persisted after %d repairs; giving up: tool_names=%s",
+                         repairs, tool_names)
             # Returning None here ended the turn with a ZERO-character reply
             # and no error event: the client paid for the whole run and saw
-            # blank. Raise instead: the streaming loop's exception handler
-            # turns this into an `error` event the client actually renders.
-            raise RuntimeError(
-                f"the model kept producing malformed tool calls after "
-                f"{repairs} repair attempts — please retry, or switch "
-                f"provider/model"
+            # blank. An `AgentError` reaches the client as its own sentence;
+            # a RuntimeError read "internal error (RuntimeError)".
+            raise AgentError(
+                f"The model kept sending tool calls that were not valid JSON after "
+                f"{repairs} repair attempts. Please retry, or choose another model."
             )
 
         # Salvage first. A call we can coerce into valid JSON is promoted onto
@@ -222,10 +227,8 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
                 })
 
         if salvaged and not unsalvageable:
-            logger.warning(
-                "salvaged malformed tool call(s) without a retry: %s",
-                [c["name"] for c in salvaged],
-            )
+            tool_names = _names(salvaged)
+            logger.warning("salvaged malformed tool call(s) without a retry: tool_names=%s", tool_names)
             return {
                 "messages": [
                     AIMessage(
@@ -239,10 +242,10 @@ class InvalidToolCallRepairMiddleware(AgentMiddleware):
                 ]
             }
 
-        logger.warning(
-            "repairing invalid tool call(s): %s",
-            [{"name": c.get("name"), "error": c.get("error")} for c in invalid],
-        )
+        # Names only: a call's parse `error` quotes the arguments it could
+        # not parse, and those are the person's question.
+        tool_names = _names(invalid)
+        logger.warning("repairing invalid tool call(s): tool_names=%s", tool_names)
 
         return {
             "messages": [

@@ -32,10 +32,7 @@ STRATEGY: dict[str, str] = {
     "vo2_max": "day",
     "daily_cardiovascular_age": "day",
     "workout": "timestamp",
-    "session": "timestamp",
-    "sleep_time": "day",
 }
-DATA_TYPES: tuple[str, ...] = tuple(STRATEGY)
 
 
 def _same(x: float) -> float:
@@ -103,6 +100,9 @@ MAPPING: dict[str, dict[str, Entry]] = {
         "height": ("heights", _same),
     },
 }
+
+
+DATA_TYPES: tuple[str, ...] = tuple(MAPPING)
 
 
 def record_time_ms(data_type: str, item: dict, tz: str, pulled_at_ms: int) -> int:

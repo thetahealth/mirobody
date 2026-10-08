@@ -1,63 +1,58 @@
 # `mirobody/translate` — indicators, units and standardization
 
 The layer that decides what a value *means*: which indicators exist, what unit
-each is stored in, and the conversion every provider's raw number passes through
-on the way to `StandardPulseData`.
+each is stored in, the conversion a device's raw number passes through on its
+way from `StandardPulseData` to a stored row, and the code a printed reading is
+filed under.
 
 > Database schema and initialization used to be the first 60 lines of this file,
 > which made it two unrelated documents in one. They now live with the DDL they
 > describe, in [`mirobody/schema/README.md`](../schema/README.md).
 
-## 📋 **Overview**
+## What is here
 
-Provides unified health indicator and unit management services for all Pulse platforms, enabling data standardization and normalization.
-
-**Core Design Principle**: Platform layer handles standardization, Provider focuses on data formatting.
-
-## 🎯 **Core Features**
-
-- **Indicator Enumeration**: Define standard health indicator enums
-- **Unit Validation**: Validate if units are in the valid unit set
-- **Auto Conversion**: Platform layer automatically converts units for StandardPulseData
-- **Error Detection**: Detect invalid indicators and units, print error logs
-
-## 📁 File structure
+The pure seam (`fold`, `parse`, `local_day`, `series`, `outcome`, `code`,
+`icpc3`) folds a printed name, types a value, places its day and codes it;
+it has no database, clock or model. Around it: the device crosswalks
+(`devices.py`, `device_bundle.py`), the terminology tools' bodies
+(`terminology.py`), the genotype and pharmacogenomics lookups (`genotype*.py`,
+`pgx.py`, `cpic_extract.py`), and the device indicator catalogue with its
+units and ranges:
 
 ```
 mirobody/translate/
-├── indicators_info.py       # StandardIndicator: the catalogue — name, category,
+├── indicators_info.py       # StandardIndicator: the catalogue: name, category,
 │                            #   stored unit, aggregation methods, per language
-├── units.py                 # convert_to_standard() and the conversion tables
+├── canonical_units.py       # convert_to_standard(), on mirobody.units
 ├── value_range_validator.py # per-indicator plausible-range checks (rules from DB)
-└── README.md
+├── aggregate/               # daily summaries and election (aggregate/README.md)
+└── derive/                  # quantities computed from those summaries
 ```
 
-This package was extracted from `pulse/core`, where these files sat between
-auth, scheduler and push-service infrastructure. The dependency rule that keeps
-the split meaningful: everything except `std_indicator_registry/` must stay
-importable without `pulse.core` — pure data plus DB reads via `mirobody.utils`.
+`mirobody/translate/__init__.py` lists every module and the names other
+packages import.
 
-## 🚀 Where standardization actually happens
+## Where a device reading is converted
 
-You do not call a standardization function yourself. Conversion happens once,
-inside the ingest layer, on the path every source converges on:
+You do not call a standardization function yourself. A device reading is
+converted once, on the path every device source converges on:
 
 ```
 provider.format_data(raw)          # vendor shape -> StandardPulseData
-        └─> StandardHealthService.process_standard_data(...)
-                └─> BaseHealthService._convert_value(...)      collect/ingest/services/base.py
-                        └─> convert_to_standard(indicator, value, unit)
+        └─> StandardHealthService.process_standard_data(...)   collect/ingest/services/upload_health.py
+                └─> convert_to_standard(indicator, value, unit)
 ```
 
 `ProviderPlatform.post_data()` drives it (`collect/providers/_platform/platform.py`), so a
 **provider author has nothing to do**: report your vendor's native unit in
 `format_data()` and it is converted on the way in.
 
-One behaviour worth knowing, because it is a deliberate trade-off: an unknown
-indicator or a conversion that fails is logged and the **original value and unit
-are kept** rather than raising (`base.py:66-78`). That keeps one odd row from
-failing a whole sync — but it also means a value can land unconverted, so a new
-indicator must be added to the catalogue, not merely sent.
+One behaviour worth knowing, because it is a deliberate trade-off: an
+indicator the catalogue does not know, a value that is not a number, or a
+unit that does not convert keeps its **original value and unit**, and nothing
+is logged. That keeps one odd row from failing a whole sync, but it also
+means a value can land unconverted, so a new indicator must be added to the
+catalogue, not merely sent.
 
 ### **Utility Function Usage (Testing and Validation)**
 
@@ -67,7 +62,6 @@ from mirobody.translate import (
     StandardIndicator,
     is_valid_indicator,
     get_standard_unit,
-    get_all_units_info
 )
 
 # Check if indicator is valid
@@ -84,10 +78,6 @@ value, unit = convert_to_standard(
     "lb"
 )
 # Returns: (70.1, "kg")
-
-# Get all unit information (frontend API)
-units_info = get_all_units_info()
-print(f"Total units: {units_info['total_units']}")
 ```
 
 ## 📊 Standard indicators — a sample
@@ -125,8 +115,7 @@ revisions of it carried casing and unit errors.
 
 ## 🔧 Conversion examples
 
-What `convert_to_standard()` does on the ingest path, verbatim from the tables
-in `units.py`:
+What `convert_to_standard()` does on the ingest path, its arithmetic from `mirobody.units`:
 
 ```python
 convert_to_standard(StandardIndicator.WEIGHT, 154.5, "lb")          # (70.08, "kg")
@@ -148,12 +137,10 @@ normal TG of 150 mg/dL as "severely elevated" (3.879 mmol/L instead of
 - **Provider authors**: build `StandardPulseData` in `format_data()` with your
   vendor's native units, and use catalogue indicator names. Nothing else — do
   NOT convert units yourself.
-- **The ingest layer** (`collect/ingest/services/base.py`) converts every record
-  once, on the one path all sources share. There is no standardization
-  function for a platform to call — an earlier version of this document
-  described a `standardize_pulse_data()` entry point that never existed; the
-  flow diagram in "Where standardization actually happens" above is the
-  real contract.
-- **Failure mode to know**: an unknown indicator or failed conversion is
-  logged and the original value/unit kept (see the trade-off note above), so
-  new indicators must be added to the catalogue, not merely sent.
+- **The ingest layer** (`collect/ingest/services/upload_health.py`) converts
+  every record once, on the one path all device sources share. There is no
+  standardization function for a platform to call; the flow in "Where a
+  device reading is converted" above is the contract.
+- **Failure mode to know**: an unknown indicator or a unit that does not
+  convert keeps the original value and unit (see the trade-off note above),
+  so new indicators must be added to the catalogue, not merely sent.

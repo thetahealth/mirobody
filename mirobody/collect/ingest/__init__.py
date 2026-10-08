@@ -10,8 +10,9 @@ Landing is ① Collect's last step, not ② Translate's first: what gets written
 what the source said, with its own unit and its own timestamp, so a row can
 always be traced back. What the value MEANS is `mirobody.translate`.
 
-`readings.py` one level up is the single writer of `th_series_data`; this
-package is the request path that calls it.
+`collect/observations.py` one level up is the single writer of
+observations; this package is the request path that calls it, and the
+writer of `series_data`, the device point buffer the aggregation reads.
 
 Lazy (PEP 562), matching the rest of `collect/`: importing this must not pull
 the server stack.

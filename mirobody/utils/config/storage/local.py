@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import IO
 
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.log import secret_fingerprint
 
 from .abstract import AbstractStorage
@@ -25,7 +26,6 @@ class LocalStorage(AbstractStorage):
         base_path   : str = "",
         prefix      : str = "",
         proxy_url   : str = "",
-        **kwargs  # Accept and ignore other AbstractStorage parameters
     ):
         """
         Initialize local filesystem storage
@@ -61,7 +61,8 @@ class LocalStorage(AbstractStorage):
             self.base_path.mkdir(parents=True, exist_ok=True)
             logger.info(f"Local storage initialized: base_path={self.base_path}, proxy_url={self.proxy_url}")
         except Exception as e:
-            logger.error(f"Failed to create base directory {self.base_path}: {str(e)}")
+            logger.error("local storage directory not created: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             raise
     
     #-----------------------------------------------------

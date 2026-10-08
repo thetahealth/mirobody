@@ -16,9 +16,11 @@ from .bootstrap import (
     demo_sign_in,
     enforce_production_auth_safety,
     ensure_postgres_reachable,
+    realign_dose_slots,
     seed_demo_data,
+    start_schedulers,
 )
-from .middleware_stack import build_middlewares
+from .middleware_stack import build_middlewares, server_headers
 from .htdoc import add_htdoc_routes
 
 from mirobody import __version__
@@ -108,18 +110,10 @@ class Server:
         pg_pool         : AsyncConnectionPool[Any] | None = None,
         ephemeral      : EphemeralStore | None = None,
 
-        # The following parameters can be generated via
-        #   config.get_mcp_options().
+        # `config.mcp_tool_dirs` and `config.agent_dirs`.
 
         tool_dirs       : list[str] | None = None,
-
-        mcp_server_url  : str = "",
-
-        # The following parameters can be generated via
-        #   config.get_agent_options().
-
         agent_dirs      : list[str] | None = None,
-        api_keys        : dict[str, str] | None = None,
 
         # The following parameters can be generated via
         #   config.get_email_options().
@@ -147,12 +141,10 @@ class Server:
         url_paths_for_user_info_updater     : list[str] | None = None,      # ["url_path"]
         url_paths_for_request_rate_limiter  : dict[str, int] | None = None, # {"url_path": requests_per_minute}
 
-        http_headers            : dict[str, str] | None = None,
+        http_headers            : list[tuple[str, str]] | None = None,
 
         **kwargs
     ):
-        if api_keys is None:
-            api_keys = {}
         if agent_dirs is None:
             agent_dirs = []
         if tool_dirs is None:
@@ -363,12 +355,13 @@ class Server:
         config = await Config.init(yaml_filenames=yaml_files)
         config.print()
 
-        # Fail fast, before any socket is bound: a production ENV that still
-        # carries demo login codes must not come up at all.
+        # Fail fast, before any socket is bound: a deployment that declares
+        # PRODUCTION and still carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
 
         await ensure_postgres_reachable(config)
         await create_schema(config)
+        await realign_dose_slots(config)
         await seed_demo_data(config)
 
         #-----------------------------------------------------
@@ -389,7 +382,7 @@ class Server:
         # saved settings, or a deployment set up in the browser logs "no LLM
         # API key is set" at every boot while its model works.
         from mirobody.utils.config.doctor import log_report, provider_report
-        log_report(provider_report(config), logger)
+        log_report(provider_report(), logger)
 
         server = Server(
             server_name     = config.http.name,
@@ -407,10 +400,10 @@ class Server:
             url_paths_for_request_rate_limiter  = config.get_dict("REQUEST_RATE_LIMITER"),
             url_paths_for_user_info_updater     = config.get_list("USER_INFO_UPDATER"),
 
-            http_headers    = config.http.headers or {},
+            http_headers    = config.http.headers or [],
 
-            **config.get_mcp_options(),
-            **config.get_agent_options(),
+            tool_dirs       = config.mcp_tool_dirs,
+            agent_dirs      = config.agent_dirs,
 
             **config.get_jwt_options(),
             **config.get_email_options(),
@@ -429,14 +422,15 @@ class Server:
         # without signing in. A deployment facing real users has no use for
         # them; everywhere else they stay, for the people building on the API.
         from mirobody.server.bootstrap import is_production
-        docs_off = is_production(config)
+        production = is_production(config)
         app = FastAPI(
-            debug       = config.log.level <= logging.DEBUG,
+            # Debug answers an exception with its traceback: never to real users.
+            debug       = config.log.level <= logging.DEBUG and not production,
             routes      = server.get_routes(),
             middleware  = server.get_middlewares(),
-            docs_url    = None if docs_off else "/docs",
-            redoc_url   = None if docs_off else "/redoc",
-            openapi_url = None if docs_off else "/openapi.json",
+            docs_url    = None if production else "/docs",
+            redoc_url   = None if production else "/redoc",
+            openapi_url = None if production else "/openapi.json",
         )
 
         # One handler for care-circle denial, so a route that forgets to catch
@@ -447,20 +441,22 @@ class Server:
         # health record.
         from fastapi.responses import JSONResponse
 
+        from mirobody.server.envelope import err
         from mirobody.user.care_circle import CareCircleDenied
+        from mirobody.utils.http import loggable_path
 
         @app.exception_handler(CareCircleDenied)
         async def _care_circle_denied(request, exc: CareCircleDenied):
-            logger.warning("care-circle denial reached the app handler: %s %s — %s",
-                            request.method, request.url.path, exc)
-            return JSONResponse(status_code=403,
-                                content={"code": -403, "msg": str(exc), "data": {}})
+            logger.warning("care-circle denial reached the app handler: method=%s path=%s",  # phi: ok a route
+                           request.method, loggable_path(request.url.path))
+            # The denial's message is one of `care_circle`'s fixed sentences.
+            return JSONResponse(status_code=403, content=err(403, str(exc)).model_dump())
 
         # Store global resources in app.state for access by all routers
         app.state.ephemeral = ephemeral
         app.state.pg_pool = pg_pool
         # For the routes that take a token from the query string, which the JWT
-        # middleware never sees (`middlewares.lacks_second_factor`).
+        # middleware never sees (`user.auth.bearer.lacks_second_factor`).
         app.state.requires_second_factor = server._user_service.requires_second_factor
         
         logger.info("Global resources ready")
@@ -468,8 +464,7 @@ class Server:
         #-----------------------------------------------------
         # Add other routers.
 
-        from .routers.middleware import init
-        await init()
+        await start_schedulers()
 
         from mirobody.server.routers import (
             public_router as pulse_public_router,
@@ -532,7 +527,7 @@ class Server:
                 app         = app,
                 host        = config.http.host,
                 port        = config.http.port,
-                headers     = config.http.headers,
+                headers     = server_headers(config.http.headers),
                 log_level   = config.log.level if config.log.level <= logging.DEBUG else logging.WARNING
             )
         )

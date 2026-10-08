@@ -15,7 +15,8 @@ interpolated expressions are not of an allowed *shape*:
 ``except`` catches a broad type (``Exception``, ``BaseException``, bare): a
 database driver's exception text quotes the statement with its bound
 parameters. A non-constant ``exc_info=...`` expression (a guard such as
-``exc_info=not is_driver_exception(e)``) is accepted.
+``exc_info=not is_driver_exception(e)``) is accepted. A key of an ``extra=``
+dict must be in ``ops.LOG_FIELDS``, the keys the runtime filter keeps.
 
 The lint is deliberately shape-based, not name-based: it cannot prove a
 variable holds no PHI, but it makes "log the whole tool result" impossible
@@ -31,14 +32,16 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from mirobody.kernel.ops import LOG_FIELDS
+
 # The tallies the observation model reports are past participles rather than
 # `*_count`: `report.inserted`, `report.skipped`, `report.coded`. They are
 # counts, and spelling each one `inserted_count` at every call site to satisfy
 # a regex would be the tail wagging the dog.
 SAFE_NAME = re.compile(
     r"^(?:.*_)?(?:id|ids|uid|count|counts|len|length|n|i|ix|idx|index|ms|seconds|secs|minutes|hours|days|kind|class|"
-    r"type|status|code|slug|version|level|size|bytes|total|attempt|attempts|limit|offset|step|steps|round|rounds|mode|"
-    r"action|method|reason|state|flag|ok|success|enabled|elapsed|duration|rate|pct|percent|ratio|threshold|tokens|"
+    r"status|code|slug|version|level|size|bytes|total|attempt|attempts|limit|offset|step|steps|round|rounds|mode|"
+    r"action|method|state|flag|ok|success|enabled|elapsed|duration|rate|pct|percent|ratio|threshold|tokens|"
     r"inserted|skipped|coded|rejected|scanned|changed|written|retracted|decided|undecrypted|outcomes|batches)$"
 )
 #: Exact names that are safe although they end in a word the regex does not know.
@@ -59,7 +62,29 @@ SAFE_EXACT = frozenset(
         "tool",
         "slug",
         "platform",
+        # Closed vocabularies only. `type` and `reason` left SAFE_NAME because
+        # `record_type` carried an indicator name and a range check's `reason`
+        # quotes the value it refused (`translate/value_range_validator.py`).
+        # A name is listed here when every value it takes comes from a fixed
+        # set: a type name, a MIME type, an enum, a configured family, a
+        # vendor's stop code.
         "data_type",
+        "error_type",
+        "content_type",
+        "media_type",
+        "auth_type",
+        "link_type",
+        "file_type",
+        "simple_type",
+        "llm_type",
+        "aggregation_type",
+        "storage_type",
+        "surface_type",
+        "schedule_type",
+        "stream_type",
+        "timeout_type",
+        "finish_reason",
+        "stop_reason",
         "table",
         "column",
         "field",
@@ -134,8 +159,6 @@ def is_safe_expr(node: ast.AST) -> bool:
             return True
         if fn in ("str", "int", "float", "bool", "repr", "round", "abs", "sorted", "list", "tuple"):
             return all(is_safe_expr(a) for a in node.args)
-        if fn in ("type", "getattr") or (fn or "").endswith(".get"):
-            return False
         # type(e).__name__ is an Attribute over a Call: handled below
         return False
     if isinstance(node, ast.Attribute) and node.attr == "__name__":
@@ -144,8 +167,6 @@ def is_safe_expr(node: ast.AST) -> bool:
         return is_safe_expr(node.left) and is_safe_expr(node.right)
     if isinstance(node, ast.IfExp):
         return is_safe_expr(node.body) and is_safe_expr(node.orelse)
-    if isinstance(node, ast.Subscript):
-        return False
     return False
 
 
@@ -234,14 +255,12 @@ class _Visitor(ast.NodeVisitor):
                         "traceback of a broad except: driver exceptions quote SQL and parameters",
                     )
                 )
+            # The runtime filter's allowlist, not the shape rules above: a key
+            # `PHIFilter` drops is a field nobody will ever see in the log.
             for kw in node.keywords:
                 if kw.arg == "extra" and isinstance(kw.value, ast.Dict):
                     for k in kw.value.keys:
-                        if (
-                            isinstance(k, ast.Constant)
-                            and isinstance(k.value, str)
-                            and not (SAFE_NAME.match(k.value) or k.value in SAFE_EXACT)
-                        ):
+                        if isinstance(k, ast.Constant) and isinstance(k.value, str) and k.value not in LOG_FIELDS:
                             self.findings.append(Finding(self.path, node.lineno, "extra_key", k.value))
         self.generic_visit(node)
 
@@ -270,15 +289,17 @@ def lint_paths(paths: Iterable[Path | str], *, root: Path | None = None) -> tupl
 
 #: The trees the shipped baseline covers, and the ONE place that list lives.
 #:
-#: It is not "all of `mirobody`". `indicator/` and `kernel/` are excluded on
-#: purpose: the baseline predates them, and `baseline_lines` over a WIDER tree
-#: writes a LONGER file, which is how a "clean-up" ends up growing the thing
-#: it was meant to shrink. The test and the pre-commit hook both read this
-#: constant rather than each spelling the list out, because two copies of a
-#: list like this drift and the drift is silent.
+#: Every package that logs. Left out: `testing/` and `units/`, which log
+#: nothing, and the top-level modules, whose one logger (`_bundle.py`) names
+#: only the shipped data bundle's own files. CI, the test and the pre-commit
+#: hook all read this constant: `baseline_lines` over a different tree set
+#: writes a different file, and two copies of a list like this drift silently.
 DEFAULT_TREES: tuple[str, ...] = (
     "mirobody/agent",
     "mirobody/collect",
+    "mirobody/documents",
+    "mirobody/engine",
+    "mirobody/kernel",
     "mirobody/mcp",
     "mirobody/server",
     "mirobody/task",

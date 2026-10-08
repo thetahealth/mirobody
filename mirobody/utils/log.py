@@ -1,20 +1,14 @@
-import base64
-import hmac
-import secrets
-from collections.abc import Callable
 import datetime
 import hashlib
+import hmac
 import json
 import logging
 import os
+import secrets
+from collections.abc import Callable
 
 from mirobody.kernel.ops import PHIPolicy
-from .config import FernetEncrypter
 from .req_ctx import get_req_ctx
-
-#-----------------------------------------------------------------------------
-
-_fernet_encryptor = None
 
 #-----------------------------------------------------------------------------
 
@@ -40,9 +34,8 @@ def secret_fingerprint(secret: str | None) -> str:
 
 #: How the pseudonym salt is found. A user id is a small integer, and any
 #: UNKEYED hash of it is reversed by enumerating 1..1e7 in milliseconds, so the
-#: salt must be a real secret. The reference server reads `LOG_PSEUDONYM_SALT`
-#: from the environment; a deployment with other secrets already in the process
-#: installs a reader with `use_pseudonym_salt` rather than adding a config key.
+#: salt must be a real secret: `LOG_PSEUDONYM_SALT` from the environment, or a
+#: reader a library consumer installs with `use_pseudonym_salt`.
 _pseudonym_salt_reader: Callable[[], str | None] | None = None
 _pseudonym_fallback = secrets.token_hex(16)
 _pseudonym_warned = False
@@ -80,29 +73,17 @@ def user_tag(user_id: int | str | None) -> str:
     digest = hmac.new(_pseudonym_salt().encode(), str(user_id).encode(), hashlib.sha256).hexdigest()
     return f"u#{digest[:8]}"
 
+#-----------------------------------------------------------------------------
 
 class JsonEncoder(json.JSONEncoder):
-    def default(self, o):
+    """Any value a record carries becomes text. Only `datetime` was handled, so
+    a `date`, `Decimal` or `UUID` extra raised inside `format()` and the line
+    was lost; `json` never hands this a list, tuple or dict."""
+
+    def default(self, o: object) -> str:
         if isinstance(o, datetime.datetime):
             return o.isoformat()
-        
-        if isinstance(o, bytes):
-            try:
-                s = str(o)
-                return s
-            except Exception:
-                return base64.urlsafe_b64encode(o).decode()
-        
-        elif isinstance(o, list):
-            return [self.default(item) for item in o]
-        
-        elif isinstance(o, tuple):
-            return tuple(self.default(item) for item in o)
-        
-        elif isinstance(o, dict):
-            return {key: self.default(value) for key, value in o.items()}
-        
-        return super().default(o)
+        return str(o)
 
 #-----------------------------------------------------------------------------
 
@@ -134,9 +115,9 @@ class JsonFormatter(logging.Formatter):
             "processName",
             "process",
             "taskName",
+            "_phi_seen",  # PHIFilter's mark that it has run on this record
             # Additional field.
             "sql",
-            "encrypted_info",
             "exception"  # Added to predefined fields
         }
 
@@ -160,18 +141,10 @@ class JsonFormatter(logging.Formatter):
             json_record["stack_info"] = record.stack_info
 
         #-------------------------------------------------
-        # Check for function name in different places.
+        # Function name, unless the call was at module level.
 
-        function = None
-        if hasattr(record, "function_name"):
-            # Custom function name from our logger
-            function = record.function_name
-        elif hasattr(record, "funcName"):
-            function = record.funcName
-
-        # In case it is the module.
-        if function and function != "<module>":
-            json_record["function"] = function
+        if record.funcName and record.funcName != "<module>":
+            json_record["function"] = record.funcName
 
         #-------------------------------------------------
         # Filename and line number.
@@ -183,38 +156,6 @@ class JsonFormatter(logging.Formatter):
         # Module name.
         if hasattr(record, "module") and record.module:
             json_record["module"] = record.module
-
-        #-------------------------------------------------
-        # Field for encrypted info.
-
-        encrypted_info = getattr(record, "encrypted_info", "")
-        if encrypted_info:
-            plain_encrypted_info = json.dumps(
-                encrypted_info,
-                ensure_ascii=False,
-                separators=(',', ':'),
-                cls=JsonEncoder
-            )
-            
-            if _fernet_encryptor:
-                try:
-                    encrypted_encrypted_info = _fernet_encryptor.encrypt(plain_encrypted_info)
-                except Exception as e:
-                    logging.warning(str(e))
-                    encrypted_encrypted_info = "<unencrypted: encryption failed>"
-            else:
-                # Fail CLOSED. This used to fall back to the plaintext, so with
-                # no LOG_ENCRYPT_KEY configured every "encrypted_info" payload
-                # was written in the clear under a field name that promises the
-                # opposite: the worst of both, since a reader trusts the name.
-                encrypted_encrypted_info = (
-                    "<unencrypted: LOG_ENCRYPT_KEY not configured>"
-                )
-
-            json_record["encrypted_info"] = encrypted_encrypted_info \
-                if len(encrypted_encrypted_info) <= 200 \
-                else f"{encrypted_encrypted_info[:100]}**********{encrypted_encrypted_info[-100:]}"
-
 
         #-------------------------------------------------
         # Other fields.
@@ -247,22 +188,6 @@ class JsonFormatter(logging.Formatter):
 
 #-----------------------------------------------------------------------------
 
-class TqdmLoggingHandler(logging.Handler):
-    def __init__(self):
-        super().__init__()
-
-    def emit(self, record):
-        from tqdm import tqdm
-        try:
-            msg = self.format(record)
-            tqdm.write(msg)
-            self.flush()
-
-        except Exception:
-            self.handleError(record)
-
-#-----------------------------------------------------------------------------
-
 # Third-party libraries that output verbose DEBUG logs (e.g., full request bodies)
 # Set these to WARNING to reduce noise while keeping your own DEBUG logs visible
 VERBOSE_LOGGERS = [
@@ -291,75 +216,54 @@ def _silence_verbose_loggers(app_level: int):
             logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
-def init_log_console(level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+def _install_root(handlers: list[logging.Handler], level: int, extra: dict) -> None:
+    """Make `handlers` the root logger's, each behind the PHI filter.
+
+    `Config.init` installs twice (console, then the configured file), and the
+    filter used to reach the first set of handlers only: the second install
+    found it on the root logger and stopped. A record from a module logger
+    passes the root's handlers, never the root logger's own filters, so the
+    server and the worker logged unfiltered."""
+    formatter = JsonFormatter(extra)
+    for handler in handlers:
+        handler.setFormatter(formatter)
+    logging.root.handlers = handlers
+    logging.root.setLevel(level)
+    PHIPolicy().install(logging.root)
+    _silence_verbose_loggers(level)
+
+
+def init_log_console(level: int = logging.INFO, extra: dict | None = None):
     if extra is None:
         extra = {}
-    if secret_key:
-        global _fernet_encryptor
-        _fernet_encryptor = FernetEncrypter(secret_key)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(JsonFormatter(extra))
-
-    # logging.basicConfig(level=level, handlers=[stream_handler])
-
-    logging.root.handlers = [stream_handler]
-    logging.root.setLevel(level=level)
-    PHIPolicy().install(logging.root)
-
-    # Silence verbose third-party library logs (especially in DEBUG mode)
-    _silence_verbose_loggers(level)
+    _install_root([logging.StreamHandler()], level, extra)
 
 #-----------------------------------------------------------------------------
 
-def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+def init_log_file(name: str, dir: str, level: int = logging.INFO, extra: dict | None = None):
     if extra is None:
         extra = {}
-    if secret_key:
-        global _fernet_encryptor
-        _fernet_encryptor = FernetEncrypter(secret_key)
-
     if dir:
         os.makedirs(dir, exist_ok=True)
 
-    formatter = JsonFormatter(extra)
-
     now = datetime.datetime.now()
+    # Appending: uvicorn's `dictConfig` closes every existing handler, and a
+    # closed FileHandler reopens on its next record in this mode. "w+"
+    # truncated the file there, and the boot log was gone.
     file_handler = logging.FileHandler(
         os.path.join(dir, f"{now.strftime('%Y-%m-%d')}_{name}_{now.strftime('%H%M%S_%f')}.log"),
-        mode="w+"
+        mode="a", encoding="utf-8",
     )
-    file_handler.setFormatter(formatter)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
-
-    # logging.basicConfig(level=level, handlers=[file_handler, stream_handler])
-
-    logging.root.handlers = [file_handler, stream_handler]
-    logging.root.setLevel(level=level)
-    PHIPolicy().install(logging.root)
-
-    # Silence verbose third-party library logs (especially in DEBUG mode)
-    _silence_verbose_loggers(level)
+    _install_root([file_handler, logging.StreamHandler()], level, extra)
 
 #-----------------------------------------------------------------------------
 
-def init_log_tqdm(level: int = logging.INFO):
-    tqdm_handler = TqdmLoggingHandler()
-    tqdm_handler.setFormatter(JsonFormatter())
-
-    logging.root.handlers = [tqdm_handler]
-    logging.root.setLevel(level=level)
-
-#-----------------------------------------------------------------------------
-
-def init_log(name: str = "", dir: str = "", level: int = logging.INFO, extra: dict | None = None, secret_key: str = ""):
+def init_log(name: str = "", dir: str = "", level: int = logging.INFO, extra: dict | None = None):
     if extra is None:
         extra = {}
     if name:
-        init_log_file(name, dir, level, extra, secret_key)
+        init_log_file(name, dir, level, extra)
     else:
-        init_log_console(level, extra, secret_key)
+        init_log_console(level, extra)
 
 #-----------------------------------------------------------------------------

@@ -12,9 +12,9 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 17 | 228 passed, 13 xfailed (`test_security_gates.py` skips) |
-| `'.[test,parse]'` | 74 | 228 passed, 13 xfailed (`test_security_gates.py` skips) |
-| `'.[test,app]'` | 146 | 255 passed, 13 xfailed |
+| `'.[test]'` | 20 | 238 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,parse]'` | 77 | 238 passed, 13 xfailed (`test_security_gates.py` skips) |
+| `'.[test,app]'` | 148 | 319 passed, 13 xfailed |
 
 The extras barely change what a clone can run, and that is not a mistake in
 the table. Four public modules are kept in the repository: the resolver score,
@@ -24,16 +24,16 @@ server's security decisions. The skills module also ships in the wheel as
 inspectable release evidence, but skips when the wheel is installed without
 the repository-root `skills/` directory. The first three need no extra, so
 every install runs them in a clone; the security module needs FastAPI, which
-only `[app]` installs, and skips its 27 tests without it
+only `[app]` installs, and skips its 81 tests without it
 (`pytest.importorskip("fastapi")`). The 13
 xfails are the known cross-language splits, described below. What the extras
 still decide is what the SERVER needs, which is what the package counts are
 for.
 
-<sub>Package counts measured 2026-09-23 on a clone-shaped tree (1.5.0); test
-counts are this tree's (`pytest -q mirobody/tests`, 268 collected with
-`[app]`). `pytest` in a checkout that also has the maintainers' local suite
-collects more; these are the numbers a clone sees.</sub>
+<sub>Measured 2026-10-08 on a clone-shaped tree, each install in a fresh
+venv: packages are `uv pip freeze` lines, tests `pytest -q mirobody/tests`
+(332 collected with `[app]`). `pytest` in a checkout that also has the
+maintainers' local suite collects more; these are the numbers a clone sees.</sub>
 
 They used to abort collection outright rather than skip — first with
 `ModuleNotFoundError: langchain_core`, then with `psycopg_pool` and `mandrill`
@@ -168,11 +168,13 @@ helpers raise.
    `# phi: ok <reason>` escape.
 
    The baseline (`mirobody/testing/phi_baseline.txt`) records what was already
-   there. The local suite fails on anything NEW, and the baseline may only
-   shrink:
+   there. CI fails on anything NEW, and the baseline may only shrink. With no
+   tree arguments the command scans `phi_lint.DEFAULT_TREES`, the trees the
+   baseline covers; regenerating over any other set writes a different file:
 
    ```bash
-   python -m mirobody.testing.phi_lint mirobody --write-baseline   # after removing some
+   python -m mirobody.testing.phi_lint --baseline mirobody/testing/phi_baseline.txt   # what CI runs
+   python -m mirobody.testing.phi_lint --write-baseline                               # after removing some
    ```
 
 2. **Runtime.** `ops.PHIPolicy().install()` adds a logging filter that redacts

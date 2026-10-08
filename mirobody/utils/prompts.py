@@ -1,8 +1,9 @@
 """Jinja for prompts: one environment, strict.
 
-Every prompt a model sees is a ``.jinja`` file in a ``prompts/`` package next
-to the code that uses it: reviewed, diffed and tuned without touching Python.
-Each such package exposes ``render = make_renderer(__file__)``.
+Every prompt a model sees is a ``.jinja`` template: reviewed, diffed and tuned
+without touching Python. This repository renders through `environment()`; a
+library consumer's ``prompts/`` package of templates exposes
+``render = make_renderer(__file__)``.
 
 Rendering is strict (``StrictUndefined``): a misspelled or missing variable
 raises at render time instead of silently printing an empty string into the

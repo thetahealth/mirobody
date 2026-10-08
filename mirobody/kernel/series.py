@@ -21,9 +21,10 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import metrics
@@ -44,7 +45,6 @@ AGG_TYPE_LAST = "last"
 AGG_TYPE_DURATION = "duration"
 AGG_TYPE_PROVIDER = "provider_value"
 
-_MS_PER_DAY = 86_400_000
 _MS_PER_MINUTE = 60_000
 
 
@@ -96,16 +96,43 @@ class Fact:
 # ---------------------------------------------------------------------------
 
 
-def zone(name: str) -> ZoneInfo:
-    """A ``ZoneInfo`` for ``name``; UTC for an empty or unknown name.
+#: A fixed offset as devices, files and the observation writer spell it:
+#: ``UTC+08:00``, ``GMT-0700``, ``+8``.
+_OFFSET = re.compile(r"^(?:UTC|GMT)?\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$", re.IGNORECASE)
 
-    The fallback is deliberate but the caller should log it: silently
-    landing in UTC shifts every day boundary of that user, which is how a
-    "today's sleep is always empty" report starts.
+
+def offset_name(text: str) -> str | None:
+    """``UTC±HH:MM`` for a fixed offset however it is written, or ``None``
+    when ``text`` is not one. The spelling a stored zone uses."""
+    m = _OFFSET.match((text or "").strip())
+    if m is None:
+        return None
+    return f"UTC{m.group(1)}{int(m.group(2)):02d}:{int(m.group(3) or 0):02d}"
+
+
+def zone(name: str, *, strict: bool = False) -> tzinfo:
+    """The ``tzinfo`` for an IANA name or a ``UTC±HH:MM`` offset; UTC for an
+    empty name. Anything else is UTC, or a ``ValueError`` with ``strict``.
+
+    The one resolver: three disagreed, and a person whose zone was stored as
+    ``UTC+08:00`` had every window placed eight hours off here (read as UTC)
+    while the medications tool raised on it. The fallback is deliberate but
+    the caller should log it: silently landing in UTC shifts every day
+    boundary of that user, which is how a "today's sleep is always empty"
+    report starts.
     """
+    text = (name or "").strip()
+    if not text or text.upper() in ("UTC", "Z", "GMT"):
+        return ZoneInfo("UTC")
     try:
-        return ZoneInfo(name or "UTC")
-    except (ZoneInfoNotFoundError, ValueError):
+        m = _OFFSET.match(text)
+        if m:
+            sign = 1 if m.group(1) == "+" else -1
+            return timezone(sign * timedelta(hours=int(m.group(2)), minutes=int(m.group(3) or 0)))
+        return ZoneInfo(text)
+    except (ZoneInfoNotFoundError, ValueError) as e:  # an offset of 24 h or more is a ValueError too
+        if strict:
+            raise ValueError(f"unknown time zone {text!r}") from e
         return ZoneInfo("UTC")
 
 
@@ -456,6 +483,8 @@ def annotate_echo(candidates: Iterable[Candidate], previous: dict[str, dict[str,
 
 
 def _differs(a: object, b: object) -> bool:
+    """Whether two offered values differ: numerically when both read as
+    numbers, by equality otherwise. `quality.is_echo` is its negation."""
     try:
         return not math.isclose(float(a), float(b), rel_tol=1e-9, abs_tol=1e-9)  # type: ignore[arg-type]
     except (TypeError, ValueError):
@@ -490,9 +519,15 @@ def coverage_bound(member: str, span_ms: float, *, per_unit_ms: float = _MS_PER_
             total_ms = float(v) * per_unit_ms  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return []
-        return [f"{member} exceeds covered span"] if total_ms > span_ms * tolerance else []
+        return [f"{member} exceeds covered span"] if _exceeds_span(total_ms, span_ms, tolerance) else []
 
     return check
+
+
+def _exceeds_span(total_ms: float, span_ms: float, tolerance: float, floor_ms: float = 0.0) -> bool:
+    """The union of intervals inside a span cannot be longer than the span:
+    the one test `coverage_bound` and `quality.overcount_suspect` share."""
+    return total_ms > span_ms * tolerance + floor_ms
 
 
 @dataclass(frozen=True)
@@ -547,7 +582,7 @@ def elect(
 __all__ = [
     "AGGREGATION_VERSION", "ARBITRATION_VERSION",
     "AGG_TYPE_MEAN", "AGG_TYPE_MIN", "AGG_TYPE_MAX", "AGG_TYPE_SUM", "AGG_TYPE_LAST", "AGG_TYPE_DURATION", "AGG_TYPE_PROVIDER",
-    "Fact", "zone", "day_bounds_ms", "local_date", "display_day",
+    "Fact", "zone", "offset_name", "day_bounds_ms", "local_date", "display_day",
     "round_meaningful", "union_spans", "merge_intervals", "stable_hash",
     "Projection", "aggregate", "Bucket", "downsample",
     "Segment", "flatten_last_writer_wins",

@@ -11,9 +11,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from mirobody.agent.tools.genetic_service import GeneticService
-from mirobody.server.auth import verify_token
+from mirobody.server.auth import subject_for, verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -25,24 +24,16 @@ _FHIR_VALUES = {"called_present": ("LA9633-4", "Present"),
                 "called_absent": ("LA9634-2", "Absent"),
                 "no_call": ("LA18198-4", "No call")}
 _FHIR_BUILDS = {"GRCh37": "LA14029-5", "GRCh38": "LA26806-2"}
+#: Keyed by the tool rows' `zygosity` (`agent/tools/_genotype.zygosity`). The
+#: `_ref` forms are "Absent" calls and carry no allelic state.
 _FHIR_ZYGOSITY = {"heterozygous": ("LA6706-1", "Heterozygous"),
-                   "homozygous": ("LA6705-3", "Homozygous"),
-                   "hemizygous": ("LA6707-9", "Hemizygous")}
+                   "homozygous_alt": ("LA6705-3", "Homozygous"),
+                   "hemizygous_alt": ("LA6707-9", "Hemizygous")}
 
 
 def _vcf_meta(value: object) -> str:
     """Keep uploaded provenance from creating another VCF header line."""
     return re.sub(r"[^A-Za-z0-9._-]", "_", str(value or "unknown"))[:80]
-
-
-async def _owner(caller: str, target_user_id: str | None) -> str | None:
-    if not target_user_id or target_user_id == caller:
-        return caller
-    try:
-        subject = await resolve_subject(caller, target_user_id)
-    except CareCircleDenied:
-        return None
-    return str(subject.subject_id)
 
 
 def _loinc(code: str) -> dict[str, Any]:
@@ -115,7 +106,7 @@ async def export_fhir_variants(
     """Export a bounded FHIR Variant bundle inside the normal API envelope."""
     if not 1 <= len(rsids) <= 50 or any(not re.fullmatch(r"rs[0-9]+", rsid) for rsid in rsids):
         return ErrorResponse(code=400, msg="Give one to fifty dbSNP rsIDs.")
-    owner = await _owner(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
     result = await GeneticService().envelope({"user_id": owner}, rsids=rsids, limit=50)
@@ -138,7 +129,7 @@ async def active_set(
     user_id: str = Depends(verify_token),
 ):
     """Expose counts and provenance; no genotype rows enter the browser page."""
-    owner = await _owner(user_id, target_user_id)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
 
@@ -178,10 +169,14 @@ async def export_vcf(
     target_user_id: str | None = Query(None),
     user_id: str = Depends(verify_token),
 ):
-    """Stream mapped, defensible calls from the active set in VCF 4.2 form."""
-    owner = await _owner(user_id, target_user_id)
-    if owner is None:
-        return ErrorResponse(code=403, msg="Not permitted to read this member's genetic data.")
+    """Stream mapped, defensible calls from the active set in VCF 4.2 form.
+
+    The caller's own genome only, as the readings export: a care-circle read
+    grant shows a member's calls one rsID at a time, and does not hand over
+    a copy of the whole genome. `target_user_id` naming anyone else is 403."""
+    if target_user_id and target_user_id != user_id:
+        return ErrorResponse(code=403, msg="Only the record owner can export it.")
+    owner = user_id
     try:
         rows = await execute_query(
             """SELECT id, format_id, vendor, normalizer_version, site_table_version,

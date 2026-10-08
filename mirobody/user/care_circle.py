@@ -49,7 +49,7 @@ import logging
 from dataclasses import dataclass
 
 from mirobody.utils.db import execute_query
-from .user import get_user
+from .user import age_from_birth, get_user
 
 logger = logging.getLogger(__name__)
 
@@ -444,7 +444,10 @@ async def shared_with_me(user_id: int | str) -> list[dict]:
                MAX(subject.nickname)                AS nickname,
                MAX(subject.avatar_key)              AS avatar_key,
                MAX(u.name)                          AS name,
-               MAX(u.email)                         AS email
+               MAX(u.email)                         AS email,
+               MAX(u.gender)                        AS gender,
+               MAX(u.blood)                         AS blood,
+               MAX(u.birth)                         AS birth
           FROM care_circle_members me
           JOIN care_circle_members subject
             ON subject.care_circle_id = me.care_circle_id
@@ -508,8 +511,8 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
     (the member granted write access, so the client can offer the changes the
     server will accept rather than ones it will refuse).
 
-    Age is computed here rather than stored, because `health_app_user.birth` is
-    a free-text `character varying` that arrives in three formats.
+    Age is computed from `health_app_user.birth` (`user.age_from_birth`),
+    never stored: it changes every birthday.
     """
     me = await get_user(user_id=user_id)
     my_name = (me or {}).get("name") or fallback_name or "Current User"
@@ -519,7 +522,7 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
         "nickname": fallback_name or None,
         "gender": _gender_name((me or {}).get("gender")),
         "blood_type": (me or {}).get("blood"),
-        "age": _age_from((me or {}).get("birth")),
+        "age": age_from_birth((me or {}).get("birth")),
         "is_current_user": True,
         "can_write": True,
     }]
@@ -530,7 +533,7 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
             "nickname": row.get("nickname"),
             "gender": _gender_name(row.get("gender")),
             "blood_type": row.get("blood"),
-            "age": _age_from(row.get("birth")),
+            "age": age_from_birth(row.get("birth")),
             "is_current_user": False,
             "can_write": int(row.get("health_access") or 0) >= ACCESS_EDIT,
         })
@@ -539,21 +542,6 @@ async def beneficiary_users(user_id: int | str, fallback_name: str = "") -> list
 
 def _gender_name(value) -> str | None:
     return {1: "male", 2: "female"}.get(value)
-
-
-def _age_from(birth: str | None) -> int | None:
-    """Age from `health_app_user.birth`, which is free text in three formats."""
-    if not birth:
-        return None
-    from datetime import date, datetime
-    for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y%m%d"):
-        try:
-            b = datetime.strptime(str(birth).strip(), fmt).date()
-        except ValueError:
-            continue
-        today = date.today()
-        return today.year - b.year - ((today.month, today.day) < (b.month, b.day))
-    return None
 
 
 async def force_accept_managed_member(

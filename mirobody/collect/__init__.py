@@ -6,16 +6,17 @@ Two source shapes, one convergence point, then meaning:
                  schedule, Apple Health and CDA documents pushed
     files/       a file is a source too: lab PDFs, photos, CSV, genetic raw data
          ↓
-    ingest/      all three converge on StandardPulseData → observations.py
+    ingest/      a device's StandardPulseData → observations.py and series_data;
+                 a file's readings go to observations.py directly
          ↓
 
 What a value MEANS is ② Translate's, not this stage's: the indicator
 catalogue, units, ranges and fhir_id are `mirobody.translate`.
 
-`core/` is what those stand on, not a stage: the provider contract types, the
-scheduler, the DB base classes, the distributed lock. Sub-package sizes and
-entry points are in README.md, ordered the same way: the directory listing
-cannot show this order, since `core/` sorts before `providers/`.
+`core/` is what those stand on, not a stage: the provider contract types and
+the push from a provider to its platform. Sub-package sizes and entry points
+are in README.md, ordered the same way: the directory listing cannot show this
+order, since `core/` sorts before `providers/`.
 
 Providers are discovered by file scan, so deleting one takes it offline.
 
@@ -41,9 +42,7 @@ _EXPORTS = {
     "PlatformManager": "manager",
     "platform_manager": "manager",
     # Setup functions
-    "setup_platform_system": "setup",
     "setup_platform_system_async": "setup",
-    "get_platform_manager": "setup",
     # Concrete implementations
     "ProviderPlatform": "providers",
     "BasePullProvider": "providers",
@@ -61,7 +60,6 @@ _EXPORTS = {
     "StandardPulseMetaInfo": "ingest.models.requests",
     "StandardPulseRecord": "ingest.models.requests",
     "DataFormatter": "providers._platform.normalize",
-    "TimeUtils": "providers._platform.normalize",
     "records_from_facts": "providers._platform.normalize",
     "StandardIndicator": "mirobody.translate.indicators_info",
     "UNIT_CONVERSIONS": "mirobody.translate.canonical_units",
@@ -98,12 +96,13 @@ _EXPORTS = {
     "get_user_data_distribution": "files.services.list_my_data",
     "set_file_report_date": "files.services.report_date",
     "FileAbstractExtractor": "files.services.file_abstract_extractor",
-    "lookup_extracted_text": "files.services.file_abstract_extractor",
     "GeneticHandler": "files.handlers.genetic",
     # What `mirobody.agent` needs beyond the above.
     "PostgresDoseLogStore": "meds",
     "PostgresMedicationStore": "meds",
     "apply_medication_mentions": "meds.mentions",
+    # What `server.bootstrap` runs after the schema replay.
+    "realign_dose_slots": "meds",
     # Note: Specific providers (GarminProvider, etc.) are auto-loaded
     # and can be imported from .providers if needed
 }
@@ -113,7 +112,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers.apple import AppleHealthPlatform, AppleHealthProvider, CDAProvider
     from .base import LinkRequest, Platform, Provider, ProviderInfo, UserProvider
     from .manager import PlatformManager, platform_manager
-    from .setup import get_platform_manager, setup_platform_system, setup_platform_system_async
+    from .setup import setup_platform_system_async
     from .core import LinkType, ProviderStatus
     from .core.push_service import push_service
     from .ingest.models.requests import (
@@ -123,7 +122,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
         StandardPulseMetaInfo,
         StandardPulseRecord,
     )
-    from .providers._platform.normalize import DataFormatter, TimeUtils, records_from_facts
+    from .providers._platform.normalize import DataFormatter, records_from_facts
     from mirobody.translate import StandardIndicator
     from mirobody.translate import UNIT_CONVERSIONS
     from .providers import BasePullProvider, ProviderPlatform
@@ -134,11 +133,11 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .core.models import ConnectInfoField
     from .providers.installed import installed_provider_slugs
     from .query import PostgresHealthQuery, RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX
-    from .meds import PostgresDoseLogStore, PostgresMedicationStore, apply_medication_mentions
+    from .meds import PostgresDoseLogStore, PostgresMedicationStore, apply_medication_mentions, realign_dose_slots
     from .files.file_upload_manager import get_websocket_file_upload_manager
     from .files.handlers.genetic import GeneticHandler
     from .files.services.drive_listing import get_uploaded_files_paginated, regenerate_file_url
-    from .files.services.file_abstract_extractor import FileAbstractExtractor, lookup_extracted_text
+    from .files.services.file_abstract_extractor import FileAbstractExtractor
     from .files.services.file_db_service import SOURCE_ASK, SOURCE_DATA, FileDbService
     from .files.services.file_processing_service import (
         FileUploadData,

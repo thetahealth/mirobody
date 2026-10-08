@@ -3,20 +3,16 @@
 Pure Python, no dependencies, no data files: importable anywhere in the engine.
 
 **Two normalizers live here, and the split is load-bearing.**
-:func:`index_fold` is the BUNDLE's normalizer: the keys in
-``loinc_alias_index.npz`` were folded with it at build time, so changing it
-would silently stop those keys matching. It is therefore frozen by the
-artifact, and it is minimal: NFKC + casefold, and nothing else.
-:func:`normalize` is the LOOKUP side, free to be as thorough as the input
-deserves; it derives *additional* candidate surfaces that are then looked up
-with :func:`index_fold`.
+:func:`index_fold` is the BUNDLE's normalizer: the keys in ``alias_keys.bin``
+were folded with it at build time, so changing it would silently stop those
+keys matching. It is therefore frozen by the artifact, and it is minimal:
+NFKC + casefold, and nothing else. :func:`normalize` is the LOOKUP side, free
+to be as thorough as the input deserves; it derives *additional* candidate
+surfaces that are then looked up with :func:`index_fold`.
 
-They used to sit in different packages: ``index_fold`` was a private
-``_normalize`` inside ``indicator/fhir/embeddings/alias.py``, i.e. inside the
-bundle-BUILD tooling, imported from there by ``engine/resolver.py``. One function that
-the build and the runtime must agree on exactly is precisely the function that
-must have one home, and that home has to be on the runtime side, because the
-build tooling does not ship.
+One function that the build and the runtime must agree on exactly has one
+home, and it is on the runtime side, because the build tooling does not ship:
+``translate_build/build_bundle.py`` imports :func:`index_fold` from here.
 
 What that thoroughness buys, measured on real report text:
 
@@ -76,12 +72,11 @@ def index_fold(s: str) -> str:
     """NFKC normalize + casefold. CJK passes through unchanged.
 
     **The bundle's own key fold: do not "improve" it.** Every key in
-    ``loinc_alias_index.npz`` was written through this exact function, so any
-    change here stops those keys matching and the resolver silently loses
-    recall. The build pass that mints the index
-    (``indicator/fhir/embeddings/alias.py``) imports it from here rather than
-    keeping a second copy, which is what makes "the build and the runtime fold
-    identically" a fact instead of a convention.
+    ``alias_keys.bin`` was written through this exact function, so any change
+    here stops those keys matching and the resolver silently loses recall. The
+    build pass that mints the index (``translate_build/build_bundle.py``)
+    imports it from here rather than keeping a second copy, which is what makes
+    "the build and the runtime fold identically" a fact instead of a convention.
 
     ``casefold`` (not ``lower``) handles ß / İ correctly; CJK is unaffected.
     """
@@ -202,8 +197,8 @@ def fold_plural(token: str) -> str:
 # "Total Cholesterol-TC" -> "Total Cholesterol": the analyte and its
 # abbreviation hyphen-joined, which is what `mirobody parse` emits. On the
 # shipped demo report 12 of 12 extracted names had this shape and 0 resolved;
-# `engine._TRAILING_ACRONYM` handles the space-separated form but only on
-# alias-table values. Bounded both sides so it strips a suffix and not a word:
+# `engine.resolver._TRAILING_ACRONYM` handles the space-separated form.
+# Bounded both sides so it strips a suffix and not a word:
 # three characters minimum before the hyphen, seven maximum after, tail
 # starting alphanumeric. "High-Density Lipoprotein" and "25-Hydroxyvitamin D3"
 # are untouched.
@@ -250,14 +245,12 @@ def surface_variants(term: str) -> list[str]:
     caller that stops at the first hit keeps today's answer for today's inputs.
     Every entry after the first can only turn a miss into a hit.
 
-    The last is the zh-Hant → zh-Hans fold. The alias lexicon build already
-    mirrors Simplified keys to Traditional in the BUNDLE, but
-    ``res/loinc/resolver_overrides.tsv`` is a runtime file that gets no such
-    expansion, and it holds the hand-curated everyday panel terms. Measured
-    before this: of eight common indicators whose Traditional spelling differs,
-    two resolved and six returned nothing, with no rule distinguishing them.
-    Folding the query is the symmetric half of what the build does to the
-    corpus. See :mod:`mirobody.zh_fold` for why folding is a script
+    The last is the zh-Hant → zh-Hans fold. The index's Chinese keys come
+    from LOINC's zh-CN variant and the hand-curated rows in
+    ``res/loinc/resolver_overrides.tsv`` are Simplified too, so a Traditional
+    spelling found little: measured when the fold was added, of eight common
+    indicators whose Traditional spelling differs, two resolved and six
+    returned nothing. See :mod:`mirobody.zh_fold` for why folding is a script
     transform and never a translation.
     """
     from .zh_fold import fold_to_hans

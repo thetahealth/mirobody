@@ -113,7 +113,6 @@ _PARSE_ONLY = [
     "tests/documents/*",
     "tests/documents/**/*",
     "tests/utils/test_prompts.py",
-    "tests/utils/test_user_tag.py",
 ]
 
 collect_ignore_glob: list[str] = []

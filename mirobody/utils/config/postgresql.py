@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 #-----------------------------------------------------------------------------
 
 class LoggedAsyncCursor(psycopg.AsyncCursor):
+    """The server pool's cursor: each statement at DEBUG, with its duration and
+    row count. Never its parameters: the pool serves sign-in, account merge and
+    profile updates, and `update_user_name` binds the person's name."""
+
     async def execute(
         self,
         query: psycopg.abc.Query,
@@ -25,20 +29,13 @@ class LoggedAsyncCursor(psycopg.AsyncCursor):
         prepare: bool | None = None,
         binary: bool | None = None
     ) -> Self:
-        start_time = time.time()
-        cur = await super().execute(query, params, prepare=prepare, binary=binary)
-        end_time = time.time()
-
-        logger.info(
+        start = time.perf_counter()
+        await super().execute(query, params, prepare=prepare, binary=binary)
+        logger.debug(
             " ".join(str(query).split()),
-            extra = {
-                "time_cost" : round((end_time-start_time)*1e3, 2),
-                "params"    : params,
-                "records"   : cur.rowcount
-            },
-            stacklevel = 2
+            extra={"duration_ms": round((time.perf_counter() - start) * 1e3, 2), "row_count": self.rowcount},
+            stacklevel=2,
         )
-
         return self
 
 
@@ -82,21 +79,31 @@ class PostgreSQLConfig:
             schemas.append("public")
         self.schema = ",".join(schemas)
 
+    def _session(self) -> dict[str, Any]:
+        """What every connection is opened with: the schema search path, the
+        key `encrypt_content`/`decrypt_content` read, and `timeout` as libpq's
+        `connect_timeout`. PG_TIMEOUT was read and applied nowhere, so an
+        unreachable database held a request for psycopg's own 130 s."""
+        return {
+            "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
+            "connect_timeout": self.timeout,
+        }
+
 
     def print(self):
         print(f"pg              : {self.host}:{self.port}/{self.database}:{self.schema}")
 
     # -----------------------------------------------------
 
-    async def get_async_client(self, cursor_factory: psycopg.AsyncCursor | None = LoggedAsyncCursor):
+    async def get_async_client(self) -> psycopg.AsyncConnection[Any]:
+        """One connection with psycopg's own cursor, outside the pool."""
         return await psycopg.AsyncConnection.connect(
             host    = self.host,
             port    = self.port,
             dbname  = self.database,
             user    = self.user,
             password= self.password,
-            options = f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            cursor_factory = cursor_factory
+            **self._session(),
         )
 
     #-----------------------------------------------------
@@ -111,11 +118,7 @@ class PostgreSQLConfig:
             # A connection killed by a Postgres restart is found here and
             # replaced, not handed to a request that then answers 500.
             check           = psycopg_pool.AsyncConnectionPool.check_connection,
-            kwargs          = {
-                "user": self.user,
-                "password": self.password,
-                "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            },
+            kwargs          = {"user": self.user, "password": self.password, **self._session()},
         )
         await pool.open()
 
@@ -134,9 +137,7 @@ class PostgreSQLConfig:
         )
         async_engine = sqlalchemy.ext.asyncio.create_async_engine(
             url,
-            connect_args= {
-                "options": f"-c search_path={self.schema} -c app.encryption_key={self.encrypt_key}",
-            },
+            connect_args= self._session(),
             poolclass   = sqlalchemy.AsyncAdaptedQueuePool,
             pool_size   = self.maxconn,
             # After a Postgres restart every pooled connection is dead, and

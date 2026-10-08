@@ -1,72 +1,19 @@
-"""
-Data models for Aggregate Indicator module
+"""The two records the aggregation pass works with: a rule from the catalogue,
+and a task found in `series_data`."""
 
-Defines core data structures including enums, dataclasses, and protocols.
-"""
-
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
-from typing import Any
-
-
-class TimeWindow(Enum):
-    """Time window for aggregation"""
-    DAILY = "daily"
-    WEEKLY = "weekly"  # Future: rolling 7-day window
-    HOURLY = "hourly"  # Future: hourly aggregation
-    MONTHLY = "monthly"  # Future: monthly aggregation
-
-
-class AggregationType(Enum):
-    """Aggregation type enumeration"""
-    AVG = "avg"
-    MAX = "max"
-    MIN = "min"
-    TOTAL = "total"  # Alias for SUM, preferred for naming
-    SUM = "sum"  # Equivalent to TOTAL
-    COUNT = "count"
-    LAST = "last"  # Latest value by time
-    FIRST = "first"  # Earliest value by time
-    STDDEV = "stddev"  # Standard deviation
-    VARIANCE = "variance"  # Variance
-    MEDIAN = "median"  # 50th percentile
-    P95 = "p95"  # 95th percentile
-    # Time-based aggregations
-    TIME_OF_MAX = "time_of_max"  # Time when max value occurred (HH:MM)
-    TIME_OF_MIN = "time_of_min"  # Time when min value occurred (HH:MM)
-    # Threshold-based aggregations: each threshold is explicitly declared.
-    # Implementation reuses parameterized functions: pct_below(threshold), pct_above(threshold), tir(lower, upper).
-    # To add a new threshold, add an enum here + add to the indicator's aggregation_methods list.
-    PCT_BELOW_70 = "pct_below_70"  # % of readings < 70 (blood glucose TBR)
-    PCT_ABOVE_140 = "pct_above_140"  # % of readings > 140 (blood glucose TAR, tighter threshold)
-    PCT_ABOVE_180 = "pct_above_180"  # % of readings > 180 (blood glucose TAR)
-    TIR_70_140 = "tir_70_140"  # % of readings in [70, 140] (blood glucose TIR, tighter threshold)
-    TIR_70_180 = "tir_70_180"  # % of readings in [70, 180] (blood glucose TIR)
-    # Event detection aggregations
-    HYPO_EVENT_COUNT = "hypo_event_count"  # Hypoglycemic episode count (<70 for >=15min)
-    HYPO_EVENT_TIMES = "hypo_event_times"  # Hypoglycemic episode start times (JSON array)
-    HYPO_EVENT_DETAILS = "hypo_event_details"  # Hypoglycemic episodes with start/end/duration (JSON array)
-    # Rolling window aggregations
-    GMI_14D = "gmi_14d"  # Glucose Management Indicator from 14-day raw CGM data (%)
 
 
 @dataclass
 class AggregationRule:
-    """
-    Aggregation rule definition
-    
-    Defines how to convert a series indicator to a summary indicator.
-    """
-    source_indicator: str  # Source indicator name (e.g., "heartRates")
-    target_indicator: str  # Target indicator name (e.g., "dailyAvgHeartRates")
-    aggregation_type: str  # Aggregation method (e.g., "avg")
-    time_window: str = "daily"  # Time window (default: daily)
-    enabled: bool = True  # Whether this rule is active
-    priority: int = 50  # Execution priority (higher = earlier)
+    """How a series indicator becomes a daily summary indicator."""
+
+    source_indicator: str  # e.g. "heartRates"
+    target_indicator: str  # e.g. "dailyAvgHeartRates"
+    aggregation_type: str  # e.g. "avg"; the methods are SQLAggregator's
 
     def __post_init__(self):
-        """Validate rule after initialization"""
         if not self.source_indicator:
             raise ValueError("source_indicator cannot be empty")
         if not self.target_indicator:
@@ -75,50 +22,25 @@ class AggregationRule:
             raise ValueError("aggregation_type cannot be empty")
 
 
-
 @dataclass
 class CalculationTask:
-    """
-    Represents a single aggregation calculation task
-    
-    Identified from trigger data, contains what needs to be calculated.
-    data_begin_utc is the starting time point for data collection in UTC:
-    - For normal data: 00:00 of the user's local date, converted to UTC
-    - For sleep data: 18:00 of the user's local date, converted to UTC
-    
-    Example: User in America/Los_Angeles (-8), local date 2025-10-01
-    - Normal data: data_begin_utc = 2025-09-30 16:00:00 (local 2025-10-01 00:00:00)
-    - Sleep data: data_begin_utc = 2025-10-01 10:00:00 (local 2025-10-01 18:00:00)
-    
-    timezone is needed to convert UTC times back to user's local time for the summary rows.
+    """One rule to run over one person's local day.
+
+    `data_begin_utc` is the instant the reading's day began, in UTC: local
+    00:00 for a plain day, local 18:00 for a metric on the 18:00 window (a
+    night, dated by its evening). A reading at 2025-10-01 02:00 in
+    America/Los_Angeles (PDT):
+
+    - on a plain day: 2025-10-01 07:00:00 UTC (local 2025-10-01 00:00)
+    - on the 18:00 window: 2025-10-01 01:00:00 UTC (local 2025-09-30 18:00)
+
+    `timezone` places the day's end and turns the results back into local
+    times.
     """
     user_id: str
     source_indicator: str
     target_indicator: str
     aggregation_type: str
-    data_begin_utc: datetime  # Starting time point in UTC (for efficient querying with index)
-    timezone: str  # User's timezone (e.g., 'America/Los_Angeles') - needed to convert back to local time
-    update_time: datetime  # Update time from trigger record
-
-
-
-@dataclass
-class ProcessingStats:
-    """Statistics for a processing run"""
-    executed_at: datetime
-    summaries_created: int
-    users_affected: int
-    execution_time_ms: float
-    mode: str = "normal"  # normal | force | cold_start
-    errors: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for JSON serialization"""
-        return {
-            "executed_at": self.executed_at.isoformat(),
-            "summaries_created": self.summaries_created,
-            "users_affected": self.users_affected,
-            "execution_time_ms": self.execution_time_ms,
-            "mode": self.mode,
-            "errors": self.errors
-        }
+    data_begin_utc: datetime
+    timezone: str
+    update_time: datetime  # the newest update_time of the rows behind it: the cursor

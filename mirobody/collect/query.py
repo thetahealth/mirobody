@@ -48,8 +48,17 @@ from typing import Any
 
 from mirobody import translate
 from mirobody.kernel import query
+from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
-from mirobody.collect.observations import KIND_CONDITION, KIND_MEASUREMENT, KIND_NOTE, KIND_SYMPTOM
+from mirobody.collect.observations import (
+    KIND_CONDITION,
+    KIND_MEASUREMENT,
+    KIND_NOTE,
+    KIND_SYMPTOM,
+    contains_pattern,
+    user_tz,
+)
+from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
 
@@ -203,16 +212,18 @@ class PostgresHealthQuery:
         keywords: str | None = None,
         limit: int | None = 50,
         offset: int = 0,
+        notes: bool = False,
     ) -> dict[str, Any]:
         """Visible entries across every series, newest observed first, one page.
 
         `created_since` compares the start of each entry's current period
         (`_periods_cte`), the same instant `delta` counts, so the rows
         behind a "3 new" badge are exactly these. `start_time` / `end_time` are
-        days observed, inclusive. `limit=None` is every row, for an export.
+        days observed, inclusive. `keywords` is matched literally against the
+        printed and the display name. `limit=None` is every row, for an export.
+        `notes=True` adds each row's decrypted note as `comment`, a reading's
+        too; without it only a reported entry's note is decrypted.
         """
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {
             "uid": str(subject_id),
             "offset": max(0, int(offset)),
@@ -230,7 +241,7 @@ class PostgresHealthQuery:
             params["end_time"] = end_time
             conditions.append("o.local_date <= :end_time")
         if keywords and keywords.strip():
-            params["keywords"] = "%" + _like_escape(keywords.strip()) + "%"
+            params["keywords"] = contains_pattern(keywords.strip())
             conditions.append("(o.name_text ILIKE :keywords OR COALESCE(o.display, '') ILIKE :keywords)")
         if not self._reported:
             conditions.append("o.kind <> ALL(:reported)")
@@ -240,13 +251,15 @@ class PostgresHealthQuery:
             page = "LIMIT :limit OFFSET :offset"
         elif params["offset"]:
             page = "OFFSET :offset"
+        comment = ", decrypt_content(o.note_text) AS comment" if notes else ""
         columns = f"""o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
-                   o.ref_text, o.flag_text, o.value_num, o.value_canonical, o.unit_canonical,
+                   o.ref_text, o.flag_text, o.value_num, o.unit_ucum, o.value_canonical, o.unit_canonical,
                    to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS local_time,
+                   o.observed_start, o.observed_end,
                    o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
                    o.source_kind, p.period_start,
                    {_REPORTED_COLUMNS},
-                   {_FILE_KEY} AS file_key, {_FILE_NAME}"""
+                   {_FILE_KEY} AS file_key, {_FILE_NAME}{comment}"""
         where = " AND ".join(conditions)
         if created_since is None:
             # Browsing: the page first, then the chains of its rows only.
@@ -289,8 +302,6 @@ class PostgresHealthQuery:
         }
 
     async def _records_total(self, where: str, params: dict[str, Any], *, since: bool) -> int:
-        from mirobody.utils import execute_query
-
         if since:
             sql = f"""
             WITH RECURSIVE {_periods_cte(_WRITTEN_SINCE)}
@@ -314,8 +325,6 @@ class PostgresHealthQuery:
         """Visible entries whose current period began after `since`, by source.
         The same rule `records(created_since=)` filters on, so the count and
         the rows behind it cannot disagree."""
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {
             "uid": str(subject_id),
             "since": since,
@@ -356,7 +365,6 @@ class PostgresHealthQuery:
     async def tz(self, subject_id: str) -> str:
         """The subject's IANA zone, `"UTC"` when unset. Never the server's zone
         and never the session's: a window is the person's day."""
-        from mirobody.collect.observations import user_tz
         return await user_tz(subject_id)
 
     async def on_read(self, subject_id: str) -> None:
@@ -373,8 +381,6 @@ class PostgresHealthQuery:
         `total` rides on every row (a window function runs before LIMIT), so a
         truncated page can say how much it left out.
         """
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {"uid": str(subject_id), "cap": cap, "reported": REPORTED_KINDS}
         where = self._kinds(params) + _window_clause(params, window)
         rows = await execute_query(
@@ -412,8 +418,6 @@ class PostgresHealthQuery:
         """Individual readings, newest first, capped per series. `total` per
         series comes from the same statement. `file_key` is the handle back
         to the ORIGINAL report."""
-        from mirobody.utils import execute_query
-
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
@@ -478,8 +482,6 @@ class PostgresHealthQuery:
         an unelected day, which drops a morning blood pressure when an evening
         one follows. Neither is a choice a model can make from the question.
         """
-        from mirobody.utils import execute_query
-
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
@@ -515,9 +517,11 @@ class PostgresHealthQuery:
         return [_stats_row(r) for r in rows]
 
     async def latest(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
-        """The most recent value per series INSIDE the window."""
-        from mirobody.utils import execute_query
-
+        """The most recent value per series INSIDE the window: the newest
+        local day first, and that day's elected reading where it has one.
+        Election only ranks readings of the same day; ranked first across
+        days, an elected value from last month beat an unelected one from
+        today, which `stats()` called the last."""
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
@@ -534,7 +538,7 @@ class PostgresHealthQuery:
               FROM v_observation o
             {_FILE_JOIN}
              WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
-             ORDER BY o.series_id, o.elected DESC, o.observed_start DESC, o.id DESC
+             ORDER BY o.series_id, o.local_date DESC, o.elected DESC, o.observed_start DESC, o.id DESC
             """,
             params,
             log_sql=False,
@@ -554,8 +558,6 @@ class PostgresHealthQuery:
 
     async def _by_names(self, subject_id: str, names: list[str]) -> list[str]:
         """Exact selectors: a series id, a code, a display name or a printed name."""
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {
             "uid": str(subject_id),
             "names": names,
@@ -578,8 +580,6 @@ class PostgresHealthQuery:
 
     async def _labels(self, subject_id: str, window: query.Window | None) -> list[tuple[str, str]]:
         """`(label, series_id)` for every display and printed name."""
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {"uid": str(subject_id)}
         where = self._kinds(params) + _window_clause(params, window)
         rows = await execute_query(
@@ -643,7 +643,8 @@ class PostgresHealthQuery:
                 if series:
                     named.add(series)
         except Exception as e:
-            logger.warning("offline resolver unavailable in keyword recall: error_type=%s", type(e).__name__)
+            logger.warning("offline resolver unavailable in keyword recall: error_type=%s", type(e).__name__,
+                           exc_info=not is_driver_exception(e))
         if self._reported:
             for coding in (translate.resolve_symptom(keyword), translate.resolve_condition(keyword)):
                 if coding.outcome == "coded" and coding.code:
@@ -653,8 +654,6 @@ class PostgresHealthQuery:
     async def _subday_buckets(
         self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int
     ) -> list[dict]:
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit))}
         where = _window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
@@ -690,8 +689,6 @@ class PostgresHealthQuery:
         """Day and coarser: one row per (series, bucket), from the day
         authority where one has been elected and the newest reading of the
         day otherwise, which `provenance` reports."""
-        from mirobody.utils import execute_query
-
         params: dict[str, Any] = {
             "uid": str(subject_id), "names": names, "reported": REPORTED_KINDS, "limit": max(1, int(limit)),
         }
@@ -826,8 +823,8 @@ def _reading_row(r: dict) -> dict:
         "unit": r.get("unit_text") or "",
         # The range as printed, empty when the report printed none: without
         # it a model judged against a range it remembered (1.5.4 local runs).
-        # The flag is the report's own when a table rule read the row; a
-        # model-read row's is that model's high/low/normal against the range.
+        # The flag is high or low as the report printed it, else empty
+        # (`collect/files/services/indicator_store.value_and_flag`).
         "ref": r.get("ref_text") or "",
         "flag": r.get("flag_text") or "",
         "value_canonical": _number(r.get("value_canonical")),
@@ -888,30 +885,11 @@ def _stats_row(r: dict) -> dict:
 
 
 def _latest_row(r: dict) -> dict:
-    return {
-        **_identity(r),
-        "name": r.get("name_text") or "",
-        "time": _text(r.get("local_time")),
-        "date": _text(r.get("local_date")),
-        "value": _text(r.get("value_text")),
-        "unit": r.get("unit_text") or "",
-        # The range as printed, empty when the report printed none: without
-        # it a model judged against a range it remembered (1.5.4 local runs).
-        # The flag is the report's own when a table rule read the row; a
-        # model-read row's is that model's high/low/normal against the range.
-        "ref": r.get("ref_text") or "",
-        "flag": r.get("flag_text") or "",
-        "value_canonical": _number(r.get("value_canonical")),
-        "unit_canonical": r.get("unit_canonical") or "",
-        # The latest value is the answer asked for most, and it came without the
-        # document it was read from, so the agent could not name the file.
-        "file": _text(r.get("file_name")) or (r.get("file_key") or ""),
-        "file_key": r.get("file_key") or "",
-        "modality": r.get("modality") or "",
-        "day_known": True,
-        "provenance": "elected:day_authority" if r.get("elected") else "measured",
-        **_reported(r),
-    }
+    """A reading row without the paging fields: the latest value is the answer
+    asked for most, and it carries the same range, flag and document."""
+    row = _reading_row(r)
+    del row["row_id"], row["total"]
+    return row
 
 
 def _text(value: object) -> str:
@@ -928,28 +906,35 @@ def _number(value: object) -> float | None:
 def _record_row(r: dict) -> dict:
     """One row of the records list: a reading row's fields (the same names the
     Indicators table and the tools read), plus what kind of entry it is, where
-    it came from, and `created_at`, the start of its current visible period.
+    it came from, `created_at`, the start of its current visible period, and
+    the stored instants and parsed number that the developer API's
+    `GET /api/data` answers with.
 
     An entry that is not a measurement carries no value and no unit, never a
     made-up one; what the person wrote is `text`."""
     row = _reading_row(r)
     row.pop("total", None)
     kind = r.get("kind") or KIND_MEASUREMENT
-    period = r.get("period_start")
     row.update({
         "kind": kind,
         "source_kind": r.get("source_kind") or "",
-        "created_at": period.isoformat() if isinstance(period, datetime) else _text(period),
+        "created_at": _iso(r.get("period_start")),
+        "observed_start": _iso(r.get("observed_start")),
+        "observed_end": _iso(r.get("observed_end")),
+        "value_num": r.get("value_num"),
+        "unit_ucum": r.get("unit_ucum") or "",
     })
+    if "comment" in r:
+        row["comment"] = _text(r["comment"])
     if kind != KIND_MEASUREMENT:
-        row.update({"value": "", "unit": "", "value_canonical": None, "unit_canonical": ""})
+        row.update({"value": "", "unit": "", "value_num": None, "unit_ucum": "", "value_canonical": None,
+                    "unit_canonical": ""})
         row["text"] = _text(r.get("note")) or _text(r.get("value_text"))
     return row
 
 
-def _like_escape(text: str) -> str:
-    """`text` matched literally inside ILIKE: `%` and `_` in a name are letters."""
-    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+def _iso(value: object) -> str:
+    return value.isoformat() if isinstance(value, datetime) else _text(value)
 
 
 __all__ = [

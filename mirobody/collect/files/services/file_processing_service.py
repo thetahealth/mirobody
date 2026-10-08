@@ -20,8 +20,10 @@ if TYPE_CHECKING:
     from fastapi import UploadFile
 from pydantic import BaseModel
 
+from mirobody.collect.files.errors import failure_reason
 from mirobody.collect.files.file_processor import FileProcessor
 from mirobody.collect.files.memory_upload_file import MemoryUploadFile
+from mirobody.collect.files.services.report_date import file_source_ref
 from mirobody.collect.files.services.file_uploader import (
     generate_file_key,
     validate_file_extension,
@@ -34,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 
 class FileUploadData(BaseModel):
-    """File upload data model - matches router FileUploadData structure"""
+    """One stored upload, as `POST /files/upload` answers it."""
     file_url: str               # File access URL
     file_name: str              # Original filename
     file_key: str               # File storage key (S3/OSS)  
@@ -47,140 +49,71 @@ async def process_files_async(
     files_data: list[dict[str, Any]],
     user_id: str,
     msg_id: str,
-):
+) -> None:
+    """Process a chat turn's attachments, each already stored and filed under
+    its `file_key` (`agent/chat/file.process_files_from_storage`), and write
+    each one's outcome to its own row.
+
+    Results are matched to rows by position, never by name: two attachments
+    named `image.png` had both results written to the first one's row. A
+    file that failed is `status: failed` with its reason; it was written
+    `completed` with no indicators. The rows are announced written
+    (`FileDbService.rows_written`) only after these updates, so an indicator
+    extraction that finishes first does not have its count and status
+    overwritten by them.
     """
-    Asynchronously process all uploaded files to extract indicators
+    from .file_db_service import FileDbService
 
-    Args:
-        files_data: List of file data dictionaries containing content_bytes, file_name, content_type, file_key
-        user_id: User ID
-        msg_id: Message ID
-    """
-    
-    async def process_single_file_wrapper(file_data: dict[str, Any], file_processor: FileProcessor) -> dict:
-        """
-        Wrapper function to process a single file
+    file_processor = FileProcessor()
 
-        Args:
-            file_data: Dictionary with file data (content_bytes, file_name, content_type, file_key)
-            file_processor: The FileProcessor instance
-
-        Returns:
-            dict: Processing result
-        """
+    async def process(file_data: dict[str, Any]) -> dict[str, Any]:
+        upload = MemoryUploadFile(
+            content=file_data["content_bytes"],
+            filename=file_data["file_name"],
+            content_type=file_data["content_type"],
+        )
         try:
-            filename = file_data["file_name"]
-            logger.info("processing file: msg_id=%s", msg_id)
-            
-            mock_file = MemoryUploadFile(
-                content=file_data["content_bytes"],
-                filename=filename,
-                content_type=file_data["content_type"],
-            )
-            
-            # Process single file (skip upload since already uploaded)
-            result = await file_processor.process_single_file(
-                file=mock_file,
+            return await file_processor.process_single_file(
+                file=upload,
                 user_id=user_id,
                 message_id=msg_id,
                 query="",
                 file_key=file_data.get("file_key"),
-                skip_upload_oss=True,  # Skip upload since already uploaded
+                skip_upload_oss=True,
             )
-            
-            if result.get("success"):
-                # Extract indicators from result if available
-                indicators = result.get("indicators", [])
+        except Exception as e:
+            logger.error("attachment processing failed: msg_id=%s error_type=%s", msg_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return {"success": False, "error": failure_reason(e)}
 
-                processed_file_info = {
-                    "file_name": filename,
-                    "processed": True,
-                    "raw": result.get("raw", result.get("content", "")),  # Use 'raw' field name
-                    "file_abstract": result.get("file_abstract", ""),  # Add file abstract
-                    "generated_file_name": result.get("file_name", filename),  # AI generated file name
-                    "indicators": indicators,
-                    "indicators_count": len(indicators),  # Add indicators count
-                    # Add original text fields for th_files columns
-                    "original_text": result.get("original_text", ""),
-                    "text_length": result.get("text_length", 0),
-                    "content_hash": result.get("content_hash", ""),
-                }
-            else:
-                processed_file_info = {
-                    "file_name": filename,
-                    "processed": False,
-                    "generated_file_name": result.get("file_name", filename),  # AI generated file name even on failure
-                    "error": result.get("error", "Processing failed"),
-                    # Still extract original text fields if available
-                    "original_text": result.get("original_text", ""),
-                    "text_length": result.get("text_length", 0),
-                    "content_hash": result.get("content_hash", ""),
-                }
-            
-            logger.info("file processing completed: msg_id=%s", msg_id)
-            
-            return processed_file_info
-            
-        except Exception as file_error:
-            logger.error("file processing failed: msg_id=%s error_type=%s",
-                         msg_id, type(file_error).__name__,
-                         exc_info=not is_driver_exception(file_error))
-            return {
-                "file_name": file_data.get("file_name", "unknown"),
-                "processed": False,
-                "error": "Processing failed"
-            }
-    
+    FileDbService.expect_rows(msg_id)
     try:
-        logger.info(f"Starting concurrent async processing for {len(files_data)} files, msg_id: {msg_id}")
-        
-        # Create file processor instance
-        file_processor = FileProcessor()
-        
-        # Use asyncio to process files concurrently
-        # Process all files concurrently using asyncio.gather
-        processing_tasks = [
-            process_single_file_wrapper(file_data, file_processor) 
-            for file_data in files_data
-        ]
-        
-        processed_files = await asyncio.gather(*processing_tasks, return_exceptions=False)
-        
-        # Filter out any None results
-        processed_files = [pf for pf in processed_files if pf is not None]
-        
-        # Update th_files with all processed results
-        if processed_files:
-            logger.info(f"Updating th_files with {len(processed_files)} processed files")
-            
-            from .file_db_service import FileDbService
-            
-            # Update each file's content in th_files table
-            for processed_file in processed_files:
-                file_key = None
-                # Find file_key from files_data
-                for file_data in files_data:
-                    if file_data.get("file_name") == processed_file.get("file_name"):
-                        file_key = file_data.get("file_key")
-                        break
-                
-                if file_key:
-                    # Update th_files with processing results (including original_text even if processing failed)
-                    await FileDbService.update_file_processed(
-                        file_key=file_key,
-                        raw=processed_file.get("raw", ""),
-                        file_abstract=processed_file.get("file_abstract", ""),
-                        indicators=processed_file.get("indicators", []),
-                        file_name=processed_file.get("generated_file_name"),
-                        original_text=processed_file.get("original_text", ""),
-                        text_length=processed_file.get("text_length", 0),
-                        content_hash=processed_file.get("content_hash", ""),
-                    )
-            
-            logger.info(f"Concurrent async processing completed for all files, msg_id: {msg_id}")
-            
-    except Exception:
-        logger.error(f"Concurrent async processing failed for files batch, msg_id: {msg_id}", stack_info=True)
+        results = await asyncio.gather(*(process(f) for f in files_data))
+        for file_data, result in zip(files_data, results, strict=True):
+            file_key = file_data.get("file_key")
+            if not file_key:
+                continue
+            if result.get("success"):
+                await FileDbService.update_file_processed(
+                    file_key=file_key,
+                    raw=result.get("raw", ""),
+                    file_abstract=result.get("file_abstract", ""),
+                    file_name=result.get("file_name") or file_data["file_name"],
+                    original_text=result.get("original_text", ""),
+                    text_length=result.get("text_length", 0),
+                    content_hash=result.get("content_hash", ""),
+                )
+            else:
+                await FileDbService.update_file_content(file_key, {
+                    "status": "failed",
+                    "processed": False,
+                    "progress": 0,
+                    "error": result.get("error") or result.get("message") or "Processing failed",
+                })
+        failed_count = sum(1 for r in results if not r.get("success"))
+        logger.info("attachments processed: msg_id=%s count=%d failed=%d", msg_id, len(results), failed_count)
+    finally:
+        FileDbService.rows_written(msg_id)
 
 
 async def _invalidate_derived_profile(owner_id: str) -> None:
@@ -220,9 +153,10 @@ async def _invalidate_derived_profile(owner_id: str) -> None:
         # a projection that selects `is_deleted = false`, so the UPDATE above
         # removes the agent's view of the profile as a side effect of
         # invalidating the profile. That is the whole point of the projection.
-        logger.info(f"Invalidated derived health profile for user {owner_id}")
+        logger.info("derived health profile invalidated: user_id=%s", owner_id)
     except Exception as e:
-        logger.error(f"FAILED to invalidate derived profile for {owner_id}: {e}", exc_info=True)
+        logger.error("invalidating a derived health profile failed: user_id=%s error_type=%s", owner_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
 
 
 async def delete_files_from_message(
@@ -230,36 +164,28 @@ async def delete_files_from_message(
     file_keys: list[str],
     user_id: str
 ) -> dict[str, Any]:
-    """
-    Delete specific files from th_files table.
-    
-    Now operates on th_files table instead of th_messages.
-    
+    """Delete the caller's files `file_keys`: the `th_files` row (soft) and
+    the object in storage, then, in the background, what was extracted from
+    each, under the owner of the record it was filed in.
+
     Args:
         message_id: The source ID (created_source_id in th_files)
         file_keys: List of file keys to delete
         user_id: User ID for authorization
-    
+
     Returns:
         Dict containing deletion results
     """
     from .file_db_service import FileDbService
-    
+
     try:
-        logger.info(f"Starting file deletion from th_files: source_id={message_id}, file_keys={file_keys}")
-        
-        # Track deletion results
         deleted_files = []
         failed_deletions = []
-        
-        # Process each file key
-        # Track query_user_id for cascade delete (observations are stored under the target user)
-        cascade_delete_user_id = None
-        
+        #: Each deleted file's record owner: a care-circle upload's readings
+        #: are the member's, whoever uploaded the file.
+        owners: dict[str, str] = {}
         for file_key in file_keys:
-            # Get file info first
             file_record = await FileDbService.get_file_by_key(file_key, user_id)
-            
             if not file_record:
                 failed_deletions.append({
                     "file_key": file_key,
@@ -269,22 +195,12 @@ async def delete_files_from_message(
                     "error": "File not found"
                 })
                 continue
-            
+
             filename = file_record.get("file_name", "")
             file_type = file_record.get("file_type", "other")
-            scene = file_record.get("scene", "")  # Get scene for determining file category
-            
-            # Get query_user_id for cascade delete (observations use query_user_id as user_id)
-            if not cascade_delete_user_id:
-                cascade_delete_user_id = file_record.get("query_user_id") or user_id
-            
-            # Delete from storage
             storage_deleted = await delete_file_from_storage(file_key=file_key)
-            
             # Soft delete from database (even if storage deletion fails)
-            db_deleted = await FileDbService.soft_delete_file(file_key, user_id)
-            
-            if db_deleted:
+            if await FileDbService.soft_delete_file(file_key, user_id):
                 # Nothing to revoke any more. The agent's view of a file is a
                 # projection of THIS row (deep/files_backend.py selects
                 # `is_del = false`), so soft-deleting it here is the whole of it.
@@ -292,11 +208,11 @@ async def delete_files_from_message(
                     "file_key": file_key,
                     "filename": filename,
                     "type": file_type,
-                    "scene": scene,  # Pass scene for cascade delete logic
+                    "scene": file_record.get("scene", ""),
                     "status": "deleted",
                     "storage_deleted": storage_deleted,
                 })
-                logger.info(f"Successfully deleted file: {file_key}")
+                owners[file_key] = str(file_record.get("query_user_id") or user_id)
             else:
                 failed_deletions.append({
                     "file_key": file_key,
@@ -305,22 +221,17 @@ async def delete_files_from_message(
                     "status": "failed",
                     "error": "Database deletion failed"
                 })
-        
+
         # The profile is derived from the readings the cascade is about to remove,
         # and it quotes them. Invalidate it inline: a background failure here
         # leaves deleted values in the model's system prompt.
+        for owner in sorted(set(owners.values())):
+            await _invalidate_derived_profile(owner)
         if deleted_files:
-            await _invalidate_derived_profile(cascade_delete_user_id or user_id)
+            _start_background_cascade_delete(message_id, [(f, owners[f["file_key"]]) for f in deleted_files])
 
-        # Start background cascade delete task for successfully deleted files
-        # Use query_user_id (target user) for the observation erase
-        if deleted_files:
-            _start_background_cascade_delete(
-                message_id=message_id,
-                user_id=cascade_delete_user_id or user_id,
-                deleted_files=deleted_files
-            )
-        
+        logger.info("files deleted: message_id=%s deleted=%d failed=%d", message_id, len(deleted_files),
+                    len(failed_deletions))
         return {
             "success": len(deleted_files) > 0,
             "message_id": message_id,
@@ -329,70 +240,51 @@ async def delete_files_from_message(
             "remaining_files_count": 0,  # Not applicable for th_files
             "message_deleted": False
         }
-        
+
     except Exception as e:
-        logger.error(f"Error in delete_files_from_message: {str(e)}", stack_info=True)
+        logger.error("deleting files failed: message_id=%s error_type=%s", message_id, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return {
             "success": False,
-            "error": f"Internal error: {str(e)}",
+            "error": "Internal error",
             "message_id": message_id
         }
 
 
 async def delete_file_from_storage(file_key: str) -> bool:
-    """
-    Delete a file from storage using unified storage client
-
-    Args:
-        file_key: The storage key of the file
-
-    Returns:
-        bool: True if deletion successful, False otherwise
-    """
+    """Delete a file's object from storage; whether it went."""
     try:
-        # Get storage client at runtime
-        storage = get_storage_client()
-        
-        # Use unified storage client
-        err = await storage.delete(file_key)
-
-        if err:
-            logger.warning(f"Failed to delete file {file_key}: {err}")
-            return False
-
-        return True
-        
+        err = await get_storage_client().delete(file_key)
     except Exception as e:
-        logger.error(f"Error deleting file from storage: {str(e)}", stack_info=True)
+        logger.error("deleting a stored file failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return False
+    if err:
+        logger.warning("deleting a stored file failed: file_key=%s", file_key)
+        return False
+    return True
 
 
 async def delete_all_files_from_message(
     message_id: str,
     user_id: str
 ) -> dict[str, Any]:
-    """
-    Delete all files associated with a source ID from th_files table.
-    
-    Now operates on th_files table instead of th_messages.
-    
+    """`delete_files_from_message` for every file of `message_id` the caller
+    owns.
+
     Args:
         message_id: The source ID (created_source_id in th_files)
         user_id: User ID for authorization
-    
+
     Returns:
         Dict containing deletion results
     """
     from .file_db_service import FileDbService
-    
+
     try:
-        logger.info(f"Starting deletion of all files for source_id={message_id}")
-        
-        # Get all files for this source_id
         files = await FileDbService.get_files_by_source(user_id=user_id, created_source_id=message_id)
-        
-        if not files:
-            logger.info(f"No files found for source_id={message_id}")
+        file_keys = [f.get("file_key") for f in files if f.get("file_key")]
+        if not file_keys:
             return {
                 "success": True,
                 "message_id": message_id,
@@ -400,169 +292,56 @@ async def delete_all_files_from_message(
                 "failed_deletions": [],
                 "note": "No files found"
             }
-        
-        # Extract file keys
-        file_keys = [f.get("file_key") for f in files if f.get("file_key")]
-        
-        if not file_keys:
-            logger.info(f"No valid file_keys found for source_id={message_id}")
-            return {
-                "success": True,
-                "message_id": message_id,
-                "deleted_files": [],
-                "failed_deletions": [],
-                "note": "No valid file keys found"
-            }
-        
-        # Delete all files
         return await delete_files_from_message(
             message_id=message_id,
             file_keys=file_keys,
             user_id=user_id
         )
-        
+
     except Exception as e:
-        logger.error(f"Error in delete_all_files_from_message: {str(e)}", stack_info=True)
+        logger.error("deleting a message's files failed: message_id=%s error_type=%s", message_id,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
         return {
             "success": False,
-            "error": f"Internal error: {str(e)}",
+            "error": "Internal error",
             "message_id": message_id
         }
 
 
-async def _background_cascade_delete_by_file_info(
-    message_id: str,
-    user_id: str,
-    deleted_files: list[dict[str, Any]]
-) -> None:
-    """
-    Background task to cascade delete related health data (observations and genetic data) for deleted files.
-
-    Strategy:
-    - For genetic files (type='genetic'): Delete genetic data from th_genetic_data table
-    - For non-genetic files: Erase the observations extracted from the file
-    
-    Args:
-        message_id: Message ID containing the deleted files
-        user_id: User ID
-        deleted_files: List of deleted file info containing file_key and filename
-    """
-    try:
-        logger.info(f"Starting background cascade delete task: message_id={message_id}, user_id={user_id}, files_count={len(deleted_files)}")
-        
-        # Process cascade delete for each deleted file
-        for file_info in deleted_files:
-            file_key = file_info.get("file_key", "")
-            scene = file_info.get("scene", "")  # Use scene to determine file category
-            
-            # Different deletion strategy based on scene
-            if scene == "genetic":
-                # For genetic files, delete from th_series_data_genetic using file_key
-                genetic_delete_success = await _delete_genetic_data_background(user_id, file_key)
-                if genetic_delete_success:
-                    logger.info("genetic data deleted: user_id=%s", user_id)
-                else:
-                    logger.warning("genetic data deletion found no rows: user_id=%s", user_id)
-            else:
-                # For non-genetic files (report, etc.), erase their observations
-                await _delete_th_series_data_background(user_id, "th_files", message_id, file_key)
-        
-        logger.info(f"Background cascade delete task completed successfully: message_id={message_id}, user_id={user_id}")
-        
-    except Exception as e:
-        logger.error("cascade delete failed: message_id=%s user_id=%s error_type=%s",
-                     message_id, user_id, type(e).__name__,
-                     exc_info=not is_driver_exception(e))
-
-
-async def _delete_th_series_data_background(
-    user_id: str, 
-    source_table: str, 
-    message_id: str, 
-    file_key: str | None = None
-) -> None:
-    """
-    Erase a file's observations in a background task (the privacy DELETE).
-
-    `source_table = 'th_files'` for new data; the source_ref of a file's
-    observations is `th_files:<file_key>`. Supports source_table_id formats:
-    - New format: file_key directly
-    - Old format: msg_id_#_file_key_hash (rows migrated from the retired table)
-    - Legacy format: msg_id only
-    
-    Args:
-        user_id: User ID
-        source_table: Source table name (th_files for new data)
-        message_id: Source ID (created_source_id in th_files)
-        file_key: File key for precise deletion
-    """
+async def _background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
+    """Erase what was extracted from each deleted file, under the owner of
+    the record it was filed in: a genotype file's sets, any other file's
+    observations (their coding and frozen extraction go with them). This is
+    the privacy path: one file whose erase fails does not stop the others,
+    and the failure is logged as one."""
     from mirobody.collect import observations
 
-    try:
-        # Deleting the file is the privacy path: the observations extracted
-        # from it, their coding and their frozen extraction go with it.
-        source_ref = f"{source_table}:{file_key or message_id}"
-        delete_count = await observations.erase(str(user_id), source_ref=source_ref)
-        logger.info(f"observation deletion successful: user_id={user_id}, file_key={file_key}, deleted_count={delete_count}")
-
-    except Exception as e:
-        logger.warning(f"observation deletion failed: user_id={user_id}, source_id={message_id}, file_key={file_key}, error={str(e)}", stack_info=True)
-        raise
-
-
-async def _delete_genetic_data_background(user_id: str, file_key: str) -> bool:
-    """
-    Delete genetic data in background task
-    
-    Args:
-        user_id: User ID
-        file_key: File key (used as source_table_id)
-        
-    Returns:
-        bool: True if deletion was successful, False otherwise
-    """
-    try:
-        # Use file_key as source_table_id with source_table = "th_files"
-        delete_success = await delete_genetic_data_by_source(
-            user_id, 
-            "th_files", 
-            file_key
-        )
-        
-        if delete_success:
-            logger.info(f"Genetic data deletion successful: user_id={user_id}, file_key={file_key}")
-        else:
-            logger.info(f"No genetic data found for deletion: user_id={user_id}, file_key={file_key}")
-            
-        return delete_success
-
-    except Exception as e:
-        logger.warning(f"Genetic data deletion failed: user_id={user_id}, file_key={file_key}, error={str(e)}", stack_info=True)
-        return False
+    failed_count = 0
+    for file_info, owner in deleted:
+        file_key = file_info["file_key"]
+        try:
+            if file_info.get("scene") == "genetic":
+                # `delete_genetic_data_by_source` logs its own failure.
+                if not await delete_genetic_data_by_source(owner, "th_files", file_key):
+                    failed_count += 1
+            else:
+                await observations.erase(owner, source_ref=file_source_ref(file_key))
+        except Exception as e:
+            failed_count += 1
+            logger.error("erasing a deleted file's data failed: file_key=%s error_type=%s", file_key,
+                         type(e).__name__, exc_info=not is_driver_exception(e))
+    logger.info("cascade delete finished: message_id=%s file_count=%d failed=%d", message_id, len(deleted),
+                failed_count)
 
 
-def _start_background_cascade_delete(
-    message_id: str,
-    user_id: str,
-    deleted_files: list[dict[str, Any]]
-) -> None:
-    """
-    Start background cascade delete task
-    
-    Args:
-        message_id: Message ID
-        user_id: User ID
-        deleted_files: List of deleted file information
-    """
-    # spawn() keeps a strong reference until completion: a bare
-    # asyncio.create_task here left the task GC-collectable mid-delete
-    # (the exact failure mode utils/tasks.py documents).
-    logger.info(f"Creating background cascade delete task - message_id: {message_id}, user_id: {user_id}, files_count: {len(deleted_files)}")
+def _start_background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
+    """Start `_background_cascade_delete` under `spawn`: a bare
+    `asyncio.create_task` left the task GC-collectable mid-delete (the exact
+    failure mode utils/tasks.py documents)."""
     from mirobody.utils.tasks import spawn
-    spawn(
-        _background_cascade_delete_by_file_info(message_id, user_id, deleted_files),
-        name=f"cascade-delete-{message_id}",
-    )
+
+    spawn(_background_cascade_delete(message_id, deleted), name=f"cascade-delete-{message_id}")
+
 
 async def upload_files_to_storage(
     files: list[UploadFile], 
@@ -570,15 +349,9 @@ async def upload_files_to_storage(
     folder_prefix: str | None = None,
 ) -> dict[str, Any]:
     """
-    Universal file upload service that can be reused across projects
-    
-    Uploads multiple files directly to S3/Aliyun OSS without storing metadata in database.
-    This function is project-agnostic: it takes only its arguments and touches
-    no module-level state, so it can be lifted into another codebase as-is.
-    
-    Nothing else holds the bytes. They used to be copied into Redis as base64
-    for an hour under `file_cache:{file_key}` (not a path, as this docstring
-    said), for the chat layer to skip one fetch; it no longer reads them.
+    Store uploads in object storage, without filing them in the database.
+    It takes only its arguments and touches no module-level state, and
+    nothing else holds the bytes.
 
     Args:
         files: List of files to upload (UploadFile objects)
@@ -591,8 +364,8 @@ async def upload_files_to_storage(
         - msg: Result message
         - data: List of successful upload results (or None if all failed)
         
-    Each successful upload result contains (same format as FileUploadData):
-        - url: File access URL
+    Each successful upload result contains (`FileUploadData`):
+        - file_url: File access URL
         - file_name: Original filename
         - file_key: Storage key (S3/OSS)
         - file_size: File size in bytes  
@@ -612,10 +385,10 @@ async def upload_files_to_storage(
     storage = get_storage_client()
     
     # Track upload results
-    successful_uploads: list[FileUploadData] = []
+    successful_uploads: list[dict[str, Any]] = []
     failed_uploads = []
     
-    logger.info(f"Starting batch upload of {len(files)} files for user {user_id} using {storage.get_storage_type()} storage")
+    logger.info("upload batch: user_id=%s file_count=%d storage=%s", user_id, len(files), storage.get_storage_type())
     
     # Process each file
     for file_index, file in enumerate(files):
@@ -636,13 +409,10 @@ async def upload_files_to_storage(
                 })
                 continue
 
-            # `validate_file_extension` has been imported by this module since
-            # it was written and was never once called, so SUPPORTED_EXTENSIONS
-            # documented a restriction that did not exist: any extension landed
-            # in the store. Combined with the file route's old `inline`
-            # disposition that made an uploaded .html a stored-XSS payload on
-            # this origin.
-            ext_ok, ext_err = validate_file_extension(file)
+            # Without it any extension landed in the store, and with the file
+            # route's old `inline` disposition an uploaded .html was a
+            # stored-XSS payload on this origin.
+            ext_ok, ext_err = validate_file_extension(file.filename)
             if not ext_ok:
                 failed_uploads.append({
                     "file_name": file.filename,
@@ -668,7 +438,6 @@ async def upload_files_to_storage(
                 })
                 continue
             
-            # Record upload start time
             upload_time = datetime.now()
             
             logger.info("uploading file: bytes=%d", file_size)
@@ -683,7 +452,7 @@ async def upload_files_to_storage(
             if not file_url or error:
                 failed_uploads.append({
                     "file_name": file.filename,
-                    "error": error or "Failed to upload file to storage backend"
+                    "error": "Failed to upload file to storage backend"
                 })
                 continue           
             
@@ -730,7 +499,7 @@ async def upload_files_to_storage(
         msg = f"Partial upload: {successful_count} succeeded, {failed_count} failed"
         data = successful_uploads  # Return successful ones for partial success
     
-    logger.info(f"Batch upload completed - Total: {total_files}, Success: {successful_count}, Failed: {failed_count}")
+    logger.info("upload batch done: total=%d stored=%d failed=%d", total_files, successful_count, failed_count)
     
 
     return {

@@ -5,9 +5,9 @@ answers "is this number comparable to that one". Pure Python, no data bundle,
 no network: `pip install mirobody` gets all of it.
 
     normalize.py   normalize_unit, parse_value_unit, ParsedQuantity
-    families.py    UCUM_FAMILY (328 units over 59 families), AMBIGUOUS_UNITS, unit_family
-    tokens.py      MORPHEMES and ALIASES (~600 multilingual surface tokens)
-    convert.py     dimensional analysis, the molar-mass bridge, canonical form
+    families.py    UCUM_FAMILY (canonical unit -> LOINC PROPERTY), AMBIGUOUS_UNITS, unit_family
+    tokens.py      MORPHEMES and ALIASES, the multilingual printed spellings
+    convert.py     dimensional analysis, the molar-mass bridge, temperature, canonical form
 
 It used to live at `indicator/fhir/units/`, which put the one module a bare
 install is for inside the tree the wheel prunes; it moved to the package root
@@ -52,7 +52,7 @@ unit_families("%")       # → frozenset({"MFr", "NFr", "AFr", "VFr", ...})  (am
 - European decimal comma (`5,6 mmol/L`)
 - Wearable count "units" via UCUM annotation form (`600步` → `(0, 600, {steps})`, family `Num`)
 - Imperial units (`ft` / `lb` / `oz` / `gallon` etc., normalized to bracketed UCUM `[ft_us]` / `[lb_av]` / ...)
-- Ambiguity API: `unit_family("%")` returns the primary (`MFr`); `unit_families("%")` returns all 9 fraction-type PROPERTYs
+- Ambiguity API: `unit_family("%")` returns the primary (`MFr`); `unit_families("%")` returns every PROPERTY the gate admits `%` for
 
 ---
 
@@ -89,9 +89,11 @@ Three properties worth knowing before you store it:
 * **The bridge is keyed by LOINC code, never by name.** Same code in, same basis
   out, every time. A code `MOLAR_MASS` does not carry is not bridged and folds
   to `g/L` — declining, not guessing.
-* **An unfoldable unit comes back untouched.** `%`, `mm[Hg]`, `meq/L`, `个/HP`
-  are already their own canonical form: equal only to themselves, which is
-  exactly what an unchanged pair means to a caller comparing pairs.
+* **An unfoldable unit comes back untouched.** `%`, `meq/L`, `个/HP` and the
+  temperature scales are already their own canonical form: equal only to
+  themselves, which is exactly what an unchanged pair means to a caller
+  comparing pairs. (`convert_value` still converts `Cel`, `[degF]` and `K`
+  into each other; an offset has no factor to fold with.)
 
 The pattern is borrowed from the Android FHIR SDK's `ResourceIndexer`, which
 writes two index rows per `Quantity` — the human-readable unit as given, and the

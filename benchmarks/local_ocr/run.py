@@ -8,9 +8,9 @@ For each page of `sample.json`:
 1. The page as the product hands it to the OCR model: a PDF page rendered by
    `documents.extract._pdf_pages` (150 dpi), a photo through
    `extract.downscale_image`, then `render.fit_image` to 1536 px JPEG, the
-   size `utils/llm/file_processors/media._read_and_optimize_image` sends.
+   size `utils/llm/file_processors/media.model_ready` sends.
 2. One request per pass of the model's prompts (`models.json`), image first
-   and the prompt after it, as `media._build_vision_message` builds it. A
+   and the prompt after it, as `backends_openai.image_extract` builds it. A
    text-layer PDF page gets only the tables pass, after its text layer, as
    `extract.pdf_text` does; a scan or photo gets every pass, joined as
    `ocr.vision_ocr` joins them.
@@ -81,7 +81,7 @@ except ImportError:  # pragma: no cover - the README says to put mirobody-gen on
 
 #: Page labels a sample may carry besides its tier; each gets its own breakdown.
 GROUPS = ("language", "kind", "capture")
-#: The edge `media._read_and_optimize_image` fits every OCR image to.
+#: The edge `media.model_ready` fits every OCR image to.
 SEND_EDGE = 1536
 SEND_QUALITY = 85
 CTX = 16384

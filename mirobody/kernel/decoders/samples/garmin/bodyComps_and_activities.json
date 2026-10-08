@@ -1,6 +1,6 @@
 {
   "test_id": "garmin_bodycomps_and_activities",
-  "description": "Two records: a body-composition summary with Garmin's verbatim field names (weightInGrams, measurementTimeInSeconds) and an activity that must decode as a session spanning its duration. Synthetic values.",
+  "description": "A body-composition summary with Garmin's verbatim field names (weightInGrams, measurementTimeInSeconds), an activity that must decode as a session spanning its duration (activeKilocalories and totalElevationGainInMeters are the Activity API's names), a pulseox monitoring series whose -1 is dropped, and a summary with no time. Synthetic values.",
   "vendor": "garmin",
   "cases": [
     {
@@ -34,11 +34,11 @@
         "durationInSeconds": 1800,
         "averageHeartRateInBeatsPerMinute": 150,
         "maxHeartRateInBeatsPerMinute": 172,
-        "calories": 320,
+        "activeKilocalories": 320,
         "steps": 4200,
         "distanceInMeters": 5000,
         "averageSpeedInMetersPerSecond": 2.78,
-        "elevationGainInMeters": 40
+        "totalElevationGainInMeters": 40
       },
       "expected": {
         "count": 8,
@@ -47,7 +47,7 @@
       }
     },
     {
-      "data_type": "pulseOx",
+      "data_type": "pulseox",
       "tz": "Europe/Berlin",
       "input": {
         "summaryId": "x-ox-1",

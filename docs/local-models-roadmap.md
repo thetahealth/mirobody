@@ -17,9 +17,11 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
   140 printed rows of its 12 documents and writes 22 of 31 journal entries; before 1.5.4's
   harness changes ([below](#first-the-harness)) it passed 16 of 24 questions,
   stored 45 of 140 printed rows and wrote none of 31 journal entries.
-- **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), measured below:
-  as correct as a hosted model on our questions, and it sees photos, but it
-  needs about 20 GB of memory: a Mac with 32 GB, or a GPU with 24 GB.
+- **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), measured below
+  on the earlier set of eight questions: as correct as the hosted models on
+  them, and it sees photos, but it needs about 20 GB of memory: a Mac with
+  32 GB, or a GPU with 24 GB. It has not been run on the 24-question
+  evaluation yet.
 - **1.6.0 ships the goal**: the same two small models post-trained for
   Mirobody, as Mirobody's own model ([Then, training](#then-training)), about
   3 GB together, in 16 GB of memory and without a GPU, like the small size

@@ -40,9 +40,9 @@ from fastapi import FastAPI, HTTPException
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-# Backend-owned URL prefixes (from the manually-built service routes and every
-# APIRouter prefix in server/routers/). A GET under these that nothing matched
-# is a mistake, not a SPA deep link: answer 404, not the shell.
+# URL prefixes only the backend answers under (service routes and router
+# prefixes; the web client has no page there). A GET under these that nothing
+# matched is a mistake, not a SPA deep link: answer 404, not the shell.
 _API_PREFIXES = (
     "/api",
     "/mcp",
@@ -50,7 +50,6 @@ _API_PREFIXES = (
     "/oauth2",
     "/invitation",
     "/apple",
-    "/google",
     "/email",
     "/personal",
     "/auth/session",

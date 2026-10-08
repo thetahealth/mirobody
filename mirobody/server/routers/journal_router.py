@@ -35,9 +35,9 @@ from mirobody import translate
 from mirobody.collect import PostgresMedicationStore, apply_medication_mentions, observations, sentence
 from mirobody.kernel import meds, series
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.server.auth import verify_token
+from mirobody.server.auth import subject_for, verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject, shared_with_me
+from mirobody.user.care_circle import shared_with_me
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)
@@ -169,18 +169,6 @@ async def _label(caller: str, owner: str) -> str:
     return ""
 
 
-async def _subject(caller: str, target: str | None, *, write: bool) -> str | None:
-    """Whose record this call touches, or `None` when the grant is missing."""
-    owner = str(target or caller)
-    if owner == str(caller):
-        return owner
-    try:
-        await resolve_subject(caller, owner, require_write=write)
-    except CareCircleDenied:
-        return None
-    return owner
-
-
 @router.post("/journal")
 async def log_entry(
     entry: JournalEntry,
@@ -195,7 +183,7 @@ async def log_entry(
         return ErrorResponse(code=400, msg=f"kind must be one of: {', '.join(sorted(KINDS))}.")
     if _bad_zone(entry.tz):
         return ErrorResponse(code=400, msg=_BAD_ZONE)
-    owner = await _subject(user_id, entry.target_user_id, write=True)
+    owner = await subject_for(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
 
@@ -217,9 +205,7 @@ async def log_entry(
     try:
         report = await observations.ingest(owner, [draft], provenance, user_tz=tz, on_conflict=ON_CONFLICT)
     except Exception as e:
-        # A type name and nothing else: a driver exception quotes the SQL and
-        # its parameters, and the parameter here is what the person typed.
-        logger.error("[log_entry] error_type=%s", type(e).__name__)
+        logger.error("journal entry failed: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This entry could not be saved.")
 
     if not report.inserted:
@@ -277,7 +263,7 @@ async def log_sentence(
     sentence became rather than trusting it."""
     if _bad_zone(entry.tz):
         return ErrorResponse(code=400, msg=_BAD_ZONE)
-    owner = await _subject(user_id, entry.target_user_id, write=True)
+    owner = await subject_for(user_id, entry.target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
     if not sentence.available():
@@ -309,7 +295,8 @@ async def log_sentence(
                 payload={"model": raw, "received_at": now.isoformat()},
             )
         except Exception as e:
-            logger.error("[log_sentence] error_type=%s", type(e).__name__)
+            logger.error("journal sentence failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             return ErrorResponse(code=500, msg="This sentence could not be saved.")
 
     medications: list[dict] = []
@@ -324,7 +311,8 @@ async def log_sentence(
             outcomes = await apply_medication_mentions(
                 owner, mentions, record_date=now.date(), source_record_id=record_id)
         except Exception as e:
-            logger.error("[log_sentence] medications error_type=%s", type(e).__name__)
+            logger.error("journal sentence medications failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
             medications_failed = True
         else:
             medications = [
@@ -360,7 +348,7 @@ async def list_entries(
     could not place keeps its words and reports why, because dropping it from
     the list would hide the half of the log that most needs a person's eye.
     """
-    owner = await _subject(user_id, target_user_id, write=False)
+    owner = await subject_for(user_id, target_user_id)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot read that record.")
 
@@ -483,7 +471,7 @@ async def retract_medication(
     under: a caregiver who logged "Dad started X" can take it back. It is
     marked entered-in-error, as any removed plan is; a plan the person made
     elsewhere is not the journal's to remove."""
-    owner = await _subject(user_id, target_user_id, write=True)
+    owner = await subject_for(user_id, target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
     store = PostgresMedicationStore()
@@ -495,7 +483,8 @@ async def retract_medication(
         _, now = _writer_zone(await observations.user_tz(owner))
         await store.transition(owner, plan_id, "void", today=now.date())
     except Exception as e:
-        logger.error("[retract_medication] error_type=%s", type(e).__name__)
+        logger.error("journal medication retraction failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This entry could not be retracted.")
     return StandardResponse(data={"retracted": 1})
 
@@ -509,13 +498,14 @@ async def retract_entry(
     """Mark one entry entered in error. The row stays: `th_observation` is
     append-only and the view hides it, so a log that was corrected still says
     so to anyone auditing it."""
-    owner = await _subject(user_id, target_user_id, write=True)
+    owner = await subject_for(user_id, target_user_id, write=True)
     if owner is None:
         return ErrorResponse(code=403, msg="You cannot write to that record.")
     try:
         count = await observations.retract(owner, [observation_id])
     except Exception as e:
-        logger.error("[retract_entry] error_type=%s", type(e).__name__)
+        logger.error("journal entry retraction failed: error_type=%s", type(e).__name__,
+                     exc_info=not is_driver_exception(e))
         return ErrorResponse(code=500, msg="This entry could not be retracted.")
     if not count:
         return ErrorResponse(code=404, msg="No such entry.")

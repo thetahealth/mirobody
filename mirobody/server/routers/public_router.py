@@ -1,24 +1,18 @@
-"""
-Public API Router for Pulse System
+"""The device-provider API: which providers there are, linking one, vendor pushes.
 
-Provides user-facing APIs for interacting with the Pulse health data platform
+The routes, under `API_PREFIX` (see the note there for why it says `pulse`);
+`apple_router` is nested under the same prefix by `routers/__init__.py`:
 
-SECTION INDEX (line numbers are approximate):
-    ~28   Request/Response Models (AuthType, LinkProviderRequest, StandardResponse, ProviderInfo, etc.)
-    ~164  Helper: _sort_providers_by_priority()
-    ~204  Helper: handle_redirect()
-    ~229  GET  /providers              list all available providers
-    ~365  GET  /user/providers         list user's connected providers
-    ~415  POST /user/providers/link    link a provider (OAuth/password/custom)
-    ~502  Helper: _generate_oauth_completion_html()
-    ~565  GET  /{platform}/{provider}/callback (OAuth callback handler
-    ~626  POST /user/providers/unlink  unlink a provider
-    ~701  POST /user/providers/llm-access) update LLM access permission
-    ~828  POST /{platform}/webhook     universal webhook receiver
-    ~879  POST /{platform}/{provider}/webhook: provider-specific webhook
-    ~930  Helper: get_provider_slug(), get_msg_id()
-    ~959  POST /{platform}/token       get theta token
-    ~1022 GET  /theta/indicators       list theta indicators
+    GET  /providers                         every provider, with the caller's link status
+    GET  /user/providers                    the providers a person has linked
+    POST /user/providers/link               link one (OAuth, password, custom fields)
+    GET  /{platform}/{provider}/callback    a vendor's OAuth callback
+    POST /user/providers/unlink             unlink one
+    POST /user/providers/update-llm-access  whether the agent may read a provider's data
+    POST /{platform}/webhook                a vendor push naming its provider in the body
+    POST /{platform}/{provider}/webhook     a vendor push for one provider
+    POST /{platform}/token                  a token for a vendor's own user (theta only)
+    GET  /theta/indicators                  the indicators a vendor may push
 """
 
 import hmac
@@ -38,7 +32,8 @@ from mirobody.collect import ProviderStatus
 from mirobody.user.platform import get_platform_user_service
 # Import platform manager
 from mirobody.collect import platform_manager
-from mirobody.server.auth import verify_token, verify_token_optional
+from mirobody.kernel.ops import is_driver_exception
+from mirobody.server.auth import subject_for, verify_token, verify_token_optional
 from mirobody.utils.config import global_config
 from mirobody.utils.http import request_origin, safe_return_url
 
@@ -80,8 +75,8 @@ class LinkProviderRequest(BaseModel):
     email: str | None = Field(None, description="Email for auth")
     connect_info: dict[str, Any] = Field(default_factory=dict, description="Authentication credentials for customized")
 
-    # Additional options (optional)
-    redirect_url: str | None = Field(None, description="Redirect URL for OAuth")
+    # Additional options (optional). The OAuth callback is the provider's
+    # configured redirect URL; a `redirect_url` sent here was never read.
     return_url: str | None = Field(None, description="Frontend return URL after OAuth completes")
     owner_user_id: str | None = Field(None, description="if sharing device,help link")
 
@@ -112,10 +107,9 @@ class ProviderTokenRequest(BaseModel):
     certification: str = Field(..., description="Authentication credentials from device manufacturer")
 
 
-from mirobody.server.envelope import ErrorResponse, StandardResponse
+from mirobody.server.envelope import ErrorResponse, StandardResponse, err, failed
 
 # Import ConnectInfoField for type hints
-from mirobody.user.care_circle import CareCircleDenied, resolve_subject
 from mirobody.collect import ConnectInfoField as CoreConnectInfoField
 
 
@@ -186,46 +180,45 @@ def _sort_providers_by_priority(providers: list[ProviderInfo]) -> list[ProviderI
     return priority_providers + other_providers
 
 
-def handle_redirect(request: Request, return_url: str, success: bool, platform: str, provider: str, error_msg: str = None):
-    """Build a redirect response for OAuth callback with minimal safe params.
+def _return_origins() -> list[str]:
+    """Where a vendor callback may send the person back to besides this
+    origin: `OAUTH_RETURN_ORIGINS`, and the CORS origin the deployment allows."""
+    cfg = global_config()
+    if cfg is None:
+        return []
+    allowed = [str(origin) for origin in cfg.get_list("OAUTH_RETURN_ORIGINS") or []]
+    # A list of (name, value) pairs, as `middleware_stack` reads it.
+    cors_origin = dict(cfg.http.headers or []).get("Access-Control-Allow-Origin", "")
+    if cors_origin and cors_origin != "*":
+        allowed.append(cors_origin)
+    return allowed
 
-    Only to where `safe_return_url` keeps it: this origin, the CORS origin the
-    deployment allows, and `OAUTH_RETURN_ORIGINS`. Anywhere else gets the
-    completion page this callback shows when there is no `return_url`.
+
+def handle_redirect(request: Request, return_url: str, platform: str, provider: str):
+    """Send the person back to `return_url` after a completed link.
+
+    Only to where `safe_return_url` keeps it: this origin and
+    `_return_origins`. Anywhere else gets the completion page this callback
+    shows when there is no `return_url`.
     """
     from urllib.parse import urlencode
     from fastapi.responses import RedirectResponse
 
-    cfg = global_config()
-    allowed = list(cfg.get_list("OAUTH_RETURN_ORIGINS") or []) if cfg else []
-    # A list of (name, value) pairs, as `middleware_stack` reads it.
-    cors_origin = dict((cfg.http.headers or []) if cfg else []).get("Access-Control-Allow-Origin", "")
-    if cors_origin and cors_origin != "*":
-        allowed.append(cors_origin)
-    return_url = safe_return_url(return_url, request_origin(request), allowed)
+    return_url = safe_return_url(return_url, request_origin(request), _return_origins())
     if return_url is None:
         provider_slug = provider
         logger.warning("refused an OAuth return_url outside this deployment: provider_slug=%s", provider_slug)
-        return HTMLResponse(content=_generate_oauth_completion_html(platform, provider, success, None, error_msg))
+        return HTMLResponse(content=_oauth_completion_html(request, platform, provider))
 
-    code = 0
-    if not success:
-        code = 1
-    qs_params = {
-        "code": code,
-        "success": str(success).lower(),
+    query = urlencode({
+        "code": 0,
+        "success": "true",
         "platform": platform,
         "provider": provider,
         "provider_slug": provider,
-    }
-    if error_msg:
-        qs_params["error"] = error_msg
-
-    qs = urlencode(qs_params)
+    })
     sep = "?" if "?" not in return_url else "&"
-    redirect_url = f"{return_url}{sep}{qs}"
-
-    return RedirectResponse(url=redirect_url, status_code=302)
+    return RedirectResponse(url=f"{return_url}{sep}{query}", status_code=302)
 
 
 @router.get("/providers", response_model=StandardResponse | ErrorResponse)
@@ -243,44 +236,37 @@ async def get_providers(
         owner_user_id: If provided, returns the providers of this shared user (requires authorization)
     """
     try:
-        # Determine which user's providers to query
+        # Anonymous callers list the catalogue only; `owner_user_id` names a
+        # member's record, which takes a signed-in caller with a grant.
         query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if owner_user_id and current_user and owner_user_id != current_user:
-            try:
-                await resolve_subject(current_user, owner_user_id)
-            except CareCircleDenied:
+        if current_user:
+            query_user_id = await subject_for(current_user, owner_user_id)
+            if query_user_id is None:
                 return ErrorResponse(
                     code=-1,
                     msg=f"No permission to query providers for user {owner_user_id}"
                 )
 
-            query_user_id = owner_user_id
-            logger.info(f"User {current_user} querying providers for shared user {owner_user_id}")
-
         platform_filter = platform  # Rename to avoid variable shadowing
         all_providers = []
-        logger.info(f"get_providers platform: {len(platform_manager._platforms.items())}, filter: {platform_filter}")
 
-        for platform_name, platform_obj in platform_manager._platforms.items():
-            if platform_filter and platform_filter != platform_name:
+        for platform_slug, platform_obj in platform_manager._platforms.items():
+            if platform_filter and platform_filter != platform_slug:
                 continue
             try:
                 if platform_obj.solo and not platform_filter:
                     # For solo platforms (without filter), add only a single virtual provider
                     virtual_provider = ProviderInfo(
-                        slug=platform_name,
-                        name=platform_name.upper(),
-                        description=getattr(platform_obj, 'description', platform_name),
+                        slug=platform_slug,
+                        name=platform_slug.upper(),
+                        description=getattr(platform_obj, 'description', platform_slug),
                         logo=getattr(platform_obj, 'logo', ""),
                         supported=True,
                         auth_type=LinkType.PLATFORM.value,
                         status=ProviderStatus.AVAILABLE.value,
-                        platform=platform_name,
+                        platform=platform_slug,
                     )
                     all_providers.append(virtual_provider)
-                    logger.info(f"Added virtual provider for solo platform {platform_name}")
                 else:
                     platform_providers = await platform_obj.get_providers(nocache=nocache)
                     for provider in platform_providers:
@@ -294,12 +280,14 @@ async def get_providers(
                             supported=provider.supported,
                             auth_type=provider.auth_type.value,
                             status=ProviderStatus.AVAILABLE.value,
-                            platform=platform_name,
+                            platform=platform_slug,
                             connect_info_fields=provider.connect_info_fields,
                         )
                         all_providers.append(provider_info)
             except Exception as e:
-                logger.error(f"Error getting providers from platform {platform_name}: {str(e)}")
+                # One platform's catalogue failing leaves the others listed.
+                logger.error("listing a platform's providers failed: platform_slug=%s error_type=%s",
+                             platform_slug, type(e).__name__, exc_info=not is_driver_exception(e))
                 continue
 
         connected_providers = []
@@ -309,9 +297,10 @@ async def get_providers(
         if query_user_id:
             try:
                 user_providers = await platform_manager.get_user_providers(query_user_id)
-                logger.info(f"Updated connection status for user {query_user_id}")
             except Exception as e:
-                logger.error(f"Error getting user providers for {query_user_id}: {str(e)}")
+                # The catalogue is still worth answering, without connection status.
+                logger.error("reading a person's linked providers failed: user_id=%s error_type=%s",
+                             query_user_id, type(e).__name__, exc_info=not is_driver_exception(e))
 
         # Create connection info mapping
         user_provider_map = {up.slug: up for up in user_providers}
@@ -343,15 +332,12 @@ async def get_providers(
         else:
             all_providers = connected_providers + unconnected_providers + unsupported_providers
 
-        user_info = f" for user {query_user_id}" if query_user_id else " (no user context)"
-        logger.info(f"Retrieved {len(all_providers)} providers{user_info}")
         return StandardResponse(
             data={"providers": all_providers, "total": len(all_providers)},
         )
 
     except Exception as e:
-        logger.error(f"Error getting providers: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Failed to get providers: {str(e)}")
+        return failed("providers list", e, "Failed to get providers.")
 
 
 @router.get("/user/providers", response_model=StandardResponse | ErrorResponse)
@@ -369,21 +355,12 @@ async def get_user_providers(
         owner_user_id: If provided, returns the providers of this shared user (requires authorization)
     """
     try:
-        # Determine which user's providers to query
-        query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if owner_user_id and owner_user_id != current_user:
-            try:
-                await resolve_subject(current_user, owner_user_id)
-            except CareCircleDenied:
-                return ErrorResponse(
-                    code=-1,
-                    msg=f"No permission to query providers for user {owner_user_id}"
-                )
-
-            query_user_id = owner_user_id
-            logger.info(f"User {current_user} querying user providers for shared user {owner_user_id}")
+        query_user_id = await subject_for(current_user, owner_user_id)
+        if query_user_id is None:
+            return ErrorResponse(
+                code=-1,
+                msg=f"No permission to query providers for user {owner_user_id}"
+            )
 
         # Get user connections across all Platforms through PlatformManager
         provider_list = await platform_manager.get_user_providers(query_user_id)
@@ -394,12 +371,11 @@ async def get_user_providers(
         )
 
     except Exception as e:
-        logger.error(f"Error getting user providers: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Failed to get user providers: {str(e)}")
+        return failed("linked providers list", e, "Failed to get user providers.")
 
 
 @router.post("/user/providers/link", response_model=StandardResponse | ErrorResponse)
-async def link_provider(request: LinkProviderRequest, req: Request, current_user: str = Depends(verify_token)):
+async def link_provider(request: LinkProviderRequest, current_user: str = Depends(verify_token)):
     """
     Connect Provider
 
@@ -408,25 +384,14 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         current_user: User ID obtained from token
     """
     try:
-        query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if request.owner_user_id and request.owner_user_id != current_user:
-            # Linking a device writes to someone's record, so the request asks
-            # for write and gets it only from a read-write grant. Two checks
-            # collapsed into one: the old code fetched the level and then
-            # compared it to 2 itself, which is the comparison every caller had
-            # to remember to write.
-            try:
-                await resolve_subject(current_user, request.owner_user_id, require_write=True)
-            except CareCircleDenied as denied:
-                return ErrorResponse(
-                    code=-1,
-                    msg=f"No permission to link provider for user {request.owner_user_id}: {denied}"
-                )
-
-            query_user_id = request.owner_user_id
-            logger.info(f"User {current_user} linking provider for shared user {request.owner_user_id}")
+        # Linking a device writes to someone's record, so the request asks for
+        # write and gets it only from a read-write grant.
+        query_user_id = await subject_for(current_user, request.owner_user_id, write=True)
+        if query_user_id is None:
+            return ErrorResponse(
+                code=-1,
+                msg=f"No permission to link provider for user {request.owner_user_id}"
+            )
 
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
@@ -450,15 +415,7 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         if request.connect_info:
             credentials["connect_info"] = request.connect_info
 
-        options = {}
-        if request.redirect_url:
-            options["redirect_url"] = request.redirect_url
-        if hasattr(request, "return_url") and request.return_url:
-            options["return_url"] = request.return_url
-
-        host = req.headers.get("Host", "unknown")
-        scheme = req.url.scheme if req.url.scheme else "https"
-        options["default_return_url"] = f"{scheme}://{host}{API_PREFIX}/{actual_platform}/{provider_slug}/callback"
+        options = {"return_url": request.return_url} if request.return_url else {}
 
         # Call PlatformManager's simplified interface (business logic has been delegated)
         result_data = await platform_manager.link_provider(
@@ -473,71 +430,68 @@ async def link_provider(request: LinkProviderRequest, req: Request, current_user
         return StandardResponse(code=0, msg="ok", data=result_data)
 
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        return ErrorResponse(code=400, msg=f"{str(e)}")
+        return failed("provider link", e, "This provider could not be linked.", code=400)
 
 
-def _generate_oauth_completion_html(platform: str, provider: str, success: bool, result_data: Any = None,
-                                    error_message: str = None) -> str:
-    """Generate OAuth completion HTML with postMessage to parent window"""
+#: What the completion page reports for a callback that failed. A fixed code:
+#: the exception's text reached the opener, and through `postMessage(..., "*")`
+#: any page that had opened the popup.
+OAUTH_FAILED = "oauth_failed"
 
-    # Prepare data for JavaScript
-    data_js = json.dumps(result_data) if result_data else 'null'
-    error_js = json.dumps(error_message) if error_message else 'null'
+_COMPLETION_PAGE = """<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+  </head>
+  <body style="margin:0;padding:0;background:#fff;">
+    <script>
+      (function () {
+        var page = %s;
+        try {
+          if (window.opener) {
+            page.targets.forEach(function (origin) {
+              window.opener.postMessage(page.message, origin);
+            });
+          }
+        } finally {
+          setTimeout(function () { window.close(); }, 100);
+        }
+      })();
+    </script>
+  </body>
+</html>
+"""
 
-    return f"""
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <meta http-equiv="Cache-Control" content="no-store" />
-      </head>
-      <body style="margin:0;padding:0;background:#fff;">
-        <script>
-          (function() {{
-            try {{
-              if (window.opener) {{
-                var messageType;
-                if ('{platform}' === 'theta') {{
-                  // For theta providers: use provider name (e.g., GARMIN_OAUTH_COMPLETE)
-                  var providerName = '{provider}'.replace('theta_', '').toUpperCase();
-                  messageType = providerName + '_OAUTH_COMPLETE';
-                }} else {{
-                  // For other platforms: use platform-specific message
-                  messageType = '{platform.upper()}_OAUTH_COMPLETE';
-                }}
-                
-                var message = {{
-                  type: messageType,
-                  success: {str(success).lower()},
-                  provider: '{provider}',
-                  platform: '{platform}'
-                }};
-                
-                if ({str(success).lower()}) {{
-                  message.data = {data_js};
-                  console.log('OAuth complete signal sent to parent window');
-                }} else {{
-                  message.error = {error_js};
-                  console.log('OAuth error signal sent to parent window');
-                }}
-                
-                window.opener.postMessage(message, '*');
-              }} else {{
-                console.warn('No window.opener found, cannot send completion signal');
-              }}
-            }} catch (e) {{ 
-              console.error('Error sending OAuth completion signal:', e); 
-            }}
-            setTimeout(function() {{ 
-              console.log('Closing OAuth popup window');
-              window.close(); 
-            }}, 100);
-          }})();
-        </script>
-      </body>
-    </html>
+
+def _oauth_completion_html(request: Request, platform: str, provider: str, *,
+                           data: Any = None, error: str | None = None) -> str:
+    """The popup page a vendor's OAuth flow ends on: it tells the window that
+    opened it how the link went, then closes.
+
+    The message goes only to this deployment's origins (this one and
+    `_return_origins`), not `"*"`: the data a provider returns from its
+    callback reached any page that had opened the popup. Everything the
+    script carries is one JSON value with `<` escaped, so no string in it
+    can close the `<script>` element.
     """
+    kind = provider.replace("theta_", "", 1) if platform == "theta" else platform
+    message: dict[str, Any] = {
+        "type": f"{kind.upper()}_OAUTH_COMPLETE",
+        "success": error is None,
+        "provider": provider,
+        "platform": platform,
+    }
+    if error is None:
+        message["data"] = data or None
+    else:
+        message["error"] = error
+    targets = [request_origin(request)] + [
+        origin.strip().rstrip("/") for origin in _return_origins()
+        if origin.strip().lower().startswith(("http://", "https://"))
+    ]
+    page = json.dumps({"message": message, "targets": targets}).replace("<", "\\u003c")
+    return _COMPLETION_PAGE % page
 
 
 @router.get("/{platform}/{provider}/callback")
@@ -573,12 +527,12 @@ async def oauth_callback(platform: str, provider: str, request: Request):
             state = params.get("state")
             return_url = params.get("return_url")
             if state == "success" and return_url:
-                return handle_redirect(request, return_url, True, platform, provider)
+                return handle_redirect(request, return_url, platform, provider)
             if not code:
                 return ErrorResponse(code=400, msg="Missing OAuth2 authorization code")
             result = await provider_instance.callback(code, state)
             if isinstance(result, dict) and result.get("return_url"):
-                return handle_redirect(request, result["return_url"], True, platform, provider)
+                return handle_redirect(request, result["return_url"], platform, provider)
         elif auth_type == LinkType.OAUTH1:
             # OAuth1 callback parameters
             oauth_token = params.get("oauth_token")
@@ -588,17 +542,16 @@ async def oauth_callback(platform: str, provider: str, request: Request):
             result = await provider_instance.callback(oauth_token, oauth_verifier)
             return_url = request.query_params.get("return_url")
             if return_url:
-                return handle_redirect(request, return_url, True, platform, provider)
+                return handle_redirect(request, return_url, platform, provider)
         else:
             return ErrorResponse(code=400, msg=f"Unsupported auth type: {auth_type}")
 
-        return HTMLResponse(content=_generate_oauth_completion_html(platform, provider, True, result, None))
+        return HTMLResponse(content=_oauth_completion_html(request, platform, provider, data=result))
 
     except Exception as e:
-        logger.error(f"OAuth callback error for {platform}/{provider}: {str(e)}")
-
-        # Return OAuth error HTML
-        return HTMLResponse(content=_generate_oauth_completion_html(platform, provider, False, None, str(e)))
+        logger.error("OAuth callback failed: platform=%s provider=%s error_type=%s", platform, provider,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
+        return HTMLResponse(content=_oauth_completion_html(request, platform, provider, error=OAUTH_FAILED))
 
 
 @router.post("/user/providers/unlink", response_model=StandardResponse | ErrorResponse)
@@ -611,21 +564,13 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
         current_user: User ID obtained from token
     """
     try:
-        query_user_id = current_user
-
-        # If owner_user_id is provided, verify sharing permissions
-        if request.owner_user_id and request.owner_user_id != current_user:
-            # Unlinking writes, so the request asks for write.
-            try:
-                await resolve_subject(current_user, request.owner_user_id, require_write=True)
-            except CareCircleDenied as denied:
-                return ErrorResponse(
-                    code=-1,
-                    msg=f"No permission to unlink provider for user {request.owner_user_id}: {denied}"
-                )
-
-            query_user_id = request.owner_user_id
-            logger.info(f"User {current_user} unlinking provider for shared user {request.owner_user_id}")
+        # Unlinking writes, so the request asks for write.
+        query_user_id = await subject_for(current_user, request.owner_user_id, write=True)
+        if query_user_id is None:
+            return ErrorResponse(
+                code=-1,
+                msg=f"No permission to unlink provider for user {request.owner_user_id}"
+            )
 
         # Auto-detect correct platform (based on provider_slug prefix)
         actual_platform = request.platform
@@ -635,9 +580,6 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
         if provider_slug.startswith("theta_"):
             actual_platform = "theta"
             logger.info(f"Auto-detected platform 'theta' from provider_slug '{provider_slug}'")
-        # Other cases use platform passed from frontend
-        elif actual_platform != request.platform:
-            logger.info(f"Using platform '{actual_platform}' from request")
 
         # Call PlatformManager interface
         result_data = await platform_manager.unlink_provider(
@@ -650,17 +592,12 @@ async def unlink_provider(request: UnlinkProviderRequest, current_user: str = De
         return StandardResponse(code=0, msg="ok", data=result_data)
 
     except ValueError as e:
-        # Parameter validation error (400)
-        logger.error(f"Validation error: {str(e)}")
-        return ErrorResponse(code=400, msg=str(e))
-    except RuntimeError as e:
-        # Business logic error (500)
-        logger.error(f"Runtime error: {str(e)}")
-        return ErrorResponse(code=500, msg=str(e))
+        # No such platform, or a provider this deployment has not configured.
+        logger.warning("provider unlink refused: provider_slug=%s error_type=%s",
+                       request.provider_slug, type(e).__name__)
+        return err(400, "That provider is not available here.")
     except Exception as e:
-        # Other unknown errors (500)
-        logger.error(f"Unexpected error: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Failed to unlink provider: {str(e)}")
+        return failed("provider unlink", e, "Failed to unlink provider.")
 
 
 @router.post(
@@ -697,23 +634,16 @@ async def update_llm_access(request: UpdateLlmAccessRequest, current_user: str =
             llm_access=llm_access,
         )
 
-        logger.info(
-            f"Updated LLM access for provider {provider_slug} to {request.llm_access} for user {current_user}"
-        )
+        logger.info("LLM access updated: provider_slug=%s user_id=%s", provider_slug, current_user)  # phi: ok an account id
         return StandardResponse(code=0, msg="ok", data=result_data)
 
     except ValueError as e:
-        # Parameter validation error (400)
-        logger.error(f"Validation error: {str(e)}")
-        return ErrorResponse(code=400, msg=str(e))
-    except RuntimeError as e:
-        # Business logic error (500)
-        logger.error(f"Runtime error: {str(e)}")
-        return ErrorResponse(code=500, msg=str(e))
+        # No such platform, or an access level outside 0-2.
+        logger.warning("LLM access update refused: provider_slug=%s error_type=%s",
+                       request.provider_slug, type(e).__name__)
+        return err(400, "That provider is not available here.")
     except Exception as e:
-        # Other unknown errors (500)
-        logger.error(f"Unexpected error: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Failed to update LLM access: {str(e)}")
+        return failed("LLM access update", e, "Failed to update LLM access.")
 
 
 #: A vendor push carries no user token, so the webhook routes take a shared
@@ -776,7 +706,6 @@ async def universal_webhook(platform: str, request: Request):
         logger.info(f"Universal webhook received - platform: {platform}, provider_slug: {provider_slug}, msg_id: {msg_id}")
         if not provider_slug:
             logger.warning("provider_slug is None")
-        # Call PlatformManager to process data (built-in idempotency based on msg_id)
         success = await platform_manager.post_data(platform, provider_slug, event_data, msg_id)
         if success:
             return StandardResponse(
@@ -789,15 +718,12 @@ async def universal_webhook(platform: str, request: Request):
             )
         return ErrorResponse(code=500, msg="Failed to process webhook data")
 
-    except json.JSONDecodeError as e:
-        error_msg = f"JSON parse error: {str(e)}"
-        logger.error(error_msg)
-        return ErrorResponse(code=400, msg=error_msg)
+    except json.JSONDecodeError:
+        logger.warning("webhook body is not JSON: platform=%s", platform)
+        return err(400, "The webhook body is not valid JSON.")
 
     except Exception as e:
-        error_msg = f"Error processing webhook: {str(e)}"
-        logger.error(error_msg)
-        return ErrorResponse(code=500, msg=error_msg)
+        return failed("webhook", e, "Failed to process webhook data.")
 
 
 @router.post("/{platform}/{provider}/webhook", response_model=StandardResponse | ErrorResponse)
@@ -840,15 +766,12 @@ async def provider_specific_webhook(platform: str, provider: str, request: Reque
             )
         return ErrorResponse(code=500, msg="Failed to process provider webhook data")
 
-    except json.JSONDecodeError as e:
-        error_msg = f"JSON parse error: {str(e)}"
-        logger.error(error_msg)
-        return ErrorResponse(code=400, msg=error_msg)
+    except json.JSONDecodeError:
+        logger.warning("webhook body is not JSON: platform=%s provider=%s", platform, provider)
+        return err(400, "The webhook body is not valid JSON.")
 
     except Exception as e:
-        error_msg = f"Error processing provider webhook: {str(e)}"
-        logger.error(error_msg)
-        return ErrorResponse(code=500, msg=error_msg)
+        return failed("provider webhook", e, "Failed to process provider webhook data.")
 
 
 async def get_provider_slug(platform: str, event_data: dict[str, Any]) -> str | None:
@@ -861,15 +784,17 @@ async def get_provider_slug(platform: str, event_data: dict[str, Any]) -> str | 
         # Vital nests it: data.source.slug
         source_info = event_data.get("data", {}).get("source", {})
         if source_info and isinstance(source_info, dict):
-            s = source_info.get("slug")
-            p = source_info.get("provider", s)
-            if s and p and s != p:
-                logger.error(f"{platform} slug not equal provider {s} != {p}")
-            return p
+            slug = source_info.get("slug")
+            provider = source_info.get("provider", slug)
+            if slug and provider and slug != provider:
+                logger.error("webhook source slug and provider differ: platform=%s slug=%s provider=%s",
+                             platform, slug, provider)
+            return provider
 
         return None
     except Exception as e:
-        logger.error(f"Error extracting provider_slug for platform {platform}: {str(e)}")
+        logger.error("reading a webhook's provider failed: platform=%s error_type=%s", platform,
+                     type(e).__name__, exc_info=not is_driver_exception(e))
         return None
 
 
@@ -947,14 +872,12 @@ async def get_theta_token(platform: str, request: ProviderTokenRequest):
         )
 
     except ValueError as e:
-        logger.error(f"Validation error in get_theta_token: {str(e)}")
-        return ErrorResponse(code=400, msg=str(e))
+        # The provider refused the credentials, or the request named no user.
+        logger.warning("theta token refused: provider_slug=%s error_type=%s",
+                       request.provider_slug, type(e).__name__)
+        return err(400, "These credentials were not accepted.")
     except Exception as e:
-        logger.error(
-            f"Unexpected error in get_theta_token: {type(e).__name__}: {str(e)}",
-            exc_info=True,
-        )
-        return ErrorResponse(code=500, msg=f"Internal error: {type(e).__name__}: {str(e)}")
+        return failed("theta token", e, "The token could not be issued.")
 
 
 @router.get("/theta/indicators", response_model=StandardResponse | ErrorResponse)
@@ -1044,7 +967,8 @@ async def get_theta_indicators():
                             indicators_info.append(indicator_info)
 
                         except Exception as e:
-                            logger.error(f"Error processing indicator {indicator_data.get('key', 'unknown')}: {str(e)}")
+                            logger.error("an indicator was left out of the theta list: error_type=%s",
+                                         type(e).__name__, exc_info=not is_driver_exception(e))
                             continue
 
         # Build response data
@@ -1063,6 +987,5 @@ async def get_theta_indicators():
         )
 
     except Exception as e:
-        logger.error(f"Unexpected error in get_theta_indicators: {str(e)}")
-        return ErrorResponse(code=500, msg=f"Failed to get indicators information: {str(e)}")
+        return failed("theta indicators", e, "Failed to get indicators information.")
 

@@ -94,6 +94,18 @@ jobs:
     - name: Comment style gate
       run: python scripts/check_comment_style.py mirobody
 
+    # The four files a release cut bumps name one version (the script's
+    # docstring lists them).
+    - name: Version gate
+      run: python scripts/check_versions.py
+
+    # Log lines carry ids, counts, durations, status codes and type names,
+    # never a value. With no tree arguments the CLI scans
+    # `phi_lint.DEFAULT_TREES`, the trees the baseline covers, and fails on
+    # any finding the baseline does not list.
+    - name: PHI log gate
+      run: python -m mirobody.testing.phi_lint --root . --baseline mirobody/testing/phi_baseline.txt
+
     - name: Set test version
       run: |
         VERSION="${{ github.event.inputs.test_version || '0.0.0a1' }}"

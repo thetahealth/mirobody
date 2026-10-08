@@ -7,10 +7,9 @@ answering the second wrongly, because nothing checks it.
 
 `gen_coverage` builds the table from `connect.Coverage` objects (which are
 themselves derived from each decoder's own mapping) so the documentation
-cannot promise a metric the code does not produce. `stale` is the CI half:
-it compares a committed table with a freshly generated one and returns the
-diff, so a decoder that gains a metric fails the build until the page is
-regenerated.
+cannot promise a metric the code does not produce. `stale` is the drift
+check: it compares a committed table with a freshly generated one and
+returns the diff, for a test to fail on until the page is regenerated.
 
 Pure; stdlib only, and it takes the coverages as an argument rather than
 importing `decoders`, so a consumer can run it over its OWN connectors.

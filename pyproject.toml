@@ -149,12 +149,14 @@ parse = [
     # which only the >=2.0 SDK can send/parse. No upper cap.
     "google-genai>=2.0.0",
     # `utils/config` is on the parse path (the client factory reads config), and
-    # it needs these four.
+    # it needs these three.
     "python-dotenv",
     # Uses only the modern YAML() API (utils/config/config.py); load+dump of
     # the real config.yaml verified on 0.19, so no upper cap.
     "ruamel.yaml>=0.17",
     "cryptography",
+    # `utils/net.fetch_bounded`, the bounded downloader a library consumer
+    # fetches caller-supplied URLs with.
     "aiohttp",
     # `utils/http.py` is built on Starlette's Request/Response and
     # `utils/__init__` re-exports them, so importing anything under utils needs
@@ -182,12 +184,13 @@ agent = [
     "psycopg-pool>=3.2",
     "jinja2",
     # `utils/config` — the client factory, the checkpointer and the registry
-    # read configuration through it; `config/llm.py` imports aiohttp at module
-    # level. `mirobody.utils` itself resolves its re-exports lazily, so
-    # importing one helper (`utils.sse`, `utils.net`, …) pulls none of this.
+    # read configuration through it. `mirobody.utils` itself resolves its
+    # re-exports lazily, so importing one helper (`utils.sse`, `utils.prompts`,
+    # …) pulls none of this.
     "ruamel.yaml",
     "python-dotenv",
     "cryptography",
+    # `utils/net.fetch_bounded` (see [parse]).
     "aiohttp",
     # Model clients: the two families the shipped config.yaml uses. Every other
     # family is one `pip install` away and NOT declared here: `init_chat_model`
@@ -676,12 +679,10 @@ type = "forbidden"
 allow_indirect_imports = true
 # `standardize/` moved out of `collect/` in 1.4.4 and became this package, so
 # "collect only collects" is something the tree shows rather than a sentence in
-# a document. The contents are 1.5.0's to rewrite: LOINC coding, the
-# comparability key, one standardized table. Naming the 14 crossing symbols in
-# `translate/__init__` means that rewrite moves modules without touching a
-# caller.
+# a document. Naming the crossing symbols in `translate/__init__` means a
+# module behind them can move without touching a caller.
 #
-# `collect` is a source here on purpose. It imports this package 25 times (a
+# `collect` is a source here on purpose. It imports this package throughout (a
 # provider declares metrics with `StandardIndicator`, `ingest` converts units
 # before writing) and those are legitimate; reaching past the package to
 # whichever module holds the symbol today is not.
@@ -694,7 +695,7 @@ forbidden_modules = [
     "mirobody.translate.aggregate",
     "mirobody.translate.derive",
     "mirobody.translate.indicators_info",
-    "mirobody.translate.units",
+    "mirobody.translate.canonical_units",
     "mirobody.translate.value_range_validator",
 ]
 ignore_imports = []
