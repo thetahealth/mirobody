@@ -1,90 +1,51 @@
 <!doctype html>
 <!-- Source for docs/images/social-preview.png, the repository's social preview
-     card (Settings -> General -> Social preview). Render at exactly 1280x640:
-     open this file, size the viewport to 1280x640, screenshot, downscale.
+     card (Settings -> General -> Social preview). Render at 1280x640 with a
+     device scale factor of 2 and screenshot the page.
 
-     The card leads with the platform, not the resolver. A first draft showed
-     only the term->LOINC convergence, which is stage 2 of three: readers
-     arriving from articles react to a self-hosted personal and family health
-     record ("can it pull in my watch and scale?", "what about privacy?" --
-     the two most-upvoted questions under the GitHubDaily piece). The
-     standardization engine is how that works, not what it is, so it sits
-     inside the C-T-A strip rather than owning the frame.
-
-     Every claim is checked, not asserted: all four spellings were run through
-     `mirobody resolve` and answer 718-7; the three device providers are the
-     ones under mirobody/collect/providers/; the file formats are the README's;
-     296/296 is the README's own gated number -- NOTHING here is gated, so
-     re-read it off the README before re-rendering (211 on 2026-09-14, 296 on
-     2026-09-30). The alias count left with the 1.5.0 re-cut; the six
-     languages are the ones test_engine_coverage.py carries. A draft line
-     reading "7,354-case public eval" was cut: that set is not public.
-
-     The footer command is `uvx`, not `pip install`: since 1.4.2 the README's
-     first command installs nothing, and this one REPRODUCES the card's own ②
-     claim -- run it and 718-7 is what comes back.
-
-     LANGUAGE: the card is English, and the ONE place CJK appears is stage ②,
-     where it is the evidence rather than decoration -- four spellings landing
-     on one code IS the product. Stages ① and ③ were Chinese-only until
-     2026-09-14, which read as a translated card rather than a demonstration. -->
-<html><head><meta charset="utf-8"><style>
-*{margin:0;padding:0;box-sizing:border-box}
+     It carries the README's own pitch: the headline, the two ways to run it,
+     and a real frame of the product (frame 124 of docs/images/ask-own-demo.gif,
+     saved as social-preview-frame.png). 317/317 is the README's gated score;
+     nothing here is gated, so re-read it off the README before re-rendering. -->
+<html><head><meta charset="utf-8"><title>Mirobody social preview</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
 html,body{width:1280px;height:640px;overflow:hidden}
-body{background:#141a21;color:#e8edf2;position:relative;
-  font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Hiragino Sans",sans-serif;}
-body::before{content:"";position:absolute;inset:0;
-  background:radial-gradient(1000px 560px at 84% 8%, rgba(138,79,176,.30), transparent 64%);}
-.page{position:relative;z-index:1;height:640px;padding:52px 64px 46px;
-  display:flex;flex-direction:column}
-.top{display:flex;justify-content:space-between;align-items:baseline}
-.mark{font-size:23px;letter-spacing:.30em;text-transform:uppercase;color:#9bb1c9;font-weight:600}
-.lic{font-size:20px;color:#7a8aa0;letter-spacing:.02em}
-h1{margin-top:26px;font-size:57px;line-height:1.06;font-weight:700;letter-spacing:-.022em;color:#fff}
-h1 em{font-style:normal;color:#c79ae0}
-.sub{margin-top:17px;font-size:26px;line-height:1.42;color:#b9c6d4;max-width:52ch}
-.sub b{color:#fff;font-weight:600}
-.rule{margin:30px 0 0;height:1px;background:linear-gradient(90deg,#2c3947,#2c3947 62%,transparent)}
-.stages{margin-top:26px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:34px;flex:1}
-.st{display:flex;flex-direction:column;gap:11px;justify-content:center}
-.hd{font-size:19px;letter-spacing:.13em;font-weight:700;text-transform:uppercase}
-.st1 .hd{color:#7fb0e0} .st2 .hd{color:#c79ae0} .st3 .hd{color:#5cc98a}
-.li{font-size:21px;line-height:1.42;color:#c3cfdb}
-.mono{font-family:"SF Mono",Menlo,Consolas,monospace}
-.code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:31px;font-weight:700;color:#5cc98a;letter-spacing:-.01em}
-.arrow{color:#8a4fb0;font-size:20px;line-height:1}
-.foot{margin-top:20px;font-size:20px;color:#8598ab;letter-spacing:.01em}
+body{font-family:Inter,"Helvetica Neue",Arial,"PingFang SC",sans-serif;color:#e6edf3;
+  background:radial-gradient(900px 520px at 100% 0%,rgba(35,92,171,.35),transparent 60%),
+             radial-gradient(700px 480px at 0% 100%,rgba(105,68,154,.25),transparent 60%),#0d1117}
+.page{position:relative;width:1280px;height:640px;padding:56px 64px}
+.mark{font-size:22px;font-weight:700;letter-spacing:.32em;color:#9db8e8}
+.left{position:absolute;left:64px;top:118px;width:560px}
+h1{font-size:54px;line-height:1.08;letter-spacing:-.02em;font-weight:750;color:#fff}
+h1 em{font-style:normal;color:#7aa7f0}
+.sub{margin-top:22px;font-size:23px;line-height:1.45;color:#aab8c6}
+.chips{margin-top:30px;display:flex;flex-direction:column;gap:12px}
+.chip{display:inline-flex;align-items:center;gap:12px;font-size:20px;color:#dbe4ec;
+  padding:10px 16px;border:1px solid rgba(255,255,255,.14);border-radius:12px;
+  background:rgba(255,255,255,.04);width:max-content}
+.chip code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:18px;color:#7aa7f0}
+.dot{width:10px;height:10px;border-radius:50%}
+.foot{position:absolute;left:64px;bottom:44px;font-size:18px;color:#8598ab}
 .foot b{color:#dbe4ec;font-weight:600}
+.shot{position:absolute;right:-40px;top:96px;width:640px;border-radius:16px;overflow:hidden;
+  border:1px solid rgba(255,255,255,.16);box-shadow:0 30px 80px rgba(0,0,0,.55)}
+.shot .bar{height:30px;background:#1b2330;display:flex;align-items:center;gap:7px;padding-left:14px}
+.shot .bar i{width:11px;height:11px;border-radius:50%;background:#3a4556;display:block}
+.shot img{display:block;width:100%}
 </style></head><body><div class="page">
-  <div class="top">
-    <div class="mark">Mirobody</div>
-    <div class="lic">Apache-2.0 · self-hosted</div>
-  </div>
+  <div class="mark">MIROBODY</div>
 
-  <h1>Your health record, on <em>your own machine</em></h1>
-  <div class="sub">Lab reports, wearables and genomics in one place — and an AI
-    that can <b>actually read them</b>.</div>
-
-  <div class="rule"></div>
-
-  <div class="stages">
-    <div class="st st1">
-      <div class="hd">① Collect</div>
-      <div class="li">Checkup PDFs · lab photos<br>genotype files · a sentence you type</div>
-      <div class="li mono">Apple&nbsp;Health · Garmin<br>Oura · WHOOP</div>
-    </div>
-    <div class="st st2">
-      <div class="hd">② Translate</div>
-      <div class="li mono">血红蛋白 · ヘモグロビン<br>hemoglobin · 血紅素</div>
-      <div class="arrow">↓</div>
-      <div class="code">LOINC 718-7</div>
-    </div>
-    <div class="st st3">
-      <div class="hd">③ Agent</div>
-      <div class="li">“How has my A1c moved<br>over the last two years?”</div>
-      <div class="li">→ lab values and watch data on<br>one chart, citing the page it read</div>
+  <div class="left">
+    <h1>Turn scattered health data into <em>answers you can trace.</em></h1>
+    <div class="sub">Lab reports, wearables and genetic files in one <span style="white-space:nowrap">self-hosted</span> record.</div>
+    <div class="chips">
+      <div class="chip"><span class="dot" style="background:#7aa7f0"></span><code>./deploy.sh</code> + one model key</div>
+      <div class="chip"><span class="dot" style="background:#6fcf97"></span>or every model local, on llama.cpp</div>
     </div>
   </div>
 
-  <div class="foot"><b>296/296</b> checkup-panel coverage &nbsp;·&nbsp; <b>6 languages</b>, one code &nbsp;·&nbsp; <b class="mono">uvx mirobody resolve 血红蛋白</b></div>
+  <div class="shot"><div class="bar"><i></i><i></i><i></i></div><img src="social-preview-frame.png" alt=""></div>
+
+  <div class="foot"><b>317/317</b> checkup-panel coverage &nbsp;·&nbsp; Apache-2.0 &nbsp;·&nbsp; <b>github.com/thetahealth/mirobody</b></div>
 </div></body></html>

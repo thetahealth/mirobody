@@ -37,12 +37,13 @@ files the preset fetches, document reader included; memory is the most
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, Apple M1 Pro 16 GB, on its GPU | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
-| **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | about 20 GB | about 2 min (134 s median on the earlier set), Apple M4 Pro 48 GB, on its GPU | looked at | from an earlier set of 8 questions, each asked twice: 16 of 16 runs passed, no number the record lacks. Not yet run on the 24-question evaluation |
+| **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | 20.8 GB | about 2 min (138 s median), Apple M4 Pro 48 GB, on its GPU | looked at | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries |
 
 Small runs on any computer with 16 GB of memory and no GPU; the stack beside
 it takes about 1 GB more. Large wants a 32 GB Mac or a 24 GB NVIDIA GPU. The
-two rows come from different question sets, so they do not say which size
-answers better. Two other answering models were measured and dropped:
+two rows ran on different machines; on the same M4 Pro and record the small
+size graded 229 of 248 to the large size's 240, at about a ninth of its time
+per answer ([model-choice.md](model-choice.md)). Two other answering models were measured and dropped:
 MiniCPM5-1B answered 2 of the 24 questions with every expected fact for 0.4 GB
 less download, and Qwen3.5-9B did not fit beside the stack on 16 GB.
 
