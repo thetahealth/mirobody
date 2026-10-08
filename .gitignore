@@ -112,14 +112,3 @@ eval/*
 
 # Local virtualenvs under any suffix (.venv-dev, .venv-py313, ...).
 .venv*/
-
-# Terminology data fetched from a GitHub release, not tracked here — see
-# mirobody/res/EXTERNAL.tsv and scripts/fetch_data.sh. All three were Git LFS
-# objects that every `git clone` paid 29 MB for, and the wheel has forbidden
-# all three since 1.3.0 (scripts/check_wheel_data.py). Named one by one, not
-# by glob: `mirobody/res/*.gz` would also swallow fhir_loinc_bundle.tar.gz,
-# which the resolver cannot run without and which stays tracked.
-mirobody/res/fhir_concept_graph.bin
-mirobody/res/fhir_meta.csv.gz
-mirobody/res/fhir_snomed_ct_bundle.tar.gz
-mirobody/res/*.partial
