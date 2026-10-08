@@ -3,7 +3,7 @@
 [English](local-models-roadmap.md) · **中文**
 
 Mirobody 不填任何 API key 也能跑：一个模型回答问题，一个模型读文档，都在同一台机器上
-（怎么跑见 [local-models.md](local-models.md)）。这一页记录 2026-09-30 的实测结果、它对「看图」
+（怎么跑见 [local-models.md](local-models.md)）。这一页记录从 2026-09-30 起的实测结果、它对「看图」
 意味着什么，以及让整套东西装进一台普通电脑的计划。
 
 ## 结论
@@ -12,8 +12,10 @@ Mirobody 不填任何 API key 也能跑：一个模型回答问题，一个模�
   合计 3.0 GB，跑在 llama.cpp 上，16 GB 内存、没有显卡就行。在现已发布的
   [`benchmarks/local_models/`](../benchmarks/local_models/README.md) 评测上，它 24 道题过了 19 道（Claude Code 评分 248 分得 215），12 份文档的 140 个印刷行全部存对，31 条日记条目写出 22 条；
   在 1.5.4 改 harness（[见下](#先改-harness)）之前，24 道题过了 16 道，140 个印刷行存对 45 个，31 条日记条目一条也没写出来。
-- **大号**是 Qwen3.8-27B（GSQ-RCO IQ3_S，13 GB），实测见下，用的是之前那套八道题：在这些题上答得和云端模型一样对，也能看照片，
-  但要约 20 GB 内存：32 GB 内存的 Mac，或 24 GB 显存的显卡。它还没有跑过 24 道题的评测。
+- **大号**是 Qwen3.8-27B（GSQ-RCO IQ3_S，13 GB），能看照片。在评测的 24 道题上得 248 分里的 240 分，
+  同一台机器上的小号 229 分，云端模型 237–247 分；140 个印刷行存对 139 个，31 条日记条目写出 29 条
+  （[实测](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)，英文）。
+  在 Apple M4 Pro 的 GPU 上每次回答约 2 分钟，要约 20 GB 内存：32 GB 内存的 Mac，或 24 GB 显存的显卡。
 - **1.6.0 交付目标**：把这两个小模型针对 Mirobody 做后训练，作为 Mirobody 自己的模型发布（[再训练](#再训练)），
   合计约 3 GB，和今天的小号一样，16 GB 内存、没有显卡就能跑。是两个模型，不合并成一个。只有通过了和被替换的模型同样的评测，才替换默认。
 - **看图**：GLM-OCR 只读印刷的文字和表格，别的一概不会。看懂一张照片拍的是什么，比如一盘菜的热量、一块皮疹，
@@ -42,7 +44,8 @@ Apple M4 Pro 48 GB，llama.cpp b11269，demo 数据。八道题各问两遍：�
 
 耗时只在同一台机器、同一时段内可比。产出这些数字的评测工具没有发布；取代它的评测是
 [`benchmarks/local_models/`](../benchmarks/local_models/README.md)：通过产品自己的 API 问 24 道题、读 12 份文档和 15 句日记，
-云端参照和本地两种大小一起跑。
+云端参照和本地两种大小一起跑。在它上面、同一台 M4 Pro 上（2026-10-08），大号得 240 分，小号 229 分
+（[同一台机器上的小号和大号](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)，英文）。
 
 ### MiniCPM5-2B 细看
 
@@ -125,7 +128,8 @@ GLM-OCR 官方只有四种提示：`Text Recognition:`、`Table Recognition:`、
 
 - **许可**：MiniCPM5-2B 是 Apache-2.0，GLM-OCR 权重是 MIT，两家都给了官方微调路径
   （MiniCPM：TRL + PEFT、LLaMA-Factory、ms-swift、unsloth；GLM-OCR：LLaMA-Factory 教程）。
-- **老师模型**：大号 27B 每次都通过，并按报告印的范围判断。
+- **老师模型**：大号 27B 在评测的题目上得 248 分里的 240 分，并按报告印的范围判断。
+  它也说了一个工具没返回过的 SLCO1B1 位点，所以 P1 只留每项检查都过的运行。
 - **能算出来的奖励**：回答里每个数在不在记录里，可以机械地核对，也能用来筛老师的运行。
 - **零标注成本的数据**：demo 生成器能造任意多的人和时间序列；从已知数值渲染出的报告，天生带标注。
 
