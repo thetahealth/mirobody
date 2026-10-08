@@ -58,11 +58,11 @@ start command for Windows, Linux and macOS.
 | Answers | MiniCPM5-2B, Q4_K_M, text only | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO), with its vision projector |
 | Reads documents | GLM-OCR-0.9B | GLM-OCR-0.9B |
 | Download, reader included | 3.0 GB | 14.5 GB |
-| Memory, both models loaded | 5.7 GB at most while answering | about 20 GB |
+| Memory, both models loaded | 5.7 GB at most while answering | 20.8 GB at most while answering |
 | Runs on | any computer with 16 GB of memory, no GPU: Windows, Linux or macOS | a 32 GB Mac, or a 24 GB NVIDIA GPU |
-| Median answer | 29 s, Apple M1 Pro 16 GB, on its GPU | about 2 min (134 s), Apple M4 Pro 48 GB, on its GPU |
+| Median answer | 29 s, Apple M1 Pro 16 GB, on its GPU | about 2 min (138 s), Apple M4 Pro 48 GB, on its GPU |
 | A photo in the chat | read as its OCR text: it cannot see | looked at |
-| On the evaluation | 19 of 24 questions passed (grade 215 of 248), 140 of 140 printed rows, 22 of 31 journal entries | 16 of 16 runs of an earlier 8-question set, no number the record lacks; not run on the 24 questions below |
+| On the evaluation | 19 of 24 questions passed (grade 215 of 248), 140 of 140 printed rows, 22 of 31 journal entries | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries; the small size scored 229 on the same machine and record |
 
 The answer times are Apple silicon's, where llama.cpp runs on the GPU. With
 no GPU it is minutes, not seconds, and how many depends on the processor. In
@@ -164,7 +164,8 @@ with every image kept home.
 | | Runs on | Questions: grade | Questions: passed | Median answer | Printed rows stored, 12 documents | Journal entries, 15 sentences |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | MiniCPM5-2B, small | Apple M1 Pro 16 GB | 215 of 248 | 19 of 24 | 29 s | 140 of 140 | 22 of 31 |
-| Qwen3.8-27B, large | Apple M4 Pro 48 GB | not run on these | 16 of 16, an earlier set | 134 s | 27 of 27, the four demo documents | not measured |
+| MiniCPM5-2B, small | Apple M4 Pro 48 GB | 229 of 248 | 20 of 24 | 15 s | 140 of 140 | 24 of 31 |
+| Qwen3.8-27B, large | Apple M4 Pro 48 GB | 240 of 248 | 22 of 24 | 138 s | 139 of 140 | 29 of 31 |
 | DeepSeek V4.1 Flash | Together | 245 of 248 | 23 of 24 | 4.2 s | 138 of 140 | 29 of 31 |
 | Claude Sonnet 5.5 | Google Vertex | 247 of 248 | 23 of 24 | 9.0 s | 140 of 140 | 30 of 31 |
 | Claude Opus 5.5 | Google Vertex | 247 of 248 | 23 of 24 | 14.9 s | 139 of 140 | 29 of 31 |
@@ -182,10 +183,12 @@ with every image kept home.
   an earlier DeepSeek run 40 of them came from the 7-page check-up book. With
   the table rules in front ([below](#with-the-table-rules-in-front)) the
   cloud models' fell to 26–41.
-- The large size's row is the earlier measurement that `config.llm.yaml` and
-  [local-models.md](local-models.md) carry: 8 questions asked twice, and the
-  four demo documents. It does not fit on the 16 GB machine the rest ran on.
-- **Records and commits.** The small size ran entirely at 958fae5, on a record
+- **The two M4 Pro rows** ran back to back on 2026-10-08 at 7372b096, on a
+  record loaded then (`qa5`), with an older llama.cpp build (b11269). Large
+  does not fit on the 16 GB machine the rest ran on; small ran beside it so
+  the two compare on one machine and record
+  ([benchmarks](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)).
+- **Records and commits.** The M1 Pro small row ran entirely at 958fae5, on a record
   (`qa4`) loaded through the final pipeline, as a user's would be today. The
   cloud models answered from the record loaded at 490a0e1 (`qa3`, two
   documents read again at 321aa2c), which was not reloaded. DeepSeek, Sonnet
@@ -211,6 +214,10 @@ What the table says:
 - **MiniCPM5-2B**, on a 16 GB laptop with nothing sent anywhere, stored every
   printed row too, every one with its unit and range as printed, and is 32
   points behind the top three on the questions.
+- **Qwen3.8-27B**, the large size, is 7 points behind the top three and 11
+  ahead of the small size on the same machine, at about nine times its time
+  per answer. Of its 8 lost points, 3 went to an SLCO1B1 variant it named
+  that no tool returned, the one invented value in its 24 answers.
 
 ### With the table rules in front
 
@@ -386,8 +393,8 @@ average or a chart's window itself. Nothing about you leaves the machine.
 ### Privacy first, on a big machine
 
 The large size, on a 32 GB Mac or a 24 GB NVIDIA GPU: pick it on the same
-page. About 2 minutes an answer on an M4 Pro, and the only local size that
-looks at a photo.
+page. About 2 minutes an answer on an M4 Pro, graded 240 of 248 (the small
+size 229 on the same machine), and the only local size that looks at a photo.
 
 ### The best answers
 

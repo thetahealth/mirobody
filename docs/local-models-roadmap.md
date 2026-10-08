@@ -4,7 +4,7 @@
 
 Mirobody can run with no API key: one model answers questions, another reads
 documents, both on the same machine ([local-models.md](local-models.md) is how
-to run them). This page records what was measured on 2026-09-30, what it means
+to run them). This page records what was measured from 2026-09-30, what it means
 for photos, and the plan for the whole thing to fit on an ordinary computer.
 
 ## Conclusion
@@ -17,11 +17,13 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
   140 printed rows of its 12 documents and writes 22 of 31 journal entries; before 1.5.4's
   harness changes ([below](#first-the-harness)) it passed 16 of 24 questions,
   stored 45 of 140 printed rows and wrote none of 31 journal entries.
-- **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), measured below
-  on the earlier set of eight questions: as correct as the hosted models on
-  them, and it sees photos, but it needs about 20 GB of memory: a Mac with
-  32 GB, or a GPU with 24 GB. It has not been run on the 24-question
-  evaluation yet.
+- **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), and it sees
+  photos. On the evaluation's 24 questions it scored 240 of 248, against 229
+  for the small size on the same machine and 237–247 for the hosted models,
+  and it stored 139 of 140 printed rows and 29 of 31 journal entries
+  ([measured](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)).
+  It takes about 2 minutes an answer on an Apple M4 Pro's GPU and about
+  20 GB of memory: a Mac with 32 GB, or a GPU with 24 GB.
 - **1.6.0 ships the goal**: the same two small models post-trained for
   Mirobody, as Mirobody's own model ([Then, training](#then-training)), about
   3 GB together, in 16 GB of memory and without a GPU, like the small size
@@ -63,7 +65,9 @@ Timings compare only within one session on one machine. The harness that
 produced these was never published; the evaluation that replaced it is
 [`benchmarks/local_models/`](../benchmarks/local_models/README.md): 24
 questions, 12 documents and 15 journal sentences through the product's own
-API, with cloud references run beside the local sizes.
+API, with cloud references run beside the local sizes. On it, on the same
+M4 Pro (2026-10-08), the large size scored 240 of 248 and the small size 229
+([small and large on one machine](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)).
 
 ### MiniCPM5-2B, in detail
 
@@ -181,8 +185,10 @@ What is already in place:
 - **Licences**: MiniCPM5-2B is Apache-2.0 and GLM-OCR's weights are MIT. Both
   publish fine-tuning routes (MiniCPM: TRL with PEFT, LLaMA-Factory, ms-swift,
   unsloth; GLM-OCR: a LLaMA-Factory guide).
-- **A teacher**: the large 27B model passes every run and judges against the
-  printed range.
+- **A teacher**: the large 27B model scored 240 of 248 on the evaluation's
+  questions and judged against the printed range. It also named one SLCO1B1
+  variant no tool returned, which is why P1 keeps only runs that pass every
+  check.
 - **A reward that can be computed**: whether each number in an answer is in the
   record is checked mechanically, which also filters the teacher's runs.
 - **Data at no labelling cost**: the demo generator makes any number of people

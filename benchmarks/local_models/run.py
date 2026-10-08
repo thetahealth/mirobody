@@ -827,8 +827,13 @@ def main() -> None:
 
     run_path = (out.parent if args.out else RESULTS) / "run.json"
     run = read_json(run_path, {}) or {}
-    run.update(environment(corpus))
+    env = environment(corpus)
+    # The top level is the first run's environment and each run keeps its own:
+    # a run on another machine used to overwrite the machine the others cite.
+    for key, value in env.items():
+        run.setdefault(key, value)
     run.setdefault("sizes" if args.size else "references", {})[label] = {"started": meta["started"], "finished": meta["finished"],
+                                              "environment": env,
                                               "parts": meta["parts"], "models": meta["models"],
                                               "passes": [{k: p.get(k) for k in ("parts", "started", "finished",
                                                                                 "mirobody_commit", "mirobody_dirty")}

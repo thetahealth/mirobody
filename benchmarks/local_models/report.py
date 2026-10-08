@@ -41,9 +41,12 @@ DROPPED = {
 
 def measured() -> list[str]:
     """The sizes with results, smallest first, each followed by its reruns on
-    newer code (`small-v2`), then the references (`results/ref-*`, a model
-    the stack was pointed at by configuration)."""
-    sizes = [d.name for s in ORDER for d in [RESULTS / s, *sorted(RESULTS.glob(f"{s}-v*"))]
+    newer code (`small-v2`) and on other machines (`small-m4pro`), then the
+    references (`results/ref-*`, a model the stack was pointed at by
+    configuration)."""
+    sizes = [d.name for s in ORDER
+             for d in [RESULTS / s, *sorted(RESULTS.glob(f"{s}-v*")),
+                       *sorted(p for p in RESULTS.glob(f"{s}-*") if not p.name.startswith(f"{s}-v"))]
              if (d / "meta.json").exists()]
     # `-rules` runs are extraction only (README.md, "Cloud models with the rules in front"); they have their own table.
     return sizes + sorted(p.name for p in RESULTS.glob("ref-*") if (p / "meta.json").exists() and p.name not in DROPPED
@@ -155,6 +158,7 @@ def results_json() -> dict:
         runs = read_json(d / "qa.json", {"runs": []})["runs"]
         out["sizes"][size] = {
             "agent": agent_of(size),
+            "environment": (run.get("sizes", {}).get(size) or run.get("references", {}).get(size) or {}).get("environment"),
             "openrouter_usd": [p.get("openrouter_usd") for p in meta.get("passes") or [] if p.get("openrouter_usd")],
             "models": meta.get("models"),
             "automatic": summarize(d),
@@ -179,8 +183,8 @@ def results_json() -> dict:
 
 
 def _large_elsewhere() -> dict:
-    """The large size does not fit this machine; its figures are the ones
-    config.llm.yaml carries, measured elsewhere."""
+    """The setup page's sizes with no run here: the figures config.llm.yaml
+    carries for them."""
     try:
         import yaml
 
@@ -188,7 +192,7 @@ def _large_elsewhere() -> dict:
     except Exception:
         return {}
     return {t["id"]: {k: t.get(k) for k in ("agent", "memory_gb", "answer_s", "measured_on")}
-            for t in tiers if t["id"] not in set(measured())}
+            for t in tiers if t.get("agent") not in {agent_of(m) for m in measured()}}
 
 
 def runs_by_size(sizes: list[str]) -> dict[str, dict[str, dict]]:

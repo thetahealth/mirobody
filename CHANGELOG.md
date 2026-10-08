@@ -313,9 +313,10 @@
   Pro's GPU, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
   all 140 printed rows of 12 documents stored with their units and ranges as
   printed, and 22 of 31 journal entries written. Large, Qwen3.8-27B:
-  14.5 GB, about 20 GB of memory; on an Apple M4 Pro's GPU 16 of 16 earlier test
-  questions with no number the record lacks, about two minutes an answer, 27
-  of 27 demo readings. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
+  14.5 GB, 20.8 GB of memory at most; on an Apple M4 Pro's GPU 22 of 24
+  questions passed (grade 240 of 248; small 229 on the same machine and
+  record), 139 of 140 printed rows and 29 of 31 journal entries, about two
+  minutes an answer. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
   the 1B answered 2 of the 24 questions with every expected fact, and the 9B
   did not fit beside the stack on 16 GB. `docker compose --profile local`
   (NVIDIA) or `--profile local-cpu` runs the server next to the app. With no
