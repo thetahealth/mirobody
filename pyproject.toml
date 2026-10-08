@@ -225,7 +225,7 @@ agent = [
     # Floor raised to 0.7.14 on 2026-09-16; the API this repository binds
     # (`create_deep_agent`, `HarnessProfile`, the backends, `get_model_provider`)
     # is byte-identical across 0.7.5..0.7.14, and 0.7.14 pulls langchain 1.4.
-    "deepagents>=0.7.14",
+    "deepagents>=0.7.19",
     # In-process JS/TS interpreter middleware — the agent's code sandbox, with
     # no external sandbox service or key. 0.3.7 is deepagents 0.7.14's floor
     # for its own `quickjs` extra.
