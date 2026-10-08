@@ -60,14 +60,14 @@ start command for Windows, Linux and macOS.
 | Download, reader included | 3.0 GB | 14.5 GB |
 | Memory, both models loaded | 5.7 GB at most while answering | 20.8 GB at most while answering |
 | Runs on | any computer with 16 GB of memory, no GPU: Windows, Linux or macOS | a 32 GB Mac, or a 24 GB NVIDIA GPU |
-| Median answer | 29 s, Apple M1 Pro 16 GB, on its GPU | about 2 min (138 s), Apple M4 Pro 48 GB, on its GPU |
+| Median answer | 29 s, 16 GB Apple-silicon laptop, on its GPU | about 2 min (138 s), 48 GB Apple-silicon machine, on its GPU |
 | A photo in the chat | read as its OCR text: it cannot see | looked at |
 | On the evaluation | 19 of 24 questions passed (grade 215 of 248), 140 of 140 printed rows, 22 of 31 journal entries | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries; the small size scored 229 on the same machine and record |
 
 The answer times are Apple silicon's, where llama.cpp runs on the GPU. With
 no GPU it is minutes, not seconds, and how many depends on the processor. In
 llama.cpp's CPU image on 4 vCPUs (2026-10-07), MiniCPM5-2B wrote about 18
-tokens a second on an Apple M1 Pro (colima's arm64 VM), a first answer in 2–3
+tokens a second on a 16 GB Apple-silicon laptop (colima's arm64 VM), a first answer in 2–3
 minutes, and 3 to 7 on an Intel Xeon Gold 5220R (an external review), a first
 answer in up to about 15 minutes with the download, a report photo in up to
 about 9 and a PDF page in up to about 12. Later turns reuse the server's
@@ -163,9 +163,9 @@ with every image kept home.
 
 | | Runs on | Questions: grade | Questions: passed | Median answer | Printed rows stored, 12 documents | Journal entries, 15 sentences |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| MiniCPM5-2B, small | Apple M1 Pro 16 GB | 215 of 248 | 19 of 24 | 29 s | 140 of 140 | 22 of 31 |
-| MiniCPM5-2B, small | Apple M4 Pro 48 GB | 229 of 248 | 20 of 24 | 15 s | 140 of 140 | 24 of 31 |
-| Qwen3.8-27B, large | Apple M4 Pro 48 GB | 240 of 248 | 22 of 24 | 138 s | 139 of 140 | 29 of 31 |
+| MiniCPM5-2B, small | 16 GB Apple-silicon laptop | 215 of 248 | 19 of 24 | 29 s | 140 of 140 | 22 of 31 |
+| MiniCPM5-2B, small | 48 GB Apple-silicon machine | 229 of 248 | 20 of 24 | 15 s | 140 of 140 | 24 of 31 |
+| Qwen3.8-27B, large | 48 GB Apple-silicon machine | 240 of 248 | 22 of 24 | 138 s | 139 of 140 | 29 of 31 |
 | DeepSeek V4.1 Flash | Together | 245 of 248 | 23 of 24 | 4.2 s | 138 of 140 | 29 of 31 |
 | Claude Sonnet 5.5 | Google Vertex | 247 of 248 | 23 of 24 | 9.0 s | 140 of 140 | 30 of 31 |
 | Claude Opus 5.5 | Google Vertex | 247 of 248 | 23 of 24 | 14.9 s | 139 of 140 | 29 of 31 |
@@ -183,12 +183,12 @@ with every image kept home.
   an earlier DeepSeek run 40 of them came from the 7-page check-up book. With
   the table rules in front ([below](#with-the-table-rules-in-front)) the
   cloud models' fell to 26–41.
-- **The two M4 Pro rows** ran back to back on 2026-10-08 at 7372b096, on a
+- **The two rows from the 48 GB machine** ran back to back on 2026-10-08 at 7372b096, on a
   record loaded then (`qa5`), with an older llama.cpp build (b11269). Large
   does not fit on the 16 GB machine the rest ran on; small ran beside it so
   the two compare on one machine and record
   ([benchmarks](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)).
-- **Records and commits.** The M1 Pro small row ran entirely at 958fae5, on a record
+- **Records and commits.** The small row from the 16 GB laptop ran entirely at 958fae5, on a record
   (`qa4`) loaded through the final pipeline, as a user's would be today. The
   cloud models answered from the record loaded at 490a0e1 (`qa3`, two
   documents read again at 321aa2c), which was not reloaded. DeepSeek, Sonnet
@@ -384,8 +384,8 @@ pins no host: OpenRouter routes it under your account's settings.
 
 The small size: `./deploy.sh`, then **100% on this machine** on the page it
 links. 16 GB of memory, no GPU, 3.0 GB of models to download and about 0.7 GB
-of images. Expect about 29 s an answer on an M1 Pro's GPU; on a CPU alone a
-first answer takes minutes, from 2–3 on an M1 Pro's cores to about 15 on a
+of images. Expect about 29 s an answer on an Apple-silicon laptop's GPU; on a CPU alone a
+first answer takes minutes, from 2–3 on an Apple-silicon laptop's cores to about 15 on a
 4-vCPU x86 server. Expect every printed row of a lab report stored, and most
 questions answered right (19 of 24); it is weakest where it works out an
 average or a chart's window itself. Nothing about you leaves the machine.
@@ -393,7 +393,7 @@ average or a chart's window itself. Nothing about you leaves the machine.
 ### Privacy first, on a big machine
 
 The large size, on a 32 GB Mac or a 24 GB NVIDIA GPU: pick it on the same
-page. About 2 minutes an answer on an M4 Pro, graded 240 of 248 (the small
+page. About 2 minutes an answer on a 48 GB Apple-silicon machine, graded 240 of 248 (the small
 size 229 on the same machine), and the only local size that looks at a photo.
 
 ### The best answers
@@ -515,8 +515,8 @@ What the numbers cannot tell you:
   handwriting typefaces, then scanned or photographed: not written by people.
 - **One grader**, Claude Code, which also wrote the cases. The rubric and
   every grade's reason are published, so a reader can re-grade.
-- **Speed on two machines.** The local timings are an M1 Pro's and an M4
-  Pro's, on their GPUs; the CPU-only figures above are a separate measurement
+- **Speed on two machines.** The local timings are a 16 GB laptop's and a 48 GB
+  machine's, on their GPUs; the CPU-only figures above are a separate measurement
   on 4 vCPUs. The cloud ones depend on the host's load that night.
 - **GPT-6.1 Sol was dropped**: even pinned to Azure, OpenRouter kept it
   rate-limited upstream (9 of 24 questions needed up to four retry rounds and

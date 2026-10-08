@@ -28,7 +28,7 @@ files into coded rows and explains a report only from resolved evidence.
 - **The model key comes from the user.** Ask for it, or for which provider they
   use, or whether they want every model on this machine instead (llama.cpp:
   the default small pair needs 16 GB of memory and no GPU, and on a CPU alone
-  a first answer takes minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server; the large size needs about 20 GB;
+  a first answer takes minutes: 2–3 on an Apple-silicon laptop's cores, up to about 15 on a 4-vCPU x86 server; the large size needs about 20 GB;
   `docs/local-models.md`). Never invent a key, never
   print one back, never paste it into a chat reply. Write it into `.env` and
   nowhere else, or leave it to the first-run page `./deploy.sh` links.

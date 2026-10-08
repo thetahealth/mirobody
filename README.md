@@ -53,7 +53,7 @@ From the cloned folder, start the stack with llama.cpp's CPU image beside it:
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-The script points Mirobody at [llama.cpp](https://github.com/ggml-org/llama.cpp), which serves a small answering model and a document reader; the setup page has nothing to ask. Allow 16 GB of memory, at least 8 GB of it for Docker, and a one-time download of about 3.7 GB. With no GPU a first answer takes minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server. On a Mac, running `llama-server` natively uses the GPU: about 30 s per answer on a 16 GB M1 Pro.
+The script points Mirobody at [llama.cpp](https://github.com/ggml-org/llama.cpp), which serves a small answering model and a document reader; the setup page has nothing to ask. Allow 16 GB of memory, at least 8 GB of it for Docker, and a one-time download of about 3.7 GB. With no GPU a first answer takes minutes: 2–3 on an Apple-silicon laptop's cores, up to about 15 on a 4-vCPU x86 server. On a Mac, running `llama-server` natively uses the GPU: about 30 s per answer on a 16 GB Apple-silicon laptop.
 
 <p align="center">
   <img src="docs/images/setup-demo.gif" alt="The first-run page: a model name edited beside an OpenRouter key, then 100% on this machine: the page finds the llama.cpp server, lists the models it serves, and both models are ready" width="880">

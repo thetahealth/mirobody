@@ -309,11 +309,11 @@
   server. The shipped preset runs on llama.cpp's `llama-server`: GLM-OCR-0.9B
   reads documents, and one of two sizes answers, picked on the setup page by
   what each downloads and needs. Small, MiniCPM5-2B, the default: 3.0 GB with
-  the reader, 5.7 GB of memory at most, 29 s a median answer on a 16 GB M1
-  Pro's GPU, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
+  the reader, 5.7 GB of memory at most, 29 s a median answer on a 16 GB Apple-silicon
+  laptop's GPU, 19 of 24 evaluation questions passed (Claude Code grade 215 of 248),
   all 140 printed rows of 12 documents stored with their units and ranges as
   printed, and 22 of 31 journal entries written. Large, Qwen3.8-27B:
-  14.5 GB, 20.8 GB of memory at most; on an Apple M4 Pro's GPU 22 of 24
+  14.5 GB, 20.8 GB of memory at most; on a 48 GB Apple-silicon machine's GPU 22 of 24
   questions passed (grade 240 of 248; small 229 on the same machine and
   record), 139 of 140 printed rows and 29 of 31 journal entries, about two
   minutes an answer. MiniCPM5-1B and Qwen3.5-9B were evaluated and dropped:
@@ -321,7 +321,7 @@
   did not fit beside the stack on 16 GB. `docker compose --profile local`
   (NVIDIA) or `--profile local-cpu` runs the server next to the app. With no
   GPU it is minutes, not seconds, and how many depends on the processor. In
-  llama.cpp's CPU image on 4 vCPUs (2026-10-07), on an Apple M1 Pro in
+  llama.cpp's CPU image on 4 vCPUs (2026-10-07), on a 16 GB Apple-silicon laptop in
   colima's arm64 VM, MiniCPM5-2B read prompts at about 50 tokens a second and
   wrote at about 18, a 6.8k-token prompt was answered in 137 s, GLM-OCR read
   a photographed page in about 17 s, the two models held about 6.0 GiB (so
@@ -947,7 +947,7 @@ pins the decisions.
   `server-b11429` and no empty proxy variable.
 - **Local-model timings name the hardware they ran on, and the download
   counts the images.**
-  - The only CPU figures were an Apple M1 Pro's, in colima's arm64 VM:
+  - The only CPU figures were a 16 GB Apple-silicon laptop's, in colima's arm64 VM:
     about 18 tokens a second, and a first answer in 2–3 minutes. They were
     given as what any 4-core machine does. An external review on a 4-vCPU
     Intel Xeon Gold 5220R measured 3 to 7 tokens a second, and a first
@@ -957,7 +957,7 @@ pins the decisions.
     give both machines. They say the Apple answer times are on the GPU, and
     count about 0.7 GB of images (about 3 GB with the NVIDIA image) beside
     the 3.0 GB of models.
-  - The setup page's tiers read "Measured on Apple M1 Pro GPU (Metal), 16
+  - The setup page's tiers read "Measured on 16 GB Apple-silicon laptop GPU (Metal), 16
     GB".
   - Qwen3.8-27B is no longer said to answer better. Its figures come from
     the earlier eight-question set, and it has not been run on the

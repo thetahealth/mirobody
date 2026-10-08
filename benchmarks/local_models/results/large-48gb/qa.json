@@ -1,5 +1,5 @@
 {
- "size": "large-m4pro",
+ "size": "large-48gb",
  "agent": "qwen3.8-27b",
  "cases": "cases.jsonl",
  "runs": [

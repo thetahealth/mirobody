@@ -31,7 +31,7 @@
      "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
      "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
      "mirobody_dirty": null,
-     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "machine": "Apple silicon laptop, 16 GiB, macOS",
      "python": "3.12.7"
     }
    },
@@ -61,7 +61,7 @@
      "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
      "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
      "mirobody_dirty": null,
-     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "machine": "Apple silicon laptop, 16 GiB, macOS",
      "python": "3.12.7"
     }
    },
@@ -86,7 +86,7 @@
      "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
      "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
      "mirobody_dirty": null,
-     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "machine": "Apple silicon laptop, 16 GiB, macOS",
      "python": "3.12.7"
     }
    }
@@ -128,7 +128,7 @@
      "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
      "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
      "mirobody_dirty": null,
-     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "machine": "Apple silicon laptop, 16 GiB, macOS",
      "python": "3.12.7"
     }
    },
@@ -158,7 +158,7 @@
      "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
      "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
      "mirobody_dirty": null,
-     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "machine": "Apple silicon laptop, 16 GiB, macOS",
      "python": "3.12.7"
     }
    },
@@ -183,7 +183,7 @@
      "mirobody_src": "<scratch>/ocrbench/mirobody-src-fcfbf78",
      "mirobody_commit": "fcfbf7872567abdbc000542dbff9d8c5ffcfa078",
      "mirobody_dirty": null,
-     "machine": "Apple M1 Pro, 16 GiB, Darwin 26.6.2",
+     "machine": "Apple silicon laptop, 16 GiB, macOS",
      "python": "3.12.7"
     }
    }

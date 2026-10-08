@@ -55,7 +55,7 @@ This starts [llama.cpp](https://github.com/ggml-org/llama.cpp)'s CPU image
 beside the stack, so no model key is needed and your documents and questions
 stay on the machine; the models download once from Hugging Face. Allow 16 GB
 of memory, at least 8 GB of it for Docker. With no GPU a first answer takes
-minutes: 2–3 on an M1 Pro's cores, up to about 15 on a 4-vCPU x86 server.
+minutes: 2–3 on an Apple-silicon laptop's cores, up to about 15 on a 4-vCPU x86 server.
 `COMPOSE_PROFILES=local` uses an NVIDIA GPU instead, and on a Mac
 `llama-server` runs natively on the GPU. See
 [local models](https://github.com/thetahealth/mirobody/blob/main/docs/local-models.md).

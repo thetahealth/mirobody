@@ -141,7 +141,7 @@ services:
 
   # The same models with no GPU (`--profile local-cpu`), under the same name,
   # so the app reaches it at http://llama:8080/v1 as well. Slower: on 4 vCPUs
-  # (2026-10-07) a first answer took 2-3 minutes on an Apple M1 Pro (colima)
+  # (2026-10-07) a first answer took 2-3 minutes on a 16 GB Apple-silicon laptop (colima)
   # and up to about 15 on an Intel Xeon Gold 5220R, download included. Both
   # models loaded held about 6.0 GiB in the container, so Docker needs at
   # least 8 GB of memory: Docker Desktop gives its VM half the computer's by

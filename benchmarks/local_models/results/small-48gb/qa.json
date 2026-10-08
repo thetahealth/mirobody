@@ -1,5 +1,5 @@
 {
- "size": "small-m4pro",
+ "size": "small-48gb",
  "agent": "minicpm5-2b",
  "cases": "cases.jsonl",
  "runs": [

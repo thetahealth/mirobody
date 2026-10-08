@@ -53,7 +53,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-脚本会把 Mirobody 指向 [llama.cpp](https://github.com/ggml-org/llama.cpp)，由它运行一个小型回答模型和一个文档识别模型，设置页无需再做选择。建议主机有 16 GB 内存，至少分配 8 GB 给 Docker；首次需下载约 3.7 GB。没有显卡时，第一个回答需要几分钟：M1 Pro 的 CPU 上约 2–3 分钟，4 vCPU 的 x86 服务器上最长约 15 分钟。在 Mac 上直接运行 `llama-server` 可以用上 GPU，16 GB 的 M1 Pro 每个回答约 30 秒。
+脚本会把 Mirobody 指向 [llama.cpp](https://github.com/ggml-org/llama.cpp)，由它运行一个小型回答模型和一个文档识别模型，设置页无需再做选择。建议主机有 16 GB 内存，至少分配 8 GB 给 Docker；首次需下载约 3.7 GB。没有显卡时，第一个回答需要几分钟：Apple 芯片笔记本的 CPU 上约 2–3 分钟，4 vCPU 的 x86 服务器上最长约 15 分钟。在 Mac 上直接运行 `llama-server` 可以用上 GPU，16 GB 的 Apple 芯片笔记本每个回答约 30 秒。
 
 <p align="center">
   <img src="docs/images/setup-demo.zh-CN.gif" alt="首次设置页：在 OpenRouter 的 Key 旁边修改模型名；再选择 100% 在本机运行：页面找到 llama.cpp 服务，列出它提供的模型，两个模型都已就绪" width="880">

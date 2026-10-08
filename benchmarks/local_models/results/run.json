@@ -23,7 +23,7 @@
   "models_max": 2
  },
  "machine": {
-  "chip": "Apple M1 Pro",
+  "chip": "16 GB Apple-silicon laptop",
   "memory_gb": 16,
   "os": "Darwin 26.6.2",
   "docker_vm": "colima 4 CPU, 8 GB"
@@ -426,7 +426,7 @@
     "memory_peak_footprint_mb": 4484.3
    }
   },
-  "small-m4pro": {
+  "small-48gb": {
    "started": "2026-10-08T11:23:28+08:00",
    "finished": "2026-10-08T11:36:32+08:00",
    "environment": {
@@ -454,7 +454,7 @@
      "models_max": 2
     },
     "machine": {
-     "chip": "Apple M4 Pro",
+     "chip": "Apple silicon",
      "memory_gb": 48,
      "os": "Darwin 26.6",
      "docker_vm": "colima 4 CPU, 6 GB"
@@ -614,7 +614,7 @@
     }
    ],
    "summary": {
-    "size": "small-m4pro",
+    "size": "small-48gb",
     "agent": "minicpm5-2b",
     "qa_pass": 20,
     "qa_n": 24,
@@ -654,7 +654,7 @@
     "memory_peak_footprint_mb": 4790.3
    }
   },
-  "large-m4pro": {
+  "large-48gb": {
    "started": "2026-10-08T11:36:49+08:00",
    "finished": "2026-10-08T13:29:43+08:00",
    "environment": {
@@ -682,7 +682,7 @@
      "models_max": 2
     },
     "machine": {
-     "chip": "Apple M4 Pro",
+     "chip": "Apple silicon",
      "memory_gb": 48,
      "os": "Darwin 26.6",
      "docker_vm": "colima 4 CPU, 6 GB"
@@ -848,7 +848,7 @@
     }
    ],
    "summary": {
-    "size": "large-m4pro",
+    "size": "large-48gb",
     "agent": "qwen3.8-27b",
     "qa_pass": 22,
     "qa_n": 24,
