@@ -729,6 +729,20 @@ pins the decisions.
 
 ### Changed
 
+- **The README leads with the result and the Docker path.** Both editions
+  ran to 263 lines, with six GIFs and five competing entry points before the
+  first command. They now show one recording, then the two commands, with
+  local models in a collapsible block (16 GB of memory, the first-answer
+  times measured on a CPU). The other recordings, the longer examples and the
+  MCP client table moved to the walkthrough, `docs/quickstart.md` and the
+  docs site. `docs/quickstart.md` and `docs/local-models.md` gained Chinese
+  editions, and local-models now opens with a per-platform quick start.
+- **Care-circle and stage diagrams are readable at README width.** The
+  care-circle diagram showed internal authorization identifiers; it now shows
+  the invitation, each member's own view/edit choice and the managed-record
+  handover, with a phone layout. Both diagrams use 18 px or larger text, in
+  both languages and themes. Authorization behaviour is unchanged.
+
 - **A born-digital PDF's tables are read off its text layer, without a
   model.** The table rules read only HTML tables, and a text layer writes a
   row as one line of words (`Hemoglobin(HGB) 138 g/L 115--150 02`), so a
