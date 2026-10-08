@@ -93,6 +93,5 @@ then coverage, then measurement freshness, then the deployment's
 | Cursor and lock | the shared scheduler's (`mirobody/utils/scheduler.py`) |
 | Range chunk | 30 days |
 
-The tests are in the maintainers' local suite (`tests/pulse/aggregate/`,
-`tests/translate/test_quality_aggregate.py`); the live-database ones need
+The tests are in the maintainers' local suite; the live-database ones need
 `MIROBODY_TEST_PG_DSN`.
