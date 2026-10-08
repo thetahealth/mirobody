@@ -51,7 +51,7 @@ sections a switch needs are in [If the default changes](#if-the-default-changes)
 
 ## Results: 28 printed pages
 
-Measured 2026-10-06/07 on an Apple M1 Pro, 16 GB, macOS 26.6.2, beside a
+Measured 2026-10-06/07 on a 16 GB Apple-silicon laptop, macOS 26.6.2, beside a
 colima VM running the Mirobody stack; llama.cpp 0.6.0 (build 11429, commit
 d81235049). Each OCR model ran alone in its own server, with no other model
 server up. The OCR outputs were made once; the four commits are the
@@ -461,7 +461,7 @@ every file's hash, the command, the llama.cpp build and the machine.
   handwritten pages.
 - **The banner** steers MiniCPM5-2B ([above](#the-banner)); real reports do
   not carry it.
-- **Speed on one machine.** Seconds per page are one M1 Pro's, with a colima
+- **Speed on one machine.** Seconds per page are one 16 GB laptop's, with a colima
   VM beside; GLM-OCR's handwriting figure is of 17 pages (see above).
 - **Whole pages, not the models' own pipelines.** All three are built to read
   regions a layout model cuts out; with that step each might do better. The

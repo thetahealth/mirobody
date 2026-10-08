@@ -47,6 +47,6 @@ below used a corrected template passed with `--chat-template-file`
 (SHA-256 `680c953e6022dccfbeadc02b00ec57382b086ea3e1c6c8b69f126da318744885`) and
 `prompts/v3.jinja` an intermediate version. `results/` holds recorded runs,
 named by model, quantization, prompt version and case set, taken on
-2026-09-28 on an Apple M4 Pro with `llama-server --reasoning on --jinja
+2026-09-28 on a 48 GB Apple-silicon machine with `llama-server --reasoning on --jinja
 -c 16384 -ngl 99` at temperature 0. The models' reasoning text was removed
 from them. They are single runs on synthetic tasks, not success rates.

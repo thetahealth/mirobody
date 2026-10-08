@@ -36,7 +36,7 @@ side by side, so either can be checked against the other.
 ### small and large on one machine (2026-10-08)
 
 Large had not run on these questions: it does not fit on the 16 GB machine
-the rest ran on. Here both sizes ran back to back on an Apple M4 Pro with
+the rest ran on. Here both sizes ran back to back on a 48 GB Apple-silicon machine with
 48 GB (macOS 26.6, colima 4 CPU and 6 GB), on the same record:
 
 - **Code**: 7372b096, the stack's image built from it; this directory
@@ -121,9 +121,9 @@ code (958fae5 and 7372b096), record, machine and llama.cpp build.
 - `p005-weight-chart` gained 10: small-v3 came back empty after 15 tool calls.
 - `p003-bp-chart` lost 4; the rest net +2.
 
-The median answer, 15 s against 29 s, is the M4 Pro's GPU. Peak resident
-memory was 6.7 GB against 5.7 on the M1 Pro, on the older llama.cpp build;
-`config.llm.yaml` keeps the M1 Pro's figure, measured on the machine the
+The median answer, 15 s against 29 s, is the 48 GB machine's GPU. Peak resident
+memory was 6.7 GB against 5.7 on the 16 GB laptop, on the older llama.cpp build;
+`config.llm.yaml` keeps the 16 GB laptop's figure, measured on the machine the
 small size is for.
 
 ### The fixed harness: small against five cloud models (2026-10-07)
@@ -159,7 +159,7 @@ five cloud models on the same 24 questions, 12 documents and 15 sentences.
     29804fc and e696cb8, which change only docs and config.llm.yaml entries
     (the local reply limit, the `gpt` entry) that a reference does not use.
 
-| | small before (MiniCPM5-2B) | small after (MiniCPM5-2B) | small final (MiniCPM5-2B, qa4) | DeepSeek V4.1 Flash | Claude Sonnet 5.5 | GPT-6 Luna | Gemini 3.8 Flash | Claude Opus 5.5 | large: Qwen3.8-27B (M4 Pro, `qa5`) |
+| | small before (MiniCPM5-2B) | small after (MiniCPM5-2B) | small final (MiniCPM5-2B, qa4) | DeepSeek V4.1 Flash | Claude Sonnet 5.5 | GPT-6 Luna | Gemini 3.8 Flash | Claude Opus 5.5 | large: Qwen3.8-27B (48 GB machine, `qa5`) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Claude Code grade | 190/248 (77%) | 209/248 (84%) | 215/248 (87%) | 245/248 (99%) | 247/248 (>99%) | 237/248 (96%) | 247/248 (>99%) | 247/248 (>99%) | 240/248 (97%) |
 | … criterion `correct` / `useful` | 34 / 33 of 48 | 39 / 39 of 48 | 39 / 40 of 48 | 47 / 48 of 48 | 47 / 48 of 48 | 42 / 43 of 48 | 47 / 48 of 48 | 47 / 48 of 48 | 47 / 46 of 48 |
@@ -177,7 +177,7 @@ How to read the table:
 
 - **Seconds** are over the questions each model answered. small after's two
   600-second timeouts are in its figures.
-- **The 27B column** ran on an Apple M4 Pro with 48 GB, on a record loaded at
+- **The 27B column** ran on a 48 GB Apple-silicon machine, on a record loaded at
   7372b096 (`qa5`). The small size scored 229 on the same machine and record
   ([small and large on one machine](#small-and-large-on-one-machine-2026-10-08)).
 - **Quantization:** OpenRouter lists "unknown" for every pinned host here (Together, Google Vertex,
@@ -279,7 +279,7 @@ Findings in the pipeline, not the models, met on these runs:
 
 ### Before the fixes (2026-10-06): tiny and small
 
-Measured 2026-10-06 on an Apple M1 Pro with 16 GB, macOS 26.6, with the stack
+Measured 2026-10-06 on a 16 GB Apple-silicon laptop, macOS 26.6, with the stack
 in a colima VM (4 CPU, 8 GB limit, about 3.75 GB resident) beside the models.
 llama.cpp 0.6.0 (build 11429, commit d81235049), router started from
 `docker/local-models.ini` with `--models-max 2` (each answering model
@@ -609,8 +609,8 @@ python $B/report.py summary             # results/summary.md and summary.json
 page does), unloads every model and loads the size's pair so memory is read on
 fresh processes, waits 35 s for the worker to read the saved choice, then runs
 the questions, the extraction and the journal, and writes
-`results/<size>/`. tiny and small took about 30 minutes each on the M1 Pro;
-on the M4 Pro small took 13 minutes and large 1 h 53 min, an hour of it the 24
+`results/<size>/`. tiny and small took about 30 minutes each on the 16 GB laptop;
+on the 48 GB machine small took 13 minutes and large 1 h 53 min, an hour of it the 24
 questions.
 A run stops, keeping what it has, when free disk falls under 5 GB or free
 memory under 10% and stays there 30 s (`BENCH_MIN_FREE_DISK_GB`,
@@ -834,7 +834,7 @@ changed by the evaluation.
   - Tiny returned entries but marked them `someone_else` (6), `negated` (5)
     or `not_in_sentence` (3), so 12 of the 15 sentences wrote nothing.
 
-  Large, run later on an M4 Pro, wrote 29 of 31.
+  Large, run later on a 48 GB Apple-silicon machine, wrote 29 of 31.
 - **`ContextOverflowError`.** Two of small's 24 questions (`p005-ferritin-change`,
   `p005-weight-chart`) ended in this error after a large tool result: each
   slot has 16k tokens (`--ctx-size 32768`, `--parallel 2`). The retry also
@@ -882,8 +882,8 @@ changed by the evaluation.
     counted as a number in no tool result.
   - A value stored with its unit and flag (`7.49mmol/L偏高`, `111/65mmHg`) had
     not been read as the printed number.
-- The M4 Pro runs used llama.cpp b11269, the others 0.6.0 (b11429). Their
-  timings and memory compare with each other, not with the M1 Pro's.
+- The 48 GB machine's runs used llama.cpp b11269, the others 0.6.0 (b11429). Their
+  timings and memory compare with each other, not with the 16 GB laptop's.
 - The machine was shared with a Docker VM and other work. Earlier the same
   day, before the stack was rebuilt, macOS swap reached 24 GB and filled the
   disk. The runs measured here started with about 10 GB of swap in use.

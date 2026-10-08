@@ -41,7 +41,7 @@ DROPPED = {
 
 def measured() -> list[str]:
     """The sizes with results, smallest first, each followed by its reruns on
-    newer code (`small-v2`) and on other machines (`small-m4pro`), then the
+    newer code (`small-v2`) and on other machines (`small-48gb`), then the
     references (`results/ref-*`, a model the stack was pointed at by
     configuration)."""
     sizes = [d.name for s in ORDER

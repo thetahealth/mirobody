@@ -13,7 +13,7 @@ Mirobody 用到的每一个模型，都能跟服务运行在同一台机器上�
 | 你的机器 | 运行 | 第一次回答 |
 | --- | --- | --- |
 | 任何装了 Docker、没有显卡的电脑（Windows、Linux、macOS） | `COMPOSE_PROFILES=local-cpu ./deploy.sh` | CPU 上要几分钟（[没有显卡时](#without-a-gpu)） |
-| 用 Apple 芯片的 Mac | `brew install llama.cpp`，然后在 Mac 上运行 `llama-server`（[见下](#start-the-models)） | 16 GB M1 Pro 的 GPU 上约 30 秒 |
+| 用 Apple 芯片的 Mac | `brew install llama.cpp`，然后在 Mac 上运行 `llama-server`（[见下](#start-the-models)） | 16 GB Apple 芯片笔记本的 GPU 上约 30 秒 |
 | Linux 或带 NVIDIA 显卡的 Windows | `COMPOSE_PROFILES=local ./deploy.sh` | 用 GPU |
 
 默认大小需要 16 GB 内存，Docker 的虚拟机至少要分到其中 8 GB。首次启动会从 Hugging Face 下载约 3.0 GB 的模型，另外还有容器镜像。要不要完全在本机运行，以及小号在同一套评测上跟云端模型比起来如何，见 [model-choice.zh-CN.md](model-choice.zh-CN.md)。
@@ -26,10 +26,10 @@ Mirobody 用到的每一个模型，都能跟服务运行在同一台机器上�
 
 | 大小 | 回答 | 下载量 | 内存 | 每次回答 | 对话里的照片 | 在评测上 |
 | --- | --- | --- | --- | --- | --- | --- |
-| **小号**，默认 | MiniCPM5-2B，Q4_K_M | 3.0 GB | 5.7 GB | 中位数 29 秒，Apple M1 Pro 16 GB，用它的 GPU | 读它的 OCR 文字 | 24 道题过了 19 道，140 个印刷行全部存对，31 条日记条目写出 22 条 |
-| **大号** | Qwen3.8-27B，IQ3_S（ISTA-DASLab GSQ-RCO） | 14.5 GB | 20.8 GB | 约 2 分钟（中位数 138 秒），Apple M4 Pro 48 GB，用它的 GPU | 直接看 | 24 道题通过 22 道（得分 240/248），印刷行 140 行读对 139 行，日记 31 条对 29 条 |
+| **小号**，默认 | MiniCPM5-2B，Q4_K_M | 3.0 GB | 5.7 GB | 中位数 29 秒，16 GB 的 Apple 芯片笔记本，用它的 GPU | 读它的 OCR 文字 | 24 道题过了 19 道，140 个印刷行全部存对，31 条日记条目写出 22 条 |
+| **大号** | Qwen3.8-27B，IQ3_S（ISTA-DASLab GSQ-RCO） | 14.5 GB | 20.8 GB | 约 2 分钟（中位数 138 秒），48 GB 的 Apple 芯片主机，用它的 GPU | 直接看 | 24 道题通过 22 道（得分 240/248），印刷行 140 行读对 139 行，日记 31 条对 29 条 |
 
-小号能运行在任何 16 GB 内存、没有显卡的电脑上；旁边的服务再占约 1 GB。大号要 32 GB 内存的 Mac，或者 24 GB 显存的 NVIDIA 显卡。这两行在不同的机器上测得；在同一台 M4 Pro、同一份记录上，小号得分 229/248，大号 240/248，而每个回答的耗时约为大号的九分之一（见 [model-choice.zh-CN.md](model-choice.zh-CN.md)）。另外测过并放弃了两个回答模型：MiniCPM5-1B 下载量少 0.4 GB，24 道题里答对且每个期望事实都在的有 2 道；Qwen3.5-9B 在 16 GB 内存上和服务放不到一起。
+小号能运行在任何 16 GB 内存、没有显卡的电脑上；旁边的服务再占约 1 GB。大号要 32 GB 内存的 Mac，或者 24 GB 显存的 NVIDIA 显卡。这两行在不同的机器上测得；在同一台 48 GB 主机、同一份记录上，小号得分 229/248，大号 240/248，而每个回答的耗时约为大号的九分之一（见 [model-choice.zh-CN.md](model-choice.zh-CN.md)）。另外测过并放弃了两个回答模型：MiniCPM5-1B 下载量少 0.4 GB，24 道题里答对且每个期望事实都在的有 2 道；Qwen3.5-9B 在 16 GB 内存上和服务放不到一起。
 
 两种大小都用 GLM-OCR 读文档、按规则读表格，所以同一份化验单读出来的读数是一样的。变的是问题答得好不好、多快，以及对话里的照片是被直接看（大号）还是只读它的 OCR 文字（小号）。这些数字背后的评测、以及怎么重新运行，见 [`benchmarks/local_models/`](../benchmarks/local_models/README.md)。
 
@@ -126,7 +126,7 @@ docker compose exec mirobody mirobody doctor --probe
 
 上面那些耗时都是 Apple 芯片的，llama.cpp 在那上面用 GPU 运行。只用 CPU 时一次回答要几分钟，具体多久看处理器。下面两组测量都是在 llama.cpp 的 CPU 镜像里（`local-cpu` profile）、用 4 个 vCPU 运行的小号，时间是 2026-10-07：
 
-| | Apple M1 Pro，运行在 colima 的 arm64 虚拟机里 | Intel Xeon Gold 5220R，Linux x86（一次外部评测） |
+| | 16 GB 的 Apple 芯片笔记本，运行在 colima 的 arm64 虚拟机里 | Intel Xeon Gold 5220R，Linux x86（一次外部评测） |
 | --- | --- | --- |
 | MiniCPM5-2B 读提示词 | 每秒约 50 个 token | 没有测 |
 | MiniCPM5-2B 写回答 | 每秒约 18 个 token | 每秒 3 到 7 个 |
@@ -194,7 +194,7 @@ PaddleOCR-VL-1.6 以 `[paddleocr-vl]` 的名字在预设里（Apache-2.0，带�
 
 GLM-OCR 只读印刷的文字和表格。它说不出一张照片拍的是什么：一餐饭、一块皮疹或者一个场景都在它能力之外。Mirobody 只发它官方的提示词（`Text Recognition:` 和 `Table Recognition:`，也就是 `local-ocr` 条目的 `ocr_prompts`）。它按 JSON 做信息抽取的提示词测过但没有用：在一张血压显示屏、一张中文营养成分表和一张 FDA 标签上，它每次都把值填错了字段（128/91 的读数把收缩压填成 76，营养成分表的 NRV% 那一列被当成能量「3」），问到一张没有文字的餐食照片上是什么菜时，它编了一个出来。
 
-对每种照片，这意味着什么（Apple M4 Pro，2026-09-30）：
+对每种照片，这意味着什么（48 GB 的 Apple 芯片主机，2026-09-30）：
 
 | 照片 | GLM-OCR（文字提示） | Qwen3.8-27B（大号，能看图） |
 | --- | --- | --- |
@@ -208,7 +208,7 @@ GLM-OCR 只读印刷的文字和表格。它说不出一张照片拍的是什么
 
 ## 和托管模型不一样的地方
 
-- **读提示词的时候不会有任何流式输出。** 一轮新增 6.6k token 的对话，在 M4 Pro 上等第一个字节要一分钟以上，在 M1 Pro 的 4 个 CPU 核心上要两分钟以上，处理器更慢时还要更久（[没有显卡时](#without-a-gpu)）。`local` 条目允许 600 秒的静默（`stream_chunk_timeout`）；库默认的 120 秒会让一轮长对话失败。
+- **读提示词的时候不会有任何流式输出。** 一轮新增 6.6k token 的对话，在 48 GB 的主机上等第一个字节要一分钟以上，在 Apple 芯片笔记本的 4 个 CPU 核心上要两分钟以上，处理器更慢时还要更久（[没有显卡时](#without-a-gpu)）。`local` 条目允许 600 秒的静默（`stream_chunk_timeout`）；库默认的 120 秒会让一轮长对话失败。
 - **加载后的第一轮是最慢的一轮。** 服务器会缓存它读过的提示词，所以之后的轮次只读变化的部分。
 - **一次回复可能全是推理过程。** 回复里既没有答案文字也没有工具调用时，agent 会再问一次；如果第二次也是空的，对话会说它没有答案，而不是显示一条空消息。
 

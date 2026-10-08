@@ -22,7 +22,7 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
   for the small size on the same machine and 237–247 for the hosted models,
   and it stored 139 of 140 printed rows and 29 of 31 journal entries
   ([measured](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)).
-  It takes about 2 minutes an answer on an Apple M4 Pro's GPU and about
+  It takes about 2 minutes an answer on a 48 GB Apple-silicon machine's GPU and about
   20 GB of memory: a Mac with 32 GB, or a GPU with 24 GB.
 - **1.6.0 ships the goal**: the same two small models post-trained for
   Mirobody, as Mirobody's own model ([Then, training](#then-training)), about
@@ -41,7 +41,7 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
 
 ## What was measured
 
-Apple M4 Pro with 48 GB, llama.cpp b11269, the demo record. Eight questions,
+48 GB Apple-silicon machine, llama.cpp b11269, the demo record. Eight questions,
 each asked twice: a three-month trend chart, the latest value, change over
 time, medications, a lab report, a genotype, a record shared by someone else,
 and general knowledge. A run passes when the right tool is called with the right
@@ -66,7 +66,7 @@ produced these was never published; the evaluation that replaced it is
 [`benchmarks/local_models/`](../benchmarks/local_models/README.md): 24
 questions, 12 documents and 15 journal sentences through the product's own
 API, with cloud references run beside the local sizes. On it, on the same
-M4 Pro (2026-10-08), the large size scored 240 of 248 and the small size 229
+48 GB machine (2026-10-08), the large size scored 240 of 248 and the small size 229
 ([small and large on one machine](../benchmarks/local_models/README.md#small-and-large-on-one-machine-2026-10-08)).
 
 ### MiniCPM5-2B, in detail

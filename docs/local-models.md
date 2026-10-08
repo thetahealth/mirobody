@@ -19,7 +19,7 @@ with no model, and ② Translate codes them offline.
 | Your machine | Run | First answer |
 | --- | --- | --- |
 | Any computer with Docker, no GPU (Windows, Linux, macOS) | `COMPOSE_PROFILES=local-cpu ./deploy.sh` | minutes on a CPU ([Without a GPU](#without-a-gpu)) |
-| A Mac with Apple silicon | `brew install llama.cpp`, then `llama-server` on the Mac ([below](#start-the-models)) | about 30 s on a 16 GB M1 Pro's GPU |
+| A Mac with Apple silicon | `brew install llama.cpp`, then `llama-server` on the Mac ([below](#start-the-models)) | about 30 s on a 16 GB Apple-silicon laptop's GPU |
 | Linux or Windows with an NVIDIA GPU | `COMPOSE_PROFILES=local ./deploy.sh` | on the GPU |
 
 The default size needs 16 GB of memory, and Docker's VM at least 8 GB of it.
@@ -36,12 +36,12 @@ files the preset fetches, document reader included; memory is the most
 
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, Apple M1 Pro 16 GB, on its GPU | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
-| **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | 20.8 GB | about 2 min (138 s median), Apple M4 Pro 48 GB, on its GPU | looked at | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries |
+| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, 16 GB Apple-silicon laptop, on its GPU | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
+| **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | 20.8 GB | about 2 min (138 s median), 48 GB Apple-silicon machine, on its GPU | looked at | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries |
 
 Small runs on any computer with 16 GB of memory and no GPU; the stack beside
 it takes about 1 GB more. Large wants a 32 GB Mac or a 24 GB NVIDIA GPU. The
-two rows ran on different machines; on the same M4 Pro and record the small
+two rows ran on different machines; on the same 48 GB machine and record the small
 size graded 229 of 248 to the large size's 240, at about a ninth of its time
 per answer ([model-choice.md](model-choice.md)). Two other answering models were measured and dropped:
 MiniCPM5-1B answered 2 of the 24 questions with every expected fact for 0.4 GB
@@ -196,7 +196,7 @@ CPU alone an answer takes minutes, and how many depends on the processor.
 Both measurements below ran the small size in llama.cpp's CPU image (the
 `local-cpu` profile) with 4 vCPUs, on 2026-10-07:
 
-| | Apple M1 Pro, in colima's arm64 VM | Intel Xeon Gold 5220R, Linux x86 (an external review) |
+| | 16 GB Apple-silicon laptop, in colima's arm64 VM | Intel Xeon Gold 5220R, Linux x86 (an external review) |
 | --- | --- | --- |
 | MiniCPM5-2B reads a prompt | about 50 tokens a second | not measured |
 | MiniCPM5-2B writes | about 18 tokens a second | 3 to 7 tokens a second |
@@ -317,7 +317,7 @@ an FDA label it put a value in the wrong field every time (systolic 76 for a
 128/91 reading, energy "3" from the NRV% column), and asked for the dish on a
 meal photo with no text it invented one.
 
-What that means for each kind of photo (Apple M4 Pro, 2026-09-30):
+What that means for each kind of photo (48 GB Apple-silicon machine, 2026-09-30):
 
 | Photo | GLM-OCR (text pass) | Qwen3.8-27B (the large size, sees) |
 | --- | --- | --- |
@@ -335,8 +335,8 @@ what was eaten.
 ## Things that behave differently from a hosted model
 
 - **Nothing streams while the prompt is read.** A turn that adds 6.6k new
-  tokens waits over a minute for its first byte on an M4 Pro, over two on an
-  M1 Pro's 4 CPU cores, and longer on a slower processor
+  tokens waits over a minute for its first byte on a 48 GB Apple-silicon machine, over two on an
+  Apple-silicon laptop's 4 CPU cores, and longer on a slower processor
   ([Without a GPU](#without-a-gpu)). The `local` entry allows 600 s of
   silence (`stream_chunk_timeout`); the library default of 120 s fails a long
   turn.

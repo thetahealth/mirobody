@@ -182,7 +182,7 @@ MODELS:
     temperature: 0
     supports_image: true          # the server says whether the model sees (/props)
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
-                                  # 80 s for the first 8k tokens on an M4 Pro; on 4 CPU
+                                  # 80 s for the first 8k tokens on a 48 GB Apple-silicon machine; on 4 CPU
                                   # cores MiniCPM5-2B reads ~50 tokens/s, and a 6.8k-token
                                   # prompt was answered in 137 s (2026-10-07)
     max_tokens: 6144              # a reply (reasoning included) that runs on is cut here, not at the
@@ -333,7 +333,7 @@ LOCAL_SETUP:
   # while answering, and answer_s the median seconds per answer, on the
   # machine `measured_on` names (benchmarks/local_models has the evaluation),
   # where llama.cpp runs on the GPU: with no GPU a first answer took 2-3
-  # minutes on an M1 Pro's cores and up to about 15 on a 4-vCPU x86 server
+  # minutes on an Apple-silicon laptop's cores and up to about 15 on a 4-vCPU x86 server
   # (docs/local-models.md, Without a GPU). `sees`: whether the
   # answering model reads a photo itself (else its OCR text). MiniCPM5-1B and
   # Qwen3.5-9B were evaluated and dropped: the 1B answered 2 of 24 questions
@@ -347,7 +347,7 @@ LOCAL_SETUP:
       download_gb: 3.0
       memory_gb: 5.7
       answer_s: 28
-      measured_on: Apple M1 Pro GPU (Metal), 16 GB
+      measured_on: Apple silicon GPU (Metal), 16 GB
     - id: large
       sees: true
       agent: qwen3.8-27b
@@ -355,7 +355,7 @@ LOCAL_SETUP:
       download_gb: 14.5
       memory_gb: 20.8
       answer_s: 138
-      measured_on: Apple M4 Pro GPU (Metal), 48 GB
+      measured_on: Apple silicon GPU (Metal), 48 GB
 
 # Report photos and scanned PDF pages. Entries MUST be multimodal (supports_image: true).
 # Same order as UTILS_TEXT_MODEL, deliberately: with several keys present, the

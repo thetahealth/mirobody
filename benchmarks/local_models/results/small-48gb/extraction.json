@@ -1,26 +1,26 @@
 {
- "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
- "user_id": "14",
+ "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+ "user_id": "12",
  "documents": [
   {
    "label": "text-layer PDF, lab slip (zh), header the rules know",
    "file": "files/p005/p005_2026-03-05_e07b.pdf",
-   "file_key": "uploads/20261008_044101_35f3d1db.pdf",
+   "file_key": "uploads/20261008_033213_b65ee063.pdf",
    "status": "done",
-   "seconds": 22.7,
-   "filed_s": 15.3,
+   "seconds": 7.2,
+   "filed_s": 5.0,
    "error": "",
    "indicators_count": 4,
    "report_date": "2026-03-05 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2026-03-05_贫血检测检验报告.pdf",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2026-03-05_贫血检测报告.pdf",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044101_35f3d1db.pdf",
-     "seconds": 22.7,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033213_b65ee063.pdf",
+     "seconds": 7.2,
      "indicators_count": 4,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -124,22 +124,22 @@
   {
    "label": "text-layer PDF, lab slip (zh)",
    "file": "files/p004/p004_2023-11-12_e01a.pdf",
-   "file_key": "uploads/20261008_044123_d2228311.pdf",
+   "file_key": "uploads/20261008_033220_0dee1e71.pdf",
    "status": "done",
-   "seconds": 58.7,
-   "filed_s": 46.3,
+   "seconds": 7.1,
+   "filed_s": 5.0,
    "error": "",
    "indicators_count": 6,
-   "report_date": "2023-11-12 12:38:58",
+   "report_date": "2023-11-12 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2023-11-12_贺瑶欣_血脂检验报告.pdf",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2023-11-12_检验报告.pdf",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044123_d2228311.pdf",
-     "seconds": 58.7,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033220_0dee1e71.pdf",
+     "seconds": 7.1,
      "indicators_count": 6,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -279,22 +279,22 @@
   {
    "label": "text-layer PDF, lab slip (en)",
    "file": "files/p006/p006_2024-10-25_e09a.pdf",
-   "file_key": "uploads/20261008_044222_51c220bc.pdf",
+   "file_key": "uploads/20261008_033227_f898b424.pdf",
    "status": "done",
-   "seconds": 120.6,
-   "filed_s": 30.7,
+   "seconds": 12.3,
+   "filed_s": 5.0,
    "error": "",
    "indicators_count": 6,
    "report_date": "2024-10-25 12:58:10",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2024-10-25_Daniel_Lau_Lab_Report.pdf",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2024-10-25_Lab_Report.pdf",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044222_51c220bc.pdf",
-     "seconds": 120.6,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033227_f898b424.pdf",
+     "seconds": 12.3,
      "indicators_count": 6,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -434,22 +434,22 @@
   {
    "label": "CSV export",
    "file": "files/p004/p004_2024-05-10_e04a.csv",
-   "file_key": "uploads/20261008_044423_1269321a.csv",
+   "file_key": "uploads/20261008_033240_404ec2c1.csv",
    "status": "done",
-   "seconds": 157.0,
-   "filed_s": 30.7,
+   "seconds": 12.3,
+   "filed_s": 5.0,
    "error": "",
    "indicators_count": 6,
-   "report_date": "2024-05-10 08:10:00",
+   "report_date": "2024-05-10 00:00:00",
    "date_source": "extracted",
    "scene": "csv",
-   "title": "2024-05-10_血脂检验报告_贺瑶欣.csv",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2024-05-10_血脂检验报告单.csv",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044423_1269321a.csv",
-     "seconds": 157.0,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033240_404ec2c1.csv",
+     "seconds": 12.3,
      "indicators_count": 6,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -459,7 +459,7 @@
     "rows": 6,
     "found": 6,
     "unit_ok": 6,
-    "range_ok": 6,
+    "range_ok": 3,
     "flag_ok": 3,
     "flag_rows": 3,
     "stored": 6,
@@ -479,13 +479,13 @@
       "value": "7.49",
       "found": true,
       "unit_ok": true,
-      "range_ok": true,
+      "range_ok": false,
       "flag_ok": true,
       "stored": {
        "name": "总胆固醇",
        "value": "7.49",
        "unit": "mmol/L",
-       "ref": "",
+       "ref": "偏高",
        "flag": "high",
        "date": "2024-05-10",
        "extractor": "llm:file-parser@indicators-v1"
@@ -515,13 +515,13 @@
       "value": "1.01",
       "found": true,
       "unit_ok": true,
-      "range_ok": true,
+      "range_ok": false,
       "flag_ok": true,
       "stored": {
        "name": "高密度脂蛋白胆固醇",
        "value": "1.01",
        "unit": "mmol/L",
-       "ref": "",
+       "ref": "偏低",
        "flag": "low",
        "date": "2024-05-10",
        "extractor": "llm:file-parser@indicators-v1"
@@ -533,13 +533,13 @@
       "value": "5.84",
       "found": true,
       "unit_ok": true,
-      "range_ok": true,
+      "range_ok": false,
       "flag_ok": true,
       "stored": {
        "name": "低密度脂蛋白胆固醇",
        "value": "5.84",
        "unit": "mmol/L",
-       "ref": "",
+       "ref": "偏高",
        "flag": "high",
        "date": "2024-05-10",
        "extractor": "llm:file-parser@indicators-v1"
@@ -589,22 +589,22 @@
   {
    "label": "XLSX, Traditional Chinese",
    "file": "files/p004/p004_2026-04-30_e11b.xlsx",
-   "file_key": "uploads/20261008_044700_485b5ae0.xlsx",
+   "file_key": "uploads/20261008_033252_2e2fb34d.xlsx",
    "status": "done",
-   "seconds": 43.1,
-   "filed_s": 30.7,
+   "seconds": 7.2,
+   "filed_s": 5.1,
    "error": "",
    "indicators_count": 6,
    "report_date": "2026-05-01 00:00:00",
    "date_source": "extracted",
    "scene": "excel",
-   "title": "2026-04-30_贺瑶欣_血脂检验报告.xlsx",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2026-04-30_检验报告.xlsx",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044700_485b5ae0.xlsx",
-     "seconds": 43.1,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033252_2e2fb34d.xlsx",
+     "seconds": 7.2,
      "indicators_count": 6,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -744,22 +744,22 @@
   {
    "label": "flatbed scan (PDF)",
    "file": "files/p003/p003_2025-04-05_e07a.pdf",
-   "file_key": "uploads/20261008_044743_15a5845b.pdf",
+   "file_key": "uploads/20261008_033259_dec23011.pdf",
    "status": "done",
-   "seconds": 99.6,
-   "filed_s": 25.6,
+   "seconds": 7.1,
+   "filed_s": 5.0,
    "error": "",
    "indicators_count": 3,
-   "report_date": "2025-04-05 09:11:41",
+   "report_date": "2025-04-05 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2025-04-05_闫柏超血糖检验报告.pdf",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2025-04-05_血糖检验报告.pdf",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044743_15a5845b.pdf",
-     "seconds": 99.6,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033259_dec23011.pdf",
+     "seconds": 7.1,
      "indicators_count": 3,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -845,22 +845,22 @@
   {
    "label": "phone photo, oblique",
    "file": "files/p004/p004_2025-11-01_e09a.jpg",
-   "file_key": "uploads/20261008_044922_47ea3286.jpg",
+   "file_key": "uploads/20261008_033306_85d4ae5f.jpg",
    "status": "done",
-   "seconds": 48.3,
-   "filed_s": 25.6,
+   "seconds": 12.3,
+   "filed_s": 10.2,
    "error": "",
    "indicators_count": 6,
    "report_date": "2025-11-02 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2025-11-02_贺瑶欣血脂检验报告.jpg",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2025-11-01_检验报告.jpg",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_044922_47ea3286.jpg",
-     "seconds": 48.3,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033306_85d4ae5f.jpg",
+     "seconds": 12.3,
      "indicators_count": 6,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -1000,22 +1000,22 @@
   {
    "label": "photocopy (JPG)",
    "file": "files/p003/p003_2024-10-07_e06b.jpg",
-   "file_key": "uploads/20261008_045011_c726392c.jpg",
+   "file_key": "uploads/20261008_033318_bc45d20c.jpg",
    "status": "done",
-   "seconds": 37.9,
-   "filed_s": 25.6,
+   "seconds": 12.3,
+   "filed_s": 10.1,
    "error": "",
    "indicators_count": 2,
-   "report_date": "2024-10-07 08:12:31",
+   "report_date": "2024-10-08 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2024-10-07_闫柏超_血糖检验报告.jpg",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2024-10-07_检验报告单.jpg",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_045011_c726392c.jpg",
-     "seconds": 37.9,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033318_bc45d20c.jpg",
+     "seconds": 12.3,
      "indicators_count": 2,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -1032,9 +1032,9 @@
     "extra": 0,
     "extra_distractors": 0,
     "dates_stored": [
-     "2024-10-07"
+     "2024-10-08"
     ],
-    "date_ok": true,
+    "date_ok": false,
     "by_extractor": {
      "rules:table@v1": 2
     },
@@ -1053,7 +1053,7 @@
        "unit": "",
        "ref": "3.90-6.10",
        "flag": "",
-       "date": "2024-10-07",
+       "date": "2024-10-08",
        "extractor": "rules:table@v1"
       }
      },
@@ -1071,34 +1071,34 @@
        "unit": "",
        "ref": "4.0-6.0",
        "flag": "",
-       "date": "2024-10-07",
+       "date": "2024-10-08",
        "extractor": "rules:table@v1"
       }
      }
     ],
     "extra_rows": []
    },
-   "report_date_ok": true
+   "report_date_ok": false
   },
   {
    "label": "app screenshot (en)",
    "file": "files/p006/p006_2026-04-18_e13a.png",
-   "file_key": "uploads/20261008_045049_a52b5066.png",
+   "file_key": "uploads/20261008_033331_4e974acc.png",
    "status": "done",
-   "seconds": 104.9,
-   "filed_s": 25.6,
+   "seconds": 12.2,
+   "filed_s": 10.2,
    "error": "",
    "indicators_count": 6,
-   "report_date": "2026-04-18 00:00:00",
+   "report_date": "2026-04-19 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2026-04-18_Daniel_Lau_Thyroid_Report.png",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2026-04-18_Thyroid_Report.png",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_045049_a52b5066.png",
-     "seconds": 104.9,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033331_4e974acc.png",
+     "seconds": 12.2,
      "indicators_count": 6,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -1115,9 +1115,9 @@
     "extra": 0,
     "extra_distractors": 0,
     "dates_stored": [
-     "2026-04-18"
+     "2026-04-19"
     ],
-    "date_ok": true,
+    "date_ok": false,
     "by_extractor": {
      "rules:table@v1+llm:file-parser@indicators-v1": 6
     },
@@ -1136,7 +1136,7 @@
        "unit": "mIU/L",
        "ref": "0.270-4.200",
        "flag": "",
-       "date": "2026-04-18",
+       "date": "2026-04-19",
        "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
       }
      },
@@ -1154,7 +1154,7 @@
        "unit": "pmol/L",
        "ref": "3.10-6.80",
        "flag": "",
-       "date": "2026-04-18",
+       "date": "2026-04-19",
        "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
       }
      },
@@ -1172,7 +1172,7 @@
        "unit": "pmol/L",
        "ref": "12.00-22.00",
        "flag": "",
-       "date": "2026-04-18",
+       "date": "2026-04-19",
        "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
       }
      },
@@ -1190,7 +1190,7 @@
        "unit": "nmol/L",
        "ref": "1.30-3.10",
        "flag": "",
-       "date": "2026-04-18",
+       "date": "2026-04-19",
        "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
       }
      },
@@ -1208,7 +1208,7 @@
        "unit": "nmol/L",
        "ref": "66.0-181.0",
        "flag": "",
-       "date": "2026-04-18",
+       "date": "2026-04-19",
        "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
       }
      },
@@ -1226,34 +1226,34 @@
        "unit": "IU/mL",
        "ref": "(<34.0)",
        "flag": "high",
-       "date": "2026-04-18",
+       "date": "2026-04-19",
        "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
       }
      }
     ],
     "extra_rows": []
    },
-   "report_date_ok": true
+   "report_date_ok": false
   },
   {
    "label": "check-up book, text-layer PDF, 7 pages (en)",
    "file": "files/p002/p002_2026-08-07_e04a.pdf",
-   "file_key": "uploads/20261008_045233_a062902d.pdf",
+   "file_key": "uploads/20261008_033343_7cb6b05c.pdf",
    "status": "done",
-   "seconds": 647.3,
-   "filed_s": 51.3,
+   "seconds": 109.9,
+   "filed_s": 5.0,
    "error": "",
    "indicators_count": 111,
    "report_date": "2026-08-07 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2026-08-07_Ming_Tan_Health_Checkup.pdf",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2026-08-07_Health_Report.pdf",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_045233_a062902d.pdf",
-     "seconds": 647.3,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033343_7cb6b05c.pdf",
+     "seconds": 109.9,
      "indicators_count": 111,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -1266,15 +1266,15 @@
     "range_ok": 77,
     "flag_ok": 5,
     "flag_rows": 76,
-    "stored": 101,
-    "extra": 22,
+    "stored": 83,
+    "extra": 4,
     "extra_distractors": 0,
     "dates_stored": [
      "2026-08-07"
     ],
     "date_ok": true,
     "by_extractor": {
-     "rules:table@v1+llm:file-parser@indicators-v1": 101
+     "rules:table@v1+llm:file-parser@indicators-v1": 83
     },
     "detail": [
      {
@@ -2684,6 +2684,12 @@
     ],
     "extra_rows": [
      {
+      "name": "Body composition",
+      "value": "normal",
+      "unit": "",
+      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
+     },
+     {
       "name": "DOB",
       "value": "0.7",
       "unit": "‰",
@@ -2696,123 +2702,9 @@
       "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
      },
      {
-      "name": "Adnexa",
-      "value": "Normal",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Uterus",
-      "value": "Normal size",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Cervix",
-      "value": "Smooth",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Vagina",
-      "value": "Unremarkable",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Vulva",
-      "value": "Normal",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Gums",
-      "value": "Normal",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Teeth",
-      "value": "Unremarkable",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Lips, cheeks, palate",
-      "value": "Normal",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Tonsils",
-      "value": "Not enlarged",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Pharynx",
-      "value": "Chronic pharyngeal congestion with lymphoid follicles",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Nasal cavity",
-      "value": "Clear",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Hearing",
-      "value": "Unremarkable",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Tympanic membrane",
-      "value": "Intact",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "External ear canal left",
-      "value": "cerumen",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
       "name": "Intraocular pressure",
-      "value": "11",
+      "value": "11/19 mmHg",
       "unit": "mmHg",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Fundus",
-      "value": "Normal",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "External eye",
-      "value": "Normal",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Colour vision",
-      "value": "Unremarkable",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Corrected visual acuity",
-      "value": "1.0/1.2",
-      "unit": "",
-      "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "Visual acuity (unaided)",
-      "value": "1.5",
-      "unit": "",
       "extractor": "rules:table@v1+llm:file-parser@indicators-v1"
      }
     ]
@@ -2822,36 +2714,36 @@
   {
    "label": "outpatient record, scan, narrative + vitals",
    "file": "files/p003/p003_2026-03-31_e10a.pdf",
-   "file_key": "uploads/20261008_050321_b88fc8cc.pdf",
+   "file_key": "uploads/20261008_033533_ef053c8f.pdf",
    "status": "done",
-   "seconds": 276.2,
-   "filed_s": 92.4,
+   "seconds": 12.3,
+   "filed_s": 5.0,
    "error": "",
-   "indicators_count": 10,
+   "indicators_count": 9,
    "report_date": "2026-04-01 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2026-04-01_闫柏超门诊病历.pdf",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2026-03-31_门诊病历.pdf",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_050321_b88fc8cc.pdf",
-     "seconds": 276.2,
-     "indicators_count": 10,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033533_ef053c8f.pdf",
+     "seconds": 12.3,
+     "indicators_count": 9,
      "model_errors": 0,
      "lost_readings_errors": 0
     }
    ],
    "score": {
     "rows": 5,
-    "found": 4,
-    "unit_ok": 4,
-    "range_ok": 4,
+    "found": 5,
+    "unit_ok": 5,
+    "range_ok": 5,
     "flag_ok": 0,
     "flag_rows": 0,
     "stored": 9,
-    "extra": 5,
+    "extra": 4,
     "extra_distractors": 0,
     "dates_stored": [
      "2026-04-01"
@@ -2937,7 +2829,19 @@
       "row": 4,
       "name": "BP",
       "value": "111/65",
-      "found": false
+      "found": true,
+      "unit_ok": true,
+      "range_ok": true,
+      "flag_ok": null,
+      "stored": {
+       "name": "BP",
+       "value": "111/65",
+       "unit": "mmHg",
+       "ref": "",
+       "flag": "normal",
+       "date": "2026-04-01",
+       "extractor": "llm:file-parser@indicators-v1"
+      }
      }
     ],
     "extra_rows": [
@@ -2964,12 +2868,6 @@
       "value": "97",
       "unit": "%",
       "extractor": "llm:file-parser@indicators-v1"
-     },
-     {
-      "name": "BP",
-      "value": "111",
-      "unit": "mmHg",
-      "extractor": "llm:file-parser@indicators-v1"
      }
     ]
    },
@@ -2978,22 +2876,22 @@
   {
    "label": "home weight log, screen photo",
    "file": "files/p005/p005_log01.jpg",
-   "file_key": "uploads/20261008_050757_3394b223.jpg",
+   "file_key": "uploads/20261008_033545_6cf5ca1a.jpg",
    "status": "done",
-   "seconds": 267.0,
-   "filed_s": 25.7,
+   "seconds": 22.5,
+   "filed_s": 15.3,
    "error": "",
    "indicators_count": 12,
-   "report_date": "2025-12-02 00:00:00",
+   "report_date": "2025-12-14 00:00:00",
    "date_source": "extracted",
    "scene": "report",
-   "title": "2025-12-02_向伟博体重记录.jpg",
-   "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
+   "title": "2025-12-02_体重记录.jpg",
+   "account": "ext-small-48gb-202610081123@bench.mirobody.local",
    "attempts": [
     {
-     "account": "ext-large-m4pro-202610081136@bench.mirobody.local",
-     "file_key": "uploads/20261008_050757_3394b223.jpg",
-     "seconds": 267.0,
+     "account": "ext-small-48gb-202610081123@bench.mirobody.local",
+     "file_key": "uploads/20261008_033545_6cf5ca1a.jpg",
+     "seconds": 22.5,
      "indicators_count": 12,
      "model_errors": 0,
      "lost_readings_errors": 0
@@ -3037,7 +2935,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.9",
        "unit": "kg",
        "ref": "",
@@ -3055,7 +2953,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.2",
        "unit": "kg",
        "ref": "",
@@ -3073,7 +2971,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.8",
        "unit": "kg",
        "ref": "",
@@ -3091,7 +2989,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "52.2",
        "unit": "kg",
        "ref": "",
@@ -3109,7 +3007,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.2",
        "unit": "kg",
        "ref": "",
@@ -3127,7 +3025,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "52.0",
        "unit": "kg",
        "ref": "",
@@ -3145,7 +3043,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.1",
        "unit": "kg",
        "ref": "",
@@ -3163,7 +3061,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.7",
        "unit": "kg",
        "ref": "",
@@ -3181,7 +3079,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.8",
        "unit": "kg",
        "ref": "",
@@ -3199,7 +3097,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.4",
        "unit": "kg",
        "ref": "",
@@ -3217,7 +3115,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.5",
        "unit": "kg",
        "ref": "",
@@ -3235,7 +3133,7 @@
       "range_ok": true,
       "flag_ok": null,
       "stored": {
-       "name": "体重(kg)",
+       "name": "体重",
        "value": "51.7",
        "unit": "kg",
        "ref": "",
@@ -3247,7 +3145,7 @@
     ],
     "extra_rows": []
    },
-   "report_date_ok": true
+   "report_date_ok": false
   }
  ],
  "first_upload": {
