@@ -1,37 +1,37 @@
 # Running on your own machine, with no API key
 
-Mirobody talks to models over the OpenAI-compatible API, so a model server on
-your own machine can take the place of every vendor key: your record, your
-documents and your questions then never leave it. This page is the setup that
-was measured, what it needs, and what it costs.
+**English** · **[中文](local-models.zh-CN.md)**
+
+Every model Mirobody uses can run on the same machine as the stack. Your
+record, your documents and your questions then stay there; only the model
+weights are downloaded, once.
 
 **The local model runtime is [llama.cpp](https://github.com/ggml-org/llama.cpp).**
-Mirobody does not run models itself: `llama-server` serves them, and Mirobody
-calls it. The shipped preset, the compose profiles, the first-run page's
-search for a server, the vision check (`/props`) and every measurement on this
-page are llama.cpp's. Any other OpenAI-compatible server can stand in for it
-([Other servers](#other-servers)), but llama.cpp is the one shipped and tested.
+Mirobody runs no model itself: `llama-server` serves them over the
+OpenAI-compatible API, and Mirobody calls it. Two models, two jobs:
+**GLM-OCR-0.9B** reads report photos and pages into text and tables, and a
+second model **answers questions** and writes titles, summaries and journal
+entries. Neither has to know a code: table rows are read by their headers,
+with no model, and ② Translate codes them offline.
 
-Two models, two jobs. **GLM-OCR-0.9B** reads report photos and pages into text
-and tables; the tables' rows are read by their column headers, with no model,
-then coded by ② Translate, which is offline and deterministic. A second model
-**answers questions** and writes titles, summaries and journal entries; it
-comes in two sizes, below. Neither has to know a code.
+## Quick start
 
-All of them run on [llama.cpp](https://github.com/ggml-org/llama.cpp)'s
-`llama-server`, which has official builds for Windows, Linux and macOS (CPU,
-Vulkan, CUDA, ROCm, Metal). One server serves them all:
-[`docker/local-models.ini`](../docker/local-models.ini) is a preset for its
-router mode, and each model downloads from Hugging Face the first time it is
-asked for.
+| Your machine | Run | First answer |
+| --- | --- | --- |
+| Any computer with Docker, no GPU (Windows, Linux, macOS) | `COMPOSE_PROFILES=local-cpu ./deploy.sh` | minutes on a CPU ([Without a GPU](#without-a-gpu)) |
+| A Mac with Apple silicon | `brew install llama.cpp`, then `llama-server` on the Mac ([below](#start-the-models)) | about 30 s on a 16 GB M1 Pro's GPU |
+| Linux or Windows with an NVIDIA GPU | `COMPOSE_PROFILES=local ./deploy.sh` | on the GPU |
 
-Whether to run locally at all, and how the small size compares with the
-cloud models on the same evaluation, is [model-choice.md](model-choice.md).
+The default size needs 16 GB of memory, and Docker's VM at least 8 GB of it.
+The first start downloads about 3.0 GB of models from Hugging Face, plus the
+container images. Whether to run locally at all, and how the small size
+compares with cloud models on the same evaluation, is
+[model-choice.md](model-choice.md).
 
 ## Choose a size
 
-The setup page offers the same two, with these figures. Download is the
-GGUF files the preset fetches, document reader included; memory is the most
+The setup page offers two sizes, with these figures. Download is the GGUF
+files the preset fetches, document reader included; memory is the most
 `llama-server` held with both models loaded while answering.
 
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
@@ -39,27 +39,161 @@ GGUF files the preset fetches, document reader included; memory is the most
 | **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, Apple M1 Pro 16 GB, on its GPU | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
 | **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | about 20 GB | about 2 min (134 s median on the earlier set), Apple M4 Pro 48 GB, on its GPU | looked at | from an earlier set of 8 questions, each asked twice: 16 of 16 runs passed, no number the record lacks. Not yet run on the 24-question evaluation |
 
-Small runs on any computer with 16 GB of memory and no GPU, Windows, Linux or
-macOS; the stack beside it takes about 1 GB more. Large wants a 32 GB Mac or a
-24 GB NVIDIA GPU. The two rows come from different question sets, so they do
-not say which size answers better: the large one has not been run on the 24
-questions yet. Two other answering models were measured and dropped:
+Small runs on any computer with 16 GB of memory and no GPU; the stack beside
+it takes about 1 GB more. Large wants a 32 GB Mac or a 24 GB NVIDIA GPU. The
+two rows come from different question sets, so they do not say which size
+answers better. Two other answering models were measured and dropped:
 MiniCPM5-1B answered 2 of the 24 questions with every expected fact for 0.4 GB
 less download, and Qwen3.5-9B did not fit beside the stack on 16 GB.
 
-The answering model is the only difference: both sizes read documents with
-GLM-OCR and read tables by rule, so a lab report's readings come out the same.
-What changes is how well questions are answered, how fast, and whether a photo
-in the chat is looked at (large) or read as its OCR text (small).
+Both sizes read documents with GLM-OCR and read tables by rule, so a lab
+report's readings come out the same. What changes is how well questions are
+answered, how fast, and whether a photo in the chat is looked at (large) or
+read as its OCR text (small).
 [`benchmarks/local_models/`](../benchmarks/local_models/README.md) has the
-evaluation behind the figures, its cases and how to rerun it.
+evaluation behind the figures and how to rerun it.
 
-### Without a GPU
+## Start the models
+
+Pick the line for your machine. Every one serves the same preset,
+[`docker/local-models.ini`](../docker/local-models.ini); start it in the
+`mirobody` folder (the one with `deploy.sh`). `--models-max 2` keeps one
+answering model and the reader in memory, so choosing another size on the
+setup page unloads the one before.
+
+**Any computer with Docker, no GPU needed** (Windows, Linux or macOS). The
+slowest route, and the one that needs nothing besides Docker. The first start
+downloads about 3.7 GB: the 3.0 GB of models and about 0.7 GB of images
+(llama.cpp's CPU image about 310 MB, the app about 230 MB, Postgres about
+160 MB), which take about 2 GB once unpacked (850, 640 and 460 MB on Linux
+x86).
+
+```bash
+COMPOSE_PROFILES=local-cpu ./deploy.sh     # the stack, plus llama.cpp's CPU image beside it
+```
+
+`deploy.sh` writes `COMPOSE_PROFILES` into `.env`, so a later
+`docker compose up -d` keeps the model service, and points both local
+entries at it (`LOCAL_BASE_URL` and `LOCAL_OCR_BASE_URL`,
+`http://llama:8080/v1`), so the setup page has nothing to ask. A vendor key
+exported in your shell is left out of `.env`, and one already there is named,
+since its vendor would come first. The first question waits for the models'
+download: `docker compose logs -f llama_cpu` shows it.
+
+On a stack that is already running, `docker compose --profile local-cpu up -d`
+starts the service beside the app (the line the setup page shows). Add
+`COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
+removes it and the next `up` leaves it out.
+
+**macOS** (Apple silicon). A container on a Mac cannot use its GPU, so
+llama.cpp runs on the Mac itself, and the setup page finds it:
+
+```bash
+brew install llama.cpp
+llama-server --models-preset docker/local-models.ini --port 8080 --models-max 2
+```
+
+**Linux, or Windows with Docker Desktop, and an NVIDIA GPU**, next to the app
+(Linux needs the NVIDIA Container Toolkit; the CUDA image is about 3 GB):
+
+```bash
+COMPOSE_PROFILES=local ./deploy.sh         # the stack, plus the `llama` service on the CUDA image
+```
+
+**Windows**, to use any GPU (Intel, AMD or NVIDIA, through Vulkan; the CPU when
+there is none). winget's `ggml.llamacpp` is llama.cpp's own Vulkan release
+build, for x64 and arm64. In PowerShell, from the checkout in WSL (`Ubuntu` is
+the distribution's name in `wsl -l`), so that the preset's relative path
+resolves:
+
+```powershell
+winget install --id ggml.llamacpp
+cd \\wsl.localhost\Ubuntu\home\<you>\mirobody
+llama-server --models-preset docker\local-models.ini --port 8080 --models-max 2
+```
+
+The setup page looks for it through Docker Desktop's `host.docker.internal`,
+which on a Mac reaches a server on the host's `127.0.0.1` (measured with
+colima). **This route has not been run on Windows by us**; if the page finds no server,
+use the Docker line above, which needs no host networking.
+
+**Linux with another GPU** (AMD, Intel) or no Docker for the models: a
+[llama.cpp release](https://github.com/ggml-org/llama.cpp/releases) build for
+it, and the same `llama-server` line.
+
+**Mirobody itself on Windows** runs in Docker Desktop (WSL 2 backend): open a
+WSL terminal (Ubuntu), clone the repository there and run `./deploy.sh`, as on
+Linux. The scripts keep LF line endings on every checkout.
+
+The first question after choosing a size waits for its download; later starts
+read the cache. Where huggingface.co is unreachable, point the download at a
+mirror: `HF_ENDPOINT=https://<mirror>` in `.env` for the compose services, or
+in the shell before `llama-server`. The models are the only thing fetched;
+nothing about you is sent.
+
+## Point Mirobody at them
+
+On the setup page (`./deploy.sh` prints its link; **Settings → Model** later),
+choose **100% on this machine**. Mirobody looks for the server at
+`host.docker.internal:8080`, then compose's `llama:8080`, then
+`127.0.0.1:8080`, lists the models it serves, checks it serves the two you
+choose (the preset's, unless you pick others), asks it to load them, and
+shows their progress. The choice is stored encrypted in the database.
+
+Or two lines in `.env`, then `docker compose up -d` (a restart does not reread `.env`):
+
+```bash
+LOCAL_BASE_URL=http://host.docker.internal:8080/v1        # app in Docker, models on the host
+LOCAL_OCR_BASE_URL=http://host.docker.internal:8080/v1
+# with the local or local-cpu profile: http://llama:8080/v1 for both
+# app and models on the host:  http://127.0.0.1:8080/v1 for both
+```
+
+**A vendor key in `.env` comes first**, so the setup page refuses local while
+`.env` holds one. To use the local models anyway, set `DEFAULT_MODEL=local`,
+`UTILS_VISION_MODEL=local-utils` and `UTILS_TEXT_MODEL=local-utils`.
+
+## Check it
+
+```bash
+docker compose exec mirobody mirobody doctor --probe
+```
+
+`doctor` shows which entry each surface uses; `--probe` sends each one a real
+request (a tool call, a schema-bound answer, a rendered image, the OCR passes)
+through the code the product uses, and checks that each server runs the model
+its entry names.
+
+## When it does not work
+
+| What you see | What to do |
+| --- | --- |
+| The setup page finds no server | Start one of the lines above; with `llama-server` on the host, keep `--port 8080`. On Linux, see the networking note below. |
+| The setup page refuses **100% on this machine** | A vendor key in `.env` comes first: remove it, or set the three variables in [Point Mirobody at them](#point-mirobody-at-them). |
+| The first question waits a long time | The models are downloading: `docker compose logs -f llama_cpu` (`llama` for the GPU service). |
+| `failed to initialize router models: ... Is a directory` in the model service's log | Docker could not see the checkout and mounted an empty directory where the preset should be. Colima shares only your home directory by default: keep the checkout under it, or add the path to colima's `mounts`. |
+| The model service stops when Docker runs out of memory | Give Docker's VM at least 8 GB: Docker Desktop's settings, or `colima start --memory 8`. |
+| A `.env` change has no effect | `docker compose up -d`; `docker compose restart` does not reread `.env`. |
+
+**Networking on Linux.** `compose.yaml` maps `host.docker.internal` for Docker
+Engine on Linux and keeps it out of `HTTP_PROXY`. On a Mac (Docker Desktop or
+colima) that name reaches the host's loopback, so `llama-server` keeps its
+default `127.0.0.1`. On Linux it points at the Docker bridge, so a server on
+the host has to listen there: give it the bridge address (`--host 172.17.0.1`,
+from `ip -4 addr show docker0`), not `0.0.0.0`, which also offers the server,
+with no key, to every machine on your network. The `local` and `local-cpu`
+services need neither: the app reaches them on compose's own network, and they
+publish no port. The app itself is published on `127.0.0.1` only;
+`MIROBODY_BIND=0.0.0.0` offers it to your network, where the demo accounts'
+code, `111111`, is public ([SECURITY.md](../SECURITY.md) says what to change
+first).
+
+## Without a GPU
 
 The times above are Apple silicon's, where llama.cpp runs on the GPU. On the
 CPU alone an answer takes minutes, and how many depends on the processor.
 Both measurements below ran the small size in llama.cpp's CPU image (the
-`local-cpu` profile below) with 4 vCPUs, on 2026-10-07:
+`local-cpu` profile) with 4 vCPUs, on 2026-10-07:
 
 | | Apple M1 Pro, in colima's arm64 VM | Intel Xeon Gold 5220R, Linux x86 (an external review) |
 | --- | --- | --- |
@@ -81,84 +215,9 @@ Both measurements below ran the small size in llama.cpp's CPU image (the
   service, and both models load from its cache volume once downloaded.
 - The cache is the `mirobody_models` volume of one compose project: a second
   checkout, or another `COMPOSE_PROJECT_NAME`, downloads the models again.
-- This image logs `warning: no usable GPU found, --gpu-layers option will be
+- The CPU image logs `warning: no usable GPU found, --gpu-layers option will be
   ignored`: the preset asks for the GPU, which the `local` service uses, and
   the CPU build ignores the setting.
-
-## Start the models
-
-Pick the line for your machine. Every one serves the same preset; start it in
-the `mirobody` folder (the one with `deploy.sh`). `--models-max 2` keeps one
-answering model and the reader in memory, so choosing another size on the
-setup page unloads the one before.
-
-**Any computer with Docker, no GPU needed** (Windows, Linux or macOS). The
-slowest: a first answer takes from 2–3 minutes on an M1 Pro's cores to about
-15 on a 4-vCPU x86 server ([Without a GPU](#without-a-gpu)). It is the one
-that needs nothing besides Docker, with at least 8 GB of memory for it, and
-it downloads about 3.7 GB the first time: the 3.0 GB of models, and about
-0.7 GB of images (llama.cpp's CPU image about 310 MB, the app about 230 MB,
-Postgres about 160 MB), which take about 2 GB once unpacked (850, 640 and
-460 MB on Linux x86):
-
-```bash
-COMPOSE_PROFILES=local-cpu ./deploy.sh     # the stack, plus llama.cpp's CPU image beside it
-```
-
-`deploy.sh` writes `COMPOSE_PROFILES` into `.env`, so a later
-`docker compose up -d` keeps the model service, and points both local
-entries at it (`LOCAL_BASE_URL` and `LOCAL_OCR_BASE_URL`,
-`http://llama:8080/v1`), so the setup page has nothing to ask. A vendor key
-exported in your shell is left out of `.env`, and one already there is named,
-since its vendor would come first. The first question waits for the models'
-download: `docker compose logs -f llama_cpu` shows it (`llama` for the GPU
-service below). On a stack that is already running,
-`docker compose --profile local-cpu up -d` starts it beside the app (the line
-the setup page shows; `--profile local` for the GPU service below); add
-`COMPOSE_PROFILES=local-cpu` to `.env` as well, or a `docker compose down`
-removes it and the next `up` leaves it out.
-
-**Windows**, to use the GPU (Intel, AMD or NVIDIA, through Vulkan; the CPU when
-there is none). winget's `ggml.llamacpp` is llama.cpp's own Vulkan release
-build, for x64 and arm64. In PowerShell, from the checkout in WSL (below;
-`Ubuntu` is the distribution's name in `wsl -l`), so that the preset's
-relative path, the one the setup page shows, resolves:
-
-```powershell
-winget install --id ggml.llamacpp
-cd \\wsl.localhost\Ubuntu\home\<you>\mirobody
-llama-server --models-preset docker\local-models.ini --port 8080 --models-max 2
-```
-
-The setup page looks for it through Docker Desktop's `host.docker.internal`,
-which on a Mac reaches a server on the host's `127.0.0.1` (measured with colima).
-This path has not been run on Windows by us; if the page finds no server there,
-use the Docker line above, which needs no host networking.
-
-**Linux, or Windows with Docker Desktop, and an NVIDIA GPU**, next to the app
-(Linux needs the NVIDIA Container Toolkit):
-
-```bash
-COMPOSE_PROFILES=local ./deploy.sh         # the stack, plus the `llama` service on the CUDA image
-```
-
-**macOS** (Apple silicon). A container on a Mac cannot use its GPU, so
-llama.cpp runs on the Mac itself:
-
-```bash
-brew install llama.cpp
-llama-server --models-preset docker/local-models.ini --port 8080 --models-max 2
-```
-
-**Linux with another GPU** (AMD, Intel) or no Docker for the models: a
-[llama.cpp release](https://github.com/ggml-org/llama.cpp/releases) build for
-it, and the same `llama-server` line.
-
-The first question after choosing a size waits for its download. Later starts
-read the cache. Where huggingface.co is unreachable, point the download at a
-mirror: `HF_ENDPOINT=https://<mirror>` in `.env` for the compose services, or
-in the shell before `llama-server`. The models are the only thing fetched;
-nothing about you is sent.
 
 The two compose services run llama.cpp build b11429, the one the evaluation
 ran: `ghcr.io/ggml-org/llama.cpp:server-b11429` for `local-cpu` and
@@ -166,28 +225,6 @@ ran: `ghcr.io/ggml-org/llama.cpp:server-b11429` for `local-cpu` and
 `.env` replace them, then `docker compose up -d`: with a later build, or,
 where ghcr.io is unreachable, with the same tag on a registry that mirrors
 it (`LLAMA_CPU_IMAGE=<mirror>/ggml-org/llama.cpp:server-b11429`).
-
-**Mirobody itself on Windows** runs in Docker Desktop (WSL 2 backend): open a
-WSL terminal (Ubuntu), clone the repository there and run `./deploy.sh`, as on
-Linux. The scripts keep LF line endings on every checkout.
-
-## Point Mirobody at them
-
-On the setup page (`./deploy.sh` prints its link; Settings → Model later),
-choose **100% on this machine**. Mirobody looks for the server at
-`host.docker.internal:8080`, then compose's `llama:8080`, then
-`127.0.0.1:8080`, lists the models it serves, checks it serves the two you
-choose (the preset's, unless you pick others), asks it to load them, and
-shows their progress. The choice is stored encrypted in the database.
-
-Or two lines in `.env`, then `docker compose up -d` (a restart does not reread `.env`):
-
-```bash
-LOCAL_BASE_URL=http://host.docker.internal:8080/v1        # app in Docker, models on the host
-LOCAL_OCR_BASE_URL=http://host.docker.internal:8080/v1
-# with the local or local-cpu profile: http://llama:8080/v1 for both
-# app and models on the host:  http://127.0.0.1:8080/v1 for both
-```
 
 ## Other models
 
@@ -213,29 +250,26 @@ and takes another name (`OPENROUTER_CHAT_MODEL=anthropic/claude-opus-5.5`, for
 one), checked with one real request before it is kept. Every entry's variable
 is its `model_env` in `config.llm.yaml`.
 
-With a vendor key set as well, the key's models come first, so the setup page
-refuses local while `.env` holds a key. To use the local ones anyway, set
-`DEFAULT_MODEL=local`, `UTILS_VISION_MODEL=local-utils` and
-`UTILS_TEXT_MODEL=local-utils`.
+### Other servers
 
-`compose.yaml` maps `host.docker.internal` for Docker Engine on Linux and keeps
-it out of `HTTP_PROXY`, so a proxied deployment does not route model requests
-through the proxy. On a Mac (Docker Desktop or colima) that name reaches the
-host's loopback, so `llama-server` keeps its default `127.0.0.1`. On Linux it
-points at the Docker bridge, so a server on the host has to listen there: give
-it the bridge address (`--host 172.17.0.1`, from `ip -4 addr show docker0`),
-not `0.0.0.0`, which also offers the server, with no key, to every machine on
-your network. The `local` and `local-cpu` services need neither: the app
-reaches them on compose's own network, and they publish no port. The app
-itself is published on `127.0.0.1` only; `MIROBODY_BIND=0.0.0.0` in `.env`
-offers it to your network, where the demo accounts' code, `111111`, is public
-([SECURITY.md](../SECURITY.md) says what to change first).
+Any OpenAI-compatible server works: set the two addresses and the model names
+it serves (`curl <address>/v1/models`), on the setup page or as `LOCAL_MODEL`
+and `LOCAL_OCR_MODEL`.
 
-`failed to initialize router models: ... Is a directory` in the model
-service's log (`docker compose logs llama_cpu`, or `llama` on the GPU) means
-Docker could not see the checkout, and mounted an empty directory where the
-preset should be. Colima shares only your home directory by default; keep
-the checkout under it, or add the path to colima's `mounts`.
+**Ollama.** `ollama pull qwen3.8:27b` (17 GB) answered the large size's earlier
+set (8 questions, asked twice) correctly, and fastest. Two things to know:
+
+- Ollama sets the context from the GPU's memory, and below 24 GB it is 4,096
+  tokens, which cuts Mirobody's prompt short without an error. Set
+  `OLLAMA_CONTEXT_LENGTH=65536` before `ollama serve`.
+- Its `glm-ocr` does not stop after reading a page in 0.34.1 and later
+  ([ollama/ollama#18609](https://github.com/ollama/ollama/issues/18609)). Keep
+  the documents on llama.cpp until that is fixed.
+
+**Ternary Bonsai 2 27B** is the same Qwen3.8-27B in 6.6 GB and answered as well,
+but today only PrismML's [llama.cpp fork](https://github.com/PrismML-Eng/llama.cpp)
+runs it. Once upstream llama.cpp does, it is the candidate for the large size,
+at half the download.
 
 ## The document reader
 
@@ -270,38 +304,6 @@ so mount the edited one for `mirobody` and `mirobody_worker` in a
 shows it), then `docker compose up -d` and `doctor --probe`.
 Expect more rows in its OCR text, and on handwriting its passes looping to the
 token cap (7 of 28 pages) and rows the page does not print.
-
-## Check it
-
-```bash
-docker compose exec mirobody mirobody doctor --probe
-```
-
-`doctor` shows which entry each surface uses; `--probe` sends each one a real
-request (a tool call, a schema-bound answer, a rendered image, the OCR passes)
-through the code the product uses, and checks that each server runs the model
-its entry names.
-
-## Other servers
-
-Any OpenAI-compatible server works: set the two addresses and the model names
-it serves (`curl <address>/v1/models`), on the setup page or as `LOCAL_MODEL`
-and `LOCAL_OCR_MODEL`.
-
-**Ollama.** `ollama pull qwen3.8:27b` (17 GB) answered the large size's earlier
-set (8 questions, asked twice) correctly, and fastest. Two things to know:
-
-- Ollama sets the context from the GPU's memory, and below 24 GB it is 4,096
-  tokens, which cuts Mirobody's prompt short without an error. Set
-  `OLLAMA_CONTEXT_LENGTH=65536` before `ollama serve`.
-- Its `glm-ocr` does not stop after reading a page in 0.34.1 and later
-  ([ollama/ollama#18609](https://github.com/ollama/ollama/issues/18609)). Keep
-  the documents on llama.cpp until that is fixed.
-
-**Ternary Bonsai 2 27B** is the same Qwen3.8-27B in 6.6 GB and answered as well,
-but today only PrismML's [llama.cpp fork](https://github.com/PrismML-Eng/llama.cpp)
-runs it. Once upstream llama.cpp does, it is the candidate for the large size,
-at half the download.
 
 ## What each model can read in a photo
 
