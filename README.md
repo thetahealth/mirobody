@@ -9,7 +9,7 @@
 
 **Turn scattered health data into answers you can trace.**
 
-A self-hosted AI health data engine for lab reports, wearables and genetic files.<br>
+A self-hosted AI health data engine that brings lab reports, wearables and genetic files into one standardized record.<br>
 Start with Docker and one model key, or run every model on your own machine.
 
 **English** · **[中文](README.zh-CN.md)**
