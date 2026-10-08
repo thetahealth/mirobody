@@ -25,7 +25,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 RESULTS = HERE / "results"
 
-APP = os.environ.get("MIROBODY_URL", "http://localhost:18260").rstrip("/")
+APP = os.environ.get("MIROBODY_URL", "http://localhost:18060").rstrip("/")
 #: The llama.cpp router as this machine reaches it, and as the app (in Docker)
 #: reaches it. The second is what the setup page saves.
 ROUTER = os.environ.get("LLAMA_ROUTER", "http://127.0.0.1:8080").rstrip("/")

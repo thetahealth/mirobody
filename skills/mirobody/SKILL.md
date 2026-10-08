@@ -99,9 +99,11 @@ vision, text extraction):
 | DeepSeek | `DEEPSEEK_API_KEY` |
 | DashScope | `DASHSCOPE_API_KEY` |
 
-Any OpenAI-compatible gateway works through `<PROVIDER>_BASE_URL` and
-`<PROVIDER>_MODEL`; the model must be multimodal, because report photos go
-to it. `config.llm.yaml` names which model each key selects.
+Any OpenAI-compatible gateway works through `<PROVIDER>_BASE_URL` beside its
+key (`OPENAI_API_KEY` → `OPENAI_BASE_URL`). Each `config.llm.yaml` entry names
+the variable that replaces its model (`model_env`: `OPENAI_CHAT_MODEL` for
+chat, `OPENAI_UTILS_MODEL` for documents), and the utilities model must be
+multimodal, because report photos go to it.
 
 **After editing `.env`, run `docker compose up -d`, not `restart`.** Compose
 reads the env file when it creates a container; `restart` keeps the old

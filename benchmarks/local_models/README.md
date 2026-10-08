@@ -488,7 +488,8 @@ llama-server --models-preset docker/local-models.ini --port 8080 --models-max 2
 downloads from Hugging Face the first time it is loaded; `run.py` asks for it
 through the setup page's API, so the first run of a size waits for its
 download. Point the scripts at the stack with `MIROBODY_URL` (default
-`http://localhost:18260`, the port this evaluation used), `SETUP_TOKEN` (read
+`http://localhost:18060`, the port `deploy.sh` publishes; this evaluation ran
+on 18260), `SETUP_TOKEN` (read
 from `.env` when unset), `MIROBODY_COMPOSE_DIR` (the checkout `docker compose`
 runs from) and `LLAMA_ROUTER` (default `http://127.0.0.1:8080`).
 

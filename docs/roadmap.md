@@ -967,6 +967,15 @@ arrives, which edits the prefix the answer's thinking was generated on;
 an edited prefix. Unverified: it needs an empty answer from such a model with
 thinking on, which is rare.
 
+**A llama-server on the host takes no key.** The Mac and Windows guides run
+`llama-server` on the host, where it answers without a key and allows every
+CORS origin: any web page the person opens can call `localhost:8080`, load a
+14.5 GB model or unload the running one. The `local` entries carry no
+`api_key`, so starting it with `--api-key` would refuse Mirobody too; a
+`LOCAL_API_KEY` the entries send is the missing half (external newcomer
+review, 2026-10-07). The Compose services publish no port and are not
+affected.
+
 **Uploads.** `.svg` and `.markdown` are accepted, but an SVG is never readable
 by OCR, and a Markdown file is read as text only when the client declares
 `text/markdown`. `th_files.file_content` is updated read-modify-write, so two
