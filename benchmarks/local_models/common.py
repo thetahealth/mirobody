@@ -187,7 +187,9 @@ def bench_email(kind: str, name: str) -> str:
 #: small, tiny, ref-deepseek-v4.1-flash); qa3: the same plan loaded again at
 #: 4e3c06f, after the extraction fixes (the -v2 runs and the cloud references);
 #: qa4: loaded again at 958fae5, after round 2's extraction changes (small-v3).
-QA_GENERATION = "qa4"
+#: qa5: the same plan at 7372b096 on a second machine (Apple M4 Pro, 48 GB), for
+#: large and small side by side; `BENCH_QA_GENERATION=qa5` selects it.
+QA_GENERATION = os.environ.get("BENCH_QA_GENERATION", "qa4")
 
 
 def qa_email(person: str) -> str:
@@ -463,7 +465,8 @@ def git_dirty(path: Path) -> bool:
 
 def llama_version() -> str:
     try:
-        out = subprocess.run(["llama-server", "--version"], capture_output=True, text=True, timeout=30)
+        out = subprocess.run([os.environ.get("LLAMA_SERVER", "llama-server"), "--version"],
+                             capture_output=True, text=True, timeout=30)
     except OSError:
         return ""
     return " ".join((out.stdout + out.stderr).split("\n")[0:2]).strip()
