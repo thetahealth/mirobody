@@ -14,7 +14,7 @@ authors = [
     {name = "Theta AI Team", email = "developer@thetahealth.ai"},
 ]
 # The PyPI storefront line: keep it in step with the README's opening lines.
-description = "Self-hosted AI health data engine: lab reports, wearables and genetics in one record, with answers that cite their sources."
+description = "Self-hosted AI health data engine: lab reports, wearables and genetics in one standardized record, with answers that cite their sources."
 readme = "README.md"
 # 3.12+ is a hard floor, not a preference: the codebase uses PEP 701 f-strings
 # (nested same-type quotes, e.g. utils/config/config.py), which are a SyntaxError
