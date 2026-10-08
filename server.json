@@ -3,7 +3,7 @@
   "name": "ai.thetahealth/mirobody",
   "title": "Mirobody",
   "description": "Lab results and symptoms, in any language, as coded FHIR data. Offline, no API key.",
-  "version": "1.5.3",
+  "version": "1.5.4",
   "websiteUrl": "https://mirobody.ai",
   "repository": {
     "url": "https://github.com/thetahealth/mirobody",
@@ -28,7 +28,7 @@
     {
       "registryType": "pypi",
       "identifier": "mirobody",
-      "version": "1.5.3",
+      "version": "1.5.4",
       "runtimeHint": "uvx",
       "runtimeArguments": [{"type": "named", "name": "--python", "value": "3.12"}],
       "transport": {"type": "stdio"},
