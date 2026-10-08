@@ -33,6 +33,99 @@ side by side, so either can be checked against the other.
 
 ## Results
 
+### small and large on one machine (2026-10-08)
+
+Large had not run on these questions: it does not fit on the 16 GB machine
+the rest ran on. Here both sizes ran back to back on an Apple M4 Pro with
+48 GB (macOS 26.6, colima 4 CPU and 6 GB), on the same record:
+
+- **Code**: 7372b096, the stack's image built from it; this directory
+  uncommitted.
+- **Record**: `qa5`, the same plan loaded again at 7372b096 with the small
+  pair (`BENCH_QA_GENERATION=qa5`).
+- **Models**: llama.cpp b11269 (cee37ffea), older than the 0.6.0 the other
+  runs used. The router read `docker/local-models.ini` with each `hf-repo`
+  replaced by a local file; every file's hash equals its Hugging Face blob
+  (`results/run.json`, each run's `environment` and `models`).
+
+| | small: MiniCPM5-2B | large: Qwen3.8-27B |
+| --- | --- | --- |
+| Download, GLM-OCR included | 3.0 GB | 14.5 GB |
+| Claude Code grade | 229/248 (92%) | 240/248 (97%) |
+| … criterion `correct` / `grounded` / `useful` | 42 / 43 / 46 of 48 | 47 / 45 / 46 of 48 |
+| … `chart`, four questions | 4 of 8 | 8 of 8 |
+| Questions won on points | 2 | 5 (17 ties) |
+| Automatic pass | 20/24 | 22/24 |
+| Seconds per answer, median / p90 | 15 / 48 | 138 / 245 |
+| Extraction: printed rows found | 140/140 | 139/140 |
+| … units / ranges as printed | 140 / 136 | 139 / 138 |
+| … readings not on a printed row | 8 | 27 |
+| … report date right | 8/12 | 11/12 |
+| … seconds per document, median (the 7-page book) | 12 (110) | 102 (647) |
+| Journal: entries found / sentences exact | 24/31 / 5 of 15 | 29/31 / 10 of 15 |
+| … seconds per sentence, median | 1.5 | 27 |
+| Memory, both loaded: RSS / footprint (peak while answering) | 5.2 / 3.1 GB (6.7 / 4.8) | 19.9 / 8.2 GB (20.8 / 10.8) |
+
+**Where the points went.**
+
+- **large (8):**
+  - `p004-statin-pgx` (3): it named "rs4149310 (516C>T)" as SLCO1B1's
+    untested key site and suggested a test for it. The tool returned no such
+    id, and rs4149056, the statin marker, was tested (TC), as its own table
+    showed.
+  - `p003-bp-chart` (2): the month view's averages, copied from the tool
+    (April systolic 106.0 for 111.0); August's 121 called "persistently
+    high" against no printed range.
+  - `p004-weight-latest` (1): "the only weight entry on file", from a
+    `view: "latest"` result, which is one row by design. The account holds 172.
+  - `p002-rhr-monthly` (1): resting heart rate judged against a general
+    range, said to be general.
+  - `p005-weight-chart` (1): each month's spread put at 1.2–1.5 kg; April and
+    June span 1.9.
+- **small (19):**
+  - `p003-bp-chart` (8): both `eval` calls raised SyntaxError, and the answer
+    gave monthly means anyway; four of the chart's eight systolic points are
+    wrong.
+  - `p002-sleep-july` (4): 393 minutes for 407, given as "11.6 hours".
+  - `p003-weight-change` (2): August 85.04 for 85.22, the change +0.28 for
+    +0.46.
+  - `p005-weight-chart` (2): the six monthly means right, in a table, with
+    no chart.
+  - one each: a general range for resting heart rate; SLCO1B1's results
+    without naming the gene; rs9923231 TT called "homozygous reference".
+
+What the comparison says:
+
+- **Answers.** Large is 5–7 points under the cloud models' 245–247 and above
+  GPT-6 Luna's 237, with nothing leaving the machine. It ties small on 17
+  questions. Its 5 wins are the three where small averaged rows itself
+  (sleep, weight change, the blood-pressure chart), the chart small left
+  out, and rs9923231.
+- **Time.** About nine times small's per answer, and reading is slower still:
+  the 7-page book took 647 s against 110 s.
+- **Documents.** Both store nearly every printed row; large stored the
+  clinic note's `BP 111/65` as 111. Large dated 11 of 12 documents to
+  small's 8: it read the screenshot's `20260418` and the photocopy's
+  collection date. Its 27 readings on no printed row (22 from the book) are
+  in the cloud models' range (26–49) and were not read one by one.
+- **Journal.** 29 of 31 entries, 10 of 15 sentences exact: the cloud models'
+  level (29–31). Small wrote 24.
+- **Memory.** About 20 GB resident, most of it the 13 GB of mapped weights;
+  the footprint, what the processes wrote, is 8–11 GB.
+
+**small here and small-v3.** 229 against 215, one run each, with different
+code (958fae5 and 7372b096), record, machine and llama.cpp build.
+- `p002-checkup-summary` gained 6: it read the book from line 200 on, which
+  small-v3 did not, after a8c65fa6 had a partial `read_file` say where the
+  document goes on.
+- `p005-weight-chart` gained 10: small-v3 came back empty after 15 tool calls.
+- `p003-bp-chart` lost 4; the rest net +2.
+
+The median answer, 15 s against 29 s, is the M4 Pro's GPU. Peak resident
+memory was 6.7 GB against 5.7 on the M1 Pro, on the older llama.cpp build;
+`config.llm.yaml` keeps the M1 Pro's figure, measured on the machine the
+small size is for.
+
 ### The fixed harness: small against five cloud models (2026-10-07)
 
 The local small size again, after the fixes the first runs pointed at, beside
@@ -66,17 +159,17 @@ five cloud models on the same 24 questions, 12 documents and 15 sentences.
     29804fc and e696cb8, which change only docs and config.llm.yaml entries
     (the local reply limit, the `gpt` entry) that a reference does not use.
 
-| | small before (MiniCPM5-2B) | small after (MiniCPM5-2B) | small final (MiniCPM5-2B, qa4) | DeepSeek V4.1 Flash | Claude Sonnet 5.5 | GPT-6 Luna | Gemini 3.8 Flash | Claude Opus 5.5 | large: Qwen3.8-27B (earlier) |
+| | small before (MiniCPM5-2B) | small after (MiniCPM5-2B) | small final (MiniCPM5-2B, qa4) | DeepSeek V4.1 Flash | Claude Sonnet 5.5 | GPT-6 Luna | Gemini 3.8 Flash | Claude Opus 5.5 | large: Qwen3.8-27B (M4 Pro, `qa5`) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Claude Code grade | 190/248 (77%) | 209/248 (84%) | 215/248 (87%) | 245/248 (99%) | 247/248 (>99%) | 237/248 (96%) | 247/248 (>99%) | 247/248 (>99%) | not graded on these questions |
-| … criterion `correct` / `useful` | 34 / 33 of 48 | 39 / 39 of 48 | 39 / 40 of 48 | 47 / 48 of 48 | 47 / 48 of 48 | 42 / 43 of 48 | 47 / 48 of 48 | 47 / 48 of 48 | |
-| Automatic pass (facts check) | 16/24 (17) | 19/24 (20) | 19/24 (19) | 23/24 (23) | 23/24 (23) | 21/24 (21) | 23/24 (23) | 23/24 (23) | 16/16 on an earlier set of 8, asked twice |
-| Extraction: printed rows found | 45/140 | 140/140 | 140/140 | 138/140 | 140/140 | 140/140 | 140/140 | 139/140 | 27/27 on the four demo documents |
-| … units / ranges as printed | 27 / 16 | 140 / 137 | 140 / 140 | 138 / 133 | 140 / 134 | 140 / 134 | 140 / 136 | 139 / 136 | |
-| Journal: entries found | 0/31 | 24/31 | 22/31 | 29/31 | 30/31 | 31/31 | 31/31 | 29/31 | |
-| Seconds per answer, median / p90 | 27.3 / 93 | 27.7 / 105 | 28.9 / 79 | 4.2 / 10.2 | 9.0 / 16.1 | 9.7 / 17.3 | 14.9 / 26.0 | 14.9 / 25.1 | about 134 (median) |
+| Claude Code grade | 190/248 (77%) | 209/248 (84%) | 215/248 (87%) | 245/248 (99%) | 247/248 (>99%) | 237/248 (96%) | 247/248 (>99%) | 247/248 (>99%) | 240/248 (97%) |
+| … criterion `correct` / `useful` | 34 / 33 of 48 | 39 / 39 of 48 | 39 / 40 of 48 | 47 / 48 of 48 | 47 / 48 of 48 | 42 / 43 of 48 | 47 / 48 of 48 | 47 / 48 of 48 | 47 / 46 of 48 |
+| Automatic pass (facts check) | 16/24 (17) | 19/24 (20) | 19/24 (19) | 23/24 (23) | 23/24 (23) | 21/24 (21) | 23/24 (23) | 23/24 (23) | 22/24 (23) |
+| Extraction: printed rows found | 45/140 | 140/140 | 140/140 | 138/140 | 140/140 | 140/140 | 140/140 | 139/140 | 139/140 |
+| … units / ranges as printed | 27 / 16 | 140 / 137 | 140 / 140 | 138 / 133 | 140 / 134 | 140 / 134 | 140 / 136 | 139 / 136 | 139 / 138 |
+| Journal: entries found | 0/31 | 24/31 | 22/31 | 29/31 | 30/31 | 31/31 | 31/31 | 29/31 | 29/31 |
+| Seconds per answer, median / p90 | 27.3 / 93 | 27.7 / 105 | 28.9 / 79 | 4.2 / 10.2 | 9.0 / 16.1 | 9.7 / 17.3 | 14.9 / 26.0 | 14.9 / 25.1 | 138 / 245 |
 | Cost per answer / per run | none | none | none | $0.0017 / $0.11 | about $0.029 / about $1.77 | $0.0009 / $0.047 | $0.012 / $0.58 | $0.045 / $2.88 | none |
-| Memory, both models loaded (RSS / footprint) | 5.0 / 3.0 GB | 5.0 / 3.0 GB (peak 5.1 / 4.3) | 5.0 / 3.0 GB (peak 5.7 / 4.5) | n/a | n/a | n/a | n/a | n/a | about 20 GB |
+| Memory, both models loaded (RSS / footprint) | 5.0 / 3.0 GB | 5.0 / 3.0 GB (peak 5.1 / 4.3) | 5.0 / 3.0 GB (peak 5.7 / 4.5) | n/a | n/a | n/a | n/a | n/a | 19.9 / 8.2 GB (peak 20.8 / 10.8) |
 | What leaves the machine | nothing (the models come from Hugging Face once) | nothing | nothing | questions, tool results (readings, document text), the OCR text of uploads, journal sentences: to OpenRouter and the host | the same | the same | the same | the same | nothing |
 | OpenRouter host (pinned → `provider` returned) | | | | `together` → Together | `google-vertex` → Google | `azure` → Azure | `google-vertex` → Google | `google-vertex` → Google | |
 
@@ -84,9 +177,9 @@ How to read the table:
 
 - **Seconds** are over the questions each model answered. small after's two
   600-second timeouts are in its figures.
-- **The 27B column** is the figure config.llm.yaml carries: an Apple M4 Pro
-  with 48 GB, 2026-09-30, an earlier set of questions. It is not this
-  evaluation.
+- **The 27B column** ran on an Apple M4 Pro with 48 GB, on a record loaded at
+  7372b096 (`qa5`). The small size scored 229 on the same machine and record
+  ([small and large on one machine](#small-and-large-on-one-machine-2026-10-08)).
 - **Quantization:** OpenRouter lists "unknown" for every pinned host here (Together, Google Vertex,
   Azure).
 - **Model ids:** `deepseek/deepseek-v4.1-flash`, `anthropic/claude-sonnet-5.5`,
@@ -216,32 +309,30 @@ extraction and journal parts measure a size's own reading.
 Each hash was computed with `shasum -a 256` and equals the file's Hugging Face
 blob name.
 
-### tiny against small, and large from an earlier measurement
+### tiny against small
 
-| | tiny: MiniCPM5-1B Q8_0 | small: MiniCPM5-2B Q4_K_M | large: Qwen3.8-27B IQ3_S (earlier) |
-| --- | --- | --- | --- |
-| Download, GLM-OCR included | 2.59 GB | 3.00 GB | 14.5 GB |
-| Questions, Claude Code grade | 127/248 (51%) | 190/248 (77%) | not graded on these questions |
-| Questions, automatic pass | 3/24 | 16/24 | 16/16 on an earlier set of 8, asked twice |
-| … answered with every expected fact (grade: correct 2) | 2/24 | 14/24 | |
-| … asked the person for what it could have looked up | 11/24 | 1/24 | |
-| … a value, date or chart point no tool returned (grade: grounded 0) | 5/24 | 0/24 | 0 numbers not in the record |
-| … a Chinese question answered in English | 4/12 | 0/12 | |
-| … empty turn | 1 | 3 (two of them `ContextOverflowError`) | |
-| Seconds per answer, median / p90 | 6.2 / 156 | 28.4 / 99 | about 134 (median) |
-| Extraction: printed rows found, 12 documents | 37/140 | 45/140 | 27/27 on the four demo documents |
-| … documents read completely | 7/12 | 9/12 | |
-| … readings stored that are on no printed row | 6 | 0 | |
-| Journal: entries found, 15 sentences | 0/31 | 0/31 | |
-| Answering model alone, fresh: RSS / footprint | 1.96 / 0.85 GB | 2.89 / 1.43 GB | |
-| Generation / prompt speed, same request | 114 / 2,114 tokens/s | 66 / 695 tokens/s | |
-| Both models loaded, fresh: RSS / footprint | 4.18 / 2.50 GB | 5.01 / 2.98 GB | about 20 GB |
-| … peak while answering | 4.66 / 3.83 GB | 5.66 / 4.35 GB | |
+| | tiny: MiniCPM5-1B Q8_0 | small: MiniCPM5-2B Q4_K_M |
+| --- | --- | --- |
+| Download, GLM-OCR included | 2.59 GB | 3.00 GB |
+| Questions, Claude Code grade | 127/248 (51%) | 190/248 (77%) |
+| Questions, automatic pass | 3/24 | 16/24 |
+| … answered with every expected fact (grade: correct 2) | 2/24 | 14/24 |
+| … asked the person for what it could have looked up | 11/24 | 1/24 |
+| … a value, date or chart point no tool returned (grade: grounded 0) | 5/24 | 0/24 |
+| … a Chinese question answered in English | 4/12 | 0/12 |
+| … empty turn | 1 | 3 (two of them `ContextOverflowError`) |
+| Seconds per answer, median / p90 | 6.2 / 156 | 28.4 / 99 |
+| Extraction: printed rows found, 12 documents | 37/140 | 45/140 |
+| … documents read completely | 7/12 | 9/12 |
+| … readings stored that are on no printed row | 6 | 0 |
+| Journal: entries found, 15 sentences | 0/31 | 0/31 |
+| Answering model alone, fresh: RSS / footprint | 1.96 / 0.85 GB | 2.89 / 1.43 GB |
+| Generation / prompt speed, same request | 114 / 2,114 tokens/s | 66 / 695 tokens/s |
+| Both models loaded, fresh: RSS / footprint | 4.18 / 2.50 GB | 5.01 / 2.98 GB |
+| … peak while answering | 4.66 / 3.83 GB | 5.66 / 4.35 GB |
 
-The large column is not this evaluation. It is the figure config.llm.yaml
-and docs/local-models.md carry, from an Apple M4 Pro with 48 GB on
-2026-09-30 (llama.cpp b11269): an earlier set of eight questions, each asked
-twice, and the four demo documents. Large does not fit on this machine.
+Large does not fit on this machine; it ran later on another
+([small and large on one machine](#small-and-large-on-one-machine-2026-10-08)).
 
 Memory is per `llama-server` child (`ps -o rss`; macOS `footprint`, which
 counts dirty and Metal memory that RSS misses and leaves out the mapped
@@ -492,6 +583,9 @@ download. Point the scripts at the stack with `MIROBODY_URL` (default
 on 18260), `SETUP_TOKEN` (read
 from `.env` when unset), `MIROBODY_COMPOSE_DIR` (the checkout `docker compose`
 runs from) and `LLAMA_ROUTER` (default `http://127.0.0.1:8080`).
+`BENCH_QA_GENERATION` picks the Q&A record (`qa4` unless set), and
+`LLAMA_SERVER` the binary whose version `run.json` records (`llama-server`
+on the PATH unless set).
 
 The scripts need only `requests` (installed with `.[app]`) and the `docker`
 CLI: `docker compose logs` tells when a document's extraction has finished
@@ -507,6 +601,7 @@ python $B/load.py --corpus $G --qa      # the four Q&A accounts, once, shared by
 python $B/load.py --corpus $G --qa --verify
 python $B/run.py --size small --corpus $G
 python $B/run.py --size tiny  --corpus $G
+python $B/run.py --size large --corpus $G       # a 32 GB Mac or a 24 GB GPU
 python $B/report.py summary             # results/summary.md and summary.json
 ```
 
@@ -514,7 +609,9 @@ python $B/report.py summary             # results/summary.md and summary.json
 page does), unloads every model and loads the size's pair so memory is read on
 fresh processes, waits 35 s for the worker to read the saved choice, then runs
 the questions, the extraction and the journal, and writes
-`results/<size>/`. tiny and small took about 30 minutes each on the machine below.
+`results/<size>/`. tiny and small took about 30 minutes each on the M1 Pro;
+on the M4 Pro small took 13 minutes and large 1 h 53 min, an hour of it the 24
+questions.
 A run stops, keeping what it has, when free disk falls under 5 GB or free
 memory under 10% and stays there 30 s (`BENCH_MIN_FREE_DISK_GB`,
 `BENCH_MIN_FREE_MEMORY_PCT`): swap files live on the same disk as Docker's.
@@ -737,7 +834,7 @@ changed by the evaluation.
   - Tiny returned entries but marked them `someone_else` (6), `negated` (5)
     or `not_in_sentence` (3), so 12 of the 15 sentences wrote nothing.
 
-  Whether a larger model fills the schema was not measured on this machine.
+  Large, run later on an M4 Pro, wrote 29 of 31.
 - **`ContextOverflowError`.** Two of small's 24 questions (`p005-ferritin-change`,
   `p005-weight-chart`) ended in this error after a large tool result: each
   slot has 16k tokens (`--ctx-size 32768`, `--parallel 2`). The retry also
@@ -785,6 +882,8 @@ changed by the evaluation.
     counted as a number in no tool result.
   - A value stored with its unit and flag (`7.49mmol/L偏高`, `111/65mmHg`) had
     not been read as the printed number.
+- The M4 Pro runs used llama.cpp b11269, the others 0.6.0 (b11429). Their
+  timings and memory compare with each other, not with the M1 Pro's.
 - The machine was shared with a Docker VM and other work. Earlier the same
   day, before the stack was rebuilt, macOS swap reached 24 GB and filled the
   disk. The runs measured here started with about 10 GB of swap in use.
@@ -806,7 +905,7 @@ changed by the evaluation.
 | `refs/overlays.py`, `refs/*.llm.yaml` | the cloud references' eval-only model configurations, generated from config.llm.yaml |
 | `refs/compose.ref.yaml` | mounts one of them in place of config.llm.yaml |
 | `common.py` | the HTTP client, the corpus reader, the router and memory helpers |
-| `results/run.json` | commits, versions, model files and hashes, machine, timeouts |
+| `results/run.json` | commits, versions, model files and hashes, machine, timeouts; a run elsewhere keeps its own under `environment` |
 | `results/load.json` | what each account was loaded with, when, under which model |
 | `results/<size>/` | `meta.json`, `qa.json` (transcripts and checks), `extraction.json`, `journal.json`, `grades.json`, `summary.md` |
 | `results/summary.md`, `results/summary.json` | every size side by side, and the same as data (`report.py summary`) |

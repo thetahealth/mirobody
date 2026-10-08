@@ -1,0 +1,193 @@
+{
+ "size": "large-m4pro",
+ "agent": "qwen3.8-27b",
+ "started": "2026-10-08T11:36:49+08:00",
+ "parts": [
+  "extraction",
+  "journal",
+  "qa"
+ ],
+ "switch": {
+  "agent": "qwen3.8-27b",
+  "ocr": "glm-ocr",
+  "switch_s": 47.3,
+  "load_s": 10.0,
+  "local_models": {
+   "agent": "qwen3.8-27b",
+   "utils": "qwen3.8-27b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "qwen3.8-27b",
+   "model_path": "<local>/qwen3.8-27b-gsq-rco/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+   "mmproj_path": "<local>/qwen3.8-27b-gsq-rco/mmproj-Qwen3.8-27B-BF16.gguf",
+   "ctx_size": "65536",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+     "bytes": 12120016960,
+     "sha256": "58fd826723939933dc86f45b7fe04545cbc2de1c70f6fe2cdd3858c87a98c12f"
+    },
+    {
+     "file": "mmproj-Qwen3.8-27B-BF16.gguf",
+     "bytes": 931146528,
+     "sha256": "13cb7bebccbd04afc8f4090cb949ecf8937cdf7377c5799b1a0c594e7c0d3e16"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "model_path": "<local>/glm-ocr/GLM-OCR-Q8_0.gguf",
+   "mmproj_path": "<local>/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-08T11:37:42+08:00",
+  "processes": [
+   {
+    "pid": 894,
+    "ppid": 1,
+    "rss_mb": 20.8,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 35.2
+   },
+   {
+    "pid": 1053,
+    "ppid": 894,
+    "rss_mb": 17682.5,
+    "alias": "qwen3.8-27b",
+    "role": "child",
+    "footprint_mb": 6632.8
+   },
+   {
+    "pid": 1054,
+    "ppid": 894,
+    "rss_mb": 2211.4,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1549.8
+   }
+  ],
+  "children_rss_mb": 19893.9,
+  "children_footprint_mb": 8182.6,
+  "swap_used_mb": 11673.0
+ },
+ "passes": [
+  {
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "started": "2026-10-08T11:37:42+08:00",
+   "resources": {
+    "disk_free_gb": 16.4,
+    "memory_free_pct": 23,
+    "swap_used_mb": 11673.0
+   },
+   "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "qwen3.8-27b"
+   ],
+   "memory": {
+    "at": "2026-10-08T11:37:42+08:00",
+    "processes": [
+     {
+      "pid": 894,
+      "ppid": 1,
+      "rss_mb": 20.8,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 35.2
+     },
+     {
+      "pid": 1053,
+      "ppid": 894,
+      "rss_mb": 17682.5,
+      "alias": "qwen3.8-27b",
+      "role": "child",
+      "footprint_mb": 6632.8
+     },
+     {
+      "pid": 1054,
+      "ppid": 894,
+      "rss_mb": 2211.4,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1549.8
+     }
+    ],
+    "children_rss_mb": 19893.9,
+    "children_footprint_mb": 8182.6,
+    "swap_used_mb": 11673.0
+   },
+   "memory_run": {
+    "samples": 189,
+    "peak_rss_mb": 20848.1,
+    "peak_footprint_mb": 10760.7
+   },
+   "memory_after_qa": {
+    "at": "2026-10-08T12:41:00+08:00",
+    "processes": [
+     {
+      "pid": 894,
+      "ppid": 1,
+      "rss_mb": 16.1,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 35.5
+     },
+     {
+      "pid": 1053,
+      "ppid": 894,
+      "rss_mb": 18551.2,
+      "alias": "qwen3.8-27b",
+      "role": "child",
+      "footprint_mb": 8576.6
+     },
+     {
+      "pid": 1054,
+      "ppid": 894,
+      "rss_mb": 696.1,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1549.8
+     }
+    ],
+    "children_rss_mb": 19247.3,
+    "children_footprint_mb": 10126.4,
+    "swap_used_mb": 11353.0,
+    "disk_free_gb": 16.3,
+    "memory_free_pct": 24
+   },
+   "finished": "2026-10-08T13:29:43+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 189,
+  "peak_rss_mb": 20848.1,
+  "peak_footprint_mb": 10760.7
+ },
+ "background_tasks_drained_s": 466.7,
+ "finished": "2026-10-08T13:29:43+08:00"
+}

@@ -425,6 +425,468 @@
     "memory_peak_rss_mb": 5696.5,
     "memory_peak_footprint_mb": 4484.3
    }
+  },
+  "small-m4pro": {
+   "started": "2026-10-08T11:23:28+08:00",
+   "finished": "2026-10-08T11:36:32+08:00",
+   "environment": {
+    "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "54752467175af746414a17d8649acd2d4cee0553",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "<scratch>/seed7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.5.0-dev (build 11269, commit cee37ffea) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "a copy of docker/local-models.ini with local model paths",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    },
+    "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",
+    "qa_records": {
+     "qa2": {
+      "accounts": "qa2-p002, qa2-p003, qa2-p004, qa2-p005 (results/load.json)",
+      "loaded": "2026-10-06 16:48-17:21 +08:00",
+      "extracted_by": "minicpm5-2b (the small size) with glm-ocr: the shared record's document readings were read by the small pair, whichever size later answers questions about them",
+      "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+      "mirobody_dirty": true
+     },
+     "qa3": {
+      "accounts": "qa3-p002, qa3-p003, qa3-p004, qa3-p005 (results/load.json)",
+      "loaded_at_commit": "490a0e1",
+      "extracted_by": "minicpm5-2b with glm-ocr (the small pair)",
+      "re_read_at_commit": "321aa2c",
+      "re_read": [
+       "files/p002/p002_2026-08-07_e04a.pdf",
+       "files/p005/p005_2026-08-28_e09a.pdf"
+      ],
+      "why": "at 490a0e1 the text model copied the extraction prompt's example date (2024-10-30) onto 24 readings of these two documents; after the re-read no file reading is dated 2024-10-30",
+      "used_by": [
+       "small-v2",
+       "ref-deepseek-v4.1-flash-v2",
+       "ref-claude-sonnet-5.5",
+       "ref-gpt-6-luna",
+       "ref-gpt-6.1-sol"
+      ]
+     }
+    },
+    "openrouter": {
+     "account": "requires zero data retention; OpenRouter's guardrail removes hosts without it (DeepSeek's own host among them)",
+     "pinning": "provider.order = [host], allow_fallbacks = false (refs/overlays.py); require_parameters not used: the app sends a temperature on every utility call and OpenRouter lists none for GPT-6 Luna or 6.1 Sol",
+     "hosts": {
+      "ref-deepseek-v4.1-flash-v2": [
+       "together",
+       "Together"
+      ],
+      "ref-claude-sonnet-5.5": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-gpt-6-luna": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gpt-6.1-sol": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gemini-3.8-flash": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-claude-opus-5.5": [
+       "google-vertex",
+       "Google"
+      ]
+     },
+     "quantization_listed": "unknown for all four pinned hosts",
+     "spend_usd": {
+      "total": 6.44,
+      "ref-deepseek-v4.1-flash-v2": 0.11,
+      "ref-gpt-6-luna": 0.047,
+      "ref-claude-sonnet-5.5": "about 1.77 (estimate: its question pass overlapped Sol's)",
+      "ref-gpt-6.1-sol": "about 1.05 (estimate, with every rate-limited retry and two discarded extraction tries)",
+      "ref-gemini-3.8-flash": 0.585,
+      "ref-claude-opus-5.5": 2.88
+     },
+     "sol_rate_limited_left": {
+      "questions": [
+       "p003-fpg-range"
+      ],
+      "documents": [
+       "p006_2026-04-18_e13a.png (0/6)",
+       "p002_2026-08-07_e04a.pdf (one page, 35/78)"
+      ],
+      "journal": [
+       "眼睛干了，可能是换季。"
+      ]
+     },
+     "hosts_probed_and_refused": {
+      "ref-claude-opus-5.5": "anthropic, azure, amazon-bedrock: no endpoint for json_schema with a temperature (Bedrock routed chat only)",
+      "ref-gemini-3.8-flash": "google-ai-studio: ZDR violation (account settings)"
+     },
+     "prices_usd_per_million": {
+      "anthropic/claude-opus-5.5": [
+       4,
+       20
+      ],
+      "google/gemini-3.8-flash": [
+       0.75,
+       3.75
+      ]
+     }
+    }
+   },
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "<local>/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "<local>/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "<local>/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-08T11:24:11+08:00",
+     "finished": "2026-10-08T11:36:32+08:00",
+     "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-m4pro",
+    "agent": "minicpm5-2b",
+    "qa_pass": 20,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 21,
+     "language": 24,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 15.0,
+    "qa_p90_s": 48.1,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 136,
+    "ext_extra": 8,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 24,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 1.5,
+    "memory_idle_rss_mb": 5185.3,
+    "memory_idle_footprint_mb": 3062.9,
+    "memory_peak_rss_mb": 6668.8,
+    "memory_peak_footprint_mb": 4790.3
+   }
+  },
+  "large-m4pro": {
+   "started": "2026-10-08T11:36:49+08:00",
+   "finished": "2026-10-08T13:29:43+08:00",
+   "environment": {
+    "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "54752467175af746414a17d8649acd2d4cee0553",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "<scratch>/seed7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.5.0-dev (build 11269, commit cee37ffea) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "a copy of docker/local-models.ini with local model paths",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    },
+    "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",
+    "qa_records": {
+     "qa2": {
+      "accounts": "qa2-p002, qa2-p003, qa2-p004, qa2-p005 (results/load.json)",
+      "loaded": "2026-10-06 16:48-17:21 +08:00",
+      "extracted_by": "minicpm5-2b (the small size) with glm-ocr: the shared record's document readings were read by the small pair, whichever size later answers questions about them",
+      "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+      "mirobody_dirty": true
+     },
+     "qa3": {
+      "accounts": "qa3-p002, qa3-p003, qa3-p004, qa3-p005 (results/load.json)",
+      "loaded_at_commit": "490a0e1",
+      "extracted_by": "minicpm5-2b with glm-ocr (the small pair)",
+      "re_read_at_commit": "321aa2c",
+      "re_read": [
+       "files/p002/p002_2026-08-07_e04a.pdf",
+       "files/p005/p005_2026-08-28_e09a.pdf"
+      ],
+      "why": "at 490a0e1 the text model copied the extraction prompt's example date (2024-10-30) onto 24 readings of these two documents; after the re-read no file reading is dated 2024-10-30",
+      "used_by": [
+       "small-v2",
+       "ref-deepseek-v4.1-flash-v2",
+       "ref-claude-sonnet-5.5",
+       "ref-gpt-6-luna",
+       "ref-gpt-6.1-sol"
+      ]
+     }
+    },
+    "openrouter": {
+     "account": "requires zero data retention; OpenRouter's guardrail removes hosts without it (DeepSeek's own host among them)",
+     "pinning": "provider.order = [host], allow_fallbacks = false (refs/overlays.py); require_parameters not used: the app sends a temperature on every utility call and OpenRouter lists none for GPT-6 Luna or 6.1 Sol",
+     "hosts": {
+      "ref-deepseek-v4.1-flash-v2": [
+       "together",
+       "Together"
+      ],
+      "ref-claude-sonnet-5.5": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-gpt-6-luna": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gpt-6.1-sol": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gemini-3.8-flash": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-claude-opus-5.5": [
+       "google-vertex",
+       "Google"
+      ]
+     },
+     "quantization_listed": "unknown for all four pinned hosts",
+     "spend_usd": {
+      "total": 6.44,
+      "ref-deepseek-v4.1-flash-v2": 0.11,
+      "ref-gpt-6-luna": 0.047,
+      "ref-claude-sonnet-5.5": "about 1.77 (estimate: its question pass overlapped Sol's)",
+      "ref-gpt-6.1-sol": "about 1.05 (estimate, with every rate-limited retry and two discarded extraction tries)",
+      "ref-gemini-3.8-flash": 0.585,
+      "ref-claude-opus-5.5": 2.88
+     },
+     "sol_rate_limited_left": {
+      "questions": [
+       "p003-fpg-range"
+      ],
+      "documents": [
+       "p006_2026-04-18_e13a.png (0/6)",
+       "p002_2026-08-07_e04a.pdf (one page, 35/78)"
+      ],
+      "journal": [
+       "眼睛干了，可能是换季。"
+      ]
+     },
+     "hosts_probed_and_refused": {
+      "ref-claude-opus-5.5": "anthropic, azure, amazon-bedrock: no endpoint for json_schema with a temperature (Bedrock routed chat only)",
+      "ref-gemini-3.8-flash": "google-ai-studio: ZDR violation (account settings)"
+     },
+     "prices_usd_per_million": {
+      "anthropic/claude-opus-5.5": [
+       4,
+       20
+      ],
+      "google/gemini-3.8-flash": [
+       0.75,
+       3.75
+      ]
+     }
+    }
+   },
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "qwen3.8-27b",
+     "model_path": "<local>/qwen3.8-27b-gsq-rco/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+     "mmproj_path": "<local>/qwen3.8-27b-gsq-rco/mmproj-Qwen3.8-27B-BF16.gguf",
+     "ctx_size": "65536",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+       "bytes": 12120016960,
+       "sha256": "58fd826723939933dc86f45b7fe04545cbc2de1c70f6fe2cdd3858c87a98c12f"
+      },
+      {
+       "file": "mmproj-Qwen3.8-27B-BF16.gguf",
+       "bytes": 931146528,
+       "sha256": "13cb7bebccbd04afc8f4090cb949ecf8937cdf7377c5799b1a0c594e7c0d3e16"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "<local>/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "<local>/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-08T11:37:42+08:00",
+     "finished": "2026-10-08T13:29:43+08:00",
+     "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "large-m4pro",
+    "agent": "qwen3.8-27b",
+    "qa_pass": 22,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 23,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 6,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 138.0,
+    "qa_p90_s": 245.2,
+    "ext_rows": 140,
+    "ext_found": 139,
+    "ext_unit_ok": 139,
+    "ext_range_ok": 138,
+    "ext_extra": 27,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 102.2,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 12,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 10,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 26.9,
+    "memory_idle_rss_mb": 19893.9,
+    "memory_idle_footprint_mb": 8182.6,
+    "memory_peak_rss_mb": 20848.1,
+    "memory_peak_footprint_mb": 10760.7
+   }
   }
  },
  "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",

@@ -1,0 +1,202 @@
+{
+ "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric 2026-10-08",
+ "date": "2026-10-08",
+ "grades": [
+  {
+   "id": "p002-weight-latest",
+   "correct": [2, "57.0 kg on 2026-09-01 matches RIGHT exactly"],
+   "grounded": [2, "value and date are the tool's own row"],
+   "range": [2, "no normal/abnormal judgement made; the BMI range is just quoted as printed"],
+   "language": [2, "English"],
+   "useful": [2, "direct answer with relevant BMI context"]
+  },
+  {
+   "id": "p002-rhr-monthly",
+   "correct": [2, "all six monthly means (45.2-44.0 bpm) match the tool's month view within tolerance"],
+   "grounded": [2, "table and chart values are the tool's own rows; the 1.2 bpm March-to-August difference is a correct derivation"],
+   "range": [1, "calls the mid-40s rate 'on the lower side... often associated with good cardiovascular fitness,' a general range explicitly framed as general"],
+   "language": [2, "English"],
+   "useful": [2, "direct table and chart, with an appropriately hedged clinical note"]
+  },
+  {
+   "id": "p002-sleep-july",
+   "correct": [2, "407 minutes (6h47m) matches RIGHT exactly"],
+   "grounded": [2, "all figures (319, 493, 400, 425, 25) and their hour conversions are the tool's own stats, correctly converted"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "English"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p002-checkup-summary",
+   "correct": [2, "all five conclusions (pharyngitis, cerumen, ApoA1/B, chloride, HBcAb positive) are named, matching RIGHT"],
+   "grounded": [2, "AUTO shows no unsupported values after the two read_file calls covering the full 268-line report"],
+   "range": [2, "the up/down arrows are the document's own flags, not a remembered range"],
+   "language": [2, "English"],
+   "useful": [2, "direct, repeats only the report's own recommendations, no added diagnosis"]
+  },
+  {
+   "id": "p002-steps-chart",
+   "correct": [2, "all 31 August days, including the 9018 high (Aug 31) and 2305 low (Aug 22), match the tool's day-view values"],
+   "grounded": [2, "the 178,296 total and ~5,751 average are correct sums/means of the chart's own 31 values"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "English"],
+   "useful": [2, "direct, with a sensible caveat about pedometer gaps"],
+   "chart": [2, "vis-chart of all 31 days with the tool's own step counts"]
+  },
+  {
+   "id": "p002-headache-journal",
+   "correct": [2, "6 entries, last 2025-04-10, matching RIGHT"],
+   "grounded": [2, "dates are exactly the tool's row"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "English"],
+   "useful": [2, "direct, correctly notes these are self-reports, not a diagnosis"]
+  },
+  {
+   "id": "p002-vitd-none",
+   "correct": [2, "says no vitamin D recorded, gives no value"],
+   "grounded": [2, "AUTO shows no unsupported values from the full-catalog search"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "English"],
+   "useful": [2, "direct, offers to look further"]
+  },
+  {
+   "id": "p003-bp-latest",
+   "correct": [2, "124/73 mmHg on 2026-08-22, matching RIGHT"],
+   "grounded": [2, "straight from the tool's latest-view result; the +13/+8 mmHg comparison to March is a correct derivation"],
+   "range": [2, "no normal/abnormal judgement made"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p003-weight-change",
+   "correct": [2, "January 84.76 kg and August 85.22 kg both match the tool's two stats calls, change +0.46 kg correct"],
+   "grounded": [2, "all values, counts and ranges are the tool's own two query results"],
+   "range": [2, "no normal/abnormal judgement made; '小幅上升' is descriptive, not a range call"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p003-hba1c-series",
+   "correct": [2, "6.6%, 6.1%, 6.1% across the three dates, matching RIGHT"],
+   "grounded": [2, "straight from the tool's four rows; the 0.5-point drop is a correct derivation"],
+   "range": [2, "flags 6.1% against the printed 4.0-6.0 range from the tool result"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct, trend stated plainly"]
+  },
+  {
+   "id": "p003-fpg-range",
+   "correct": [2, "4.76 mmol/L on 2026-03-31, within the printed 3.90-6.10, matching RIGHT"],
+   "grounded": [2, "value and range are read directly off the lab slip image via read_file"],
+   "range": [2, "judges strictly against the printed 3.90-6.10"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p003-clinic-note",
+   "correct": [2, "diagnosis and all four plan items match the note's text exactly"],
+   "grounded": [2, "quoted verbatim from the read_file result; the estimated late-June follow-up date is a reasonable derivation from '3个月后复诊'"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p003-genotype",
+   "correct": [2, "TT, matching RIGHT"],
+   "grounded": [2, "genotype and zygosity are the tool's own fields"],
+   "range": [2, "no range judgement applies to a genotype"],
+   "language": [2, "Chinese"],
+   "useful": [2, "correctly says 纯合子 (homozygous) without the wrong-side 'homozygous reference' claim, and declines to advise on warfarin dosing"]
+  },
+  {
+   "id": "p003-bp-chart",
+   "correct": [1, "April systolic 106.0 vs RIGHT 111.0, June 110.0 vs 112.0, July 109.7 vs 112.0, and March diastolic 70.0 vs 67.8 are all outside tolerance, from the month view's known 'last reading of day' artifact rather than model error"],
+   "grounded": [2, "every plotted value is the tool's own month-view row, not invented"],
+   "range": [1, "the hint that August's 121 mmHg is 'persistently high' and worth a doctor visit implies an unstated general threshold rather than any printed range"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct chart and table, hedged clinical note, no diagnosis"],
+   "chart": [2, "both systolic and diastolic series, all 8 months, plotted exactly as the tool's month view returned them"]
+  },
+  {
+   "id": "p003-numbness-journal",
+   "correct": [2, "6 times, last 2025-12-22, matching RIGHT"],
+   "grounded": [2, "all six dates and quotes are the tool's own rows"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p003-vitd-none",
+   "correct": [2, "says no vitamin D recorded, gives no value"],
+   "grounded": [2, "from the tool's full-catalog search, including the '没力气' symptom it cites"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct, offers reasonable next steps without diagnosing"]
+  },
+  {
+   "id": "p004-statin-pgx",
+   "correct": [2, "names SLCO1B1, reports rs4149056 TC, and declines to advise changing the statin, matching RIGHT"],
+   "grounded": [0, "invents a defining variant 'rs4149310 (516C>T)' as the untested site; the tool's own missing_rsids list of 28 ids does not contain it, and AUTO flags 516.0 as unsupported"],
+   "range": [2, "no range judgement applies to a genotype"],
+   "language": [2, "Chinese"],
+   "useful": [1, "the fabricated missing-variant claim is a wrong side claim that wrongly implies the clinically relevant site was never tested, when rs4149056 (the real statin-myopathy marker) was tested and returned TC"]
+  },
+  {
+   "id": "p004-weight-latest",
+   "correct": [2, "64.3 kg on 2026-08-26, matching RIGHT"],
+   "grounded": [2, "from the tool's latest-view result"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "English"],
+   "useful": [1, "wrongly claims this is 'the only weight entry on file'; the same account's later query in this transcript shows 172 weight readings from 2023 to 2026"]
+  },
+  {
+   "id": "p004-bp-september-none",
+   "correct": [2, "says blood pressure was never recorded at all, matching RIGHT"],
+   "grounded": [2, "the 172-reading body-weight count is the tool's own full-catalog figure"],
+   "range": [2, "no range judgement made; explicitly says absence doesn't mean normal"],
+   "language": [2, "English"],
+   "useful": [2, "direct, no invented value"]
+  },
+  {
+   "id": "p005-hemoglobin-range",
+   "correct": [2, "140, 134, 153 g/L across the three dates, newest above the printed 115-150, matching RIGHT"],
+   "grounded": [2, "the 19 g/L rise and 134-153 g/L range are correct derivations from the tool's rows"],
+   "range": [2, "judges only against each record's own printed reference range, including the gender-split July range"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p005-ferritin-change",
+   "correct": [2, "42.3 to 37.1 ng/mL, a drop of 5.2, matching RIGHT"],
+   "grounded": [2, "values, the 5.2 difference and ~12% change are correct derivations from the tool's two rows"],
+   "range": [2, "judges both values against their own printed ranges"],
+   "language": [2, "English"],
+   "useful": [2, "direct, honestly notes only two points exist to chart"]
+  },
+  {
+   "id": "p005-lipids-range",
+   "correct": [2, "all four lipid values and their printed ranges match RIGHT, all within range"],
+   "grounded": [2, "consistent with the same report's text read in full across two read_file calls"],
+   "range": [2, "judges each value against its own printed range"],
+   "language": [2, "English"],
+   "useful": [2, "direct"]
+  },
+  {
+   "id": "p005-hemoglobin-chart",
+   "correct": [2, "140.0, 134.0, 153.0 g/L by date, matching RIGHT"],
+   "grounded": [2, "the -6 and +19 g/L deltas are correct derivations from the tool's day-view rows"],
+   "range": [2, "explicitly defers to the report's own printed range rather than judging itself"],
+   "language": [2, "Chinese"],
+   "useful": [2, "direct"],
+   "chart": [2, "vis-chart of exactly the three hemoglobin results by date"]
+  },
+  {
+   "id": "p005-weight-chart",
+   "correct": [2, "all six monthly means (50.72 to 49.07 kg) match the tool's month view exactly"],
+   "grounded": [1, "claims a 'roughly 1.2-1.5 kg' monthly spread, but April and June actually span 1.9 kg (49.5-51.4 and 49.1-51.0) per the tool's own min/max"],
+   "range": [2, "no range judgement made"],
+   "language": [2, "English"],
+   "useful": [2, "gives the correct monthly figures directly"],
+   "chart": [2, "vis-chart of all six monthly means matching the tool's month view"]
+  }
+ ]
+}

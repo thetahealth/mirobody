@@ -1,5 +1,5 @@
 {
- "generated": "2026-10-07T13:52:13+08:00",
+ "generated": "2026-10-08T13:31:06+08:00",
  "environment": {
   "mirobody_commit": "bb3af91c685473c1a1385340d591a4b1aac17704",
   "mirobody_dirty": true,
@@ -1709,6 +1709,7 @@
  "sizes": {
   "tiny": {
    "agent": "minicpm5-1b",
+   "environment": null,
    "openrouter_usd": [],
    "models": [
     {
@@ -2134,6 +2135,7 @@
   },
   "small": {
    "agent": "minicpm5-2b",
+   "environment": null,
    "openrouter_usd": [],
    "models": [
     {
@@ -2595,6 +2597,7 @@
   },
   "small-v2": {
    "agent": "minicpm5-2b",
+   "environment": null,
    "openrouter_usd": [],
    "models": [
     {
@@ -3020,6 +3023,7 @@
   },
   "small-v3": {
    "agent": "minicpm5-2b",
+   "environment": null,
    "openrouter_usd": [],
    "models": [
     {
@@ -3443,8 +3447,1131 @@
    ],
    "stopped": null
   },
+  "small-m4pro": {
+   "agent": "minicpm5-2b",
+   "environment": {
+    "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "54752467175af746414a17d8649acd2d4cee0553",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "<scratch>/seed7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.5.0-dev (build 11269, commit cee37ffea) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "a copy of docker/local-models.ini with local model paths",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    },
+    "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",
+    "qa_records": {
+     "qa2": {
+      "accounts": "qa2-p002, qa2-p003, qa2-p004, qa2-p005 (results/load.json)",
+      "loaded": "2026-10-06 16:48-17:21 +08:00",
+      "extracted_by": "minicpm5-2b (the small size) with glm-ocr: the shared record's document readings were read by the small pair, whichever size later answers questions about them",
+      "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+      "mirobody_dirty": true
+     },
+     "qa3": {
+      "accounts": "qa3-p002, qa3-p003, qa3-p004, qa3-p005 (results/load.json)",
+      "loaded_at_commit": "490a0e1",
+      "extracted_by": "minicpm5-2b with glm-ocr (the small pair)",
+      "re_read_at_commit": "321aa2c",
+      "re_read": [
+       "files/p002/p002_2026-08-07_e04a.pdf",
+       "files/p005/p005_2026-08-28_e09a.pdf"
+      ],
+      "why": "at 490a0e1 the text model copied the extraction prompt's example date (2024-10-30) onto 24 readings of these two documents; after the re-read no file reading is dated 2024-10-30",
+      "used_by": [
+       "small-v2",
+       "ref-deepseek-v4.1-flash-v2",
+       "ref-claude-sonnet-5.5",
+       "ref-gpt-6-luna",
+       "ref-gpt-6.1-sol"
+      ]
+     }
+    },
+    "openrouter": {
+     "account": "requires zero data retention; OpenRouter's guardrail removes hosts without it (DeepSeek's own host among them)",
+     "pinning": "provider.order = [host], allow_fallbacks = false (refs/overlays.py); require_parameters not used: the app sends a temperature on every utility call and OpenRouter lists none for GPT-6 Luna or 6.1 Sol",
+     "hosts": {
+      "ref-deepseek-v4.1-flash-v2": [
+       "together",
+       "Together"
+      ],
+      "ref-claude-sonnet-5.5": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-gpt-6-luna": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gpt-6.1-sol": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gemini-3.8-flash": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-claude-opus-5.5": [
+       "google-vertex",
+       "Google"
+      ]
+     },
+     "quantization_listed": "unknown for all four pinned hosts",
+     "spend_usd": {
+      "total": 6.44,
+      "ref-deepseek-v4.1-flash-v2": 0.11,
+      "ref-gpt-6-luna": 0.047,
+      "ref-claude-sonnet-5.5": "about 1.77 (estimate: its question pass overlapped Sol's)",
+      "ref-gpt-6.1-sol": "about 1.05 (estimate, with every rate-limited retry and two discarded extraction tries)",
+      "ref-gemini-3.8-flash": 0.585,
+      "ref-claude-opus-5.5": 2.88
+     },
+     "sol_rate_limited_left": {
+      "questions": [
+       "p003-fpg-range"
+      ],
+      "documents": [
+       "p006_2026-04-18_e13a.png (0/6)",
+       "p002_2026-08-07_e04a.pdf (one page, 35/78)"
+      ],
+      "journal": [
+       "眼睛干了，可能是换季。"
+      ]
+     },
+     "hosts_probed_and_refused": {
+      "ref-claude-opus-5.5": "anthropic, azure, amazon-bedrock: no endpoint for json_schema with a temperature (Bedrock routed chat only)",
+      "ref-gemini-3.8-flash": "google-ai-studio: ZDR violation (account settings)"
+     },
+     "prices_usd_per_million": {
+      "anthropic/claude-opus-5.5": [
+       4,
+       20
+      ],
+      "google/gemini-3.8-flash": [
+       0.75,
+       3.75
+      ]
+     }
+    }
+   },
+   "openrouter_usd": [],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "<local>/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "<local>/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "<local>/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "automatic": {
+    "size": "small-m4pro",
+    "agent": "minicpm5-2b",
+    "qa_pass": 20,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 21,
+     "language": 24,
+     "chart": 23
+    },
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 15.0,
+    "qa_p90_s": 48.1,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 136,
+    "ext_extra": 8,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 12.3,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 24,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 1.5,
+    "memory_idle_rss_mb": 5185.3,
+    "memory_idle_footprint_mb": 3062.9,
+    "memory_peak_rss_mb": 6668.8,
+    "memory_peak_footprint_mb": 4790.3
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric 2026-10-08",
+    "date": "2026-10-08",
+    "points": 229,
+    "max": 248,
+    "domains": {
+     "device": [
+      53,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      38,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      18,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      42,
+      48
+     ],
+     "grounded": [
+      43,
+      48
+     ],
+     "range": [
+      46,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      46,
+      48
+     ],
+     "chart": [
+      4,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 18.3,
+     "first_text_s": 17.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 23.8,
+     "first_text_s": 14.9,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": false,
+     "seconds": 54.2,
+     "first_text_s": 49.1,
+     "points": [
+      6,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 25.2,
+     "first_text_s": 21.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 35.6,
+     "first_text_s": 23.5,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 3.8,
+     "first_text_s": 2.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 23.4,
+     "first_text_s": 22.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 15.6,
+     "first_text_s": 15.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 16.0,
+     "first_text_s": 13.9,
+     "points": [
+      8,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 6.5,
+     "first_text_s": 3.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 14.0,
+     "first_text_s": 12.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 9.2,
+     "first_text_s": 6.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 4.3,
+     "first_text_s": 3.4,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 71.1,
+     "first_text_s": 62.4,
+     "points": [
+      4,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 5.8,
+     "first_text_s": 5.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 7.5,
+     "first_text_s": 6.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": false,
+     "seconds": 10.7,
+     "first_text_s": 8.1,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 8.7,
+     "first_text_s": 8.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 5.9,
+     "first_text_s": 5.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 14.9,
+     "first_text_s": 12.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 15.1,
+     "first_text_s": 13.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": true,
+     "seconds": 11.0,
+     "first_text_s": 8.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 25.4,
+     "first_text_s": 21.1,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": false,
+     "seconds": 53.5,
+     "first_text_s": 49.7,
+     "points": [
+      10,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "minicpm5-2b"
+     ],
+     "resources": {
+      "disk_free_gb": 21.6,
+      "memory_free_pct": 49,
+      "swap_used_mb": 5658.25
+     },
+     "processes": [
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 46.7,
+       "footprint_mb": 51.6
+      },
+      {
+       "alias": "minicpm5-2b",
+       "role": "child",
+       "rss_mb": 2914.0,
+       "footprint_mb": 1424.4
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2271.3,
+       "footprint_mb": 1638.5
+      }
+     ],
+     "while_answering": {
+      "samples": 24,
+      "peak_rss_mb": 6668.8,
+      "peak_footprint_mb": 4790.3
+     }
+    }
+   ],
+   "stopped": null
+  },
+  "large-m4pro": {
+   "agent": "qwen3.8-27b",
+   "environment": {
+    "mirobody_commit": "7372b09604c3d9d4e935dea0fc110300f6341b70",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "54752467175af746414a17d8649acd2d4cee0553",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "<scratch>/seed7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.5.0-dev (build 11269, commit cee37ffea) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "a copy of docker/local-models.ini with local model paths",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    },
+    "gguf_sha256": "every file's sha256 was computed with shasum -a 256 and equals its Hugging Face blob name",
+    "qa_records": {
+     "qa2": {
+      "accounts": "qa2-p002, qa2-p003, qa2-p004, qa2-p005 (results/load.json)",
+      "loaded": "2026-10-06 16:48-17:21 +08:00",
+      "extracted_by": "minicpm5-2b (the small size) with glm-ocr: the shared record's document readings were read by the small pair, whichever size later answers questions about them",
+      "mirobody_commit": "f76bcbd21042bf4081110bff89eeeae876cb7e8c",
+      "mirobody_dirty": true
+     },
+     "qa3": {
+      "accounts": "qa3-p002, qa3-p003, qa3-p004, qa3-p005 (results/load.json)",
+      "loaded_at_commit": "490a0e1",
+      "extracted_by": "minicpm5-2b with glm-ocr (the small pair)",
+      "re_read_at_commit": "321aa2c",
+      "re_read": [
+       "files/p002/p002_2026-08-07_e04a.pdf",
+       "files/p005/p005_2026-08-28_e09a.pdf"
+      ],
+      "why": "at 490a0e1 the text model copied the extraction prompt's example date (2024-10-30) onto 24 readings of these two documents; after the re-read no file reading is dated 2024-10-30",
+      "used_by": [
+       "small-v2",
+       "ref-deepseek-v4.1-flash-v2",
+       "ref-claude-sonnet-5.5",
+       "ref-gpt-6-luna",
+       "ref-gpt-6.1-sol"
+      ]
+     }
+    },
+    "openrouter": {
+     "account": "requires zero data retention; OpenRouter's guardrail removes hosts without it (DeepSeek's own host among them)",
+     "pinning": "provider.order = [host], allow_fallbacks = false (refs/overlays.py); require_parameters not used: the app sends a temperature on every utility call and OpenRouter lists none for GPT-6 Luna or 6.1 Sol",
+     "hosts": {
+      "ref-deepseek-v4.1-flash-v2": [
+       "together",
+       "Together"
+      ],
+      "ref-claude-sonnet-5.5": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-gpt-6-luna": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gpt-6.1-sol": [
+       "azure",
+       "Azure"
+      ],
+      "ref-gemini-3.8-flash": [
+       "google-vertex",
+       "Google"
+      ],
+      "ref-claude-opus-5.5": [
+       "google-vertex",
+       "Google"
+      ]
+     },
+     "quantization_listed": "unknown for all four pinned hosts",
+     "spend_usd": {
+      "total": 6.44,
+      "ref-deepseek-v4.1-flash-v2": 0.11,
+      "ref-gpt-6-luna": 0.047,
+      "ref-claude-sonnet-5.5": "about 1.77 (estimate: its question pass overlapped Sol's)",
+      "ref-gpt-6.1-sol": "about 1.05 (estimate, with every rate-limited retry and two discarded extraction tries)",
+      "ref-gemini-3.8-flash": 0.585,
+      "ref-claude-opus-5.5": 2.88
+     },
+     "sol_rate_limited_left": {
+      "questions": [
+       "p003-fpg-range"
+      ],
+      "documents": [
+       "p006_2026-04-18_e13a.png (0/6)",
+       "p002_2026-08-07_e04a.pdf (one page, 35/78)"
+      ],
+      "journal": [
+       "眼睛干了，可能是换季。"
+      ]
+     },
+     "hosts_probed_and_refused": {
+      "ref-claude-opus-5.5": "anthropic, azure, amazon-bedrock: no endpoint for json_schema with a temperature (Bedrock routed chat only)",
+      "ref-gemini-3.8-flash": "google-ai-studio: ZDR violation (account settings)"
+     },
+     "prices_usd_per_million": {
+      "anthropic/claude-opus-5.5": [
+       4,
+       20
+      ],
+      "google/gemini-3.8-flash": [
+       0.75,
+       3.75
+      ]
+     }
+    }
+   },
+   "openrouter_usd": [],
+   "models": [
+    {
+     "id": "qwen3.8-27b",
+     "model_path": "<local>/qwen3.8-27b-gsq-rco/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+     "mmproj_path": "<local>/qwen3.8-27b-gsq-rco/mmproj-Qwen3.8-27B-BF16.gguf",
+     "ctx_size": "65536",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+       "bytes": 12120016960,
+       "sha256": "58fd826723939933dc86f45b7fe04545cbc2de1c70f6fe2cdd3858c87a98c12f"
+      },
+      {
+       "file": "mmproj-Qwen3.8-27B-BF16.gguf",
+       "bytes": 931146528,
+       "sha256": "13cb7bebccbd04afc8f4090cb949ecf8937cdf7377c5799b1a0c594e7c0d3e16"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "<local>/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "<local>/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "automatic": {
+    "size": "large-m4pro",
+    "agent": "qwen3.8-27b",
+    "qa_pass": 22,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 23,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "qa_unsupported_numbers": 6,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 138.0,
+    "qa_p90_s": 245.2,
+    "ext_rows": 140,
+    "ext_found": 139,
+    "ext_unit_ok": 139,
+    "ext_range_ok": 138,
+    "ext_extra": 27,
+    "ext_dates_ok": 11,
+    "ext_docs": 12,
+    "ext_median_s": 102.2,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 29,
+    "jnl_code_ok": 12,
+    "jnl_coded_checked": 15,
+    "jnl_extra": 0,
+    "jnl_exact": 10,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 26.9,
+    "memory_idle_rss_mb": 19893.9,
+    "memory_idle_footprint_mb": 8182.6,
+    "memory_peak_rss_mb": 20848.1,
+    "memory_peak_footprint_mb": 10760.7
+   },
+   "claude_code": {
+    "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric 2026-10-08",
+    "date": "2026-10-08",
+    "points": 240,
+    "max": 248,
+    "domains": {
+     "device": [
+      58,
+      60
+     ],
+     "document": [
+      20,
+      20
+     ],
+     "chart": [
+      45,
+      48
+     ],
+     "journal": [
+      20,
+      20
+     ],
+     "no data": [
+      30,
+      30
+     ],
+     "lab": [
+      50,
+      50
+     ],
+     "genetics": [
+      17,
+      20
+     ]
+    },
+    "criteria": {
+     "correct": [
+      47,
+      48
+     ],
+     "grounded": [
+      45,
+      48
+     ],
+     "range": [
+      46,
+      48
+     ],
+     "language": [
+      48,
+      48
+     ],
+     "useful": [
+      46,
+      48
+     ],
+     "chart": [
+      8,
+      8
+     ]
+    }
+   },
+   "answers": [
+    {
+     "id": "p002-weight-latest",
+     "pass": true,
+     "seconds": 100.0,
+     "first_text_s": 92.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-rhr-monthly",
+     "pass": true,
+     "seconds": 139.3,
+     "first_text_s": 105.7,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p002-sleep-july",
+     "pass": true,
+     "seconds": 132.6,
+     "first_text_s": 122.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-checkup-summary",
+     "pass": true,
+     "seconds": 251.9,
+     "first_text_s": 215.1,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-steps-chart",
+     "pass": true,
+     "seconds": 253.3,
+     "first_text_s": 196.0,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p002-headache-journal",
+     "pass": true,
+     "seconds": 107.9,
+     "first_text_s": 98.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p002-vitd-none",
+     "pass": true,
+     "seconds": 171.9,
+     "first_text_s": 90.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-latest",
+     "pass": true,
+     "seconds": 107.1,
+     "first_text_s": 93.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-weight-change",
+     "pass": true,
+     "seconds": 137.7,
+     "first_text_s": 120.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-hba1c-series",
+     "pass": true,
+     "seconds": 186.9,
+     "first_text_s": 148.2,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-fpg-range",
+     "pass": true,
+     "seconds": 229.7,
+     "first_text_s": 211.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-clinic-note",
+     "pass": true,
+     "seconds": 120.5,
+     "first_text_s": 104.3,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-genotype",
+     "pass": true,
+     "seconds": 107.9,
+     "first_text_s": 90.5,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-bp-chart",
+     "pass": false,
+     "seconds": 161.2,
+     "first_text_s": 122.1,
+     "points": [
+      10,
+      12
+     ]
+    },
+    {
+     "id": "p003-numbness-journal",
+     "pass": true,
+     "seconds": 128.3,
+     "first_text_s": 106.6,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p003-vitd-none",
+     "pass": true,
+     "seconds": 133.9,
+     "first_text_s": 115.0,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p004-statin-pgx",
+     "pass": true,
+     "seconds": 286.0,
+     "first_text_s": 231.7,
+     "points": [
+      7,
+      10
+     ]
+    },
+    {
+     "id": "p004-weight-latest",
+     "pass": true,
+     "seconds": 94.4,
+     "first_text_s": 88.4,
+     "points": [
+      9,
+      10
+     ]
+    },
+    {
+     "id": "p004-bp-september-none",
+     "pass": true,
+     "seconds": 173.9,
+     "first_text_s": 156.9,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-range",
+     "pass": true,
+     "seconds": 173.5,
+     "first_text_s": 133.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-ferritin-change",
+     "pass": true,
+     "seconds": 134.8,
+     "first_text_s": 112.8,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-lipids-range",
+     "pass": false,
+     "seconds": 188.4,
+     "first_text_s": 169.7,
+     "points": [
+      10,
+      10
+     ]
+    },
+    {
+     "id": "p005-hemoglobin-chart",
+     "pass": true,
+     "seconds": 138.3,
+     "first_text_s": 110.0,
+     "points": [
+      12,
+      12
+     ]
+    },
+    {
+     "id": "p005-weight-chart",
+     "pass": true,
+     "seconds": 136.8,
+     "first_text_s": 106.4,
+     "points": [
+      11,
+      12
+     ]
+    }
+   ],
+   "memory": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "loaded": [
+      "glm-ocr",
+      "qwen3.8-27b"
+     ],
+     "resources": {
+      "disk_free_gb": 16.4,
+      "memory_free_pct": 23,
+      "swap_used_mb": 11673.0
+     },
+     "processes": [
+      {
+       "alias": "",
+       "role": "router",
+       "rss_mb": 20.8,
+       "footprint_mb": 35.2
+      },
+      {
+       "alias": "qwen3.8-27b",
+       "role": "child",
+       "rss_mb": 17682.5,
+       "footprint_mb": 6632.8
+      },
+      {
+       "alias": "glm-ocr",
+       "role": "child",
+       "rss_mb": 2211.4,
+       "footprint_mb": 1549.8
+      }
+     ],
+     "while_answering": {
+      "samples": 189,
+      "peak_rss_mb": 20848.1,
+      "peak_footprint_mb": 10760.7
+     }
+    }
+   ],
+   "stopped": null
+  },
   "ref-claude-opus-5.5": {
    "agent": "anthropic/claude-opus-5.5",
+   "environment": null,
    "openrouter_usd": [
     {
      "readings": {
@@ -3902,6 +5029,7 @@
   },
   "ref-claude-sonnet-5.5": {
    "agent": "anthropic/claude-sonnet-5.5",
+   "environment": null,
    "openrouter_usd": [
     {
      "readings": {
@@ -4405,6 +5533,7 @@
   },
   "ref-deepseek-v4.1-flash": {
    "agent": "deepseek/deepseek-v4.1-flash",
+   "environment": null,
    "openrouter_usd": [
     {
      "readings": {
@@ -4816,6 +5945,7 @@
   },
   "ref-deepseek-v4.1-flash-v2": {
    "agent": "deepseek/deepseek-v4.1-flash",
+   "environment": null,
    "openrouter_usd": [
     {
      "readings": {
@@ -5322,6 +6452,7 @@
   },
   "ref-gemini-3.8-flash": {
    "agent": "google/gemini-3.8-flash",
+   "environment": null,
    "openrouter_usd": [
     {
      "readings": {
@@ -5783,6 +6914,7 @@
   },
   "ref-gpt-6-luna": {
    "agent": "openai/gpt-6-luna",
+   "environment": null,
    "openrouter_usd": [
     {
      "readings": {
@@ -6388,14 +7520,7 @@
   },
   "finished": "2026-10-06T17:03:00+08:00"
  },
- "not_measured_here": {
-  "large": {
-   "agent": "qwen3.8-27b",
-   "memory_gb": 20,
-   "answer_s": 134,
-   "measured_on": "Apple M4 Pro, 48 GB"
-  }
- },
+ "not_measured_here": {},
  "dropped": {
   "ref-gpt-6.1-sol": "dropped 2026-10-07: rate-limited upstream even pinned to Azure, at about 20 times GPT-6 Luna's price"
  }
