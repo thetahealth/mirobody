@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections.abc import Mapping
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
@@ -92,11 +93,13 @@ async def build_system_prompt(
     health_profile: str | None = None,
     tool_round_limit: int = 15,
     answer_language: str = "",
+    knowledge: Mapping[str, str] | None = None,
 ) -> str:
     """Render `base_prompt` with tool descriptions, the current time in
     `timezone`, and the user context the template may reference.
     `record_owner` names whose record it is when that is not the asker's;
-    `answer_language` the latest question's language (`question_language`)."""
+    `answer_language` the latest question's language (`question_language`);
+    `knowledge` the medical-knowledge scopes this deployment has, by name."""
     tool_prompts = [
         f"**{tool.name}**: {tool.description}"
         for tool in langchain_tools
@@ -117,6 +120,7 @@ async def build_system_prompt(
         health_profile=health_profile,
         tool_round_limit=tool_round_limit,
         answer_language=answer_language,
+        knowledge=dict(knowledge or {}),
     )
 
 

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -258,7 +259,8 @@ MAX_RIDS = 200
 async def resolve_citations(user_id: str, session_id: str, rids: list[str]) -> dict:
     """What the rids an answer cites stand for, as the `{code, msg, data}`
     envelope. Only the conversation's owner, and only while they may still
-    read the record it is about: a care-circle share revoked since is a denial."""
+    read the record it is about: a care-circle share revoked since is a denial.
+    A `ref:` cite, a medical-knowledge passage, resolves to its source and page."""
     rows = await execute_query(
         "SELECT user_id, query_user_id FROM th_sessions WHERE session_id = :sid",
         {"sid": session_id}, log_sql=False) or []
@@ -270,8 +272,14 @@ async def resolve_citations(user_id: str, session_id: str, rids: list[str]) -> d
     except CareCircleDenied:
         return {"code": -2, "msg": "You can no longer read this record.", "data": []}
     from mirobody.agent.checkpointer import thread_for
+    from mirobody.agent.knowledge import offline, refs
     from mirobody.collect import resolve_rids
-    resolved = await resolve_rids(thread_for(user_id, session_id), str(subject), rids[:MAX_RIDS])
+    wanted = rids[:MAX_RIDS]
+    cited = [r for r in wanted if r.startswith("ref:")]
+    row_ids = [r for r in wanted if not r.startswith("ref:")]
+    resolved = await resolve_rids(thread_for(user_id, session_id), str(subject), row_ids) if row_ids else []
+    for ref in cited:
+        resolved.append(refs.resolve(ref, await asyncio.to_thread(offline.read, ref)))
     return {"code": 0, "msg": "ok", "data": resolved}
 
 #-----------------------------------------------------------------------------

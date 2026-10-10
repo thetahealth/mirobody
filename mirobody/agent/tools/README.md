@@ -104,6 +104,40 @@ An answer cites what it rests on, in the format of `mirobody/kernel/citations.py
   `CITATION_SESSION` is set, and put the rid first in its table.
 
 
+## 📚 Medical knowledge: one capability, two tiers
+
+The record tools answer "what does my record say". General medical knowledge ("what is metformin for",
+"what does a high ALT mean", "what do guidelines say about statins") comes from a second capability that
+never reads the record, so a small model does not answer it from memory. It lives in `agent/knowledge/`,
+not in this directory: it is agent-only, and the MCP surface stays the record tools.
+
+| | Offline, the default | Online, optional |
+| --- | --- | --- |
+| Sources | MedlinePlus health topics and lab test pages (public domain, credited "MedlinePlus, National Library of Medicine"); FDA labels of the 200 most-labelled prescription generics (openFDA, CC0) | PubMed reviews, meta-analyses, guidelines and trials with abstracts (through Europe PMC); ClinicalTrials.gov |
+| Network at answer time | none | each search sends its words to `www.ebi.ac.uk` or `clinicaltrials.gov`; never record data |
+| Turned on by | an index built once with `mirobody fetch knowledge` (the Docker image ships one) | `KNOWLEDGE_ONLINE: true` |
+| Cites | `ref:medlineplus:<topic id>`, `ref:medlineplus_test:<page>`, `ref:openfda:<label set id>#<section>` | `ref:pmid:<id>`, `ref:pmc:<id>`, `ref:doi:<doi>`, `ref:nct:<id>` |
+
+**Two tools**, offered only for the tiers a deployment has. `search_medical_knowledge(query, scope)` searches
+`"reference"` (offline), `"literature"` or `"trials"` (online); `read_medical_source(ref)` reads one result in
+full. Both return passages with `ref:` ids, which the answer cites the way it cites a row (Citations):
+`<statement>ALT is an enzyme found mainly in the liver<cite>[ref:medlineplus_test:alt-blood-test]</cite></statement>`.
+`/api/citations` resolves a ref to its title, source and public page without a network call, so the chip
+opens the page the passage came from.
+
+**Rules the prompt states.** A general medical fact comes only from what these tools returned, never from
+memory; "your record shows" and "the reference says" stay separate statements; a label's dosage never
+becomes an instruction for this person. Each turn may search 3 times and read 2 sources. An unreachable
+source is reported as an outage, never as "no evidence".
+
+**The index** is a SQLite FTS5 file at `KNOWLEDGE_INDEX` (default `~/.mirobody/knowledge/medref.sqlite3`),
+about 15 MB, built in about 13 minutes from the sources above and kept out of git and the wheel. Without it the offline tier is
+off. Queries are matched in English: the model turns a Chinese or Japanese question into English medical
+terms, as the tool description asks.
+
+**Privacy.** An online search carries the words of the query, so the online tier is off by default, and
+the tool tells the model never to put the person's name, values or dates in a query.
+
 ## 💡 Examples
 
 ### Basic Function Tool

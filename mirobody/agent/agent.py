@@ -36,6 +36,7 @@ from mirobody.utils.config.llm import chat_entries, default_model
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error
 from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
+from .knowledge import tools as medical_knowledge
 from .models.clients import build_llm_clients, unavailable_reason
 from .models.usage import usage_block
 from .prompt import attachment_reminder, build_system_prompt, question_language
@@ -186,12 +187,18 @@ class MirobodyAgent:
         raise AgentError("No prompt template is configured (check PROMPTS in config)")
 
 
+    def _knowledge_tools(self) -> list[BaseTool]:
+        """The medical-knowledge tools this deployment has (`knowledge/`),
+        less any `DISALLOWED_TOOLS` names. Agent-only, like `ask_user`."""
+        return [t for t in medical_knowledge.knowledge_tools() if t.name not in self.disallowed_tools]
+
     async def _build_system_prompt(
         self,
         base_prompt: str,
         user_id: str,
         tools: list,
         question: str = "",
+        knowledge: dict[str, str] | None = None,
     ) -> str:
         """Build system prompt with tools, time, user context, and health-profile core."""
         from mirobody.user.profile import get_health_profile_core
@@ -207,6 +214,7 @@ class MirobodyAgent:
                 health_profile=health_profile,
                 tool_round_limit=self.model_call_limit,
                 answer_language=question_language(question),
+                knowledge=knowledge,
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -442,6 +450,7 @@ class MirobodyAgent:
         file_list: list[dict[str, Any]] | None = None,
         supports_file_block: bool = False,
         supports_image: bool = True,
+        knowledge_tools: list[BaseTool] | None = None,
     ) -> tuple[Any, Any]:
         """The compiled graph and the backend it reads through."""
         try:
@@ -479,7 +488,8 @@ class MirobodyAgent:
                 model_call_limit=self.model_call_limit,
                 # A cap on ONE tool rather than on the loop: the health-data tool
                 # is the one a confused model can spin on.
-                tool_call_limits={query.TOOL_NAME: self._QUERY_CALL_LIMIT},
+                tool_call_limits={query.TOOL_NAME: self._QUERY_CALL_LIMIT,
+                                  **{t.name: medical_knowledge.CALL_LIMITS[t.name] for t in knowledge_tools or []}},
                 # In-process JS/TS REPL (`eval`). The read-only data tool is
                 # exposed inside it as `tools.<name>`; PTC calls bypass the tool
                 # middleware, so the data tool guards itself.
@@ -503,7 +513,7 @@ class MirobodyAgent:
                 # question; the answer is applied on resume, in generate_response.
                 # Never in the MCP tool directory: an MCP client has no widget
                 # to answer ask_user with.
-                tools=[*tools, ask_user],
+                tools=[*tools, ask_user, *(knowledge_tools or [])],
                 system_prompt=system_prompt,
                 backend=backend,
                 permissions=permissions,
@@ -631,8 +641,11 @@ class MirobodyAgent:
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
             loaded_tools = await self._load_tools(user_id, session_id)
+            knowledge = self._knowledge_tools()
+            scopes = medical_knowledge.scopes() if any(t.name == medical_knowledge.SEARCH for t in knowledge) else []
             system_prompt = await self._build_system_prompt(
-                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages))
+                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages),
+                knowledge={s: medical_knowledge.SCOPES[s] for s in scopes})
 
             supports_file_block = self._supports_file_block(llm_client)
             supports_image = await asyncio.to_thread(self._supports_image, llm_client, model)
@@ -646,6 +659,7 @@ class MirobodyAgent:
                 file_list=file_list,
                 supports_file_block=supports_file_block,
                 supports_image=supports_image,
+                knowledge_tools=knowledge,
             )
 
             token_counter = TokenUsageCallback()
