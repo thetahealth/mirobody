@@ -46,6 +46,11 @@ use of each is subject to the license terms of its sources:
   genomics/genotype_sites.sqlite3   UCSC dbSNP 155 Common;      res/genomics/genotype_sites.NOTICE
                                     PGP rsIDs; CPIC (CC0)
   genomics/genotype_sites.NOTICE    hand-written (Apache-2.0)   —
+  medref/index.sqlite3              MedlinePlus health-topic    res/medref/NOTICE
+                                    summaries (public domain,
+                                    attribution required) and
+                                    openFDA drug labels (CC0)
+  medref/NOTICE                     hand-written (Apache-2.0)   —
   EXTERNAL.tsv                      a manifest, no content      —
 
 1.5.0 cut the corpus to LOINC only. `fhir_concept_graph.bin`,

@@ -75,9 +75,13 @@ or `query_pharmacogenomics`. A chat turn gets the four record tools, not the
 three terminology tools: the readings tool already resolves names and units, so
 those serve only a client holding readings of its own
 (`agent/tool_loader.py::_MCP_ONLY_TOOLS`). Beside them, the harness's own: `ls
-read_file write_file edit_file glob grep`, the `eval` REPL, and `ask_user`.
-`ask_user` is never an MCP tool — an MCP client has no widget to answer a
-question with.
+read_file write_file edit_file glob grep`, the `eval` REPL, `ask_user`, and
+`search_medical_reference` (`agent/medref.py`): an offline FTS lookup over the
+bundled MedlinePlus summaries and FDA drug labels (`res/medref/`), grounding
+general medical knowledge for small local models and returning citeable
+`ref:` ids. Neither is ever an MCP tool — an MCP client has no widget to
+answer `ask_user` with, and the reference lookup reads no record, so the
+asserted seven-tool surface does not change for it.
 
 The local suite asserts both lists exactly.
 
@@ -209,6 +213,33 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 
 ---
 
+## Citation ids
+
+Every citable row carries a **`rid`** (r1, r2, …) as its first column, and a
+note on the answer says to cite it. A model can only cite what it can name:
+`row_id` and `file_key` are database handles — a model handed only those
+once cited "web_uploads/17eaf4f6-…-edbee3267ea6.pdf" as a value's source —
+and an aggregate row has no id at all. So:
+
+* a readings or `latest` row's rid maps one-to-one to its `row_id`;
+* a `stats` or bucket row's rid maps to exactly the rows the SQL counted
+  (`ARRAY_AGG(o.id)` on the same statement — `collect/query.py`'s
+  `_SRC_IDS`), never a list re-derived later;
+* the catalogue carries none: its rows stand for series, not for readings.
+
+The map lives in `kernel.citations`, keyed by the record being read — which
+is the conversation, from the model's side — and rids mint in first-seen
+order, so the same row keeps one rid across a conversation's calls. It is
+in-process and never persisted: a verifier resolves a cited rid with
+`citations.citation_support(scope, rid)`, which returns the supporting row
+ids and `()` for an unknown one (evicted, another process, or made up — all
+three are "unverifiable", not "wrong"). The back-handles stay out of the
+model's view: `file_key`, `row_id` and the aggregates' `src_ids` ride the
+envelope for the web client and the registry, and the rendered table shows
+`rid` and the human `file` name.
+
+---
+
 ## Windows
 
 * Both `start` and `end` are local dates in the SUBJECT's zone, inclusive.
@@ -271,7 +302,15 @@ strategy.
 
 The harness's own middleware, outermost first (`harness.standard_middleware`;
 deepagents runs its filesystem, summarisation and tool-call patching before
-them, and the `ask_user` pause after):
+them, and the `ask_user` pause after). Two of those core pieces follow the
+model's entry rather than a global default: summarisation compacts at 85% of
+the entry's `profile.max_input_tokens` when declared (the `local` entry
+declares 24,000; undeclared, the trigger is a fixed 170,000 tokens a 32k
+window never reaches), and a large tool result offloads to the virtual
+filesystem at the entry's `tool_result_offload_tokens` (or a quarter of
+`max_input_tokens`, converted from real tokens — deepagents counts 4
+characters per token, and the local models' Chinese text tokenizes at ~1.5;
+without an entry value the 20,000 default stands).
 
 1. **`ToolFaultMiddleware`** — a crashing tool becomes an error result instead
    of a dead turn. The text carries the tool name, the error kind and the
@@ -288,7 +327,8 @@ them, and the `ask_user` pause after):
 4. **`EmptyAnswerRepairMiddleware`** — a reply with neither text nor a tool
    call is asked for once more instead of ending the turn blank.
 5. **`ModelCallBudgetMiddleware`** + **`ToolCallLimitMiddleware`** — the turn's
-   budget of model calls, and a cap on how often the data tool may run. The
+   budget of model calls, and a cap on how often the data tool may run (the
+   reference search has its own, lower cap, for the same reason). The
    budget's last call is made with tool calls off (`tool_choice` none, the
    tools still declared) after one instruction to answer from what the model
    has; a model that calls a tool anyway is stopped there. The cap uses
@@ -302,6 +342,39 @@ them, and the `ask_user` pause after):
 The data tool itself **never raises**. The `eval` REPL can call it directly
 (PTC), and a PTC call bypasses the tool middleware entirely — there is nothing
 above it to contain a fault.
+
+---
+
+## Citations for values computed in the REPL
+
+A rid answers "which row", but a value the model COMPUTED inside `eval` — a
+window mean, a diff, a count — refers to rows that only existed in the REPL,
+and the eval's result was whatever the JS returned, usually `null`: the
+derived number cited nothing. The interpreter
+(`agent/middleware/eval_refs.py`) now brackets each eval with a rid sink
+(`agent/tools/_refs.py`): the readings tool reports every row it surfaced,
+in first-surfaced order, and the eval result carries them:
+
+* a returned **object** gets `refs: [...]` injected into it — unless it names
+  one already: explicit refs win, narrowed to what the computation actually
+  used, and it is the judge's business to grade the narrowing. No console in
+  the envelope: the object carries the numbers, and the log stays in its
+  `<stdout>` block;
+* anything else becomes `{"result": <value-or-null>, "console": "<stdout
+  tail>", "refs": [...]}` — teachers commonly `console.log` computed values
+  and `return null`, and without the tail those numbers are invisible to the
+  citation check. The console is the LAST 2,000 characters of what the REPL
+  captured (`console_tail`; cut tails open with `…`; the REPL's own buffer
+  may have dropped earlier output first), it REPLACES the `<stdout>` block
+  rather than duplicating it, and the key is omitted when nothing was
+  logged. The envelope stays strict JSON in these cases;
+* an **errored** eval keeps the `<error>` shape — a crashed computation
+  cites nothing.
+
+Refs are exactly what THIS eval surfaced; they do not leak across evals or
+borrow the conversation's accumulated set, because a value computed here
+may only cite what this computation read. Both templates tell the model the
+same rule, so the contract it is graded on is the contract it read.
 
 ---
 

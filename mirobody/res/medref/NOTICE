@@ -1,0 +1,41 @@
+medref/index.sqlite3 — the bundled offline medical reference
+=============================================================
+
+One SQLite FTS5 file, read by `mirobody/agent/medref.py` (the agent-only
+`search_medical_reference` tool). Built offline by
+`process/medref/build_index.py` from the two corpora below; no other content
+is in it. The builder asserts neither corpus grew a third source.
+
+Corpus version of this build: see `SELECT value FROM meta WHERE key='version'`
+inside the file.
+
+1. MedlinePlus health-topic summaries (en, es)
+   Source: MedlinePlus Health Topic XML dump, mplus_topics_2026-10-08.xml
+   (https://medlineplus.gov/xml.html), fetched 2026-10-08.
+   Status: public domain (U.S. Government work) WITH an attribution
+   requirement — https://medlineplus.gov/copyright.html: health-topic page
+   summaries are not copyrighted; "Please acknowledge MedlinePlus as the
+   source ... 'Source: MedlinePlus, National Library of Medicine.'"
+   Only the `full-summary`, title and also-called elements are indexed. The
+   same page lists what is copyrighted and must NOT be ingested: the A.D.A.M.
+   Medical Encyclopedia articles and the ASHP drug monographs. Neither is in
+   the XML dump (it holds summaries only); do not scrape them in.
+   MedlinePlus publishes full text in English and Spanish only. There is NO
+   Chinese corpus here; Chinese queries work through the bundled synonym
+   table (below).
+
+2. openFDA drug labels (en)
+   Source: https://api.fda.gov/drug/label.json, one label per generic for the
+   177 chronic-disease primary-care generics of process/medref/
+   fetch_openfda.py, fetched 2026-10-08.
+   Status: public domain — CC0 1.0 Universal (https://open.fda.gov/license/).
+   The GMDN restriction on that page concerns device term codes, which this
+   endpoint does not carry.
+
+3. zh_aliases.tsv (embedded in the index as the `aliases` table)
+   Hand-written Chinese↔English medical synonym pairs (drug names, classes,
+   conditions, lab tests). Our own work, Apache-2.0 like the rest of the
+   project. It exists because MedlinePlus ships no Chinese text: at build
+   time each passage mentioning an English trigger is tagged with the Chinese
+   term; at query time a Chinese query is segmented against the same table
+   and expanded with the triggers, so the two sides cannot drift apart.

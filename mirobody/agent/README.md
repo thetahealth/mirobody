@@ -12,11 +12,12 @@ What a turn has:
 | --- | --- | --- |
 | tools | [`tools/`](./tools/) via [`tool_loader.py`](./tool_loader.py) | the four record tools, each schema passed through verbatim, the same ones an MCP client sees over `/mcp`; the three terminology tools stay MCP-only (`tool_loader._MCP_ONLY_TOOLS`) |
 | virtual filesystem | [`filesystem/`](./filesystem/) — `backend.py`, `files_backend.py`, `profile_backend.py` | `/uploads`, `/library`, `/memories` — read-only projections of the tables that own the data |
-| REPL | `langchain-quickjs` | the `eval` tool, with the read-only data tool reachable inside it |
+| REPL | `langchain-quickjs` + [`middleware/eval_refs.py`](./middleware/eval_refs.py) | the `eval` tool, with the read-only data tool reachable inside it; an eval that surfaced readings rows answers with `{result, refs:[rids]}` so values computed there can be cited (a returned object's own `refs` wins) |
 | memory | [`checkpointer.py`](./checkpointer.py) | LangGraph Postgres checkpointer, one thread per asker and session (`thread_for`) |
 | governance | [`middleware/`](./middleware/) | fault containment, retry refusal keyed on the envelope, prompt caching; plus the model-call and tool-call budgets |
 | one question | [`hitl.py`](./hitl.py) | `ask_user`, the human-in-the-loop interrupt (never an MCP tool) |
-| prompt | [`prompts/mirobody.jinja`](./prompts/mirobody.jinja), [`prompt.py`](./prompt.py) | names only tools the harness provides — the local suite fails otherwise |
+| reference search | [`medref.py`](./medref.py) | `search_medical_reference`, offline FTS5 over bundled MedlinePlus summaries + FDA labels ([`../res/medref/`](../res/medref/)); general knowledge with citeable `ref:` ids, agent-only like `ask_user` |
+| prompt | [`prompts/mirobody.jinja`](./prompts/mirobody.jinja) (+ [`mirobody_compact.jinja`](./prompts/mirobody_compact.jinja), ≤ half the bytes for small local models), [`prompt.py`](./prompt.py) | names only tools the harness provides — the local suite fails otherwise; also states the deployment facts (answering model, where requests go) |
 | wire | [`wire/`](./wire/), [`chat/`](./chat/) | LangGraph events → the blocks below; sessions, messages, SSE |
 
 Adding capability means adding a **tool**, not another agent.
@@ -34,11 +35,22 @@ MODELS:            # the model picker: one LangChain chat model per entry
     model: anthropic/claude-sonnet-5.5
 PROMPTS:
   - agent/prompts/mirobody.jinja   # path, or path@name; the first is the default
+  - agent/prompts/mirobody_compact.jinja   # the compact variant; prompt_name="mirobody_compact" picks it
 ALLOWED_TOOLS:        # whitelist, or
 DISALLOWED_TOOLS:     # blacklist (`eval` here turns the REPL off)
 DEFAULT_MODEL:     # used when ready; else the first entry whose key is present
 AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 ```
+
+Two entry-level keys tune a small local model's context behaviour rather
+than a global default: `profile.max_input_tokens` (deepagents compacts at
+85% of it; undeclared, the trigger is a fixed 170,000 tokens, unreachable
+inside a 32k window) and `tool_result_offload_tokens` (a tool result larger
+than that, estimated in the model's own tokens, is paged from the virtual
+filesystem instead of sitting inline; unset, a quarter of
+`max_input_tokens`, and entries declaring neither keep deepagents' 20,000
+4-chars-per-token default — a ratio that misjudges Chinese text ~2.5×).
+The shipped `local` entry carries the first; both derive the second.
 
 `/api/models` lists the `MODELS` entries whose key resolves, as bare names,
 the default first (`utils.config.llm.default_model`, which `mirobody doctor --probe`

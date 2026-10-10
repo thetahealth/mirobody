@@ -35,6 +35,9 @@ regenerates and an agent reads, with the watermark that says what is fresh),
 and `decoders/` (one decode table per vendor, with samples shipped for a
 consumer to run against its own decoder).
 
+Beside the reading path too: `citations` — the short `rid` a model cites on a
+tool row, and the map back to the ids of the rows the number came from.
+
 The vocabulary layer (a lab name to a LOINC code) is the sibling
 `mirobody.engine` / `mirobody.units` / `mirobody.lexical`, older and larger;
 the kernel builds on `units` for dimensions and conversions.

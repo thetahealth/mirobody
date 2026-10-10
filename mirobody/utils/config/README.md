@@ -204,7 +204,11 @@ DISALLOWED_TOOLS:
 ### 3. Prompts (`PROMPTS`)
 
 Jinja2 templates for the system prompt. The first entry is the default; a
-client can ask for another by name (`prompt_name`).
+client can ask for another by name (`prompt_name`). The shipped
+`config.llm.yaml` lists `mirobody.jinja` first and its compact variant
+(`mirobody_compact.jinja`, the same rules at ≤ half the rendered bytes, for
+small local models) second, so a request can pick it as
+`prompt_name="mirobody_compact"`.
 
 ```yaml
 PROMPTS:

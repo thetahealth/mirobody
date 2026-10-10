@@ -1,3 +1,117 @@
+## Unreleased
+
+### Added
+
+- **The web client renders `<cite>` citations as clickable source chips.**
+  An answer written in the `<statement>…<cite>[r3]…</cite></statement>`
+  grammar used to show the raw tags to the reader, including mid-stream. The
+  chat bundle now parses the grammar itself — robustly against partial
+  streams, so a tag never flashes on screen — and renders each cite as a
+  small chip inline: source name and date for a record row, file name and
+  line span for a document, corpus and title for a `ref:` passage. Chips
+  resolve against the session's own `tool_result` tables (the SSE blocks
+  carry the rows verbatim and `/api/history` replays them), so no
+  citation-resolve endpoint exists and none is needed; a file chip opens the
+  report through the existing protected-file viewer, resolved by one lazy
+  uploaded-files list call. A cite the registry cannot back — dangling,
+  evicted or invented — renders as a dashed "未核实" chip rather than being
+  silently dropped, matching the judge's verdict for the statement. The
+  shared-conversation page gets the same chips. Markup-free answers render
+  byte-identically to before. To tell: an answer in the citation grammar
+  shows pills instead of tags; clicking a document chip opens the file.
+- **`search_medical_reference`, an agent-only offline medical-reference
+  search.** The chat model can now ground general medical knowledge — what a
+  drug is for, label warnings and interactions, what a condition or lab test
+  means — in a bundled SQLite FTS5 index (`mirobody/res/medref/index.sqlite3`)
+  instead of its own recall: MedlinePlus health-topic summaries (English and
+  Spanish, public domain with attribution) plus FDA drug labels for 177
+  common chronic-disease generics (CC0). Each passage returns a citeable
+  `ref:<source>:<passage_id>` id; Chinese queries work through a bundled
+  hand-written zh↔en synonym table embedded in the index. It is agent-internal
+  (wired next to `ask_user`, capped at 8 calls per turn, `DISALLOWED_TOOLS`
+  can drop it): the MCP surface stays the asserted seven tools. The index is
+  built offline by `process/medref/build_index.py`; provenance and license
+  terms are in `res/medref/NOTICE`. To tell: ask the agent "他汀有什么副作用"
+  or "what is metformin for" — the answer cites `ref:` passages instead of
+  recalling from weights.
+- **`eval` results now carry the citations for values computed inside the
+  REPL.** The `eval` tool's result used to be whatever the JS returned — a
+  model that fetched rows with `tools.queryHealthIndicators(...)`, computed
+  a mean and returned `null` produced a number with no citation contract.
+  The interpreter (`agent/middleware/eval_refs.py`) brackets each eval with
+  a rid sink (`agent/tools/_refs.py`, langchain-free so the MCP-shared
+  services can report into it): a returned object gets the rids of the rows
+  THIS eval surfaced injected as `refs` (an explicit `refs` key wins, so the
+  model can narrow to what the computation actually used), and a
+  null/primitive return becomes `{"result": <value>, "console": "<stdout
+  tail>", "refs": [...]}` — the tail of anything `console.log` printed,
+  capped at the last 2,000 characters (`…`-marked) and replacing the
+  `<stdout>` block, omitted when nothing was logged, because teachers log
+  computed values and return null. Errored evals keep their `<error>` shape.
+  Refs are exactly what this eval surfaced — no leaking across eval calls —
+  and both system prompts now teach the rule the judge grades. To tell: ask
+  the local agent to compute a window mean with `eval` and the result reads
+  `{mean: …, refs: ["r1", "r2"]}`.
+- **Every readings row now carries a citation id (`rid`).** Rows from
+  `query_health_indicators` — raw readings and `latest`, and the aggregate
+  rows (`stats`, day…month buckets) that have no id of their own — show a
+  short per-conversation-stable `rid` (r1, r2, …) as their first column, and
+  every answer notes to cite it. For a raw row the rid maps to its `row_id`;
+  for an aggregate it maps to exactly the rows the SQL counted (`ARRAY_AGG`
+  on the same statement), so a cited statistic resolves to its supporting
+  rows. The map lives in a new library module, `mirobody.kernel.citations`
+  (scoped to the record being read, in-process; `citation_support` resolves
+  a rid for a verifier). The back-handles stay out of the table: `file_key`
+  was once cited verbatim as a source ("web_uploads/17eaf4f6-…pdf"), and a
+  hundred raw ids in a table get none cited. The catalogue keeps no rid:
+  its rows stand for series, not for readings.
+- **The system prompt states the deployment facts.** Which model answers
+  (the `MODELS` entry in effect) and where the conversation goes — the
+  endpoint's name, and, for a local entry, that it is a server on this
+  machine — so "which model are you", "is my data uploaded" and "where do
+  my questions go" are answered from configuration, not from what the model
+  believes it is. No claim is made beyond the answering path.
+- **A compact system prompt for small local models.**
+  `agent/prompts/mirobody_compact.jinja` carries the same rules as
+  `mirobody.jinja` at under half the rendered bytes (≤4 KB with a compact
+  tools description), because a 32k context pays for every standing word
+  twice — once in the prompt, once in the reasoning it crowds out. `PROMPTS`
+  registers it second, so the default is unchanged; a request picks it with
+  `prompt_name="mirobody_compact"`.
+
+### Fixed
+
+- **A thinking model's reasoning comes back to it after every tool call.**
+  `ReasoningChatOpenAI` captured `reasoning_content` from the response into
+  `additional_kwargs`, but langchain-openai's request converter serialises
+  only OpenAI's own assistant fields, so the reasoning never left the process
+  and each tool-call round was reasoned from zero. The outgoing payload now
+  carries `reasoning_content` on assistant messages after the last human
+  message — the llama.cpp-style templates the local models serve render it
+  back into `<think>`, restoring training/inference parity. Older turns'
+  reasoning stays dropped, as those templates expect. To tell: with a
+  thinking model, the request after a tool round includes the previous
+  assistant message's `reasoning_content` (`tests/agent`).
+- **The local model now compacts instead of overflowing its context.**
+  deepagents derives its summarization trigger from
+  `model.profile["max_input_tokens"]`, and undeclared it is a fixed 170,000
+  tokens — unreachable inside the 32,768-token window llama.cpp serves the
+  preset at, so a long conversation ran to ContextOverflowError. The `local`
+  entry now declares `profile: {max_input_tokens: 24000}` (the window the two
+  request slots share, minus the 6144-token reply budget), and the trigger
+  lands at 85% of it. To tell: a long local conversation gets summarized
+  rather than ending in a context error.
+- **Large tool results offload at a threshold the model's entry declares.**
+  deepagents evicts a tool result to the virtual filesystem past
+  `tool_token_limit_before_evict` — default 20,000, counted at 4 characters
+  per token, a ratio calibrated on English that misjudges the local models'
+  Chinese answer text by ~2.5× (their tokenizer reads it at ~1.5 characters
+  per token): a ~50k-real-token result stayed inline, twice the whole window.
+  A chat entry may now declare `tool_result_offload_tokens` (estimated in the
+  model's own tokens); unset, it is a quarter of the entry's
+  `profile.max_input_tokens` — 6,000 for the shipped `local` entry. Entries
+  that declare neither keep the old default.
+
 ## 1.5.4
 
 ### Upgrade notes

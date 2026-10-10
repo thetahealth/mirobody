@@ -36,9 +36,10 @@ from mirobody.utils.config.llm import chat_entries, default_model
 from . import harness
 from .errors import AgentError, ConfigError, client_safe_error
 from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
+from .medref import TOOL_NAME as MEDREF_TOOL_NAME, search_medical_reference
 from .models.clients import build_llm_clients, unavailable_reason
 from .models.usage import usage_block
-from .prompt import attachment_reminder, build_system_prompt, question_language
+from .prompt import attachment_reminder, build_system_prompt, deployment_facts as prompt_facts, question_language
 from .wire.blocks import ERROR, NOTICE, TEXT
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
@@ -80,6 +81,44 @@ def _route(model: str) -> Any:
     from mirobody.utils.config.llm import resolve_named
 
     return resolve_named(model) if model in chat_entries() else None
+
+
+#: deepagents evicts a tool result to the virtual filesystem once it is longer
+#: than `tool_token_limit_before_evict` — counted at NUM_CHARS_PER_TOKEN = 4
+#: characters per "token" (deepagents/middleware/filesystem.py), a ratio
+#: calibrated on English. The local models' tool output is Chinese-heavy, and
+#: MiniCPM5's own tokenizer reads a Chinese readings table + prose at 1.56
+#: characters per token (tokenizer.json, sampled 2026-10-08), so the default
+#: 20000 lets nearly 80,000 characters stay inline — over 50,000 real tokens,
+#: more than a small model's whole window. One real token is therefore 1.5/4
+#: of deepagents'; 1.5 rather than the sampled 1.56 so the odd dense table
+#: evicts a little early rather than late.
+_ZH_TOKEN_TO_FS_TOKEN = 1.5 / 4
+
+
+def _tool_offload_limit(entry: dict[str, Any] | None) -> int | None:
+    """The `tool_token_limit_before_evict` for this turn's chat entry, in
+    deepagents' units, or None when the entry declares nothing (deepagents'
+    built-in 20000 then stands).
+
+    `tool_result_offload_tokens: N` is the largest tool result the model
+    should read INLINE, in its own tokens; longer results are paged from the
+    virtual filesystem a `read_file` away. Unset, it is a quarter of the
+    entry's own `profile.max_input_tokens`: one result past a quarter of the
+    input window leaves no room to answer around it. Both are converted from
+    real tokens (see `_ZH_TOKEN_TO_FS_TOKEN`); for English-only content the
+    conversion errs on the early side.
+    """
+    if not isinstance(entry, dict):
+        return None
+    tokens = entry.get("tool_result_offload_tokens")
+    if not isinstance(tokens, int) or tokens <= 0:
+        profile = entry.get("profile")
+        max_input = profile.get("max_input_tokens") if isinstance(profile, dict) else None
+        tokens = max_input // 4 if isinstance(max_input, int) and max_input > 0 else None
+    if not tokens:
+        return None
+    return max(1, round(tokens * _ZH_TOKEN_TO_FS_TOKEN))
 
 
 def _latest_question(messages: list) -> str:
@@ -190,6 +229,8 @@ class MirobodyAgent:
         user_id: str,
         tools: list,
         question: str = "",
+        model_entry: dict[str, Any] | None = None,
+        model_name: str = "",
     ) -> str:
         """Build system prompt with tools, time, user context, and health-profile core."""
         from mirobody.user.profile import get_health_profile_core
@@ -205,6 +246,11 @@ class MirobodyAgent:
                 health_profile=health_profile,
                 tool_round_limit=self.model_call_limit,
                 answer_language=question_language(question),
+                # Which model answers and where the conversation goes: the
+                # entry in effect, not the model's belief about itself. The
+                # template may ignore it ("" for custom old templates is a
+                # lie by omission no worse than before).
+                deployment_facts=prompt_facts(model_name, model_entry) if model_entry else "",
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -422,6 +468,10 @@ class MirobodyAgent:
     #: a trend" and still bounded; `exit_behavior="continue"` lets the model
     #: write its answer from what it already has rather than ending the turn.
     _QUERY_CALL_LIMIT = 12
+    #: The reference search is a cheap local FTS lookup, but a model that
+    #: rephrases the same lookup eight times is looping on corpus absence, not
+    #: searching; cap it like the data tool.
+    _MEDREF_CALL_LIMIT = 8
     #: Native tools hidden from the model via the harness profile's
     #: ``excluded_tools``. PgFilesystemBackend does not implement ``delete``,
     #: but that alone does not hide it: the capability probe runs against
@@ -440,6 +490,7 @@ class MirobodyAgent:
         file_list: list[dict[str, Any]] | None = None,
         supports_file_block: bool = False,
         supports_image: bool = True,
+        model_entry: dict[str, Any] | None = None,
     ) -> tuple[Any, Any]:
         """The compiled graph and the backend it reads through."""
         try:
@@ -456,7 +507,7 @@ class MirobodyAgent:
             # The stack itself (fault containment → retry governance → invalid-call
             # repair → empty-answer repair → model-call budget → per-tool caps →
             # interpreter) is `harness.standard_middleware`.
-            from langchain_quickjs import CodeInterpreterMiddleware
+            from .middleware.eval_refs import RefCollectingInterpreter
 
             # What this agent adds at the tail: the genotype guard and, last so
             # its decision wins, cross-provider prompt caching. The genotype-safe
@@ -472,22 +523,48 @@ class MirobodyAgent:
                 from .middleware import NoVisionReadMiddleware
                 tail.insert(0, NoVisionReadMiddleware())
 
+            # The offload threshold for the model this turn answers with, when
+            # its entry declares one (`_tool_offload_limit`): deepagents'
+            # default 20000 fits a 200k-window cloud model, not a 32k local one.
+            # deepagents replaces a core middleware with a caller's middleware
+            # OF THE SAME NAME, so passing our own FilesystemMiddleware swaps
+            # the built-in one in place instead of stacking a second one. The
+            # replacement must then carry the mount permissions itself: the
+            # built-in instance create_deep_agent constructs from the
+            # `permissions` argument is the one being discarded.
+            offload = _tool_offload_limit(model_entry)
+            filesystem_override = []
+            if offload is not None:
+                from deepagents.middleware.filesystem import FilesystemMiddleware
+
+                filesystem_override.append(FilesystemMiddleware(
+                    backend=backend,
+                    tool_token_limit_before_evict=offload,
+                    _permissions=permissions,
+                ))
+
             middleware = harness.standard_middleware(
                 retry_limit=self._RETRY_LIMIT,
                 model_call_limit=self.model_call_limit,
                 # A cap on ONE tool rather than on the loop: the health-data tool
-                # is the one a confused model can spin on.
-                tool_call_limits={query.TOOL_NAME: self._QUERY_CALL_LIMIT},
+                # is the one a confused model can spin on. The reference search
+                # gets the same treatment for the same reason.
+                tool_call_limits={query.TOOL_NAME: self._QUERY_CALL_LIMIT,
+                                  MEDREF_TOOL_NAME: self._MEDREF_CALL_LIMIT},
                 # In-process JS/TS REPL (`eval`). The read-only data tool is
                 # exposed inside it as `tools.<name>`; PTC calls bypass the tool
-                # middleware, so the data tool guards itself.
+                # middleware, so the data tool guards itself. The interpreter is
+                # the ref-collecting one: an eval that surfaced readings rows
+                # answers with `{result, refs}` so values the model computed
+                # there can be cited (middleware/eval_refs.py).
                 # `DISALLOWED_TOOLS: [eval]` turns the REPL off, as the agent
                 # README says it does: it only ever reached the MCP tool list,
                 # and the interpreter was added regardless.
-                interpreter=None if "eval" in self.disallowed_tools else CodeInterpreterMiddleware(
+                interpreter=None if "eval" in self.disallowed_tools else RefCollectingInterpreter(
                     ptc=list(self._PTC_TOOLS), max_ptc_calls=self._MAX_PTC_CALLS),
                 tail=tail,
             )
+            middleware.extend(filesystem_override)
 
             # Conversation memory. With a checkpointer, LangGraph holds the real
             # message objects per `thread_id` (= session_id) and the caller hands
@@ -497,11 +574,16 @@ class MirobodyAgent:
 
             agent = harness.assemble(
                 model=llm_client,
-                # Agent-only tool (hitl.py): the chat channel's "which date?"
-                # question; the answer is applied on resume, in generate_response.
-                # Never in the MCP tool directory: an MCP client has no widget
-                # to answer ask_user with.
-                tools=[*tools, ask_user],
+                # Agent-only tools, both. ask_user (hitl.py): the chat channel's
+                # "which date?" question; the answer is applied on resume, in
+                # generate_response. search_medical_reference (medref.py): the
+                # offline reference lookup a small model grounds general medical
+                # knowledge in; DISALLOWED_TOOLS can drop it (a deployment may
+                # ship without the index). Never in the MCP tool directory:
+                # an MCP client has no widget to answer ask_user with, and the
+                # MCP surface is the asserted seven tools.
+                tools=[*tools, ask_user]
+                      + ([] if MEDREF_TOOL_NAME in self.disallowed_tools else [search_medical_reference]),
                 system_prompt=system_prompt,
                 backend=backend,
                 permissions=permissions,
@@ -629,8 +711,10 @@ class MirobodyAgent:
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
             loaded_tools = await self._load_tools(user_id)
+            model_entry = chat_entries().get(model)
             system_prompt = await self._build_system_prompt(
-                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages))
+                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages),
+                model_entry=model_entry, model_name=model)
 
             supports_file_block = self._supports_file_block(llm_client)
             supports_image = await asyncio.to_thread(self._supports_image, llm_client, model)
@@ -644,6 +728,7 @@ class MirobodyAgent:
                 file_list=file_list,
                 supports_file_block=supports_file_block,
                 supports_image=supports_image,
+                model_entry=model_entry,
             )
 
             token_counter = TokenUsageCallback()

@@ -16,6 +16,9 @@ Mirobody-specific middleware on top of the deepagents stack:
   refused before it runs again (`mirobody.kernel.tools.RetryLedger`).
 - `NoVisionReadMiddleware`: for a model that cannot see, `read_file` answers an
   image with its OCR text instead of an image block.
+- `RefCollectingInterpreter` (eval_refs.py): the QuickJS `eval` tool, whose
+  result carries the rids of the readings rows the eval surfaced as
+  `{result, refs}` — the citation contract for values computed in the REPL.
 
 The filesystem and tool-call repair pieces come from upstream `deepagents`.
 GenotypeSafeSummarizationMiddleware replaces its summarization slot so history

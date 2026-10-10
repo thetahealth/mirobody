@@ -506,7 +506,8 @@ class PostgresHealthQuery:
                    COUNT(DISTINCT unit_ucum) > 1 AS mixed_units,
                    (ARRAY_AGG(value_num ORDER BY at ASC))[1] AS first_num,
                    (ARRAY_AGG(value_num ORDER BY at DESC))[1] AS last_num,
-                   bool_or(reported) AS reported
+                   bool_or(reported) AS reported,
+                   {_SRC_IDS} AS src_ids
               FROM base
              GROUP BY series_id
              ORDER BY display
@@ -530,7 +531,7 @@ class PostgresHealthQuery:
         rows = await execute_query(
             f"""
             SELECT DISTINCT ON (o.series_id)
-                   o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.flag_text, o.value_num,
+                   o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.flag_text, o.value_num,
                    o.value_canonical, o.unit_canonical, o.code_system, o.code, o.local_date, o.elected, o.modality,
                    o.outcome, {_REPORTED_COLUMNS},
                    {_FILE_KEY} AS file_key, {_FILE_NAME},
@@ -660,7 +661,7 @@ class PostgresHealthQuery:
         return await execute_query(
             f"""
             WITH base AS (
-                SELECT o.series_id, o.display, o.code_system, o.code, o.value_num, o.value_canonical,
+                SELECT o.id, o.series_id, o.display, o.code_system, o.code, o.value_num, o.value_canonical,
                        o.unit_ucum, o.unit_canonical, date_trunc('{trunc}', {_LOCAL_TS}) AS at
                   FROM v_observation o
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
@@ -673,6 +674,7 @@ class PostgresHealthQuery:
                        {_STAT_VALUE.format(agg="MAX")} AS max,
                        {_STAT_UNIT} AS unit,
                        false AS elected,
+                       {_SRC_IDS} AS src_ids,
                        {_BUCKET_BUDGET.format(bucket="at")}
                   FROM base
                  GROUP BY series_id, at
@@ -707,6 +709,7 @@ class PostgresHealthQuery:
                        {_STAT_UNIT} AS unit,
                        bool_or(elected) AS elected,
                        bool_or(reported) AS reported,
+                       {_SRC_IDS} AS src_ids,
                        {_BUCKET_BUDGET.format(bucket=bucket)}
                   FROM base
                  GROUP BY series_id, {bucket}
@@ -723,7 +726,7 @@ class PostgresHealthQuery:
 #: alone where the write side elected one, every reading otherwise.
 _STATS_CTE = """
 WITH day_rows AS (
-    SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.local_date, o.value_text,
+    SELECT o.id, o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.local_date, o.value_text,
            o.value_num, o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
            bool_or(o.elected) OVER (PARTITION BY o.series_id, o.local_date) AS day_elected
       FROM v_observation o
@@ -731,6 +734,12 @@ WITH day_rows AS (
 ), base AS (
     SELECT * FROM day_rows WHERE elected OR NOT day_elected
 )"""
+
+#: The ids of the rows an aggregate counted, in time order: the tool pops
+#: them into the citation registry (`kernel.citations`) as the rid's
+#: supporting rows, so a verifier resolves a cited stat to exactly the rows
+#: the SQL counted, not to a list re-derived later.
+_SRC_IDS = "ARRAY_AGG(id ORDER BY at ASC)"
 
 #: The two window columns a bucket statement adds over its grouped rows:
 #: how many buckets each series has (window functions run after GROUP BY, so
@@ -747,7 +756,7 @@ _BUCKET_BUDGET = (
 _DAY_AUTHORITY_CTE = """
 WITH base AS (
     SELECT DISTINCT ON (o.series_id, o.local_date)
-           o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
+           o.id, o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
            o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
@@ -853,6 +862,10 @@ def _bucket_row(r: dict) -> dict:
         "n": int(r.get("n") or 0),
         "unit": r.get("unit") or "",
         "total": int(r.get("total") or 0),
+        # An aggregate row has no id of its own; the rows it counted are its
+        # identity. The tool turns them into the rid's supporting rows and
+        # drops them from the model view (`kernel.citations`).
+        "src_ids": _ids(r.get("src_ids")),
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
         **({"provenance": PROVENANCE_REPORTED} if r.get("reported") else {}),
@@ -873,6 +886,7 @@ def _stats_row(r: dict) -> dict:
         "last_date": r.get("last_date") or "",
         "unit": r.get("unit") or "",
         "mixed_units": bool(r.get("mixed_units")),
+        "src_ids": _ids(r.get("src_ids")),
         "day_known": True,
         "provenance": PROVENANCE_REPORTED if r.get("reported") else "computed",
     }
@@ -885,11 +899,20 @@ def _stats_row(r: dict) -> dict:
 
 
 def _latest_row(r: dict) -> dict:
-    """A reading row without the paging fields: the latest value is the answer
-    asked for most, and it carries the same range, flag and document."""
+    """A reading row without `total`: the latest value is the answer asked
+    for most, and it carries the same range, flag and document. Unlike a
+    readings page it needs no paging fields, but it keeps `row_id`: the
+    answer's rid mints from it (`kernel.citations`)."""
     row = _reading_row(r)
-    del row["row_id"], row["total"]
+    del row["total"]
     return row
+
+
+def _ids(value: object) -> tuple[str, ...]:
+    """An `ARRAY_AGG(o.id)` as text, () when absent or not an array."""
+    if not isinstance(value, (list, tuple)):
+        return ()
+    return tuple(str(v) for v in value)
 
 
 def _text(value: object) -> str:

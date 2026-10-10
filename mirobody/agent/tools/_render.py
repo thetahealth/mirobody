@@ -26,9 +26,15 @@ from mirobody.kernel import query, tools
 MAX_RENDER_CHARS = 40_000
 
 #: Columns each method renders, in order. Anything not listed never reaches the
-#: model: `row_id` is for the web client's edit button, `file_key` is the handle
-#: it opens the document with, `total` and `day_known` are bookkeeping, and
-#: `provenance` rides in the envelope.
+#: model: `row_id` is for the web client's edit button and, with an aggregate's
+#: `src_ids`, is what the row's `rid` mints from (`kernel.citations`) — the
+#: registry keeps the mapping, the model keeps the short id; `file_key` stays
+#: out (below); `total` and `day_known` are bookkeeping; and `provenance` rides
+#: in the envelope.
+
+#: `rid` comes first: it is the citation handle, and the model reads left to
+#: right. For readings it maps one-to-one to the `row_id` the table keeps; for
+#: stats and bucket rows it maps to the contributing rows.
 
 #: `file` is the document's NAME. Handed `file_key` instead, the model cited
 #: "web_uploads/17eaf4f6-….pdf" as the source of a value.
@@ -39,23 +45,23 @@ MAX_RENDER_CHARS = 40_000
 #: device-namespace row carries the indicator's own name in `code`.
 _COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
-    "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
-    "stats": ("indicator", "count", "min", "max", "avg", "first", "first_date", "last", "last_date",
+    "readings": ("rid", "indicator", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "buckets": ("rid", "indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
+    "stats": ("rid", "indicator", "count", "min", "max", "avg", "first", "first_date", "last", "last_date",
               "change", "unit", "mixed_units", "system", "code"),
-    "latest": ("indicator", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "latest": ("rid", "indicator", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the
 #: record, `system`/`code` classify it (ICPC-3), `reason` says why an entry is
 #: uncoded. No value and no unit, because a symptom has neither. `count` in
-#: stats is entries.
+#: stats is entries. A reported row is citable the same way a reading is.
 _REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "name", "kind", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "name", "kind", "time", "system", "code", "reason", "note"),
-    "buckets": ("indicator", "period", "n", "system", "code"),
-    "stats": ("indicator", "count", "first_date", "last_date", "system", "code"),
-    "latest": ("indicator", "name", "kind", "date", "time", "system", "code", "reason", "note"),
+    "readings": ("rid", "indicator", "name", "kind", "time", "system", "code", "reason", "note"),
+    "buckets": ("rid", "indicator", "period", "n", "system", "code"),
+    "stats": ("rid", "indicator", "count", "first_date", "last_date", "system", "code"),
+    "latest": ("rid", "indicator", "name", "kind", "date", "time", "system", "code", "reason", "note"),
 }
 
 _REPORTED_HEADING = "reported by the person (name = their words; system/code classify them):"

@@ -370,6 +370,8 @@ KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     "profile", "thinking_style", "auth_type", "prompt_cache", "response_with_tools",
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",
     "streaming", "stream_usage", "model_kwargs", "output_config", "stream_chunk_timeout",
+    # read by the agent itself when it builds the middleware stack (agent.py)
+    "tool_result_offload_tokens",
 })
 
 

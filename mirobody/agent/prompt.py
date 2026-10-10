@@ -23,6 +23,7 @@ import re
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
+from urllib.parse import urlsplit
 
 from mirobody.kernel.series import zone
 from mirobody.utils import prompts
@@ -92,11 +93,16 @@ async def build_system_prompt(
     health_profile: str | None = None,
     tool_round_limit: int = 15,
     answer_language: str = "",
+    deployment_facts: str = "",
 ) -> str:
     """Render `base_prompt` with tool descriptions, the current time in
     `timezone`, and the user context the template may reference.
     `record_owner` names whose record it is when that is not the asker's;
-    `answer_language` the latest question's language (`question_language`)."""
+    `answer_language` the latest question's language (`question_language`);
+    `deployment_facts` the sentence naming the answering model and where its
+    requests go (`deployment_facts` below), so "which model are you" and "is
+    my data uploaded" are answered from fact, not from what the model
+    believes it is."""
     tool_prompts = [
         f"**{tool.name}**: {tool.description}"
         for tool in langchain_tools
@@ -117,7 +123,73 @@ async def build_system_prompt(
         health_profile=health_profile,
         tool_round_limit=tool_round_limit,
         answer_language=answer_language,
+        deployment_facts=deployment_facts,
     )
+
+
+#: Hostnames that mean "the model server is on this machine (or this compose
+#: stack)": the answers a local endpoint gives without the question leaving
+#: the machine. `llama` is the compose service name; `host.docker.internal`
+#: is how a containerised app reaches a server on its host.
+_LOCAL_HOSTS = frozenset({
+    "127.0.0.1", "localhost", "::1", "0.0.0.0", "host.docker.internal", "llama",
+})
+
+#: Where an entry with NO `base_url` goes: the family's SDK default. Only the
+#: families the shipped chat entries use are named; anything else admits no
+#: claim is made.
+_FAMILY_DEFAULT_ENDPOINT = {
+    "openai": "api.openai.com",
+    "openrouter": "openrouter.ai",
+    "anthropic": "api.anthropic.com",
+    "google_genai": "generativelanguage.googleapis.com",
+    "google_anthropic_vertex": "aiplatform.googleapis.com",
+    "google_vertexai": "aiplatform.googleapis.com",
+}
+
+
+def endpoint_of(entry: dict[str, Any]) -> tuple[str, bool]:
+    """`(where the entry's requests go, whether that is local)`: the
+    `base_url` host when one resolves, else the family's SDK default, else
+    "". A `base_url` that is still a NAME (`LOCAL_BASE_URL` unset) admits no
+    claim: the entry is off, and no turn runs on it."""
+    raw = str(entry.get("base_url") or "").strip()
+    host = ""
+    if raw:
+        from mirobody.utils.config.llm import endpoint_value, is_endpoint_name
+
+        url = endpoint_value(raw) if is_endpoint_name(raw) else raw
+        host = (urlsplit(url).hostname or "") if "://" in url else ""
+        if not host:
+            return "", False
+    else:
+        host = _FAMILY_DEFAULT_ENDPOINT.get(
+            str(entry.get("llm_type") or "openai").strip().lower().replace("-", "_"), "")
+        if not host:
+            return "", False
+    return host, host.lower() in _LOCAL_HOSTS
+
+
+def deployment_facts(alias: str, entry: dict[str, Any]) -> str:
+    """The two sentences the system prompt states about THIS deployment:
+    which model answers, and where the conversation goes. Facts, read from
+    the entry in effect — a small model asked "which model are you" answers
+    from its training and gets it wrong, and "is my data uploaded" deserves
+    the endpoint's name, not a privacy slogan. No claim is made beyond the
+    answering path: where the document readers and summarisers route is
+    configuration too, not a promise to make here.
+    """
+    model = str(entry.get("model") or alias)
+    endpoint, local = endpoint_of(entry)
+    head = f"The answering model is {model} (MODELS entry {alias!r})."
+    if local:
+        return (f"{head} It runs at {endpoint} on this machine; the "
+                "conversation and the record data read to answer it are processed there, "
+                "not sent to a cloud provider.")
+    if endpoint:
+        return (f"{head} The conversation, and the record data read to answer it, are sent "
+                f"to {endpoint} over the internet for processing.")
+    return f"{head} The conversation goes to that model's configured provider endpoint for processing."
 
 
 async def report_date_status(user_id: str, file_keys: list[str]) -> str:

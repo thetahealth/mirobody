@@ -49,9 +49,10 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from mirobody.kernel import query, series, tools
+from mirobody.kernel import citations, query, series, tools
 from ._authz import refused
 from ._base import RecordTool
+from ._refs import record_eval_rids
 from ._render import awaited, envelope_meta, render_compact
 
 #: The span a window covers when only ONE end is named. Three months: two lab
@@ -82,6 +83,49 @@ _DAY_VALUE_NOTE = (
     "each day counts once here, as its elected value or else its last reading; "
     "view=stats counts every reading of such a day"
 )
+
+#: Repeated on every answer with citable rows, as the reference search repeats
+#: its own citation rule: a small model drops standing instructions under load.
+_RID_NOTE = "cite a row's rid, as (r3), next to any number you quote from it"
+
+
+def _attach_rids(scope: str, method: str, rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Give every citable row its `rid` (`kernel.citations`), and take the
+    machinery back out of the model's view: `src_ids` is the registry's
+    input, never a column — a model handed a hundred ids cites none of them.
+
+    A raw reading mints on its `row_id`; an aggregate mints on the sorted ids
+    it counted, so the same statistic shown twice keeps one rid. The registry
+    scope is the record being read, which is the conversation from the
+    model's side. A row with nothing to cite to keeps no rid rather than
+    minting a dangling one (a catalogue row: it stands for a series, not for
+    readings).
+    """
+    if not rows or method == "catalog":
+        return list(rows)
+    table = citations.table_for(scope)
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        row = dict(row)
+        # Ids are text in the registry whatever the store returns (int PKs,
+        # UUID objects), so a verifier compares like with like.
+        src = tuple(map(str, row.pop("src_ids", ()) or ()))
+        if src:
+            key: Any = ("agg", tuple(sorted(src)))
+        else:
+            row_id = row.get("row_id")
+            if row_id in (None, ""):
+                out.append(row)
+                continue
+            key = ("row", str(row_id))
+            src = (str(row_id),)
+        row["rid"] = table.rid_for(key, src)
+        out.append(row)
+    # An `eval` in flight brackets itself with a sink (`tools._refs`) and the
+    # middleware appends these as the computed answer's citation refs; a
+    # direct call has no sink and this is a no-op.
+    record_eval_rids(row["rid"] for row in out if row.get("rid"))
+    return out
 
 
 class HealthIndicatorsService(RecordTool):
@@ -199,6 +243,8 @@ class HealthIndicatorsService(RecordTool):
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
+        rows = _attach_rids(subject_id, method, rows)
+
         outside = ""
         if self._outside_note and method != "catalog" and (request.start or request.end):
             outside = _outside_note(await awaited(hq.catalog(subject_id, None)), rows, window)
@@ -284,6 +330,8 @@ def _envelope_for(
     if semantics == query.SEMANTICS_DATE_PADDED:
         assumptions.append("some rows predate the stored local day; their window is padded a day each way")
     assumptions.append(_ABSENCE_NOTE)
+    if any(r.get("rid") for r in rows):
+        assumptions.append(_RID_NOTE)
     reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
     if reported:
         assumptions.append(_WORDS_NOTE)

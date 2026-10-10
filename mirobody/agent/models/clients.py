@@ -244,18 +244,48 @@ _REASONING_CHAT_OPENAI: type | None = None
 def reasoning_chat_openai() -> type:
     """``ChatOpenAI`` that surfaces DashScope/DeepSeek ``reasoning_content``.
 
-    langchain-openai drops this non-OpenAI field (it keeps the reasoning
-    TOKEN COUNT in usage but not the reasoning TEXT) so a thinking model's
-    thoughts never reach ``additional_kwargs``. This subclass captures the
-    field from the raw streaming delta and from the non-stream message, where
-    `messages.message_reasoning` then finds it. Built lazily so langchain-openai
-    is imported only when a client is.
+    langchain-openai drops this non-OpenAI field in both directions (it keeps
+    the reasoning TOKEN COUNT in usage but not the reasoning TEXT, and the
+    request converter serialises only OpenAI's own assistant fields). This
+    subclass captures the field from the raw streaming delta and the non-stream
+    message, where `messages.message_reasoning` then finds it, and re-sends it
+    on the next request (`_get_request_payload`), because the llama.cpp-style
+    templates the local models serve render it back into ``<think>``. Built
+    lazily so langchain-openai is imported only when a client is.
     """
     global _REASONING_CHAT_OPENAI
     if _REASONING_CHAT_OPENAI is None:
         from langchain_openai import ChatOpenAI
 
         class ReasoningChatOpenAI(ChatOpenAI):
+            def _get_request_payload(self, input_, *, stop=None, **kwargs):
+                payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+                wire = payload.get("messages")
+                if not isinstance(wire, list):
+                    return payload
+                # The receive side (below) captures `reasoning_content` into
+                # `additional_kwargs`, but langchain-openai's
+                # `_convert_message_to_dict` serialises only OpenAI's own
+                # assistant fields (verified in 1.6.7: nothing under
+                # `additional_kwargs` other than tool_calls/function_call/
+                # audio is forwarded), so a thinking model never reads its own
+                # reasoning back and every tool-call round starts from zero.
+                # The MiniCPM/llama.cpp templates DO render incoming
+                # `reasoning_content` into <think> blocks, so training/
+                # inference parity requires re-sending it. Only after the LAST
+                # human message: DeepSeek's documented convention drops prior
+                # turns' reasoning from the request, and earlier-round
+                # reasoning was generated against a different question prefix.
+                messages = self._convert_input(input_).to_messages()
+                last_human = max((i for i, m in enumerate(messages) if m.type == "human"), default=-1)
+                for msg, msg_dict in zip(messages[last_human + 1:], wire[last_human + 1:], strict=True):
+                    if msg.type != "ai":
+                        continue
+                    reasoning = (msg.additional_kwargs or {}).get("reasoning_content")
+                    if isinstance(reasoning, str) and reasoning:
+                        msg_dict["reasoning_content"] = reasoning
+                return payload
+
             def _convert_chunk_to_generation_chunk(self, chunk, default_chunk_class, base_generation_info):
                 gen = super()._convert_chunk_to_generation_chunk(chunk, default_chunk_class, base_generation_info)
                 try:

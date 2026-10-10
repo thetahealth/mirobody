@@ -20,6 +20,7 @@ res/
 ├── crosswalks/   ④ thirteen vendors' device fields -> LOINC
 ├── ucum/         ⑤ the UCUM specification's own table, verbatim
 ├── genomics/     ⑥ public genomic reference assets and provenance
+├── medref/       ⑦ the offline medical-reference FTS index (agent tool)
 ├── dose_forms.tsv
 └── EXTERNAL.tsv
 ```
@@ -50,6 +51,8 @@ the second is a manifest of data that is deliberately NOT in the checkout.
 | `dose_forms.tsv` | UCUM dose-form annotations | `kernel.meds` |
 | `genomics/genotype_sites.sqlite3` | Public dbSNP 155 Common site index: 489 dual-build SNVs in twelve pharmacogene regions; `genotype_sites.NOTICE` gives its sources and coverage | `translate.genotype_sites.SiteCatalog` |
 | `genomics/genotype_sites.NOTICE` | source URL, hashes and sample limits | prose |
+| `medref/index.sqlite3` | MedlinePlus health-topic summaries (public domain, attribution required) + openFDA drug labels (CC0), one FTS5 table; `medref/NOTICE` gives the sources and the copyright boundaries it keeps | `agent.medref` (`search_medical_reference` tool) |
+| `medref/NOTICE` | corpus URLs, fetch dates and licence terms | prose |
 | `EXTERNAL.tsv` | what is NOT here, and where it was | `scripts/fetch_data.sh` |
 
 `crosswalks/` has its own [README](crosswalks/README.md) for the mapping
