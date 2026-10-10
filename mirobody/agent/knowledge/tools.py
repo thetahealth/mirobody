@@ -51,7 +51,7 @@ async def search(query: str, scope: str = "") -> str:
         else:
             return f"The scope {scope!r} is not available on this server. Use one of: {', '.join(scopes())}."
     except online.Unavailable:
-        logger.warning("knowledge source unreachable: scope=%s", scope)
+        logger.warning("knowledge source unreachable: scope=%s", scope)  # phi: ok one of three scope names
         return (f"The {scope} source could not be reached. This is an outage, not an absence of evidence: say "
                 "so, and do not answer from memory.")
     if not rows:
@@ -76,7 +76,7 @@ async def read(ref: str) -> str:
         else:
             return "Online sources are off on this server, so this ref cannot be read."
     except online.Unavailable:
-        logger.warning("knowledge source unreachable: source=%s", source)
+        logger.warning("knowledge source unreachable: source=%s", source)  # phi: ok a refs.SOURCES key
         return "The source could not be reached. Cite the search excerpt instead, or say it is unavailable."
     if row is None:
         return f"{ref} is not in the sources. Search again and copy a ref from the results."
