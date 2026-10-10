@@ -88,6 +88,10 @@ def test_cite_kinds(cite, kind):
     ("in 2026 it was 6,1", [6.1]),
     ("a change of -0.9", [-0.9]),
     ("r3 and r9", []),
+    ("57.0 kg on September 1, 2026 at 06:45", [57.0]),
+    ("your Aug 7 report and the 22nd March one", []),
+    ("you may 5 times", [5.0]),
+    ("BMI 21.8 (18.5--23.9)", [21.8, 18.5, 23.9]),
 ])
 def test_numbers_are_values_not_dates_or_ids(text, expected):
     assert numbers(text) == expected

@@ -1,0 +1,183 @@
+{
+ "size": "small-base-timeend",
+ "agent": "minicpm5-2b",
+ "started": "2026-10-11T00:05:42+08:00",
+ "parts": [
+  "qa"
+ ],
+ "switch": {
+  "agent": "minicpm5-2b",
+  "ocr": "glm-ocr",
+  "switch_s": 40.2,
+  "load_s": 5.0,
+  "local_models": {
+   "agent": "minicpm5-2b",
+   "utils": "minicpm5-2b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "minicpm5-2b",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+   "ctx_size": "32768",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "MiniCPM5-2B-Q4_K_M.gguf",
+     "bytes": 1561318368,
+     "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+   "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-11T00:06:23+08:00",
+  "processes": [
+   {
+    "pid": 87553,
+    "ppid": 1,
+    "rss_mb": 109.5,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 59.4
+   },
+   {
+    "pid": 87815,
+    "ppid": 87553,
+    "rss_mb": 2941.9,
+    "alias": "minicpm5-2b",
+    "role": "child",
+    "footprint_mb": 1401.8
+   },
+   {
+    "pid": 87816,
+    "ppid": 87553,
+    "rss_mb": 2367.6,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1639.1
+   }
+  ],
+  "children_rss_mb": 5309.5,
+  "children_footprint_mb": 3040.9,
+  "swap_used_mb": 9103.19
+ },
+ "passes": [
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-11T00:06:23+08:00",
+   "resources": {
+    "disk_free_gb": 8.8,
+    "memory_free_pct": 63,
+    "swap_used_mb": 9103.19
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-2b"
+   ],
+   "memory": {
+    "at": "2026-10-11T00:06:23+08:00",
+    "processes": [
+     {
+      "pid": 87553,
+      "ppid": 1,
+      "rss_mb": 109.5,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 59.4
+     },
+     {
+      "pid": 87815,
+      "ppid": 87553,
+      "rss_mb": 2941.9,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1401.8
+     },
+     {
+      "pid": 87816,
+      "ppid": 87553,
+      "rss_mb": 2367.6,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1639.1
+     }
+    ],
+    "children_rss_mb": 5309.5,
+    "children_footprint_mb": 3040.9,
+    "swap_used_mb": 9103.19
+   },
+   "memory_run": {
+    "samples": 72,
+    "peak_rss_mb": 7454.2,
+    "peak_footprint_mb": 5259.1
+   },
+   "memory_after_qa": {
+    "at": "2026-10-11T00:30:26+08:00",
+    "processes": [
+     {
+      "pid": 87553,
+      "ppid": 1,
+      "rss_mb": 91.2,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 36.0
+     },
+     {
+      "pid": 87815,
+      "ppid": 87553,
+      "rss_mb": 3043.5,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1566.9
+     },
+     {
+      "pid": 87816,
+      "ppid": 87553,
+      "rss_mb": 2368.0,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1639.3
+     }
+    ],
+    "children_rss_mb": 5411.5,
+    "children_footprint_mb": 3206.2,
+    "swap_used_mb": 9079.19,
+    "disk_free_gb": 8.8,
+    "memory_free_pct": 76
+   },
+   "finished": "2026-10-11T00:30:27+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 72,
+  "peak_rss_mb": 7454.2,
+  "peak_footprint_mb": 5259.1
+ },
+ "background_tasks_drained_s": 0.1,
+ "finished": "2026-10-11T00:30:27+08:00"
+}

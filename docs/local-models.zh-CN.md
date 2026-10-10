@@ -16,7 +16,7 @@ Mirobody 用到的每一个模型，都能跟服务运行在同一台机器上�
 | 用 Apple 芯片的 Mac | `brew install llama.cpp`，然后在 Mac 上运行 `llama-server`（[见下](#start-the-models)） | 16 GB Apple 芯片笔记本的 GPU 上约 30 秒 |
 | Linux 或带 NVIDIA 显卡的 Windows | `COMPOSE_PROFILES=local ./deploy.sh` | 用 GPU |
 
-默认大小需要 16 GB 内存，Docker 的虚拟机至少要分到其中 8 GB。首次启动会从 Hugging Face 下载约 3.0 GB 的模型，另外还有容器镜像。要不要完全在本机运行，以及小号在同一套评测上跟云端模型比起来如何，见 [model-choice.zh-CN.md](model-choice.zh-CN.md)。
+默认大小需要 16 GB 内存，Docker 的虚拟机至少要分到其中 8 GB。首次启动会从 Hugging Face 下载约 4.1 GB 的模型，另外还有容器镜像。要不要完全在本机运行，以及小号在同一套评测上跟云端模型比起来如何，见 [model-choice.zh-CN.md](model-choice.zh-CN.md)。
 
 <a id="choose-a-size"></a>
 
@@ -26,10 +26,10 @@ Mirobody 用到的每一个模型，都能跟服务运行在同一台机器上�
 
 | 大小 | 回答 | 下载量 | 内存 | 每次回答 | 对话里的照片 | 在评测上 |
 | --- | --- | --- | --- | --- | --- | --- |
-| **小号**，默认 | MiniCPM5-2B，Q4_K_M | 3.0 GB | 5.7 GB | 中位数 29 秒，16 GB 的 Apple 芯片笔记本，用它的 GPU | 读它的 OCR 文字 | 24 道题过了 19 道，140 个印刷行全部存对，31 条日记条目写出 22 条 |
+| **小号**，默认 | MiniCPM5-2B，Q8_0 | 4.1 GB | 7.6 GB | 中位数 18 秒，48 GB 的 Apple 芯片主机，用它的 GPU | 读它的 OCR 文字 | 两次分别过了 24 道题里的 23 道和 24 道（得分 229 和 225/248），140 个印刷行存对 132 个，31 条日记条目写出 26 条 |
 | **大号** | Qwen3.8-27B，IQ3_S（ISTA-DASLab GSQ-RCO） | 14.5 GB | 20.8 GB | 约 2 分钟（中位数 138 秒），48 GB 的 Apple 芯片主机，用它的 GPU | 直接看 | 24 道题通过 22 道（得分 240/248），印刷行 140 行读对 139 行，日记 31 条对 29 条 |
 
-小号能运行在任何 16 GB 内存、没有显卡的电脑上；旁边的服务再占约 1 GB。大号要 32 GB 内存的 Mac，或者 24 GB 显存的 NVIDIA 显卡。这两行在不同的机器上测得；在同一台 48 GB 主机、同一份记录上，小号得分 229/248，大号 240/248，而每个回答的耗时约为大号的九分之一（见 [model-choice.zh-CN.md](model-choice.zh-CN.md)）。另外测过并放弃了两个回答模型：MiniCPM5-1B 下载量少 0.4 GB，24 道题里答对且每个期望事实都在的有 2 道；Qwen3.5-9B 在 16 GB 内存上和服务放不到一起。
+小号能运行在任何 16 GB 内存、没有显卡的电脑上；旁边的服务再占约 1 GB。大号要 32 GB 内存的 Mac，或者 24 GB 显存的 NVIDIA 显卡。大号那一行是 2026-10-08 在较早的 harness 上测的，当时小号（还是 Q4_K_M）在同一台主机、同一份记录上得 229 分，大号 240 分，每个回答的耗时约为大号的九分之一（见 [model-choice.zh-CN.md](model-choice.zh-CN.md)）。2026-10-10 起小号换成 Q8_0：在 1.5.5 的 harness 上 Q4_K_M 两次得 212 和 194，而 Q8_0 在 CPU 上读提示词还更快（[没有显卡时](#without-a-gpu)）。另外测过并放弃了两个回答模型：MiniCPM5-1B 两种采样都只得 109/248；Qwen3.5-9B 在 16 GB 内存上和服务放不到一起。
 
 两种大小都用 GLM-OCR 读文档、按规则读表格，所以同一份化验单读出来的读数是一样的。变的是问题答得好不好、多快，以及对话里的照片是被直接看（大号）还是只读它的 OCR 文字（小号）。这些数字背后的评测、以及怎么重新运行，见 [`benchmarks/local_models/`](../benchmarks/local_models/README.md)。
 
@@ -39,7 +39,7 @@ Mirobody 用到的每一个模型，都能跟服务运行在同一台机器上�
 
 按自己的机器选一行命令。每一行都提供同一份预设，[`docker/local-models.ini`](../docker/local-models.ini)；要在 `mirobody` 文件夹（也就是放着 `deploy.sh` 的那个）里启动。`--models-max 2` 让内存里只留一个回答模型和一个读文档的模型，所以在设置页换一个大小会先卸载前一个。
 
-**任何装了 Docker、不需要显卡的电脑**（Windows、Linux 或 macOS）。最慢的一条路线，但除了 Docker 什么都不需要。首次启动会下载约 3.7 GB：3.0 GB 的模型加上约 0.7 GB 的镜像（llama.cpp 的 CPU 镜像约 310 MB，应用约 230 MB，Postgres 约 160 MB），解包后约占 2 GB（在 Linux x86 上分别是 850、640 和 460 MB）。
+**任何装了 Docker、不需要显卡的电脑**（Windows、Linux 或 macOS）。最慢的一条路线，但除了 Docker 什么都不需要。首次启动会下载约 4.8 GB：4.1 GB 的模型加上约 0.7 GB 的镜像（llama.cpp 的 CPU 镜像约 310 MB，应用约 230 MB，Postgres 约 160 MB），解包后约占 2 GB（在 Linux x86 上分别是 850、640 和 460 MB）。
 
 ```bash
 COMPOSE_PROFILES=local-cpu ./deploy.sh     # 服务加上 llama.cpp 的 CPU 镜像，运行在旁边
@@ -140,6 +140,18 @@ docker compose exec mirobody mirobody doctor --probe
 - 这份缓存是某一个 compose 项目的 `mirobody_models` 卷：换一份检出，或者换一个 `COMPOSE_PROJECT_NAME`，模型就要重新下载。
 - CPU 镜像的日志里会出现 `warning: no usable GPU found, --gpu-layers option will be ignored`：预设要的是 GPU，`local` 服务用的就是这个设置，CPU 版本会把它忽略。
 
+**没有显卡时哪个文件读得最快。** 同一个 CPU 镜像、4 个 vCPU，运行在一台 48 GB Apple 芯片主机的 colima 虚拟机里，每个容器只放一个模型，每个提示词都是冷读（2026-10-10）：
+
+| MiniCPM5-2B | 读 1.8k token 的提示词 | 读 10.6k token 的提示词 | 写回答（短 / 读完 10.6k 之后） | 10.6k 提示词到答完 | 内存 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Q4_K_M | 每秒 94 个 token | 每秒 45 个 | 每秒 36 / 17 个 | 239 秒 | 3.2 GB |
+| Q8_0 | 142 | 52 | 37 / 17 | 210 秒 | 3.6 GB |
+| Q4_0，从 OpenBMB 的 F16 自己量化 | 150 | 52 | 42 / 18 | 209 秒 | 3.1 GB |
+
+- Q8_0 读提示词比 Q4_K_M 快，写得一样快，内存多 0.4 GB。在 CPU 上，一次回答的大部分时间花在读提示词上。
+- 提示词越长读得越慢，10.6k token 时只有 1.8k 时的三分之一，所以服务器的提示词缓存能复用多少，和选哪个文件一样要紧。
+- MiniCPM5-1B 读得大约快一倍（短提示词每秒 229 到 390 个 token），但在评测的问题上只得 109/248，2B 是 194 到 229：当不了一个大小。
+
 这两个 compose 服务运行的是 llama.cpp 的 b11429 构建版，也是这次评测使用的版本：`local-cpu` 用的是 `ghcr.io/ggml-org/llama.cpp:server-b11429`，`local` 用的是 `server-cuda-b11429`。在 `.env` 里设置 `LLAMA_CPU_IMAGE` 和 `LLAMA_IMAGE` 可以换掉它们，再 `docker compose up -d`：可以换成更新的构建版，或者在连不上 ghcr.io 的地方，换成镜像它的某个 registry 上的同一个标签（`LLAMA_CPU_IMAGE=<mirror>/ggml-org/llama.cpp:server-b11429`）。
 
 <a id="other-models"></a>
@@ -152,6 +164,8 @@ docker compose exec mirobody mirobody doctor --probe
 LOCAL_MODEL=qwen3.8-27b        # 大号：回答问题、写标题和摘要
 LOCAL_OCR_MODEL=glm-ocr        # 读报告照片和扫描页
 ```
+
+`local` 条目发送 `temperature: 0`。MiniCPM5-2B 的模型卡给思考模式的是 `temperature 1.0, top_p 0.95, min_p 0`；在评测上按它跑三次得 182 到 200 分（满分 248），temperature 0 两次是 194 和 212，丢的分在工具没给过的数字和医学说法上（[基准](../benchmarks/local_models/README.md#sampling-thinking-two-more-models-and-what-post-training-is-for-2026-10-10)）。你加进来的模型也用这个温度；它的模型卡里其余的参数写进它在预设里的小节。
 
 要运行别的模型，把它的小节加进预设（或者用别的方式提供服务），然后在设置页上选它（页面会列出服务提供的模型），或者在 `.env` 里写上它的名字。这样选出来的模型也会被同样地检查：服务必须真的提供它。挑出这两个模型之前测过的候选都在 [local-models-roadmap.zh-CN.md](local-models-roadmap.zh-CN.md) 里。看不了图的模型会从它的服务那里被检测出来，照片会以文字的形式发给它，而不是图片本身。
 

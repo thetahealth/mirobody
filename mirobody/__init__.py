@@ -95,4 +95,4 @@ try:
     __version__ = importlib.metadata.version("mirobody")
 except importlib.metadata.PackageNotFoundError:
     import os
-    __version__ = os.environ.get("MIROBODY_VERSION") or "1.5.4"
+    __version__ = os.environ.get("MIROBODY_VERSION") or "1.5.5"

@@ -4,6 +4,7 @@
     python benchmarks/local_models/report.py show small       # each transcript, compact, for grading by hand
     python benchmarks/local_models/report.py show small p004-ldl-chart
     python benchmarks/local_models/report.py diff results/small /tmp/rerun/small
+    python benchmarks/local_models/report.py --results results/2026-10-10 summary   # one dated round
 
 `summary` puts the automatic checks and the Claude Code grades (grades.json,
 written by reading every transcript against the rubric in README.md) in
@@ -25,7 +26,8 @@ from score import answer_of
 CRITERIA = ("correct", "grounded", "range", "language", "useful", "chart")
 ORDER = ["tiny", "small", "large"]
 DOMAINS = {"device": "device", "lab": "lab", "document": "document", "genotype": "genetics",
-           "pharmacogenomics": "genetics", "journal": "journal", "no data": "no data", "chart": "chart"}
+           "pharmacogenomics": "genetics", "journal": "journal", "no data": "no data", "chart": "chart",
+           "knowledge": "knowledge", "mixed": "record + knowledge", "source": "source", "safety": "safety"}
 
 
 def domain_group(domain: str) -> str:
@@ -58,24 +60,32 @@ def agent_of(label: str) -> str:
 
 
 def grade_totals(grades: dict, cases: dict[str, dict]) -> dict:
-    """Points and maximum per case, per criterion, per domain."""
-    out = {"points": 0, "max": 0, "criteria": defaultdict(lambda: [0, 0]), "domains": defaultdict(lambda: [0, 0]),
-           "cases": {}}
+    """Points and maximum per case, per criterion, per domain. `points`,
+    `max` and `criteria` are the first 24 cases', comparable across runs;
+    `new` is the cases added since (`added` in cases.jsonl)."""
+    out = {"points": 0, "max": 0, "new": [0, 0], "criteria": defaultdict(lambda: [0, 0]),
+           "domains": defaultdict(lambda: [0, 0]), "cases": {}}
     for g in grades.get("grades", []):
         pts = mx = 0
+        added = bool(cases[g["id"]].get("added"))
         for c in CRITERIA:
             v = g.get(c)
             if v is None:
                 continue
             score = v[0] if isinstance(v, list) else v
             pts, mx = pts + score, mx + 2
-            out["criteria"][c][0] += score
-            out["criteria"][c][1] += 2
+            if not added:
+                out["criteria"][c][0] += score
+                out["criteria"][c][1] += 2
         dom = domain_group(cases[g["id"]]["domain"])
         out["domains"][dom][0] += pts
         out["domains"][dom][1] += mx
-        out["points"] += pts
-        out["max"] += mx
+        if added:
+            out["new"][0] += pts
+            out["new"][1] += mx
+        else:
+            out["points"] += pts
+            out["max"] += mx
         out["cases"][g["id"]] = (pts, mx)
     return out
 
@@ -103,6 +113,14 @@ def summary() -> str:
         lambda s: f"{rows[s]['qa_unsupported_numbers']} ({rows[s]['qa_answers_with_unsupported']})")
     row("… seconds per answer, median / p90", lambda s: f"{rows[s]['qa_median_s']} / {rows[s]['qa_p90_s']}")
     row("… timeouts", lambda s: str(rows[s]["qa_timeouts"]))
+    if any(rows[s].get("new_n") for s in sizes):
+        row("Questions added 2026-10-10, Claude Code grade",
+            lambda s: "{}/{}".format(*totals[s]["new"]) if s in totals and totals[s]["new"][1] else "")
+        row("… automatic pass", lambda s: f"{rows[s]['new_pass']}/{rows[s]['new_n']}" if rows[s].get("new_n") else "")
+        row("Cited answers: in the citation format", lambda s: f"{rows[s]['trace_format']}/{rows[s]['trace_n']}")
+        row("… made-up ids", lambda s: str(rows[s]["trace_made_up"]))
+        row("… untraced numbers (answers with any)",
+            lambda s: f"{rows[s]['trace_untraced']} ({rows[s]['trace_answers_untraced']})")
     row("Extraction: printed rows found", lambda s: f"{rows[s]['ext_found']}/{rows[s]['ext_rows']}")
     row("… unit / range as printed", lambda s: f"{rows[s]['ext_unit_ok']} / {rows[s]['ext_range_ok']}")
     row("… readings not on the page", lambda s: str(rows[s]["ext_extra"]))
@@ -132,7 +150,7 @@ def summary() -> str:
     L += ["", "## Per question", "", "Automatic pass (✓/✗) and Claude Code points; seconds.", "",
           "| Case | " + " | ".join(sizes) + " |", "| --- |" + " --- |" * len(sizes)]
     runs = runs_by_size(sizes)
-    for cid in cases:
+    for cid in (c for c in cases if any(c in runs[s] for s in sizes)):
         cells = []
         for s in sizes:
             r = runs[s].get(cid)
@@ -306,7 +324,8 @@ def tables() -> str:
         right = c["right"].replace("|", "\\|")
         chart = " + chart" if c["chart"] else ""
         L.append(f"| `{c['id']}` | {c['lang']} | {c['domain']} | {c['question']} | {right} | "
-                 f"{' or '.join(f'`{t}`' for t in c['expect_tools'])}{chart} |")
+                 f"{(' and ' if c.get('expect_all_tools') else ' or ').join(f'`{t}`' for t in c['expect_tools'])}"
+                 f"{chart} |")
     L += ["", "| Document | Kind | Printed rows | Language |", "| --- | --- | --- | --- |"]
     corpus_rows = {}
     for d in plan["extraction_docs"]:
@@ -316,7 +335,11 @@ def tables() -> str:
 
 
 def main() -> None:
+    global RESULTS
     args = sys.argv[1:]
+    if args[:1] == ["--results"]:
+        RESULTS = Path(args[1]).resolve()
+        args = args[2:]
     if not args or args[0] == "summary":
         text = summary()
         (RESULTS / "summary.md").write_text(text, encoding="utf-8")

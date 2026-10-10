@@ -23,7 +23,7 @@ with no model, and ② Translate codes them offline.
 | Linux or Windows with an NVIDIA GPU | `COMPOSE_PROFILES=local ./deploy.sh` | on the GPU |
 
 The default size needs 16 GB of memory, and Docker's VM at least 8 GB of it.
-The first start downloads about 3.0 GB of models from Hugging Face, plus the
+The first start downloads about 4.1 GB of models from Hugging Face, plus the
 container images. Whether to run locally at all, and how the small size
 compares with cloud models on the same evaluation, is
 [model-choice.md](model-choice.md).
@@ -36,16 +36,18 @@ files the preset fetches, document reader included; memory is the most
 
 | Size | Answers | Download | Memory | Per answer | A photo in the chat | On the evaluation |
 | --- | --- | --- | --- | --- | --- | --- |
-| **Small**, the default | MiniCPM5-2B, Q4_K_M | 3.0 GB | 5.7 GB | 29 s median, 16 GB Apple-silicon laptop, on its GPU | read as its OCR text | 19 of 24 questions passed, 140 of 140 printed rows, 22 of 31 journal entries |
+| **Small**, the default | MiniCPM5-2B, Q8_0 | 4.1 GB | 7.6 GB | 18 s median, 48 GB Apple-silicon machine, on its GPU | read as its OCR text | 23 and 24 of 24 questions passed in two runs (grade 229 and 225 of 248), 132 of 140 printed rows, 26 of 31 journal entries |
 | **Large** | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO) | 14.5 GB | 20.8 GB | about 2 min (138 s median), 48 GB Apple-silicon machine, on its GPU | looked at | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries |
 
 Small runs on any computer with 16 GB of memory and no GPU; the stack beside
 it takes about 1 GB more. Large wants a 32 GB Mac or a 24 GB NVIDIA GPU. The
-two rows ran on different machines; on the same 48 GB machine and record the small
-size graded 229 of 248 to the large size's 240, at about a ninth of its time
-per answer ([model-choice.md](model-choice.md)). Two other answering models were measured and dropped:
-MiniCPM5-1B answered 2 of the 24 questions with every expected fact for 0.4 GB
-less download, and Qwen3.5-9B did not fit beside the stack on 16 GB.
+large row is from 2026-10-08, on an older harness, when the small size (then
+Q4_K_M) graded 229 to its 240 on the same machine and record, at about a ninth
+of its time per answer ([model-choice.md](model-choice.md)). Q8_0 replaced
+Q4_K_M on 2026-10-10: on 1.5.5's harness Q4_K_M graded 212 and 194, and Q8_0
+reads a prompt faster on a CPU ([Without a GPU](#without-a-gpu)). Two other
+answering models were measured and dropped: MiniCPM5-1B graded 109 of 248 at
+either sampling, and Qwen3.5-9B did not fit beside the stack on 16 GB.
 
 Both sizes read documents with GLM-OCR and read tables by rule, so a lab
 report's readings come out the same. What changes is how well questions are
@@ -64,7 +66,7 @@ setup page unloads the one before.
 
 **Any computer with Docker, no GPU needed** (Windows, Linux or macOS). The
 slowest route, and the one that needs nothing besides Docker. The first start
-downloads about 3.7 GB: the 3.0 GB of models and about 0.7 GB of images
+downloads about 4.8 GB: the 4.1 GB of models and about 0.7 GB of images
 (llama.cpp's CPU image about 310 MB, the app about 230 MB, Postgres about
 160 MB), which take about 2 GB once unpacked (850, 640 and 460 MB on Linux
 x86).
@@ -220,6 +222,25 @@ Both measurements below ran the small size in llama.cpp's CPU image (the
   ignored`: the preset asks for the GPU, which the `local` service uses, and
   the CPU build ignores the setting.
 
+**Which file reads fastest without a GPU.** The same CPU image with 4 vCPUs,
+on a 48 GB Apple-silicon machine's colima VM, one model per container, every
+prompt read cold (2026-10-10):
+
+| MiniCPM5-2B | Reads a 1.8k-token prompt | Reads a 10.6k-token prompt | Writes, short / after 10.6k | 10.6k prompt to answer | Memory |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Q4_K_M | 94 tokens/s | 45 tokens/s | 36 / 17 tokens/s | 239 s | 3.2 GB |
+| Q8_0 | 142 | 52 | 37 / 17 | 210 s | 3.6 GB |
+| Q4_0, quantized here from OpenBMB's F16 | 150 | 52 | 42 / 18 | 209 s | 3.1 GB |
+
+- Q8_0 reads a prompt faster than Q4_K_M and writes as fast, for 0.4 GB more
+  memory. Reading the prompt is most of a CPU answer.
+- Reading slows as the prompt grows, a third as fast at 10.6k tokens as at
+  1.8k, so what the server can reuse from its prompt cache matters as much as
+  the file.
+- MiniCPM5-1B reads about twice as fast (229 to 390 tokens a second on the
+  short prompt) but graded 109 of 248 on the evaluation's questions, against
+  the 2B's 194 to 229: not a size.
+
 The two compose services run llama.cpp build b11429, the one the evaluation
 ran: `ghcr.io/ggml-org/llama.cpp:server-b11429` for `local-cpu` and
 `server-cuda-b11429` for `local`. `LLAMA_CPU_IMAGE` and `LLAMA_IMAGE` in
@@ -238,6 +259,14 @@ for. The setup page writes the size you pick; in `.env` the same is a line:
 LOCAL_MODEL=qwen3.8-27b        # the large size: answers questions, writes titles and summaries
 LOCAL_OCR_MODEL=glm-ocr        # reads report photos and pages
 ```
+
+The `local` entry sends `temperature: 0`. MiniCPM5-2B's model card gives
+`temperature 1.0, top_p 0.95, min_p 0` for thinking mode; on the evaluation
+those settings graded 182 to 200 of 248 over three runs against 194 and 212
+at temperature 0, losing on numbers and medical claims no tool returned
+([benchmarks](../benchmarks/local_models/README.md#sampling-thinking-two-more-models-and-what-post-training-is-for-2026-10-10)).
+A model you add gets the same temperature; its card's other settings go in
+its preset section.
 
 To run another model, add its section to the preset (or serve it any other
 way), then pick it on the setup page, which lists what the server serves, or

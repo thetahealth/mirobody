@@ -1,0 +1,183 @@
+{
+ "size": "small-base-2",
+ "agent": "minicpm5-2b",
+ "started": "2026-10-10T19:02:38+08:00",
+ "parts": [
+  "qa"
+ ],
+ "switch": {
+  "agent": "minicpm5-2b",
+  "ocr": "glm-ocr",
+  "switch_s": 40.2,
+  "load_s": 5.0,
+  "local_models": {
+   "agent": "minicpm5-2b",
+   "utils": "minicpm5-2b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "minicpm5-2b",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+   "ctx_size": "32768",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "MiniCPM5-2B-Q4_K_M.gguf",
+     "bytes": 1561318368,
+     "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+   "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-10T19:03:20+08:00",
+  "processes": [
+   {
+    "pid": 74828,
+    "ppid": 61533,
+    "rss_mb": 54.1,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 78.1
+   },
+   {
+    "pid": 74991,
+    "ppid": 74828,
+    "rss_mb": 2925.0,
+    "alias": "minicpm5-2b",
+    "role": "child",
+    "footprint_mb": 1427.4
+   },
+   {
+    "pid": 74992,
+    "ppid": 74828,
+    "rss_mb": 2329.9,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1643.3
+   }
+  ],
+  "children_rss_mb": 5254.9,
+  "children_footprint_mb": 3070.7,
+  "swap_used_mb": 0.0
+ },
+ "passes": [
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-10T19:03:20+08:00",
+   "resources": {
+    "disk_free_gb": 17.8,
+    "memory_free_pct": 43,
+    "swap_used_mb": 0.0
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-2b"
+   ],
+   "memory": {
+    "at": "2026-10-10T19:03:20+08:00",
+    "processes": [
+     {
+      "pid": 74828,
+      "ppid": 61533,
+      "rss_mb": 54.1,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 78.1
+     },
+     {
+      "pid": 74991,
+      "ppid": 74828,
+      "rss_mb": 2925.0,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1427.4
+     },
+     {
+      "pid": 74992,
+      "ppid": 74828,
+      "rss_mb": 2329.9,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1643.3
+     }
+    ],
+    "children_rss_mb": 5254.9,
+    "children_footprint_mb": 3070.7,
+    "swap_used_mb": 0.0
+   },
+   "memory_run": {
+    "samples": 62,
+    "peak_rss_mb": 6590.4,
+    "peak_footprint_mb": 4928.5
+   },
+   "memory_after_qa": {
+    "at": "2026-10-10T19:24:03+08:00",
+    "processes": [
+     {
+      "pid": 74828,
+      "ppid": 61533,
+      "rss_mb": 54.3,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 37.5
+     },
+     {
+      "pid": 74991,
+      "ppid": 74828,
+      "rss_mb": 3468.0,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 2022.8
+     },
+     {
+      "pid": 74992,
+      "ppid": 74828,
+      "rss_mb": 832.8,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1643.6
+     }
+    ],
+    "children_rss_mb": 4300.8,
+    "children_footprint_mb": 3666.4,
+    "swap_used_mb": 0.0,
+    "disk_free_gb": 17.7,
+    "memory_free_pct": 49
+   },
+   "finished": "2026-10-10T19:24:03+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 62,
+  "peak_rss_mb": 6590.4,
+  "peak_footprint_mb": 4928.5
+ },
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-10T19:24:03+08:00"
+}

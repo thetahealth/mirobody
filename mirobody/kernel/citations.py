@@ -42,6 +42,10 @@ _CLAIM_BOUNDARY = re.compile(r"[\n|。！？；]|[.!?;](?=\s)")
 _FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _MARKUP = re.compile(r"</?statement>|<cite>.*?</cite>", re.S)
 
+#: English month names, capitalised as a date writes them ("may" is a verb).
+_MONTH = ("Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?"
+          "|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?")
+
 #: Dates, times, ranges of a reference interval and unit exponents carry
 #: digits that are not values; they are blanked before numbers are read.
 _NOT_VALUES = re.compile(
@@ -50,6 +54,8 @@ _NOT_VALUES = re.compile(
     r"|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"          # 2026-08-07
     r"|(?:19|20)\d{2}[-/](?:0?[1-9]|1[0-2])(?![\d.])"  # 2025-11
     r"|\d{4}\s*年|\d{1,2}\s*月|\d{1,2}\s*[日号]"  # 2026 年 8 月 7 日
+    rf"|\b(?:{_MONTH})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?\b"  # September 1, Aug 7
+    rf"|\b\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{_MONTH})\b"     # 22nd March
     r"|\b\d{1,2}:\d{2}(?::\d{2})?\b"            # 07:30
     r"|[*^×x]\s*10\s*[\^*]?\s*\d+"              # the x10^9 of 6.5x10^9
     r"|\b10\s*[\^*]\s*\d+"                     # 10^9/L, 10*9/L
@@ -58,6 +64,8 @@ _NOT_VALUES = re.compile(
 _NUMBER = re.compile(r"(?<![\w.])[-+−]?\d+(?:[.,]\d+)?(?![\w])")
 #: Typographic hyphens a model writes in dates ("2025‑11"), read as "-".
 _HYPHENS = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-"})
+#: A range printed with two hyphens ("18.5--23.9"): its upper bound is not negative.
+_RANGE_DASHES = re.compile(r"(?<=\d)\s*--\s*(?=\d)")
 
 
 @dataclass(frozen=True)
@@ -174,7 +182,7 @@ def cite_kind(cite: str) -> str:
 def numbers(text: str) -> list[float]:
     """The values written in `text`: dates, times, years and unit exponents
     left out, `,` read as a decimal mark when it is one."""
-    blanked = _NOT_VALUES.sub(" ", (text or "").translate(_HYPHENS))
+    blanked = _NOT_VALUES.sub(" ", _RANGE_DASHES.sub(" to ", (text or "").translate(_HYPHENS)))
     out = []
     for token in _NUMBER.findall(blanked):
         token = token.replace("−", "-").lstrip("+")

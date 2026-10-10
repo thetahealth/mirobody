@@ -1,4 +1,4 @@
-## Unreleased
+## 1.5.5
 
 ### Added
 
@@ -20,11 +20,23 @@
   panel and each tool call is a step in the reader's language ("Looking up
   your health data · LDL"), folded to one line when the answer starts. The
   status line above an answer was English only and named raw tool names.
+- **The local-model evaluation covers the knowledge tools and cited
+  answers**: six more questions, a citation check on every answer, and a
+  2026-10-10 round comparing MiniCPM5's sampling, thinking and quantization,
+  two Gemma 4 models and five cloud models (`benchmarks/local_models/`).
 - **The system prompt says where each model runs:** on this machine, on your
   own network, or sent to a named cloud host.
 
 ### Changed
 
+- **The small local size runs MiniCPM5-2B at Q8_0.** Two runs each graded 229
+  and 225 of 248 against Q4_K_M's 212 and 194, and on 4 CPU cores it reads a
+  prompt faster (142 against 94 tokens a second) and writes as fast. The
+  download grows from 3.0 to 4.1 GB; the sampling stays at temperature 0,
+  which graded higher than the model card's.
+- **The current time is the system prompt's last line.** It was the third,
+  so the first question of each hour read the whole prompt again (8.9k tokens
+  for MiniCPM5-2B, 144 s on 4 CPU cores); now it re-reads 5.3k.
 - **Every chat model reasons between its tool calls.** `AGENT_THINKING`
   (default `medium`) sets it, a `MODELS` entry's `thinking_level` overrides
   it, and OpenRouter and llama.cpp now get their own switches.
@@ -36,6 +48,10 @@
 
 ### Fixed
 
+- **The prompt named a function `eval` does not have.** It told models to
+  call `tools.query_health_indicators` inside `eval`, which exposes only
+  `tools.queryHealthIndicators`; on the evaluation 16 of 60 DeepSeek and
+  GPT-6 Luna answers spent a call on "not a function" first.
 - **A reasoning model saw its own reasoning again within a turn.** The
   `reasoning_content` of earlier tool rounds in the same turn was dropped from
   the request; it is passed back now (verified on llama.cpp, DeepSeek,

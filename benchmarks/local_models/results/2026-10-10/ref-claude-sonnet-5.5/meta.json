@@ -1,0 +1,123 @@
+{
+ "size": "ref-claude-sonnet-5.5",
+ "reference": "claude-sonnet-5.5",
+ "agent": "anthropic/claude-sonnet-5.5",
+ "models": {
+  "chat_model": "anthropic/claude-sonnet-5.5",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "anthropic/claude-sonnet-5.5",
+     "default": "anthropic/claude-sonnet-5.5",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "anthropic/claude-sonnet-5.5",
+     "default": "anthropic/claude-sonnet-5.5",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5.5",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "anthropic/claude-sonnet-5.5",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Google",
+    "model": "anthropic/claude-sonnet-5.5",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Google",
+    "model": "anthropic/claude-sonnet-5.5",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-10T17:17:48+08:00",
+ "parts": [
+  "qa"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-10T17:18:19+08:00",
+   "resources": {
+    "disk_free_gb": 22.6,
+    "memory_free_pct": 51,
+    "swap_used_mb": 0.0
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [],
+   "memory": null,
+   "memory_run": null,
+   "memory_after_qa": {
+    "disk_free_gb": 22.6,
+    "memory_free_pct": 59,
+    "swap_used_mb": 0.0
+   },
+   "finished": "2026-10-10T17:23:48+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 332.817262029,
+     "qa": 333.352068829
+    },
+    "parts": {
+     "qa": 0.534807
+    },
+    "total": 0.534807
+   }
+  }
+ ],
+ "memory_run": null,
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-10T17:23:48+08:00"
+}

@@ -55,14 +55,14 @@ start command for Windows, Linux and macOS.
 
 | | Small, the default | Large |
 | --- | --- | --- |
-| Answers | MiniCPM5-2B, Q4_K_M, text only | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO), with its vision projector |
+| Answers | MiniCPM5-2B, Q8_0, text only | Qwen3.8-27B, IQ3_S (ISTA-DASLab GSQ-RCO), with its vision projector |
 | Reads documents | GLM-OCR-0.9B | GLM-OCR-0.9B |
-| Download, reader included | 3.0 GB | 14.5 GB |
-| Memory, both models loaded | 5.7 GB at most while answering | 20.8 GB at most while answering |
+| Download, reader included | 4.1 GB | 14.5 GB |
+| Memory, both models loaded | 7.6 GB at most while answering | 20.8 GB at most while answering |
 | Runs on | any computer with 16 GB of memory, no GPU: Windows, Linux or macOS | a 32 GB Mac, or a 24 GB NVIDIA GPU |
-| Median answer | 29 s, 16 GB Apple-silicon laptop, on its GPU | about 2 min (138 s), 48 GB Apple-silicon machine, on its GPU |
+| Median answer | 18 s, 48 GB Apple-silicon machine, on its GPU | about 2 min (138 s), 48 GB Apple-silicon machine, on its GPU |
 | A photo in the chat | read as its OCR text: it cannot see | looked at |
-| On the evaluation | 19 of 24 questions passed (grade 215 of 248), 140 of 140 printed rows, 22 of 31 journal entries | 22 of 24 questions passed (grade 240 of 248), 139 of 140 printed rows, 29 of 31 journal entries; the small size scored 229 on the same machine and record |
+| On the evaluation | 23 and 24 of 24 questions passed in two runs (grade 229 and 225 of 248, 2026-10-10), 132 of 140 printed rows, 26 of 31 journal entries | 22 of 24 questions passed (grade 240 of 248, 2026-10-08), 139 of 140 printed rows, 29 of 31 journal entries |
 
 The answer times are Apple silicon's, where llama.cpp runs on the GPU. With
 no GPU it is minutes, not seconds, and how many depends on the processor. In
@@ -218,6 +218,43 @@ What the table says:
   ahead of the small size on the same machine, at about nine times its time
   per answer. Of its 8 lost points, 3 went to an SLCO1B1 variant it named
   that no tool returned, the one invented value in its 24 answers.
+
+### On 1.5.5's harness (2026-10-10)
+
+Rerun after the harness changes of 1.5.5 (answers that cite their rows,
+the medical knowledge tools, thinking on for every model), on 30 questions:
+the 24 above and six for the new tools. One 48 GB Apple-silicon machine, one
+record, every model through the same stack; the grade is out of 248 for the
+24 and out of 60 for the six
+([benchmarks](../benchmarks/local_models/README.md#sampling-thinking-two-more-models-and-what-post-training-is-for-2026-10-10)).
+
+| | Grade, 24 questions | Six added | Cites its numbers |
+| --- | ---: | ---: | ---: |
+| MiniCPM5-2B Q8_0 (small from 1.5.5), two runs | 229, 225 | 48, 50 | 1–2 of 24 |
+| MiniCPM5-2B Q4_K_M (small until 1.5.5), two runs | 212, 194 | 50, 50 | 1–2 of 24 |
+| MiniCPM5-1B | 109 | 39 | 0 |
+| Qwen3.8-27B (large); 6 of 30 got no answer within 600 s | 192 | 45 | 20 of 25 |
+| Gemma 4 31B, open weights | 242 | 57 | 23 of 25 |
+| Gemma 4 26B-A4B, open weights | 233 | 58 | 21 of 23 |
+| Gemini 3.8 Flash | 243 | 56 | 26 of 26 |
+| DeepSeek V4.1 Flash | 240 | 59 | 24 of 26 |
+| GPT-6 Luna | 239 | 58 | 22 of 24 |
+| Claude Sonnet 5.5 | 238 | 57 | 21 of 22 |
+
+- **Five cloud models within five points** (238–243), Gemma 4 31B among
+  them: an open-weights model level with the closed ones. Gemma 4 also runs
+  locally (Apache-2.0); it was measured here through OpenRouter only.
+- **The small model's sampling stays at temperature 0.** OpenBMB's model card
+  gives 1.0 / 0.95 / min_p 0 for thinking mode; three runs at it graded 182 to
+  200 against 194 and 212 at temperature 0, losing on numbers and medical
+  claims no tool returned. Thinking off cost 19 more points.
+- **The small size moves to Q8_0**: 225 and 229 against Q4_K_M's 194 and
+  212, and faster on a CPU ([local-models.md](local-models.md#without-a-gpu)).
+- **Large lost its points to time**, not to wrong answers: on a machine short
+  of memory it wrote about 6 tokens a second, and the six answers that hit
+  the evaluation's 600 s limit scored nothing; what it answered graded clean.
+- **MiniCPM5-1B is not a size**: 109 of 248 at either setting; it asks the
+  person for what one query would return.
 
 ### With the table rules in front
 
@@ -383,12 +420,13 @@ pins no host: OpenRouter routes it under your account's settings.
 ### Privacy first, on an ordinary computer
 
 The small size: `./deploy.sh`, then **100% on this machine** on the page it
-links. 16 GB of memory, no GPU, 3.0 GB of models to download and about 0.7 GB
-of images. Expect about 29 s an answer on an Apple-silicon laptop's GPU; on a CPU alone a
-first answer takes minutes, from 2–3 on an Apple-silicon laptop's cores to about 15 on a
-4-vCPU x86 server. Expect every printed row of a lab report stored, and most
-questions answered right (19 of 24); it is weakest where it works out an
-average or a chart's window itself. Nothing about you leaves the machine.
+links. 16 GB of memory, no GPU, 4.1 GB of models to download and about 0.7 GB
+of images. Expect about 18 s an answer on an Apple-silicon GPU; on a CPU alone a
+first answer takes minutes, about 3.5 on 4 cores for a 10k-token prompt and up to
+about 15 on a slow 4-vCPU x86 server. Expect nearly every printed row of a lab
+report stored, and most questions answered right (23 and 24 of 24 passed in two
+runs); it is weakest where it works out an average or a chart's window itself,
+and it does not yet cite its numbers. Nothing about you leaves the machine.
 
 ### Privacy first, on a big machine
 

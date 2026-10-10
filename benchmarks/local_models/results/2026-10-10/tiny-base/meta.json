@@ -1,0 +1,187 @@
+{
+ "size": "tiny-base",
+ "agent": "minicpm5-1b",
+ "started": "2026-10-10T19:24:11+08:00",
+ "parts": [
+  "extraction",
+  "journal",
+  "qa"
+ ],
+ "switch": {
+  "agent": "minicpm5-1b",
+  "ocr": "glm-ocr",
+  "switch_s": 42.3,
+  "load_s": 5.0,
+  "local_models": {
+   "agent": "minicpm5-1b",
+   "utils": "minicpm5-1b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "minicpm5-1b",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-1b/MiniCPM5-1B-Q8_0.gguf",
+   "ctx_size": "32768",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "MiniCPM5-1B-Q8_0.gguf",
+     "bytes": 1153529216,
+     "sha256": "0dc7638539067268774c275a14a6ec9c7e01f7eeb2cff606c8590361fa527e4c"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+   "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-10T19:24:54+08:00",
+  "processes": [
+   {
+    "pid": 74828,
+    "ppid": 61533,
+    "rss_mb": 54.2,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 37.7
+   },
+   {
+    "pid": 97463,
+    "ppid": 74828,
+    "rss_mb": 2368.5,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1640.0
+   },
+   {
+    "pid": 97464,
+    "ppid": 74828,
+    "rss_mb": 1981.3,
+    "alias": "minicpm5-1b",
+    "role": "child",
+    "footprint_mb": 825.0
+   }
+  ],
+  "children_rss_mb": 4349.8,
+  "children_footprint_mb": 2465.0,
+  "swap_used_mb": 0.0
+ },
+ "passes": [
+  {
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "started": "2026-10-10T19:24:54+08:00",
+   "resources": {
+    "disk_free_gb": 17.7,
+    "memory_free_pct": 46,
+    "swap_used_mb": 0.0
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-1b"
+   ],
+   "memory": {
+    "at": "2026-10-10T19:24:54+08:00",
+    "processes": [
+     {
+      "pid": 74828,
+      "ppid": 61533,
+      "rss_mb": 54.2,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 37.7
+     },
+     {
+      "pid": 97463,
+      "ppid": 74828,
+      "rss_mb": 2368.5,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1640.0
+     },
+     {
+      "pid": 97464,
+      "ppid": 74828,
+      "rss_mb": 1981.3,
+      "alias": "minicpm5-1b",
+      "role": "child",
+      "footprint_mb": 825.0
+     }
+    ],
+    "children_rss_mb": 4349.8,
+    "children_footprint_mb": 2465.0,
+    "swap_used_mb": 0.0
+   },
+   "memory_run": {
+    "samples": 41,
+    "peak_rss_mb": 5867.1,
+    "peak_footprint_mb": 4185.3
+   },
+   "memory_after_qa": {
+    "at": "2026-10-10T19:38:42+08:00",
+    "processes": [
+     {
+      "pid": 74828,
+      "ppid": 61533,
+      "rss_mb": 52.2,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 38.3
+     },
+     {
+      "pid": 97463,
+      "ppid": 74828,
+      "rss_mb": 2294.5,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1640.1
+     },
+     {
+      "pid": 97464,
+      "ppid": 74828,
+      "rss_mb": 3565.2,
+      "alias": "minicpm5-1b",
+      "role": "child",
+      "footprint_mb": 2545.8
+     }
+    ],
+    "children_rss_mb": 5859.7,
+    "children_footprint_mb": 4185.9,
+    "swap_used_mb": 0.0,
+    "disk_free_gb": 17.6,
+    "memory_free_pct": 49
+   },
+   "finished": "2026-10-10T19:48:36+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 41,
+  "peak_rss_mb": 5867.1,
+  "peak_footprint_mb": 4185.3
+ },
+ "background_tasks_drained_s": 265.9,
+ "finished": "2026-10-10T19:48:36+08:00"
+}
