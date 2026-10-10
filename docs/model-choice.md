@@ -436,6 +436,23 @@ pinned entries above say `supports_image: false`, so it reaches them as its
 OCR text. The setup page does not offer this mode: it refuses local while
 `.env` holds a key.
 
+## Thinking between tool calls
+
+Every chat model thinks before a tool call and again after its result, at
+`AGENT_THINKING` (`medium` in `config.llm.yaml`); an entry's `thinking_level`
+overrides it. Within a turn the reasoning is sent back with each step, so the
+model reads where it got to. Measured with one two-step lookup on 2026-10-10:
+
+| Entry | Thinks | You see it | How |
+| --- | --- | --- | --- |
+| `local` (MiniCPM5-2B, Qwen3.8-27B) | yes | yes | `chat_template_kwargs.enable_thinking` |
+| `deepseek` | yes | yes | DeepSeek thinks by default |
+| `qwen` (DashScope) | yes | yes | `enable_thinking` with a budget |
+| `gpt` (OpenRouter) | yes | after the tool result | OpenRouter's `reasoning.effort` |
+| `claude-sonnet` (OpenRouter) | no | no | OpenRouter routes it to Google Vertex, which returns no thinking |
+| `openai` (direct) | no | no | GPT-6 Sol takes a function tool on Chat Completions only at `reasoning_effort: none` |
+| `gemini-flash`, `claude` (direct) | set to think | not measured | the Gemini API refused the measuring machine's region; no Anthropic key |
+
 ## How to switch
 
 - **The setup page.** `./deploy.sh` prints its link; later it is Settings ›

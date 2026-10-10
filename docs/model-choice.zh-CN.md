@@ -327,6 +327,20 @@ UTILS_VISION_MODEL=local-utils                           # 没有文字的图片
 这样的文件要么在本机描述，要么不描述。对话里打开的照片会送到能看图的对话模型；上面固定托管方的条目写了
 `supports_image: false`，照片就以 OCR 文字送达。设置页不提供这种方式：`.env` 里有 key 时它不让选本机。
 
+## 调工具前后都先思考
+
+每个对话模型在调工具前、拿到结果后都会先思考，强度由 `AGENT_THINKING` 决定（`config.llm.yaml` 里是 `medium`），单个条目可用 `thinking_level` 覆盖。同一轮里，每一步的思考会随下一次请求带回去，模型读得到自己想到哪了。2026-10-10 用一个两步查询实测：
+
+| 条目 | 思考 | 能看到 | 方式 |
+| --- | --- | --- | --- |
+| `local`（MiniCPM5-2B、Qwen3.8-27B） | 是 | 是 | `chat_template_kwargs.enable_thinking` |
+| `deepseek` | 是 | 是 | DeepSeek 默认思考 |
+| `qwen`（DashScope） | 是 | 是 | `enable_thinking` 加预算 |
+| `gpt`（OpenRouter） | 是 | 工具结果之后 | OpenRouter 的 `reasoning.effort` |
+| `claude-sonnet`（OpenRouter） | 否 | 否 | OpenRouter 把它路由到 Google Vertex，不返回思考 |
+| `openai`（直连） | 否 | 否 | GPT-6 Sol 只有在 `reasoning_effort: none` 时才能在 Chat Completions 上调函数工具 |
+| `gemini-flash`、`claude`（直连） | 已设为思考 | 未实测 | 测量机器所在地区被 Gemini API 拒绝；没有 Anthropic key |
+
 ## 怎么切换
 
 - **设置页。** `./deploy.sh` 会打印它的链接；之后在「设置 › 模型」。粘贴一把 key（旁边显示它会用的模型，
