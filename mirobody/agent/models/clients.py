@@ -66,7 +66,7 @@ Resolver = Callable[[str], "str | None"]
 NON_INIT_CONFIG_KEYS = frozenset({
     "model", "llm_type", "response_with_tools",
     "profile", "supports_pdf", "supports_image",
-    "thinking_style", "thinking_level", "auth_type", "prompt_cache",
+    "thinking_style", "thinking_level", "auth_type", "prompt_cache", "eval_fetch",
     # read by the utility surfaces (config.llm), never by a chat constructor
     "chat", "response_format", "ocr_prompts",
     # read by config.llm.model_entries, which has already put its value in `model`

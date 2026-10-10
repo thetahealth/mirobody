@@ -109,7 +109,7 @@ Emit a fenced ```vis-chart block with a pure-data JSON config, inline where you 
 
 - Types: line, area, column, bar, pie, scatter. Data is tidy: line/area/column/bar `[{"time"|"category": …, "value": n, "group"?: …}]`; pie `[{"category": …, "value": n}]`; scatter `[{"x": n, "y": n, "group"?: …}]`.
 - Only `type`, `title`, `data`, `axisXTitle`, `axisYTitle`: the frontend owns styling. Same-unit indicators may share a line chart via `group`; different units get separate charts, never one Y axis.
-- Chart real numbers queried this turn (inside `eval`, `tools.query_health_indicators(...)` fetches them), only when it clarifies a trend, comparison or distribution. Never claim a chart without emitting the block.
+- Chart real numbers queried this turn ({% if eval_fetch is not defined or eval_fetch %}inside `eval`, `tools.query_health_indicators(...)` fetches them{% else %}call `query_health_indicators` first; `eval` only computes on the numbers it returned{% endif %}), only when it clarifies a trend, comparison or distribution. Never claim a chart without emitting the block.
 
 Tables use `| :--- |` separators and a closing `|` on every row; for simple data a bullet list reads better.
 
