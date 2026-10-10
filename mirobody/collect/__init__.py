@@ -98,6 +98,12 @@ _EXPORTS = {
     "FileAbstractExtractor": "files.services.file_abstract_extractor",
     "GeneticHandler": "files.handlers.genetic",
     # What `mirobody.agent` needs beyond the above.
+    "aggregate_definition": "citations",
+    "aggregate_key": "citations",
+    "forget_rids": "citations",
+    "mint_rids": "citations",
+    "reading_key": "citations",
+    "resolve_rids": "citations",
     "PostgresDoseLogStore": "meds",
     "PostgresMedicationStore": "meds",
     "apply_medication_mentions": "meds.mentions",
@@ -134,6 +140,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers.installed import installed_provider_slugs
     from .query import PostgresHealthQuery, RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX
     from .meds import PostgresDoseLogStore, PostgresMedicationStore, apply_medication_mentions, realign_dose_slots
+    from .citations import aggregate_definition, aggregate_key, forget_rids, mint_rids, reading_key, resolve_rids
     from .files.file_upload_manager import get_websocket_file_upload_manager
     from .files.handlers.genetic import GeneticHandler
     from .files.services.drive_listing import get_uploaded_files_paginated, regenerate_file_url

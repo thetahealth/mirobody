@@ -239,12 +239,40 @@ async def delete_session(user_id: str, session_id: str) -> str | None:
         from mirobody.agent.checkpointer import delete_thread, thread_for
         await delete_thread(thread_for(user_id, session_id))
 
+        from mirobody.collect import forget_rids
+        await forget_rids(thread_for(user_id, session_id))
+
         return None
 
     except Exception as e:
         logger.error("deleting a session failed: user_id=%s session_id=%s error_type=%s",
                      user_id, session_id, type(e).__name__, exc_info=not is_driver_exception(e))
         return "Could not delete the conversation."
+
+#-----------------------------------------------------------------------------
+
+#: rids one request may resolve: an answer cites a few dozen at most.
+MAX_RIDS = 200
+
+
+async def resolve_citations(user_id: str, session_id: str, rids: list[str]) -> dict:
+    """What the rids an answer cites stand for, as the `{code, msg, data}`
+    envelope. Only the conversation's owner, and only while they may still
+    read the record it is about: a care-circle share revoked since is a denial."""
+    rows = await execute_query(
+        "SELECT user_id, query_user_id FROM th_sessions WHERE session_id = :sid",
+        {"sid": session_id}, log_sql=False) or []
+    if not rows or str(rows[0]["user_id"]) != str(user_id):
+        return {"code": -1, "msg": "No such conversation.", "data": []}
+    subject = rows[0]["query_user_id"] or user_id
+    try:
+        await resolve_subject(user_id, subject)
+    except CareCircleDenied:
+        return {"code": -2, "msg": "You can no longer read this record.", "data": []}
+    from mirobody.agent.checkpointer import thread_for
+    from mirobody.collect import resolve_rids
+    resolved = await resolve_rids(thread_for(user_id, session_id), str(subject), rids[:MAX_RIDS])
+    return {"code": 0, "msg": "ok", "data": resolved}
 
 #-----------------------------------------------------------------------------
 # Public session sharing (th_session_share): owner-created share links whose

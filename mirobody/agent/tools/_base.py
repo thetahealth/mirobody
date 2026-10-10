@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +21,10 @@ from mirobody.kernel.ops import is_driver_exception
 from ._authz import caller_of, denied
 
 logger = logging.getLogger(__name__)
+
+#: The conversation a tool call belongs to, while `envelope` runs. Empty for an
+#: MCP or REST caller: rows are numbered for citing only inside a chat.
+CITATION_SESSION: ContextVar[str] = ContextVar("citation_session", default="")
 
 
 class RecordTool:
@@ -42,6 +47,7 @@ class RecordTool:
         caller_id = caller_of(user_info)
         if not caller_id:
             return denied("authorization required")
+        token = CITATION_SESSION.set(str(user_info.get("session_id") or ""))
         try:
             return await self._run(caller_id, args)
         except Exception as e:
@@ -51,6 +57,8 @@ class RecordTool:
             tool_name = self.TOOL_NAME  # a local the PHI log lint reads as a name
             logger.error("[%s] error_type=%s", tool_name, type(e).__name__, exc_info=not is_driver_exception(e))
             return tools.fault_envelope(e)
+        finally:
+            CITATION_SESSION.reset(token)
 
     async def _run(self, caller_id: str, args: Mapping[str, Any]) -> tools.Envelope:
         raise NotImplementedError

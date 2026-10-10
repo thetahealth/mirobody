@@ -530,7 +530,7 @@ class PostgresHealthQuery:
         rows = await execute_query(
             f"""
             SELECT DISTINCT ON (o.series_id)
-                   o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.flag_text, o.value_num,
+                   o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.flag_text, o.value_num,
                    o.value_canonical, o.unit_canonical, o.code_system, o.code, o.local_date, o.elected, o.modality,
                    o.outcome, {_REPORTED_COLUMNS},
                    {_FILE_KEY} AS file_key, {_FILE_NAME},
@@ -885,10 +885,11 @@ def _stats_row(r: dict) -> dict:
 
 
 def _latest_row(r: dict) -> dict:
-    """A reading row without the paging fields: the latest value is the answer
-    asked for most, and it carries the same range, flag and document."""
+    """A reading row without the paging total: the latest value is the answer
+    asked for most, and it carries the same range, flag and document. It keeps
+    `row_id`, which an answer citing it resolves to (`collect/citations.py`)."""
     row = _reading_row(r)
-    del row["row_id"], row["total"]
+    del row["total"]
     return row
 
 

@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from typing import Any
 from mirobody.agent.wire.blocks import answer_text, upgrade
+from mirobody.kernel.citations import strip as strip_citations
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
@@ -36,7 +37,7 @@ def _reply_text(content):
         return content
     if not isinstance(parsed, list):
         return content
-    return answer_text(upgrade(parsed))
+    return strip_citations(answer_text(upgrade(parsed)))  # a title carries no citation markup
 async def generate_summary(conversation_text: str, provider: str | None = None) -> str:
     """Generate a topic title from the user's question only."""
     try:

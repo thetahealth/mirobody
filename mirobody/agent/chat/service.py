@@ -8,7 +8,8 @@ from .session import (
     create_session,
     get_session_summaries,
     get_session_summaries_by_person,
-    delete_session
+    delete_session,
+    resolve_citations,
 )
 from .model import ChatStreamRequest, has_attachment
 from .message import (
@@ -143,6 +144,7 @@ class ChatService:
             ("/api/history_by_person",  self.personal_history_handler,          ["GET"]),
             ("/api/history/delete",     self.history_delete_handler,            ["POST"]),
             ("/api/rating",             self.rating_handler,                    ["POST"]),
+            ("/api/citations",          self.citations_handler,                 ["GET"]),
 
             ("/api/chat",               self.chat_handler,                      ["POST"]),
 
@@ -261,6 +263,22 @@ class ChatService:
             return json_response_with_code(-2, err, request=request)
 
         return json_response_with_code(request=request)
+
+    #-------------------------------------------------------------------------
+
+    @requires_auth
+    async def citations_handler(self, request: Request, user_id: str) -> Response:
+        """`?session_id=…&rids=r1,r2`: what each cited row is now (`resolve_citations`)."""
+        session_id = request.query_params.get("session_id", "")
+        rids = [r.strip() for r in request.query_params.get("rids", "").split(",") if r.strip()]
+        if not session_id or not rids:
+            return json_response_with_code(-1, "session_id and rids are required", request=request)
+        try:
+            return json_response(await resolve_citations(user_id, session_id, rids), request=request)
+        except Exception as e:
+            logger.error("resolving citations failed: error_type=%s", type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return json_response_with_code(-3, "Could not resolve the citations.", request=request)
 
     #-------------------------------------------------------------------------
 
