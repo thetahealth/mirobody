@@ -2,6 +2,12 @@
 
 ### Added
 
+- **Turkish lab-report spellings resolve.** `Total Kolesterol`, `HDL Kolesterol`
+  and `Trigliserit` resolved to nothing, and `Glukoz (açlık)` landed on plain
+  glucose with the "fasting" qualifier lost. Each is now one row in
+  `resolver_overrides.tsv`, with a must-not pattern in `test_engine_coverage.py`
+  so a wrong neighbour (HDL vs total cholesterol, fasting vs plain glucose)
+  fails. Uppercase dotted İ spellings are not covered (Discussion #137).
 - **Every number in a chat answer cites its source.** Each row a record tool
   shows carries a short id (`r3`) kept per conversation, and the answer cites
   it in the LongCite form; the web client draws a numbered chip that opens the

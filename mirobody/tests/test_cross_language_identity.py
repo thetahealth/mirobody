@@ -214,7 +214,7 @@ SAME_ANALYTE = {
     "urea nitrogen": ["BUN", "blood urea nitrogen", "尿素氮"],
     "creatine kinase": ["CK", "肌酸激酶", "Креатинкиназа"],
     "alkaline phosphatase": ["ALP", "alkaline phosphatase", "碱性磷酸酶", "Щелочная фосфатаза"],
-    "total cholesterol": ["total cholesterol", "总胆固醇", "Холестерин общий"],
+    "total cholesterol": ["total cholesterol", "总胆固醇", "Холестерин общий", "Total Kolesterol"],
     "phosphate": ["phosphate", "无机磷", "Фосфор неорганический"],
     "C reactive protein": ["CRP", "C反应蛋白", "С-реактивный белок"],
     "rheumatoid factor": ["rheumatoid factor", "类风湿因子", "Ревматоидный фактор"],

@@ -344,6 +344,13 @@ REM睡眠	REM sleep duration
 # panel code — see the "panel terms" section below for why that is not the same
 # as answering it with one of these two.
 
+# ══ Türkçe ═══════════════════════════════════════════════════════════
+# Spellings as printed on Turkish lab reports. Uppercase dotted İ is not covered here.
+Total Kolesterol	Cholesterol
+HDL Kolesterol	HDL-C
+Trigliserit	Triglyceride
+Glukoz (açlık)	Fasting glucose [Mass/volume] in Serum or Plasma
+
 # ══ Deliberate non-answers ════════════════════════════════════════════════
 # Target `!unresolved` means: never answer this term. These name a category
 # with no panel code of its own, so any single code is a wrong answer: "血脂"
