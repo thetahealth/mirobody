@@ -60,6 +60,19 @@ REFS = {
         "model": "anthropic/claude-opus-5.5", "host": "google-vertex",
         "chat": {}, "utils": {},          # no temperature, as the product's `claude-sonnet`
     },
+    # Gemma 4, which also runs locally. The `:free` variants route only to
+    # Google AI Studio, which the account's ZDR rule excludes (2026-10-10).
+    # Both hosts passed a tool call and a strict json_schema. The 31B runs in
+    # FP8: Crusoe (BF16) rate-limited it, 12 waits in five questions, and
+    # Novita refused the app's first request as longer than its context.
+    "gemma-4-26b-a4b": {
+        "model": "google/gemma-4-26b-a4b-it", "host": "google-vertex",
+        "chat": {}, "utils": {},
+    },
+    "gemma-4-31b": {
+        "model": "google/gemma-4-31b-it", "host": "deepinfra/fp8",
+        "chat": {}, "utils": {},
+    },
     "gemini-3.8-flash": {
         "model": "google/gemini-3.8-flash", "host": "google-vertex",
         "chat": {},

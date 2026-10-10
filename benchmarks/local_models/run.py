@@ -300,9 +300,11 @@ def run_questions(size: str, cases: list[dict], timeout: float, plan: dict, *, o
         after = swapouts()
         result.update({"id": case["id"], "person": case["person"], "question": case["question"],
                        "swapouts": after - before if before is not None and after is not None else None})
+        # The text is kept: whether a long reasoning is a repetition loop is
+        # read from it (README.md, "Sampling").
         for b in result["blocks"]:
             if b.get("type") == "reasoning":
-                b["reasoning_chars"] = len(b.pop("reasoning", ""))
+                b["reasoning_chars"] = len(b.get("reasoning", ""))
         result["score"] = score_case(case, result)
         s = result["score"]
         log(f"  {'PASS' if s['pass'] else 'fail'} in {result['seconds']:.0f} s; tools {s['tools_called']}; "
@@ -491,7 +493,13 @@ def summarize(size_dir: Path) -> dict:
     qa = read_json(size_dir / "qa.json", {"runs": []})
     ext = read_json(size_dir / "extraction.json", {"documents": []})
     jnl = read_json(size_dir / "journal.json", {"sentences": []})
-    runs = qa["runs"]
+    # The qa_ figures are the first 24 cases', comparable across runs; cases
+    # added later (`added` in cases.jsonl) are counted apart, as new_.
+    added = {c["id"] for c in read_jsonl(HERE / "cases.jsonl") if c.get("added")}
+    runs = [r for r in qa["runs"] if r["id"] not in added]
+    new = [r for r in qa["runs"] if r["id"] in added]
+    traces = [r["score"]["trace"] for r in qa["runs"] if r["score"].get("trace")]
+    shown = [t for t in traces if t["rows_shown"] or t["refs_shown"]]
     times = [r["seconds"] for r in runs]
     docs = ext["documents"]
     sents = jnl["sentences"]
@@ -501,6 +509,13 @@ def summarize(size_dir: Path) -> dict:
         "qa_pass": sum(r["score"]["pass"] for r in runs), "qa_n": len(runs),
         "qa_checks": {k: sum(r["score"]["checks"][k] for r in runs) for k in
                       ("answered", "tool", "facts", "language", "chart")},
+        "new_pass": sum(r["score"]["pass"] for r in new), "new_n": len(new),
+        "new_checks": {k: sum(r["score"]["checks"][k] for r in new) for k in ("answered", "tool", "facts", "language")},
+        "trace_n": len(shown), "trace_format": sum(t["format"] for t in shown),
+        "trace_made_up": sum(len(t["made_up"]) for t in traces),
+        "trace_untraced": sum(t["uncited_numbers"] + t["unsupported_numbers"] for t in traces),
+        "trace_unsupported": sum(t["unsupported_numbers"] for t in traces),
+        "trace_answers_untraced": sum(bool(t["uncited_numbers"] + t["unsupported_numbers"]) for t in traces),
         "qa_unsupported_numbers": sum(len(r["score"]["unsupported_numbers"]) for r in runs),
         "qa_answers_with_unsupported": sum(bool(r["score"]["unsupported_numbers"]) for r in runs),
         "qa_timeouts": sum(r["score"]["timeout"] for r in runs),
@@ -536,6 +551,10 @@ def write_summary(size_dir: Path, cases: list[dict]) -> None:
               f"{s['qa_checks']['tool']} / {s['qa_checks']['facts']} / {s['qa_checks']['language']} / "
               f"{s['qa_checks']['chart']} |"),
              f"| Numbers in no tool result | {s['qa_unsupported_numbers']} in {s['qa_answers_with_unsupported']} answers |",
+             (f"| Questions added 2026-10-10, passed (automatic) | {s['new_pass']}/{s['new_n']} (answered / tool / "
+              f"facts / language {' / '.join(str(v) for v in s['new_checks'].values())}) |"),
+             (f"| Cited answers: in the format / made-up ids / untraced numbers | {s['trace_format']}/{s['trace_n']} / "
+              f"{s['trace_made_up']} / {s['trace_untraced']} in {s['trace_answers_untraced']} answers |"),
              f"| Seconds per answer, median / p90 | {s['qa_median_s']} / {s['qa_p90_s']} |",
              f"| Timeouts ({QUESTION_TIMEOUT} s) | {s['qa_timeouts']} |",
              f"| Extraction: printed rows found | {s['ext_found']}/{s['ext_rows']} in {s['ext_docs']} documents |",

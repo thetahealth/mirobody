@@ -11,12 +11,15 @@ import json
 import re
 import sys
 import unicodedata
+from collections import Counter
 from datetime import date
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from common import read_json, write_json
+
+from mirobody.kernel import citations
 
 # --- text ----------------------------------------------------------------------------
 
@@ -132,6 +135,16 @@ def answer_of(blocks: list[dict]) -> str:
     return "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
 
 
+#: A cite written without its `<cite>` wrapper, which `citations.strip` keeps.
+_LOOSE_CITE = re.compile(r"\[(?:r\d+|ref:[a-z0-9_]+:[^\s\]]+|[^\[\]\s]+#L\d+(?:-L?\d+)?)\]")
+
+
+def prose_of(answer: str) -> str:
+    """The answer as a reader sees it: a cite's tags and ids are neither
+    values nor English words."""
+    return _LOOSE_CITE.sub("", citations.strip(answer))
+
+
 def tool_calls(blocks: list[dict]) -> list[dict]:
     return [b for b in blocks if b.get("type") == "tool_call"]
 
@@ -158,6 +171,69 @@ def tool_text(blocks: list[dict]) -> str:
             content = b.get("content")
             parts.append(content if isinstance(content, str) else json.dumps(content, ensure_ascii=False))
     return "\n".join(parts)
+
+
+_CONSTANTS = re.compile(r"\(constants: (.*)\)")
+_CELL_SPLIT = re.compile(r"(?<!\\)\|")
+
+
+def row_support(tools: str) -> dict[str, list[float]]:
+    """Each row id the tools showed, with the values its row printed. Cells
+    every row shares are printed once, as `(constants: rid=r3, ...)` for a
+    one-row result; a table from `eval` arrives in its <result> or <stdout>,
+    JSON-escaped when printed."""
+    support: dict[str, list[float]] = {}
+    text = (tools or "").replace("\\n", "\n")
+    for block in re.split(r"\n\s*\n|</?(?:stdout|result)>", text):
+        constants: dict[str, str] = {}
+        header: list[str] | None = None
+        for line in block.splitlines():
+            m = _CONSTANTS.search(line.strip().strip('"'))
+            if m:
+                constants = dict(kv.split("=", 1) for kv in re.split(r", (?=\w+=)", m.group(1)) if "=" in kv)
+                continue
+            cells = _CELL_SPLIT.split(line.strip().strip('"'))
+            if header is None:
+                header = cells if len(cells) > 1 and ("rid" in cells or "rid" in constants) else None
+                continue
+            if len(cells) != len(header):
+                header = None
+                continue
+            row = dict(zip(header, cells, strict=True))
+            rid = row.pop("rid", None) or constants.get("rid")
+            if rid and citations.cite_kind(rid) == "row":
+                shared = [v for k, v in constants.items() if k != "rid"]
+                support[rid] = citations.numbers(" ".join([*row.values(), *shared]))
+        rid = constants.get("rid", "")
+        if header is None and citations.cite_kind(rid) == "row" and rid not in support:
+            support[rid] = citations.numbers(" ".join(v for k, v in constants.items() if k != "rid"))
+    return support
+
+
+def trace_of(answer: str, tools: str) -> dict:
+    """How the answer's numbers trace to what the tools showed: the cites it
+    wrote by kind, the ids no tool showed, and `citations.check`'s problems."""
+    support = row_support(tools)
+    shown_refs = set(re.findall(r"\[(ref:[a-z0-9_]+:[^\s\]]+)\]", tools or ""))
+    cites = [c for s in citations.parse(answer) for c in s.cites]
+    kinds = {k: [c for c in cites if citations.cite_kind(c) == k] for k in ("row", "ref", "lines", "unknown")}
+    known_lines = {c for c in kinds["lines"] if c.split("#L")[0].rsplit("/", 1)[-1] in (tools or "")}
+    made_up = ([c for c in kinds["row"] if c not in support] + [c for c in kinds["ref"] if c not in shown_refs]
+               + [c for c in kinds["lines"] if c not in known_lines]
+               + [c for c in kinds["unknown"] if re.fullmatch(r"r\d+", c)])
+    problems = citations.check(answer, support, known=shown_refs | known_lines)
+    kinds_found = Counter(p.kind for p in problems)
+    return {
+        "format": "<statement>" in answer or bool(cites),
+        "row_cites": len(set(kinds["row"])),
+        "ref_cites": len(set(kinds["ref"])),
+        "line_cites": len(set(kinds["lines"])),
+        "made_up": sorted(set(made_up)),
+        "uncited_numbers": kinds_found["uncited_number"] + kinds_found["statement_without_cite"],
+        "unsupported_numbers": kinds_found["unsupported_number"],
+        "rows_shown": len(support),
+        "refs_shown": len(shown_refs),
+    }
 
 
 def _supported(x: float, pool: list[float]) -> bool:
@@ -224,8 +300,13 @@ def _genotype_present(gt: str, text: str) -> bool:
     return any(re.search(rf"(?<![A-Za-z]){re.escape(f)}(?![A-Za-z])", text) for f in forms)
 
 
-def fact_present(fact: dict, answer: str, nums: list[float]) -> bool:
+def fact_present(fact: dict, answer: str, nums: list[float], trace: dict | None = None) -> bool:
+    """`answer` is the prose (`prose_of`); the citation facts read `trace`."""
     kind = fact["kind"]
+    if kind in ("cites_ref", "cites_row"):
+        want = "ref" if kind == "cites_ref" else "row"
+        bad = [c for c in (trace or {}).get("made_up", []) if citations.cite_kind(c) == want]
+        return bool(trace) and trace[f"{want}_cites"] > len(bad)
     if kind == "number":
         return _number_present(fact, nums)
     if kind == "words":
@@ -243,13 +324,15 @@ def fact_present(fact: dict, answer: str, nums: list[float]) -> bool:
 def score_case(case: dict, run: dict) -> dict:
     """The automatic checks for one answered case."""
     blocks = run.get("blocks") or []
-    answer = answer_of(blocks)
+    raw = answer_of(blocks)
+    answer = prose_of(raw)
     called = called_names(blocks)
     tools = tool_text(blocks)
     finished = run.get("finish_reason") == "stop" and not run.get("timeout") and not run.get("error")
     answered = finished and bool(answer.strip()) and run.get("finish_reason") != "empty"
     nums = numbers(strip_dates(answer))
-    facts = [{"label": f["label"], "ok": fact_present(f, answer, nums)} for f in case["facts"]]
+    trace = trace_of(raw, tools)
+    facts = [{"label": f["label"], "ok": fact_present(f, answer, nums, trace)} for f in case["facts"]]
     drawn = [c for c in charts(answer) if c.get("valid")]
     lang = language_of(answer)
     invented = unsupported_numbers(answer, tools, case["question"]) if answered else []
@@ -258,7 +341,7 @@ def score_case(case: dict, run: dict) -> dict:
     chart_unsupported = [v for v in chart_values if not _supported(v, pool)]
     checks = {
         "answered": answered,
-        "tool": any(t in called for t in case["expect_tools"]),
+        "tool": (all if case.get("expect_all_tools") else any)(t in called for t in case["expect_tools"]),
         "facts": all(f["ok"] for f in facts),
         "language": lang == case["lang"],
         "chart": bool(drawn) if case["chart"] else True,
@@ -274,6 +357,7 @@ def score_case(case: dict, run: dict) -> dict:
         "chart_points": sum(c["points"] for c in drawn),
         "chart_values_unsupported": chart_unsupported,
         "unsupported_numbers": invented,
+        "trace": trace,
         "seconds": run.get("seconds"),
         "finish_reason": run.get("finish_reason"),
         "timeout": bool(run.get("timeout")),

@@ -188,7 +188,8 @@ def bench_email(kind: str, name: str) -> str:
 #: 4e3c06f, after the extraction fixes (the -v2 runs and the cloud references);
 #: qa4: loaded again at 958fae5, after round 2's extraction changes (small-v3).
 #: qa5: the same plan at 7372b096 on a second machine (Apple silicon, 48 GB), for
-#: large and small side by side; `BENCH_QA_GENERATION=qa5` selects it.
+#: large and small side by side; `BENCH_QA_GENERATION=qa5` selects it. qa6: the
+#: same plan at 338d54f4 (cited answers, the knowledge tools), the same machine.
 QA_GENERATION = os.environ.get("BENCH_QA_GENERATION", "qa4")
 
 

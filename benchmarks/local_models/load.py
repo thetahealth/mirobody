@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 import time
@@ -150,20 +151,25 @@ def _app_log(since: str) -> str:
     return out.stdout
 
 
+#: The app's lines for an extraction, as 1.5.4 wrote them ("Async indicator
+#: extraction finished for pdf: <key>") and as 1.5.5 does ("indicator
+#: extraction finished: file_key=<key>"). Missing the second, every document
+#: read as done 60 s after it was filed, before some of its readings landed.
+_EXTRACTION = re.compile(r"indicator extraction (started|finished|failed)", re.I)
+
+
+def _extraction_events(key: str, since: str) -> set[str]:
+    return {m.group(1).lower() for line in _app_log(since).splitlines() if key in line
+            for m in [_EXTRACTION.search(line)] if m}
+
+
 def _extraction_end(key: str, since: str) -> str | None:
-    for line in _app_log(since).splitlines():
-        if key not in line:
-            continue
-        if "Async indicator extraction finished for" in line:
-            return "finished"
-        if "Async indicator extraction failed for" in line:
-            return "failed"
-    return None
+    events = _extraction_events(key, since)
+    return "finished" if "finished" in events else "failed" if "failed" in events else None
 
 
 def _extraction_started(key: str, since: str) -> bool:
-    return any("background indicator extraction started" in line and key in line
-               for line in _app_log(since).splitlines())
+    return "started" in _extraction_events(key, since)
 
 
 def stored_readings(account: Account) -> list[dict]:
@@ -318,12 +324,25 @@ def _confirm_date(account: Account, corpus: Corpus, rel: str, doc: dict, log=pri
         f" ({doc.get('date_source') or '?'}); set to the printed {printed}")
 
 
+#: How long the task queue must stay empty before profiles are turned off. A
+#: document's readings, and the refresh they queue, can land a minute after
+#: its file reads `processed`: a re-read with --replace found the queue empty
+#: and its refresh ran later, under the next run (2026-10-10).
+QUIET_S = 120
+
+
 def disable_profiles(user_ids: list[str], log=print) -> None:
     """Mark the accounts' generated health profiles deleted, the state the
     product's own invalidation leaves (file_processing_service.py), so no
     size answers from a profile another size wrote. Waits for the refresh
     the uploads queued first, or it would write a new one afterwards."""
-    waited = wait_tasks_drained(log=log)
+    t0 = time.monotonic()
+    quiet = 0.0
+    while quiet < QUIET_S:
+        wait_tasks_drained(log=log)
+        time.sleep(10)
+        quiet = quiet + 10 if pending_tasks() == 0 else 0.0
+    waited = time.monotonic() - t0
     ids = ",".join(f"'{int(u)}'" for u in user_ids)
     status = psql_exec(f"update health_user_profile_by_system set is_deleted = true, last_update_time = now() "
                        f"where user_id in ({ids}) and is_deleted = false")
