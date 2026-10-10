@@ -371,6 +371,8 @@ KNOWN_ENTRY_KEYS: frozenset[str] = frozenset({
     "project", "location", "reasoning", "max_tokens", "max_output_tokens",
     "streaming", "stream_usage", "model_kwargs", "output_config", "stream_chunk_timeout",
     "thinking_level",
+    # read by the agent when it builds the interpreter (`agent.eval_fetch`)
+    "eval_fetch",
 })
 
 

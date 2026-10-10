@@ -66,6 +66,7 @@
 #   thinking_level  off | low | medium | high: this entry's thinking, over AGENT_THINKING
 #   thinking_style  the thinking dialect when the name and URL do not tell it:
 #                   qwen | openai | anthropic | gemini | openrouter | chat_template (llama.cpp)
+#   eval_fetch      false = `eval` only computes; data comes from a tool call first (default true)
 #   extra_body      forwarded as-is (vendor thinking switches etc.)
 #
 # The chat picker shows the entries whose key is present, in this order; the
@@ -186,6 +187,7 @@ MODELS:
     model_env: LOCAL_MODEL
     temperature: 0
     thinking_style: chat_template # thinking on/off reaches the model's chat template
+    eval_fetch: false             # one path for a 2B model: query first, then arithmetic in eval
     supports_image: true          # the server says whether the model sees (/props)
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
                                   # 80 s for the first 8k tokens on a 48 GB Apple-silicon machine; on 4 CPU

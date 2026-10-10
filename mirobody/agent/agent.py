@@ -86,6 +86,13 @@ def _route(model: str) -> Any:
 #: Every chat model thinks between its tool calls unless configured otherwise
 #: (owner, 2026-10-10). An entry's `thinking_level` overrides it.
 DEFAULT_THINKING = "medium"
+def eval_fetch(entry: dict[str, Any] | None) -> bool:
+    """Whether `eval` may call the readings tool itself for this chat entry.
+    On by default (owner, 2026-10-10: a cloud model does more with it);
+    `eval_fetch: false` keeps a small local model to one path, the tool call
+    first and then arithmetic on the numbers it returned, as MCP clients do."""
+    value = (entry or {}).get("eval_fetch", True)
+    return value if isinstance(value, bool) else str(value).strip().lower() not in ("false", "0", "no", "off")
 
 
 def _latest_question(messages: list) -> str:
@@ -200,6 +207,7 @@ class MirobodyAgent:
         question: str = "",
         model: str = "",
         knowledge: dict[str, str] | None = None,
+        fetch_in_eval: bool = True,
     ) -> str:
         """Build system prompt with tools, time, user context, health-profile core
         and where `model` and the document readers run."""
@@ -218,6 +226,7 @@ class MirobodyAgent:
                 answer_language=question_language(question),
                 knowledge=knowledge,
                 deployment_facts=deployment_facts(model),
+                eval_fetch=fetch_in_eval,
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -453,6 +462,7 @@ class MirobodyAgent:
         file_list: list[dict[str, Any]] | None = None,
         supports_file_block: bool = False,
         supports_image: bool = True,
+        fetch_in_eval: bool = True,
     ) -> tuple[Any, Any]:
         """The compiled graph and the backend it reads through."""
         try:
@@ -500,7 +510,7 @@ class MirobodyAgent:
                 # README says it does: it only ever reached the MCP tool list,
                 # and the interpreter was added regardless.
                 interpreter=None if "eval" in self.disallowed_tools else CodeInterpreterMiddleware(
-                    ptc=list(self._PTC_TOOLS), max_ptc_calls=self._MAX_PTC_CALLS),
+                    ptc=list(self._PTC_TOOLS) if fetch_in_eval else [], max_ptc_calls=self._MAX_PTC_CALLS),
                 tail=tail,
             )
 
@@ -645,9 +655,10 @@ class MirobodyAgent:
             # the model to read_file them on demand.
             loaded_tools = await self._load_tools(user_id, session_id)
             scopes = medical_knowledge.scopes() if any(t.name == medical_knowledge.SEARCH for t in loaded_tools) else []
+            fetch_in_eval = eval_fetch(chat_entries().get(model))
             system_prompt = await self._build_system_prompt(
                 self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages), model,
-                knowledge={s: medical_knowledge.SCOPES[s] for s in scopes})
+                knowledge={s: medical_knowledge.SCOPES[s] for s in scopes}, fetch_in_eval=fetch_in_eval)
 
             supports_file_block = self._supports_file_block(llm_client)
             supports_image = await asyncio.to_thread(self._supports_image, llm_client, model)
@@ -661,6 +672,7 @@ class MirobodyAgent:
                 file_list=file_list,
                 supports_file_block=supports_file_block,
                 supports_image=supports_image,
+                fetch_in_eval=fetch_in_eval,
             )
 
             token_counter = TokenUsageCallback()
