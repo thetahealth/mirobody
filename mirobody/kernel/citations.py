@@ -46,6 +46,7 @@ _MARKUP = re.compile(r"</?statement>|<cite>.*?</cite>", re.S)
 #: digits that are not values; they are blanked before numbers are read.
 _NOT_VALUES = re.compile(
     r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"           # 2026-08-07
+    r"|(?:19|20)\d{2}[-/](?:0?[1-9]|1[0-2])(?![\d.])"  # 2025-11
     r"|\d{4}\s*年|\d{1,2}\s*月|\d{1,2}\s*[日号]"  # 2026 年 8 月 7 日
     r"|\b\d{1,2}:\d{2}(?::\d{2})?\b"            # 07:30
     r"|[*^×x]\s*10\s*[\^*]?\s*\d+"              # the x10^9 of 6.5x10^9
