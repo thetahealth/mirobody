@@ -38,6 +38,18 @@ def test_a_loose_cite_cites_the_text_before_it():
     assert not segments[1].statement
 
 
+def test_a_loose_cite_in_a_table_cites_its_own_cell():
+    table = "| TC | 4.60 <cite>[r5]</cite> | 4.45 <cite>[r6]</cite> |"
+    assert check(table, {"r5": [4.6], "r6": [4.45]}) == []
+    assert [s.cites for s in parse(table) if s.statement] == [("r5",), ("r6",)]
+
+
+def test_a_chart_block_is_not_read_as_prose():
+    answer = ('```vis-chart\n{"data":[{"time":"2026-05-06","value":4.45}]}\n```\n'
+              "<statement>TC fell to 4.45<cite>[r6]</cite></statement>")
+    assert check(answer, {"r6": [4.45]}) == []
+
+
 def test_strip_leaves_what_a_reader_sees():
     assert strip(ANSWER) == (
         "你的 LDL 从 3 月的 3.8 降到 8 月的 2.9 mmol/L，下降 0.9"

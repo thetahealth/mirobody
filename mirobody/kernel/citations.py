@@ -37,6 +37,9 @@ REF_ID = re.compile(r"^ref:[a-z0-9_]+:[^\s\]]+$")
 LINES_ID = re.compile(r"^(?P<path>\S.*?)#L(?P<start>\d+)(?:-L?(?P<end>\d+))?$")
 
 _CITE_TOKEN = re.compile(r"\[([^\[\]]+)\]")
+_CLAIM_BOUNDARY = re.compile(r"[\n|。！？；]|[.!?;](?=\s)")
+#: A fenced block (a chart's data) is drawn from the rows the prose cites.
+_FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _MARKUP = re.compile(r"</?statement>|<cite>.*?</cite>", re.S)
 
 #: Dates, times, ranges of a reference interval and unit exponents carry
@@ -89,7 +92,9 @@ def parse(answer: str) -> list[Segment]:
         if loose != -1 and (start == -1 or loose < start):
             plain.append(reader.text[reader.pos:loose])
             cites, reader.pos = _read_cites(reader.text, loose)
-            _flush(reader.out, "".join(plain), cites, statement=True)
+            before, claim = _split_claim("".join(plain))
+            _flush(reader.out, before)
+            _flush(reader.out, claim, cites, statement=True)
             plain = []
             continue
         if start == -1:
@@ -110,6 +115,17 @@ def parse(answer: str) -> list[Segment]:
         reader.pos = end + (len(STATEMENT_CLOSE) if reader.text.startswith(STATEMENT_CLOSE, end) else 0)
     _flush(reader.out, "".join(plain))
     return reader.out
+
+
+def _split_claim(text: str) -> tuple[str, str]:
+    """A loose cite cites its own sentence, line or table cell, not everything
+    since the last statement: `| 4.60 <cite>[r5]</cite> | 4.45 <cite>[r6]` is
+    two claims."""
+    ends = list(_CLAIM_BOUNDARY.finditer(text))
+    if not ends:
+        return "", text
+    cut = ends[-1].end()
+    return text[:cut], text[cut:]
 
 
 def _statement_end(text: str, body_start: int) -> int:
@@ -169,10 +185,11 @@ def check(answer: str, support: Mapping[str, Collection[float]], *,
     `support` maps a row cite to the values that row showed (value, range
     bounds, count, min, max, mean...). `known` adds cites that resolve but
     carry no values (reference passages, document lines); a `ref:` or lines
-    cite not in it is unknown only when `known` is given.
+    cite not in it is unknown only when `known` is given. Fenced blocks (a
+    chart's data) are not read.
     """
     problems: list[Problem] = []
-    for segment in parse(answer):
+    for segment in parse(_FENCE.sub("\n", answer or "")):
         values = numbers(segment.text)
         if not segment.statement:
             problems.extend(Problem("uncited_number", segment.text.strip(), _fmt(v)) for v in values)
