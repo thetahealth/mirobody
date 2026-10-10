@@ -3065,5 +3065,538 @@
    "genotype": null,
    "catalogue": 0
   }
+ },
+ "qa6-p002@bench.mirobody.local": {
+  "person": "p002",
+  "user_id": "4",
+  "tz": "UTC",
+  "lang": "en",
+  "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+  "mirobody_dirty": true,
+  "steps": {
+   "settings": "2026-10-10T16:02:21+08:00",
+   "devices": {
+    "batches": 12,
+    "ingested": 5548,
+    "standardized": 5548,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "file_key": "uploads/20261010_080229_29887584.pdf",
+     "status": "done",
+     "seconds": 71.1,
+     "filed_s": 10.2,
+     "error": "",
+     "indicators_count": 110,
+     "report_date": "2026-08-07 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-07_Health_Report.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 37,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-10T16:16:28+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa6-p002@bench.mirobody.local",
+   "readings": 5632,
+   "documents": {
+    "files/p002/p002_2026-08-07_e04a.pdf": {
+     "rows": 78,
+     "found": 78,
+     "unit_ok": 78,
+     "range_ok": 77,
+     "extra": 5,
+     "dates_stored": [
+      "2026-08-07"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 84
+     },
+     "missing": []
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  }
+ },
+ "qa6-p003@bench.mirobody.local": {
+  "person": "p003",
+  "user_id": "5",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+  "mirobody_dirty": true,
+  "steps": {
+   "settings": "2026-10-10T16:03:39+08:00",
+   "devices": {
+    "batches": 4,
+    "ingested": 1895,
+    "standardized": 1895,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261010_080342_94c329a7.txt",
+    "status": "done",
+    "seconds": 5.0,
+    "filed_s": 5.0,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p003_23andme.txt",
+    "active_set": {
+     "id": 1,
+     "status": "active",
+     "format_id": "23andme_genotype",
+     "vendor": "23andMe",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 169,
+     "n_called": 160,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-10T08:03:42.893377+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "file_key": "uploads/20261010_080347_b0fc012d.pdf",
+     "status": "done",
+     "seconds": 71.0,
+     "filed_s": 10.2,
+     "error": "",
+     "indicators_count": 2,
+     "report_date": "2024-04-10 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2024-04-10_检验报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "file_key": "uploads/20261010_080458_9f0a23ce.pdf",
+     "status": "done",
+     "seconds": 71.2,
+     "filed_s": 10.1,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2025-04-05 09:11:41",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-04-05_血糖检验报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "file_key": "uploads/20261010_080610_4d9c5003.pdf",
+     "status": "done",
+     "seconds": 71.3,
+     "filed_s": 10.2,
+     "error": "",
+     "indicators_count": 9,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_门诊病历_闫柏超.pdf",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261010_080610_4d9c5003.pdf",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 9,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "file_key": "uploads/20261010_080720_19f26baa.jpg",
+     "status": "done",
+     "seconds": 68.1,
+     "filed_s": 7.0,
+     "error": "",
+     "indicators_count": 3,
+     "report_date": "2026-04-01 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-31_检验报告_闫柏超.jpg",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-04-01 00:00:00",
+      "source": "extracted",
+      "to": "2026-03-31",
+      "result": {
+       "file_key": "uploads/20261010_080720_19f26baa.jpg",
+       "report_date": "2026-03-31 00:00:00",
+       "moved": 3,
+       "skipped": 0
+      }
+     }
+    }
+   },
+   "journal": {
+    "written": 33,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-10T16:16:28+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa6-p003@bench.mirobody.local",
+   "readings": 1912,
+   "documents": {
+    "files/p003/p003_2024-04-10_e02a.pdf": {
+     "rows": 2,
+     "found": 2,
+     "unit_ok": 2,
+     "range_ok": 2,
+     "extra": 0,
+     "dates_stored": [
+      "2024-04-10"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 2
+     },
+     "missing": []
+    },
+    "files/p003/p003_2025-04-05_e07a.pdf": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 3,
+     "extra": 0,
+     "dates_stored": [
+      "2025-04-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 3
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10a.pdf": {
+     "rows": 5,
+     "found": 5,
+     "unit_ok": 5,
+     "range_ok": 5,
+     "extra": 4,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "llm:file-parser@indicators-v1": 9
+     },
+     "missing": []
+    },
+    "files/p003/p003_2026-03-31_e10b.jpg": {
+     "rows": 3,
+     "found": 3,
+     "unit_ok": 3,
+     "range_ok": 3,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-31"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 3
+     },
+     "missing": []
+    }
+   },
+   "facts_missing": [],
+   "genotype": {
+    "id": 1,
+    "status": "active",
+    "format_id": "23andme_genotype",
+    "vendor": "23andMe",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 169,
+    "n_called": 160,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-10T08:03:42.893377+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa6-p004@bench.mirobody.local": {
+  "person": "p004",
+  "user_id": "6",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+  "mirobody_dirty": true,
+  "steps": {
+   "settings": "2026-10-10T16:08:29+08:00",
+   "devices": {
+    "batches": 1,
+    "ingested": 172,
+    "standardized": 172,
+    "rejected": {}
+   },
+   "genomics": {
+    "file_key": "uploads/20261010_080830_4b6bcdd2.txt",
+    "status": "done",
+    "seconds": 5.0,
+    "filed_s": 5.0,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "",
+    "date_source": "",
+    "scene": "genetic",
+    "title": "p004_wegene.txt",
+    "active_set": {
+     "id": 2,
+     "status": "active",
+     "format_id": "wegene_genotype",
+     "vendor": "WeGene",
+     "build_declared": "GRCh37",
+     "build_detected": "GRCh37",
+     "n_rows": 266,
+     "n_called": 252,
+     "sex_inferred": "unknown",
+     "activated_at": "2026-10-10T08:08:30.250417+00:00",
+     "pgx_decidable_genes": null
+    }
+   },
+   "documents": {},
+   "journal": {
+    "written": 14,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-10T16:16:28+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa6-p004@bench.mirobody.local",
+   "readings": 172,
+   "documents": {},
+   "facts_missing": [],
+   "genotype": {
+    "id": 2,
+    "status": "active",
+    "format_id": "wegene_genotype",
+    "vendor": "WeGene",
+    "build_declared": "GRCh37",
+    "build_detected": "GRCh37",
+    "n_rows": 266,
+    "n_called": 252,
+    "sex_inferred": "unknown",
+    "activated_at": "2026-10-10T08:08:30.250417+00:00",
+    "pgx_decidable_genes": null
+   },
+   "catalogue": 0
+  }
+ },
+ "qa6-p005@bench.mirobody.local": {
+  "person": "p005",
+  "user_id": "7",
+  "tz": "Asia/Shanghai",
+  "lang": "zh",
+  "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+  "mirobody_dirty": true,
+  "steps": {
+   "settings": "2026-10-10T16:08:34+08:00",
+   "devices": {
+    "batches": 2,
+    "ingested": 669,
+    "standardized": 669,
+    "rejected": {}
+   },
+   "documents": {
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "file_key": "uploads/20261010_081035_a4e28244.pdf",
+     "status": "done",
+     "seconds": 76.3,
+     "filed_s": 15.2,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-03-05 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-03-05_贫血检测报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "file_key": "uploads/20261010_081151_31a5bfa9.xlsx",
+     "status": "done",
+     "seconds": 66.2,
+     "filed_s": 5.0,
+     "error": "",
+     "indicators_count": 22,
+     "report_date": "2026-07-03 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "file_key": "uploads/20261010_081257_33cdacfe.xlsx",
+     "status": "done",
+     "seconds": 68.2,
+     "filed_s": 7.0,
+     "error": "",
+     "indicators_count": 4,
+     "report_date": "2026-07-04 00:00:00",
+     "date_source": "extracted",
+     "scene": "excel",
+     "title": "2026-07-03_检验结果.xlsx",
+     "agent_model": "minicpm5-2b",
+     "date_set": {
+      "from": "2026-07-04 00:00:00",
+      "source": "extracted",
+      "to": "2026-07-03",
+      "result": {
+       "file_key": "uploads/20261010_081257_33cdacfe.xlsx",
+       "report_date": "2026-07-03 00:00:00",
+       "moved": 4,
+       "skipped": 0
+      }
+     }
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "file_key": "uploads/20261010_081404_b15ef40c.pdf",
+     "status": "done",
+     "seconds": 71.1,
+     "filed_s": 10.1,
+     "error": "",
+     "indicators_count": 60,
+     "report_date": "2026-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2026-08-28_体检报告.pdf",
+     "agent_model": "minicpm5-2b"
+    },
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "file_key": "uploads/20261010_081629_225413fc.pdf",
+     "status": "done",
+     "seconds": 117.2,
+     "filed_s": 55.7,
+     "error": "",
+     "indicators_count": 0,
+     "report_date": "2025-08-28 00:00:00",
+     "date_source": "extracted",
+     "scene": "report",
+     "title": "2025-08-28_体检报告.pdf",
+     "agent_model": "minicpm5-2b"
+    }
+   },
+   "journal": {
+    "written": 41,
+    "skipped": 0
+   }
+  },
+  "loaded_at": "2026-10-10T16:18:26+08:00",
+  "profile": "off",
+  "verify": {
+   "email": "qa6-p005@bench.mirobody.local",
+   "readings": 826,
+   "documents": {
+    "files/p005/p005_2026-03-05_e07b.pdf": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-03-05"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08a.xlsx": {
+     "rows": 22,
+     "found": 22,
+     "unit_ok": 22,
+     "range_ok": 22,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 22
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-07-03_e08b.xlsx": {
+     "rows": 4,
+     "found": 4,
+     "unit_ok": 4,
+     "range_ok": 4,
+     "extra": 0,
+     "dates_stored": [
+      "2026-07-03"
+     ],
+     "by_extractor": {
+      "rules:table@v1": 4
+     },
+     "missing": []
+    },
+    "files/p005/p005_2026-08-28_e09a.pdf": {
+     "rows": 55,
+     "found": 55,
+     "unit_ok": 55,
+     "range_ok": 55,
+     "extra": 1,
+     "dates_stored": [
+      "2026-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 56
+     },
+     "missing": []
+    },
+    "files/p005/p005_2025-08-28_e05a.pdf": {
+     "rows": 52,
+     "found": 49,
+     "unit_ok": 49,
+     "range_ok": 45,
+     "extra": 22,
+     "dates_stored": [
+      "2025-08-28"
+     ],
+     "by_extractor": {
+      "rules:table@v1+llm:file-parser@indicators-v1": 71
+     },
+     "missing": [
+      "ABO血型（ABO） O",
+      "Rh(D)血型（Rh） 阳性",
+      "QRS电轴 28"
+     ]
+    }
+   },
+   "facts_missing": [],
+   "genotype": null,
+   "catalogue": 0
+  },
+  "replaced": [
+   {
+    "file_key": "uploads/20261010_080836_17366f9a.pdf",
+    "status": "done",
+    "seconds": 118.8,
+    "filed_s": 57.8,
+    "error": "",
+    "indicators_count": 0,
+    "report_date": "2025-08-28 00:00:00",
+    "date_source": "extracted",
+    "scene": "report",
+    "title": "2025-08-28_体检报告.pdf",
+    "agent_model": "minicpm5-2b",
+    "file": "files/p005/p005_2025-08-28_e05a.pdf",
+    "replaced_at": "2026-10-10T16:16:28+08:00",
+    "readings_gone_s": 0.1
+   }
+  ]
  }
 }

@@ -1,0 +1,183 @@
+{
+ "size": "small-official-1",
+ "agent": "minicpm5-2b",
+ "started": "2026-10-10T17:00:26+08:00",
+ "parts": [
+  "qa"
+ ],
+ "switch": {
+  "agent": "minicpm5-2b",
+  "ocr": "glm-ocr",
+  "switch_s": 42.3,
+  "load_s": 5.0,
+  "local_models": {
+   "agent": "minicpm5-2b",
+   "utils": "minicpm5-2b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "minicpm5-2b",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+   "ctx_size": "32768",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "MiniCPM5-2B-Q4_K_M.gguf",
+     "bytes": 1561318368,
+     "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+   "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408,
+     "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648,
+     "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-10T17:01:10+08:00",
+  "processes": [
+   {
+    "pid": 12446,
+    "ppid": 31616,
+    "rss_mb": 2965.8,
+    "alias": "minicpm5-2b",
+    "role": "child",
+    "footprint_mb": 1400.3
+   },
+   {
+    "pid": 12447,
+    "ppid": 31616,
+    "rss_mb": 2365.8,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1637.4
+   },
+   {
+    "pid": 31616,
+    "ppid": 1,
+    "rss_mb": 29.8,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 47.3
+   }
+  ],
+  "children_rss_mb": 5331.6,
+  "children_footprint_mb": 3037.7,
+  "swap_used_mb": 0.0
+ },
+ "passes": [
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-10T17:01:10+08:00",
+   "resources": {
+    "disk_free_gb": 29.8,
+    "memory_free_pct": 48,
+    "swap_used_mb": 0.0
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "minicpm5-2b"
+   ],
+   "memory": {
+    "at": "2026-10-10T17:01:10+08:00",
+    "processes": [
+     {
+      "pid": 12446,
+      "ppid": 31616,
+      "rss_mb": 2965.8,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 1400.3
+     },
+     {
+      "pid": 12447,
+      "ppid": 31616,
+      "rss_mb": 2365.8,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1637.4
+     },
+     {
+      "pid": 31616,
+      "ppid": 1,
+      "rss_mb": 29.8,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 47.3
+     }
+    ],
+    "children_rss_mb": 5331.6,
+    "children_footprint_mb": 3037.7,
+    "swap_used_mb": 0.0
+   },
+   "memory_run": {
+    "samples": 45,
+    "peak_rss_mb": 6421.5,
+    "peak_footprint_mb": 5464.4
+   },
+   "memory_after_qa": {
+    "at": "2026-10-10T17:16:05+08:00",
+    "processes": [
+     {
+      "pid": 12446,
+      "ppid": 31616,
+      "rss_mb": 3659.0,
+      "alias": "minicpm5-2b",
+      "role": "child",
+      "footprint_mb": 2259.4
+     },
+     {
+      "pid": 12447,
+      "ppid": 31616,
+      "rss_mb": 48.0,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1637.5
+     },
+     {
+      "pid": 31616,
+      "ppid": 1,
+      "rss_mb": 26.1,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 47.3
+     }
+    ],
+    "children_rss_mb": 3707.0,
+    "children_footprint_mb": 3896.9,
+    "swap_used_mb": 0.0,
+    "disk_free_gb": 23.3,
+    "memory_free_pct": 53
+   },
+   "finished": "2026-10-10T17:16:05+08:00"
+  }
+ ],
+ "memory_run": {
+  "samples": 45,
+  "peak_rss_mb": 6421.5,
+  "peak_footprint_mb": 5464.4
+ },
+ "background_tasks_drained_s": 0.1,
+ "finished": "2026-10-10T17:16:05+08:00"
+}

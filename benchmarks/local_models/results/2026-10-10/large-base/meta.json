@@ -1,0 +1,234 @@
+{
+ "size": "large-base",
+ "agent": "qwen3.8-27b",
+ "started": "2026-10-10T20:11:03+08:00",
+ "parts": [
+  "qa"
+ ],
+ "switch": {
+  "agent": "qwen3.8-27b",
+  "ocr": "glm-ocr",
+  "switch_s": 47.3,
+  "load_s": 10.0,
+  "local_models": {
+   "agent": "qwen3.8-27b",
+   "utils": "qwen3.8-27b",
+   "ocr": "glm-ocr"
+  }
+ },
+ "models": [
+  {
+   "id": "qwen3.8-27b",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/qwen3.8-27b-gsq-rco/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+   "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/qwen3.8-27b-gsq-rco/mmproj-Qwen3.8-27B-BF16.gguf",
+   "ctx_size": "65536",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+     "bytes": 12120016960
+    },
+    {
+     "file": "mmproj-Qwen3.8-27B-BF16.gguf",
+     "bytes": 931146528
+    }
+   ]
+  },
+  {
+   "id": "glm-ocr",
+   "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+   "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+   "ctx_size": "16384",
+   "parallel": "2",
+   "files": [
+    {
+     "file": "GLM-OCR-Q8_0.gguf",
+     "bytes": 950433408
+    },
+    {
+     "file": "mmproj-GLM-OCR-Q8_0.gguf",
+     "bytes": 484403648
+    }
+   ]
+  }
+ ],
+ "memory_idle": {
+  "at": "2026-10-11T00:35:35+08:00",
+  "processes": [
+   {
+    "pid": 19451,
+    "ppid": 87553,
+    "rss_mb": 2216.3,
+    "alias": "glm-ocr",
+    "role": "child",
+    "footprint_mb": 1638.4
+   },
+   {
+    "pid": 19452,
+    "ppid": 87553,
+    "rss_mb": 18119.1,
+    "alias": "qwen3.8-27b",
+    "role": "child",
+    "footprint_mb": 6759.9
+   },
+   {
+    "pid": 87553,
+    "ppid": 1,
+    "rss_mb": 47.7,
+    "alias": "",
+    "role": "router",
+    "footprint_mb": 36.7
+   }
+  ],
+  "children_rss_mb": 20335.4,
+  "children_footprint_mb": 8398.3,
+  "swap_used_mb": 9071.19
+ },
+ "passes": [
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-10T20:12:00+08:00",
+   "resources": {
+    "disk_free_gb": 10.6,
+    "memory_free_pct": 19,
+    "swap_used_mb": 7401.38
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "qwen3.8-27b"
+   ],
+   "memory": {
+    "at": "2026-10-10T20:12:00+08:00",
+    "processes": [
+     {
+      "pid": 45366,
+      "ppid": 61533,
+      "rss_mb": 15.9,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 35.0
+     },
+     {
+      "pid": 45617,
+      "ppid": 45366,
+      "rss_mb": 2184.5,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1551.3
+     },
+     {
+      "pid": 45618,
+      "ppid": 45366,
+      "rss_mb": 17812.3,
+      "alias": "qwen3.8-27b",
+      "role": "child",
+      "footprint_mb": 6624.5
+     }
+    ],
+    "children_rss_mb": 19996.8,
+    "children_footprint_mb": 8175.8,
+    "swap_used_mb": 7401.38
+   },
+   "memory_run": {
+    "samples": 652,
+    "peak_rss_mb": 20943.5,
+    "peak_footprint_mb": 12125.2
+   },
+   "memory_after_qa": {
+    "at": "2026-10-10T23:51:06+08:00",
+    "processes": [
+     {
+      "pid": 45366,
+      "ppid": 61533,
+      "rss_mb": 13.6,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 37.0
+     },
+     {
+      "pid": 45617,
+      "ppid": 45366,
+      "rss_mb": 14.2,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1551.7
+     },
+     {
+      "pid": 45618,
+      "ppid": 45366,
+      "rss_mb": 18095.7,
+      "alias": "qwen3.8-27b",
+      "role": "child",
+      "footprint_mb": 10147.0
+     }
+    ],
+    "children_rss_mb": 18109.9,
+    "children_footprint_mb": 11698.7,
+    "swap_used_mb": 9143.19,
+    "disk_free_gb": 8.8,
+    "memory_free_pct": 22
+   },
+   "finished": "2026-10-10T23:51:06+08:00"
+  },
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-11T00:35:35+08:00",
+   "resources": {
+    "disk_free_gb": 8.8,
+    "memory_free_pct": 23,
+    "swap_used_mb": 9071.19
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [
+    "glm-ocr",
+    "qwen3.8-27b"
+   ],
+   "memory": {
+    "at": "2026-10-11T00:35:35+08:00",
+    "processes": [
+     {
+      "pid": 19451,
+      "ppid": 87553,
+      "rss_mb": 2216.3,
+      "alias": "glm-ocr",
+      "role": "child",
+      "footprint_mb": 1638.4
+     },
+     {
+      "pid": 19452,
+      "ppid": 87553,
+      "rss_mb": 18119.1,
+      "alias": "qwen3.8-27b",
+      "role": "child",
+      "footprint_mb": 6759.9
+     },
+     {
+      "pid": 87553,
+      "ppid": 1,
+      "rss_mb": 47.7,
+      "alias": "",
+      "role": "router",
+      "footprint_mb": 36.7
+     }
+    ],
+    "children_rss_mb": 20335.4,
+    "children_footprint_mb": 8398.3,
+    "swap_used_mb": 9071.19
+   }
+  }
+ ],
+ "memory_run": {
+  "samples": 652,
+  "peak_rss_mb": 20943.5,
+  "peak_footprint_mb": 12125.2
+ },
+ "background_tasks_drained_s": 0.2,
+ "finished": "2026-10-10T23:51:06+08:00"
+}
