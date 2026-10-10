@@ -1,0 +1,3066 @@
+{
+ "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+ "mirobody_dirty": true,
+ "mirobody_gen": {
+  "seed": 7,
+  "people": 6,
+  "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+  "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+  "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+  "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+  "sha256": {
+   "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+   "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+   "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+   "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+   "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+   "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+  }
+ },
+ "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+ "router": {
+  "preset": "docker/local-models.ini",
+  "models_max": 2
+ },
+ "machine": {
+  "chip": "Apple M4 Pro",
+  "memory_gb": 48,
+  "os": "Darwin 26.6",
+  "docker_vm": "colima 4 CPU, 6 GB"
+ },
+ "timeouts": {
+  "question_s": 600,
+  "late_wait_s": 900,
+  "upload_s": 1800,
+  "journal_s": 900,
+  "settle_s": 35
+ },
+ "sizes": {
+  "small-base": {
+   "started": "2026-10-10T16:20:26+08:00",
+   "finished": "2026-10-11T00:34:20+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-10T16:21:20+08:00",
+     "finished": "2026-10-10T17:00:19+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    },
+    {
+     "parts": [
+      "extraction"
+     ],
+     "started": "2026-10-11T00:31:18+08:00",
+     "finished": "2026-10-11T00:34:20+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-base",
+    "agent": "minicpm5-2b",
+    "qa_pass": 18,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 18,
+     "language": 24,
+     "chart": 23
+    },
+    "new_pass": 1,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 1,
+     "language": 6
+    },
+    "trace_n": 23,
+    "trace_format": 2,
+    "trace_made_up": 0,
+    "trace_untraced": 207,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 26,
+    "qa_unsupported_numbers": 24,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 15.0,
+    "qa_p90_s": 89.4,
+    "ext_rows": 140,
+    "ext_found": 140,
+    "ext_unit_ok": 140,
+    "ext_range_ok": 139,
+    "ext_extra": 8,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 7.1,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 19,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 5,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 1.5,
+    "memory_idle_rss_mb": 5327.3,
+    "memory_idle_footprint_mb": 3037.2,
+    "memory_peak_rss_mb": 6420.1,
+    "memory_peak_footprint_mb": 5764.8
+   }
+  },
+  "small-official-1": {
+   "started": "2026-10-10T17:00:26+08:00",
+   "finished": "2026-10-10T17:16:05+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:01:10+08:00",
+     "finished": "2026-10-10T17:16:05+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-official-1",
+    "agent": "minicpm5-2b",
+    "qa_pass": 19,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 19,
+     "language": 24,
+     "chart": 23
+    },
+    "new_pass": 3,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 3,
+     "language": 6
+    },
+    "trace_n": 21,
+    "trace_format": 4,
+    "trace_made_up": 0,
+    "trace_untraced": 250,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 24,
+    "qa_unsupported_numbers": 30,
+    "qa_answers_with_unsupported": 5,
+    "qa_timeouts": 0,
+    "qa_median_s": 17.2,
+    "qa_p90_s": 51.6,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5331.6,
+    "memory_idle_footprint_mb": 3037.7,
+    "memory_peak_rss_mb": 6421.5,
+    "memory_peak_footprint_mb": 5464.4
+   }
+  },
+  "small-official-2": {
+   "started": "2026-10-10T17:16:06+08:00",
+   "finished": "2026-10-10T17:50:40+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:16:49+08:00",
+     "finished": "2026-10-10T17:50:40+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-official-2",
+    "agent": "minicpm5-2b",
+    "qa_pass": 18,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 24,
+     "facts": 19,
+     "language": 24,
+     "chart": 22
+    },
+    "new_pass": 1,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 1,
+     "language": 6
+    },
+    "trace_n": 23,
+    "trace_format": 0,
+    "trace_made_up": 0,
+    "trace_untraced": 326,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 25,
+    "qa_unsupported_numbers": 6,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 1,
+    "qa_median_s": 20.9,
+    "qa_p90_s": 192.4,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5325.5,
+    "memory_idle_footprint_mb": 3045.3,
+    "memory_peak_rss_mb": 6903.2,
+    "memory_peak_footprint_mb": 5052.6
+   }
+  },
+  "small-official-3": {
+   "started": "2026-10-10T17:50:41+08:00",
+   "finished": "2026-10-10T18:08:13+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:51:24+08:00",
+     "finished": "2026-10-10T18:08:13+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-official-3",
+    "agent": "minicpm5-2b",
+    "qa_pass": 21,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 24,
+     "facts": 22,
+     "language": 22,
+     "chart": 21
+    },
+    "new_pass": 1,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 1,
+     "language": 6
+    },
+    "trace_n": 23,
+    "trace_format": 4,
+    "trace_made_up": 0,
+    "trace_untraced": 215,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 24,
+    "qa_unsupported_numbers": 13,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 22.0,
+    "qa_p90_s": 65.7,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5330.3,
+    "memory_idle_footprint_mb": 3040.9,
+    "memory_peak_rss_mb": 7573.6,
+    "memory_peak_footprint_mb": 5776.2
+   }
+  },
+  "small-base-nothink": {
+   "started": "2026-10-10T18:08:21+08:00",
+   "finished": "2026-10-10T18:23:33+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T18:09:04+08:00",
+     "finished": "2026-10-10T18:23:33+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-base-nothink",
+    "agent": "minicpm5-2b",
+    "qa_pass": 15,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 22,
+     "tool": 23,
+     "facts": 16,
+     "language": 22,
+     "chart": 21
+    },
+    "new_pass": 2,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 4,
+     "facts": 2,
+     "language": 6
+    },
+    "trace_n": 20,
+    "trace_format": 6,
+    "trace_made_up": 0,
+    "trace_untraced": 76,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 17,
+    "qa_unsupported_numbers": 0,
+    "qa_answers_with_unsupported": 0,
+    "qa_timeouts": 0,
+    "qa_median_s": 8.6,
+    "qa_p90_s": 67.3,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5340.6,
+    "memory_idle_footprint_mb": 3048.2,
+    "memory_peak_rss_mb": 6744.9,
+    "memory_peak_footprint_mb": 4956.3
+   }
+  },
+  "small-official-nothink": {
+   "started": "2026-10-10T18:51:09+08:00",
+   "finished": "2026-10-10T19:02:29+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T18:51:51+08:00",
+     "finished": "2026-10-10T19:02:29+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-official-nothink",
+    "agent": "minicpm5-2b",
+    "qa_pass": 19,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 20,
+     "language": 23,
+     "chart": 22
+    },
+    "new_pass": 2,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 4,
+     "facts": 2,
+     "language": 6
+    },
+    "trace_n": 20,
+    "trace_format": 5,
+    "trace_made_up": 1,
+    "trace_untraced": 436,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 21,
+    "qa_unsupported_numbers": 196,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 10.4,
+    "qa_p90_s": 34.7,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5181.7,
+    "memory_idle_footprint_mb": 3067.4,
+    "memory_peak_rss_mb": 6593.4,
+    "memory_peak_footprint_mb": 4659.5
+   }
+  },
+  "small-base-2": {
+   "started": "2026-10-10T19:02:38+08:00",
+   "finished": "2026-10-10T19:24:03+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T19:03:20+08:00",
+     "finished": "2026-10-10T19:24:03+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-base-2",
+    "agent": "minicpm5-2b",
+    "qa_pass": 20,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 22,
+     "tool": 23,
+     "facts": 21,
+     "language": 22,
+     "chart": 22
+    },
+    "new_pass": 1,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 1,
+     "language": 6
+    },
+    "trace_n": 24,
+    "trace_format": 1,
+    "trace_made_up": 0,
+    "trace_untraced": 258,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 25,
+    "qa_unsupported_numbers": 17,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 16.2,
+    "qa_p90_s": 102.0,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5254.9,
+    "memory_idle_footprint_mb": 3070.7,
+    "memory_peak_rss_mb": 6590.4,
+    "memory_peak_footprint_mb": 4928.5
+   }
+  },
+  "tiny-base": {
+   "started": "2026-10-10T19:24:11+08:00",
+   "finished": "2026-10-10T19:48:36+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-1b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-1b/MiniCPM5-1B-Q8_0.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-1B-Q8_0.gguf",
+       "bytes": 1153529216,
+       "sha256": "0dc7638539067268774c275a14a6ec9c7e01f7eeb2cff606c8590361fa527e4c"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-10T19:24:54+08:00",
+     "finished": "2026-10-10T19:48:36+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "tiny-base",
+    "agent": "minicpm5-1b",
+    "qa_pass": 5,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 22,
+     "tool": 13,
+     "facts": 6,
+     "language": 21,
+     "chart": 20
+    },
+    "new_pass": 0,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 3,
+     "facts": 0,
+     "language": 6
+    },
+    "trace_n": 8,
+    "trace_format": 0,
+    "trace_made_up": 0,
+    "trace_untraced": 813,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 9,
+    "qa_unsupported_numbers": 275,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 0,
+    "qa_median_s": 5.0,
+    "qa_p90_s": 108.1,
+    "ext_rows": 140,
+    "ext_found": 129,
+    "ext_unit_ok": 117,
+    "ext_range_ok": 116,
+    "ext_extra": 3,
+    "ext_dates_ok": 8,
+    "ext_docs": 12,
+    "ext_median_s": 7.1,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 14,
+    "jnl_code_ok": 6,
+    "jnl_coded_checked": 11,
+    "jnl_extra": 0,
+    "jnl_exact": 3,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 0.7,
+    "memory_idle_rss_mb": 4349.8,
+    "memory_idle_footprint_mb": 2465.0,
+    "memory_peak_rss_mb": 5867.1,
+    "memory_peak_footprint_mb": 4185.3
+   }
+  },
+  "tiny-official": {
+   "started": "2026-10-10T19:48:43+08:00",
+   "finished": "2026-10-10T19:56:33+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-1b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-1b/MiniCPM5-1B-Q8_0.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-1B-Q8_0.gguf",
+       "bytes": 1153529216,
+       "sha256": "0dc7638539067268774c275a14a6ec9c7e01f7eeb2cff606c8590361fa527e4c"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T19:49:26+08:00",
+     "finished": "2026-10-10T19:56:33+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "tiny-official",
+    "agent": "minicpm5-1b",
+    "qa_pass": 4,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 13,
+     "facts": 7,
+     "language": 20,
+     "chart": 20
+    },
+    "new_pass": 0,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 3,
+     "facts": 0,
+     "language": 6
+    },
+    "trace_n": 11,
+    "trace_format": 0,
+    "trace_made_up": 0,
+    "trace_untraced": 265,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 14,
+    "qa_unsupported_numbers": 14,
+    "qa_answers_with_unsupported": 6,
+    "qa_timeouts": 0,
+    "qa_median_s": 7.0,
+    "qa_p90_s": 38.3,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 4358.3,
+    "memory_idle_footprint_mb": 2462.4,
+    "memory_peak_rss_mb": 5631.6,
+    "memory_peak_footprint_mb": 3902.2
+   }
+  },
+  "small-base-q8": {
+   "started": "2026-10-10T19:56:43+08:00",
+   "finished": "2026-10-10T20:10:54+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "extraction",
+    "journal",
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q8_0.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q8_0.gguf",
+       "bytes": 2679710688,
+       "sha256": "c5415f8989bf88a8288f1b55a3cc371af53c07b0faa220a63bd7a990cfaba078"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "extraction",
+      "journal",
+      "qa"
+     ],
+     "started": "2026-10-10T19:57:25+08:00",
+     "finished": "2026-10-10T20:10:54+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-base-q8",
+    "agent": "minicpm5-2b",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 1,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 1,
+     "language": 6
+    },
+    "trace_n": 23,
+    "trace_format": 1,
+    "trace_made_up": 0,
+    "trace_untraced": 149,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 25,
+    "qa_unsupported_numbers": 22,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 17.5,
+    "qa_p90_s": 37.5,
+    "ext_rows": 140,
+    "ext_found": 132,
+    "ext_unit_ok": 132,
+    "ext_range_ok": 131,
+    "ext_extra": 15,
+    "ext_dates_ok": 7,
+    "ext_docs": 12,
+    "ext_median_s": 7.1,
+    "ext_failed": 0,
+    "jnl_expected": 31,
+    "jnl_found": 26,
+    "jnl_code_ok": 9,
+    "jnl_coded_checked": 13,
+    "jnl_extra": 2,
+    "jnl_exact": 7,
+    "jnl_n": 15,
+    "jnl_errors": 0,
+    "jnl_median_s": 2.0,
+    "memory_idle_rss_mb": 6357.4,
+    "memory_idle_footprint_mb": 3039.1,
+    "memory_peak_rss_mb": 7527.4,
+    "memory_peak_footprint_mb": 4485.7
+   }
+  },
+  "large-base": {
+   "started": "2026-10-10T20:11:03+08:00",
+   "finished": "2026-10-10T23:51:06+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "qwen3.8-27b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/qwen3.8-27b-gsq-rco/Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/qwen3.8-27b-gsq-rco/mmproj-Qwen3.8-27B-BF16.gguf",
+     "ctx_size": "65536",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "Qwen3.8-27B-GSQ-RCO-IQ3_S-mtp.gguf",
+       "bytes": 12120016960,
+       "sha256": "58fd826723939933dc86f45b7fe04545cbc2de1c70f6fe2cdd3858c87a98c12f"
+      },
+      {
+       "file": "mmproj-Qwen3.8-27B-BF16.gguf",
+       "bytes": 931146528,
+       "sha256": "13cb7bebccbd04afc8f4090cb949ecf8937cdf7377c5799b1a0c594e7c0d3e16"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T20:12:00+08:00",
+     "finished": "2026-10-10T23:51:06+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "large-base",
+    "agent": "qwen3.8-27b",
+    "qa_pass": 18,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 19,
+     "tool": 23,
+     "facts": 18,
+     "language": 21,
+     "chart": 23
+    },
+    "new_pass": 5,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 5,
+     "tool": 6,
+     "facts": 5,
+     "language": 5
+    },
+    "trace_n": 25,
+    "trace_format": 20,
+    "trace_made_up": 0,
+    "trace_untraced": 85,
+    "trace_unsupported": 4,
+    "trace_answers_untraced": 19,
+    "qa_unsupported_numbers": 3,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 5,
+    "qa_median_s": 281.4,
+    "qa_p90_s": 600.5,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 19996.8,
+    "memory_idle_footprint_mb": 8175.8,
+    "memory_peak_rss_mb": 20943.5,
+    "memory_peak_footprint_mb": 12125.2
+   }
+  },
+  "small-base-q8-2": {
+   "started": "2026-10-10T23:52:20+08:00",
+   "finished": "2026-10-11T00:05:29+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q8_0.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q8_0.gguf",
+       "bytes": 2679710688,
+       "sha256": "c5415f8989bf88a8288f1b55a3cc371af53c07b0faa220a63bd7a990cfaba078"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T23:53:01+08:00",
+     "finished": "2026-10-11T00:05:29+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-base-q8-2",
+    "agent": "minicpm5-2b",
+    "qa_pass": 24,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 24,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 2,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 2,
+     "language": 6
+    },
+    "trace_n": 24,
+    "trace_format": 2,
+    "trace_made_up": 0,
+    "trace_untraced": 142,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 25,
+    "qa_unsupported_numbers": 21,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 18.3,
+    "qa_p90_s": 30.7,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 6348.9,
+    "memory_idle_footprint_mb": 3044.8,
+    "memory_peak_rss_mb": 7645.9,
+    "memory_peak_footprint_mb": 4424.8
+   }
+  },
+  "small-base-timeend": {
+   "started": "2026-10-11T00:05:42+08:00",
+   "finished": "2026-10-11T00:30:27+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": [
+    {
+     "id": "minicpm5-2b",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/small/minicpm5-2b/MiniCPM5-2B-Q4_K_M.gguf",
+     "ctx_size": "32768",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "MiniCPM5-2B-Q4_K_M.gguf",
+       "bytes": 1561318368,
+       "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+      }
+     ]
+    },
+    {
+     "id": "glm-ocr",
+     "model_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/GLM-OCR-Q8_0.gguf",
+     "mmproj_path": "/Users/admin/Desktop/development/Mirobody/local-models/glm-ocr/mmproj-GLM-OCR-Q8_0.gguf",
+     "ctx_size": "16384",
+     "parallel": "2",
+     "files": [
+      {
+       "file": "GLM-OCR-Q8_0.gguf",
+       "bytes": 950433408,
+       "sha256": "45bc244a6446aff850521dc41f18bc8d7105ad5f0c2c8c28af04e7cc4f4d50b1"
+      },
+      {
+       "file": "mmproj-GLM-OCR-Q8_0.gguf",
+       "bytes": 484403648,
+       "sha256": "9c4b58e33e316ed142eb5dcb41abec3844d3e6e5dc361ffb782c3fa9d175141f"
+      }
+     ]
+    }
+   ],
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-11T00:06:23+08:00",
+     "finished": "2026-10-11T00:30:27+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "small-base-timeend",
+    "agent": "minicpm5-2b",
+    "qa_pass": 21,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 23,
+     "tool": 24,
+     "facts": 21,
+     "language": 23,
+     "chart": 23
+    },
+    "new_pass": 1,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 1,
+     "language": 6
+    },
+    "trace_n": 23,
+    "trace_format": 1,
+    "trace_made_up": 0,
+    "trace_untraced": 207,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 23,
+    "qa_unsupported_numbers": 16,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 15.7,
+    "qa_p90_s": 99.6,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": 5309.5,
+    "memory_idle_footprint_mb": 3040.9,
+    "memory_peak_rss_mb": 7454.2,
+    "memory_peak_footprint_mb": 5259.1
+   }
+  }
+ },
+ "references": {
+  "ref-claude-sonnet-5.5": {
+   "started": "2026-10-10T17:17:48+08:00",
+   "finished": "2026-10-10T17:23:48+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": {
+    "chat_model": "anthropic/claude-sonnet-5.5",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "anthropic/claude-sonnet-5.5",
+       "default": "anthropic/claude-sonnet-5.5",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/claude-sonnet-5.5.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "anthropic/claude-sonnet-5.5",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "anthropic/claude-sonnet-5.5",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:18:19+08:00",
+     "finished": "2026-10-10T17:23:48+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-claude-sonnet-5.5",
+    "agent": "anthropic/claude-sonnet-5.5",
+    "qa_pass": 20,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 23,
+     "facts": 22,
+     "language": 24,
+     "chart": 23
+    },
+    "new_pass": 6,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 6,
+     "language": 6
+    },
+    "trace_n": 22,
+    "trace_format": 21,
+    "trace_made_up": 0,
+    "trace_untraced": 146,
+    "trace_unsupported": 17,
+    "trace_answers_untraced": 27,
+    "qa_unsupported_numbers": 6,
+    "qa_answers_with_unsupported": 4,
+    "qa_timeouts": 0,
+    "qa_median_s": 7.2,
+    "qa_p90_s": 9.6,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-deepseek-v4.1-flash-v2": {
+   "started": "2026-10-10T17:23:56+08:00",
+   "finished": "2026-10-10T17:30:35+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": {
+    "chat_model": "deepseek/deepseek-v4.1-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "deepseek/deepseek-v4.1-flash",
+       "default": "deepseek/deepseek-v4.1-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/deepseek-v4.1-flash-v2.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "supports_image": false,
+      "response_format": "json_object",
+      "extra_body": {
+       "reasoning": {
+        "enabled": false
+       },
+       "provider": {
+        "order": [
+         "together"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Together",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:24:27+08:00",
+     "finished": "2026-10-10T17:30:35+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-deepseek-v4.1-flash-v2",
+    "agent": "deepseek/deepseek-v4.1-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 6,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 6,
+     "language": 6
+    },
+    "trace_n": 25,
+    "trace_format": 23,
+    "trace_made_up": 4,
+    "trace_untraced": 144,
+    "trace_unsupported": 19,
+    "trace_answers_untraced": 23,
+    "qa_unsupported_numbers": 6,
+    "qa_answers_with_unsupported": 3,
+    "qa_timeouts": 0,
+    "qa_median_s": 5.5,
+    "qa_p90_s": 10.2,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gemini-3.8-flash": {
+   "started": "2026-10-10T17:30:47+08:00",
+   "finished": "2026-10-10T17:42:20+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": {
+    "chat_model": "google/gemini-3.8-flash",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "google/gemini-3.8-flash",
+       "default": "google/gemini-3.8-flash",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gemini-3.8-flash.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemini-3.8-flash",
+      "supports_image": false,
+      "extra_body": {
+       "reasoning": {
+        "effort": "low",
+        "exclude": true
+       },
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "google/gemini-3.8-flash",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:31:48+08:00",
+     "finished": "2026-10-10T17:42:20+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gemini-3.8-flash",
+    "agent": "google/gemini-3.8-flash",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 6,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 6,
+     "language": 6
+    },
+    "trace_n": 26,
+    "trace_format": 26,
+    "trace_made_up": 0,
+    "trace_untraced": 96,
+    "trace_unsupported": 9,
+    "trace_answers_untraced": 22,
+    "qa_unsupported_numbers": 2,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 0,
+    "qa_median_s": 15.2,
+    "qa_p90_s": 26.3,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gpt-6-luna": {
+   "started": "2026-10-10T17:42:32+08:00",
+   "finished": "2026-10-10T17:51:24+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": {
+    "chat_model": "openai/gpt-6-luna",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "openai/gpt-6-luna",
+       "default": "openai/gpt-6-luna",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gpt-6-luna.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "openai/gpt-6-luna",
+      "supports_image": false,
+      "reasoning_effort": "none",
+      "extra_body": {
+       "provider": {
+        "order": [
+         "azure"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Azure",
+      "model": "openai/gpt-6-luna",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T17:43:33+08:00",
+     "finished": "2026-10-10T17:51:24+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gpt-6-luna",
+    "agent": "openai/gpt-6-luna",
+    "qa_pass": 20,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 23,
+     "facts": 21,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 6,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 6,
+     "language": 6
+    },
+    "trace_n": 21,
+    "trace_format": 19,
+    "trace_made_up": 6,
+    "trace_untraced": 25,
+    "trace_unsupported": 1,
+    "trace_answers_untraced": 9,
+    "qa_unsupported_numbers": 1,
+    "qa_answers_with_unsupported": 1,
+    "qa_timeouts": 0,
+    "qa_median_s": 12.9,
+    "qa_p90_s": 20.7,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gemma-4-26b-a4b": {
+   "started": "2026-10-10T18:17:22+08:00",
+   "finished": "2026-10-10T18:34:36+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": {
+    "chat_model": "google/gemma-4-26b-a4b-it",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "google/gemma-4-26b-a4b-it",
+       "default": "google/gemma-4-26b-a4b-it",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "google/gemma-4-26b-a4b-it",
+       "default": "google/gemma-4-26b-a4b-it",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gemma-4-26b-a4b.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemma-4-26b-a4b-it",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemma-4-26b-a4b-it",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "google-vertex"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "Google",
+      "model": "google/gemma-4-26b-a4b-it",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "Google",
+      "model": "google/gemma-4-26b-a4b-it",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T18:18:23+08:00",
+     "finished": "2026-10-10T18:34:36+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gemma-4-26b-a4b",
+    "agent": "google/gemma-4-26b-a4b-it",
+    "qa_pass": 21,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 21,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 6,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 6,
+     "language": 6
+    },
+    "trace_n": 23,
+    "trace_format": 21,
+    "trace_made_up": 3,
+    "trace_untraced": 22,
+    "trace_unsupported": 0,
+    "trace_answers_untraced": 10,
+    "qa_unsupported_numbers": 1,
+    "qa_answers_with_unsupported": 1,
+    "qa_timeouts": 0,
+    "qa_median_s": 7.7,
+    "qa_p90_s": 128.6,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  },
+  "ref-gemma-4-31b": {
+   "started": "2026-10-10T19:15:39+08:00",
+   "finished": "2026-10-10T19:37:57+08:00",
+   "environment": {
+    "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+    "mirobody_dirty": true,
+    "mirobody_gen": {
+     "seed": 7,
+     "people": 6,
+     "commit": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "repo_head_at_run": "248df0f2aead8051c81ef1f7a9fa431e627e8791",
+     "build": "mirobody-gen build --seed 7 --people 6 --out <dir> --render",
+     "corpus": "/Users/admin/Desktop/development/Mirobody/mirobody/internal/model-eval/bench-2026-10-10/gen7",
+     "sha256": {
+      "devices.jsonl": "887e6cdf2fe5ad5f68142e3a23137323e8316eacabbbdc34f832a243a4678860",
+      "files.jsonl": "5bad865b1e5cba4979d453338f79b2d5bf342e9c19b8cd8061901ae1dab09b11",
+      "genomics.jsonl": "f688edb457e9c72961cc1b6e9e3bf13b1fb2e004889fee2d80a5c6da1356f2f3",
+      "journal.jsonl": "c1ffb454e9bafccb176d6f7a31da7c05906a862db8924040aac73287628cadff",
+      "manifest.jsonl": "d303ad6d45bee6bc48bb3153cc33605898826a03116cda370a0f651218fb99dd",
+      "people.jsonl": "a504734216c968d3a8dcf868b6c1b8fccbd5d34d03028720e0c18a650c87f3e0"
+     }
+    },
+    "llama_cpp": "version: 0.6.0-dev (build 11429, commit d81235049) built with AppleClang 21.0.0.21000101 for Darwin arm64",
+    "router": {
+     "preset": "docker/local-models.ini",
+     "models_max": 2
+    },
+    "machine": {
+     "chip": "Apple M4 Pro",
+     "memory_gb": 48,
+     "os": "Darwin 26.6",
+     "docker_vm": "colima 4 CPU, 6 GB"
+    },
+    "timeouts": {
+     "question_s": 600,
+     "late_wait_s": 900,
+     "upload_s": 1800,
+     "journal_s": 900,
+     "settle_s": 35
+    }
+   },
+   "parts": [
+    "qa"
+   ],
+   "models": {
+    "chat_model": "google/gemma-4-31b-it",
+    "providers": [
+     {
+      "key": "OPENROUTER_API_KEY",
+      "set": true,
+      "chat_model": {
+       "model": "google/gemma-4-31b-it",
+       "default": "google/gemma-4-31b-it",
+       "env": "",
+       "in_env_file": false
+      },
+      "utils_model": {
+       "model": "google/gemma-4-31b-it",
+       "default": "google/gemma-4-31b-it",
+       "env": "",
+       "in_env_file": false
+      }
+     }
+    ],
+    "local": {
+     "configured": true,
+     "base_url": "http://host.docker.internal:8080/v1",
+     "models": {
+      "agent": "minicpm5-2b",
+      "utils": "minicpm5-2b",
+      "ocr": "glm-ocr"
+     }
+    },
+    "overlay": {
+     "file": "benchmarks/local_models/refs/gemma-4-31b.llm.yaml",
+     "ref-chat": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemma-4-31b-it",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "deepinfra/fp8"
+        ],
+        "allow_fallbacks": false
+       }
+      }
+     },
+     "ref-utils": {
+      "llm_type": "openai",
+      "api_key": "OPENROUTER_API_KEY",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "google/gemma-4-31b-it",
+      "supports_image": false,
+      "extra_body": {
+       "provider": {
+        "order": [
+         "deepinfra/fp8"
+        ],
+        "allow_fallbacks": false
+       }
+      },
+      "chat": false
+     }
+    },
+    "host_probe": {
+     "ref-chat": {
+      "provider": "DeepInfra",
+      "model": "google/gemma-4-31b-it",
+      "attempts": 1
+     },
+     "ref-utils": {
+      "provider": "DeepInfra",
+      "model": "google/gemma-4-31b-it",
+      "attempts": 1
+     }
+    }
+   },
+   "passes": [
+    {
+     "parts": [
+      "qa"
+     ],
+     "started": "2026-10-10T19:16:10+08:00",
+     "finished": "2026-10-10T19:37:57+08:00",
+     "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+     "mirobody_dirty": true
+    }
+   ],
+   "summary": {
+    "size": "ref-gemma-4-31b",
+    "agent": "google/gemma-4-31b-it",
+    "qa_pass": 23,
+    "qa_n": 24,
+    "qa_checks": {
+     "answered": 24,
+     "tool": 24,
+     "facts": 23,
+     "language": 24,
+     "chart": 24
+    },
+    "new_pass": 6,
+    "new_n": 6,
+    "new_checks": {
+     "answered": 6,
+     "tool": 6,
+     "facts": 6,
+     "language": 6
+    },
+    "trace_n": 25,
+    "trace_format": 23,
+    "trace_made_up": 0,
+    "trace_untraced": 18,
+    "trace_unsupported": 3,
+    "trace_answers_untraced": 12,
+    "qa_unsupported_numbers": 2,
+    "qa_answers_with_unsupported": 2,
+    "qa_timeouts": 0,
+    "qa_median_s": 29.4,
+    "qa_p90_s": 55.5,
+    "ext_rows": 0,
+    "ext_found": 0,
+    "ext_unit_ok": 0,
+    "ext_range_ok": 0,
+    "ext_extra": 0,
+    "ext_dates_ok": 0,
+    "ext_docs": 0,
+    "ext_median_s": null,
+    "ext_failed": 0,
+    "jnl_expected": 0,
+    "jnl_found": 0,
+    "jnl_code_ok": 0,
+    "jnl_coded_checked": 0,
+    "jnl_extra": 0,
+    "jnl_exact": 0,
+    "jnl_n": 0,
+    "jnl_errors": 0,
+    "jnl_median_s": null,
+    "memory_idle_rss_mb": null,
+    "memory_idle_footprint_mb": null,
+    "memory_peak_rss_mb": null,
+    "memory_peak_footprint_mb": null
+   }
+  }
+ }
+}

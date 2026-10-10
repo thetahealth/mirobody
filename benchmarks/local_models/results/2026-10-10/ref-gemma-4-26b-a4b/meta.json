@@ -1,0 +1,123 @@
+{
+ "size": "ref-gemma-4-26b-a4b",
+ "reference": "gemma-4-26b-a4b",
+ "agent": "google/gemma-4-26b-a4b-it",
+ "models": {
+  "chat_model": "google/gemma-4-26b-a4b-it",
+  "providers": [
+   {
+    "key": "OPENROUTER_API_KEY",
+    "set": true,
+    "chat_model": {
+     "model": "google/gemma-4-26b-a4b-it",
+     "default": "google/gemma-4-26b-a4b-it",
+     "env": "",
+     "in_env_file": false
+    },
+    "utils_model": {
+     "model": "google/gemma-4-26b-a4b-it",
+     "default": "google/gemma-4-26b-a4b-it",
+     "env": "",
+     "in_env_file": false
+    }
+   }
+  ],
+  "local": {
+   "configured": true,
+   "base_url": "http://host.docker.internal:8080/v1",
+   "models": {
+    "agent": "minicpm5-2b",
+    "utils": "minicpm5-2b",
+    "ocr": "glm-ocr"
+   }
+  },
+  "overlay": {
+   "file": "benchmarks/local_models/refs/gemma-4-26b-a4b.llm.yaml",
+   "ref-chat": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "google/gemma-4-26b-a4b-it",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    }
+   },
+   "ref-utils": {
+    "llm_type": "openai",
+    "api_key": "OPENROUTER_API_KEY",
+    "base_url": "https://openrouter.ai/api/v1",
+    "model": "google/gemma-4-26b-a4b-it",
+    "supports_image": false,
+    "extra_body": {
+     "provider": {
+      "order": [
+       "google-vertex"
+      ],
+      "allow_fallbacks": false
+     }
+    },
+    "chat": false
+   }
+  },
+  "host_probe": {
+   "ref-chat": {
+    "provider": "Google",
+    "model": "google/gemma-4-26b-a4b-it",
+    "attempts": 1
+   },
+   "ref-utils": {
+    "provider": "Google",
+    "model": "google/gemma-4-26b-a4b-it",
+    "attempts": 1
+   }
+  }
+ },
+ "started": "2026-10-10T18:17:22+08:00",
+ "parts": [
+  "qa"
+ ],
+ "memory_idle": null,
+ "passes": [
+  {
+   "parts": [
+    "qa"
+   ],
+   "started": "2026-10-10T18:18:23+08:00",
+   "resources": {
+    "disk_free_gb": 21.0,
+    "memory_free_pct": 55,
+    "swap_used_mb": 0.0
+   },
+   "mirobody_commit": "338d54f44a3df0d02c4198f8d4378d9f07188085",
+   "mirobody_dirty": true,
+   "loaded": [],
+   "memory": null,
+   "memory_run": null,
+   "memory_after_qa": {
+    "disk_free_gb": 18.7,
+    "memory_free_pct": 65,
+    "swap_used_mb": 0.0
+   },
+   "finished": "2026-10-10T18:34:36+08:00",
+   "openrouter_usd": {
+    "readings": {
+     "start": 333.965227832,
+     "qa": 334.096184282
+    },
+    "parts": {
+     "qa": 0.130956
+    },
+    "total": 0.130956
+   }
+  }
+ ],
+ "memory_run": null,
+ "background_tasks_drained_s": 0.1,
+ "finished": "2026-10-10T18:34:36+08:00"
+}

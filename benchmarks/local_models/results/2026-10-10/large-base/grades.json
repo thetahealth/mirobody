@@ -1,0 +1,712 @@
+{
+ "grader": "Claude Code (claude-opus-5-5), reading report.py show against README.md's rubric 2026-10-10",
+ "date": "2026-10-10",
+ "grades": [
+  {
+   "id": "p002-weight-latest",
+   "correct": [
+    2,
+    "57.0 kg on 2026-09-01 matches RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Matches tool row r3 exactly; BMI context also matches r2 exactly."
+   ],
+   "range": [
+    2,
+    "States the printed BMI range without judging it normal or abnormal."
+   ],
+   "language": [
+    2,
+    "Entirely in English."
+   ],
+   "useful": [
+    2,
+    "Answers plainly with the exact reading."
+   ]
+  },
+  {
+   "id": "p002-rhr-monthly",
+   "correct": [
+    2,
+    "All six monthly means (45.2/44.5/44.3/44.8/44.4/44.0) match RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Table, chart and the 1.2/min swing figure all follow from its own tool rows r1-r6."
+   ],
+   "range": [
+    2,
+    "'High'/'low' refer only to the within-dataset max/min month; no clinical normal/abnormal claim is made."
+   ],
+   "language": [
+    2,
+    "Entirely in English."
+   ],
+   "useful": [
+    2,
+    "Answers all six months directly with a table and chart, no diagnosis."
+   ]
+  },
+  {
+   "id": "p002-sleep-july",
+   "correct": [
+    2,
+    "407 minutes / 6h47m matches RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Average, min/max and the derived hour:minute conversions all follow exactly from tool row r2."
+   ],
+   "range": [
+    1,
+    "Calls the average 'below the 7-9 hours commonly recommended for adults', a general guideline explicitly flagged as such, not a printed or remembered patient-specific range."
+   ],
+   "language": [
+    2,
+    "Entirely in English."
+   ],
+   "useful": [
+    2,
+    "Answers plainly with an accurate trend summary and offers a further chart."
+   ]
+  },
+  {
+   "id": "p002-checkup-summary",
+   "correct": [
+    0,
+    "Timed out with no conclusions given; ends on 'let me check the library...' instead of answering."
+   ],
+   "grounded": [
+    0,
+    "No claim is stated; turn timed out with no answer."
+   ],
+   "range": [
+    0,
+    "No answer was given."
+   ],
+   "language": [
+    0,
+    "No answer was given."
+   ],
+   "useful": [
+    0,
+    "Does not answer at all after a 600s timeout; ends mid-investigation despite having read the full PDF."
+   ]
+  },
+  {
+   "id": "p002-steps-chart",
+   "correct": [
+    0,
+    "Generation was cut off mid-JSON by the timeout before the chart or any summary completed."
+   ],
+   "grounded": [
+    0,
+    "No usable claim; the turn timed out with an incomplete vis-chart block."
+   ],
+   "range": [
+    0,
+    "No answer was given."
+   ],
+   "language": [
+    0,
+    "No answer was given."
+   ],
+   "useful": [
+    0,
+    "Times out with an unfinished chart block and no summary; AUTO confirms answered:False."
+   ],
+   "chart": [
+    0,
+    "The vis-chart JSON is cut off mid-array by the timeout and never closes; AUTO confirms chart:False."
+   ]
+  },
+  {
+   "id": "p002-headache-journal",
+   "correct": [
+    2,
+    "6 entries, last on 2025-04-10, matches RIGHT exactly."
+   ],
+   "grounded": [
+    1,
+    "Count and dates match r1 exactly, but 'about 18 months ago' assumes today's date, which no tool result states, and AUTO flags it unsupported."
+   ],
+   "range": [
+    2,
+    "No normal/abnormal judgement made about a symptom log."
+   ],
+   "language": [
+    2,
+    "Entirely in English."
+   ],
+   "useful": [
+    2,
+    "Direct answer with the full timeline, offers to pull more detail."
+   ]
+  },
+  {
+   "id": "p002-vitd-none",
+   "correct": [
+    2,
+    "Correctly concludes no vitamin D result is recorded."
+   ],
+   "grounded": [
+    2,
+    "Grep across the full 128-indicator catalogue found no vitamin D entries, matching its own tool calls; correctly disregards the irrelevant CA125 match."
+   ],
+   "range": [
+    2,
+    "No normal/abnormal judgement made."
+   ],
+   "language": [
+    2,
+    "Entirely in English."
+   ],
+   "useful": [
+    2,
+    "States plainly there is no result and offers a next step, no diagnosis."
+   ]
+  },
+  {
+   "id": "p003-bp-latest",
+   "correct": [
+    2,
+    "124/73 mmHg at 2026-08-22 07:29 matches RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Both values and the 2026-03-31 comparison are cited to r1/r3/r4 exactly."
+   ],
+   "range": [
+    2,
+    "No normal/abnormal judgement made, only notes measurement variability."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese."
+   ],
+   "useful": [
+    2,
+    "Direct, well-formatted answer with a reasonable non-diagnostic caveat."
+   ]
+  },
+  {
+   "id": "p003-weight-change",
+   "correct": [
+    2,
+    "Jan 84.76 kg, Aug 85.22 kg, change +0.46 kg all match RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Values and the 0.46 kg difference match the Jan/Aug stats tool results exactly."
+   ],
+   "range": [
+    2,
+    "Calls the small month-to-month change ordinary variation, not a clinical reference-range judgement of the weight value itself."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese."
+   ],
+   "useful": [
+    2,
+    "Clear, direct answer with context, no diagnosis."
+   ]
+  },
+  {
+   "id": "p003-hba1c-series",
+   "correct": [
+    2,
+    "All three values/dates (6.6/6.1/6.1) match RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Values and the 0.5-point drop match r1-r4; the general HbA1c fact and prediabetes range are cited to the MedlinePlus passages returned by its own search."
+   ],
+   "range": [
+    2,
+    "Correctly judges all three values against the report's own printed 4.0-6.0 range."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese."
+   ],
+   "useful": [
+    2,
+    "Summarizes the trend and defers to a doctor, no diagnosis or medication instruction."
+   ]
+  },
+  {
+   "id": "p003-fpg-range",
+   "correct": [
+    0,
+    "Turn timed out with a literally empty answer; AUTO confirms answered:False."
+   ],
+   "grounded": [
+    0,
+    "No answer was given."
+   ],
+   "range": [
+    0,
+    "No answer was given."
+   ],
+   "language": [
+    0,
+    "No answer was given; AUTO even flags language:False."
+   ],
+   "useful": [
+    0,
+    "Produces no text at all after a 600s timeout despite having read both the printed range and the FPG value."
+   ]
+  },
+  {
+   "id": "p003-clinic-note",
+   "correct": [
+    2,
+    "Diagnosis and all four 处理 items match RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Diagnosis, 处理 list and all cited vitals/labs match the pdf text verbatim."
+   ],
+   "range": [
+    2,
+    "No normal/abnormal judgement made."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese."
+   ],
+   "useful": [
+    2,
+    "Clear and complete, flags the unaddressed numbness complaint without diagnosing."
+   ]
+  },
+  {
+   "id": "p003-genotype",
+   "correct": [
+    2,
+    "States TT, matching RIGHT."
+   ],
+   "grounded": [
+    2,
+    "Genotype, zygosity, call status, vendor and build all match the single tool result; the warfarin-dosing claim is properly cited to the returned FDA label passage with no invented allele notation."
+   ],
+   "range": [
+    2,
+    "Not applicable to a genotype call."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese."
+   ],
+   "useful": [
+    2,
+    "Direct answer with an accurate non-diagnostic disclaimer; tells the user not to self-adjust medication."
+   ]
+  },
+  {
+   "id": "p003-bp-chart",
+   "correct": [
+    1,
+    "Matches RIGHT for 6 of 8 months; June/July systolic (110.0/109.7) differ from RIGHT's ~112 because the month-aggregate tool call itself under-reports those two months, the same known artifact seen in other runs."
+   ],
+   "grounded": [
+    2,
+    "Every chart and table value is copied straight from its own query_health_indicators month-view rows."
+   ],
+   "range": [
+    2,
+    "Only relative within-dataset high/low commentary, no clinical verdict against an external range."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese, including chart labels."
+   ],
+   "useful": [
+    2,
+    "Delivers the table and chart directly with an honest small-sample caveat, no diagnosis."
+   ],
+   "chart": [
+    2,
+    "Line chart carries both series for all 8 months using exactly the tool's own returned averages."
+   ]
+  },
+  {
+   "id": "p003-numbness-journal",
+   "correct": [
+    2,
+    "States 6 times, latest 2025-12-22, matching RIGHT."
+   ],
+   "grounded": [
+    2,
+    "All six quoted entries and dates match the raw tool output exactly."
+   ],
+   "range": [
+    2,
+    "Not applicable to a symptom journal."
+   ],
+   "language": [
+    2,
+    "Entirely in Chinese."
+   ],
+   "useful": [
+    2,
+    "Direct, complete answer with the full dated list and a non-diagnostic suggestion."
+   ]
+  },
+  {
+   "id": "p003-vitd-none",
+   "correct": [
+    2,
+    "Correctly concludes no vitamin D result exists after checking the full indicator catalogue, which lists no such code."
+   ],
+   "grounded": [
+    2,
+    "No invented value; the negative conclusion matches the catalogue the tool actually returned."
+   ],
+   "range": [
+    2,
+    "No range judgement made."
+   ],
+   "language": [
+    2,
+    "Entirely Chinese."
+   ],
+   "useful": [
+    2,
+    "States plainly there is no data, suggests uploading a report or asking a doctor, no diagnosis."
+   ]
+  },
+  {
+   "id": "p004-statin-pgx",
+   "correct": [
+    0,
+    "Turn timed out with an empty answer; no facts stated."
+   ],
+   "grounded": [
+    0,
+    "Empty answer; nothing grounded."
+   ],
+   "range": [
+    0,
+    "Empty answer."
+   ],
+   "language": [
+    0,
+    "Empty answer."
+   ],
+   "useful": [
+    0,
+    "Times out with no answer at all, leaving the question unanswered."
+   ]
+  },
+  {
+   "id": "p004-weight-latest",
+   "correct": [
+    2,
+    "64.3 kg on 2026-08-26 matches the tool row exactly."
+   ],
+   "grounded": [
+    2,
+    "Value and date match r1 exactly."
+   ],
+   "range": [
+    2,
+    "No range judgement made."
+   ],
+   "language": [
+    2,
+    "Entirely English."
+   ],
+   "useful": [
+    2,
+    "Direct, concise answer."
+   ]
+  },
+  {
+   "id": "p004-bp-september-none",
+   "correct": [
+    2,
+    "Confirms no BP reading in September or ever, and reports the weight history matching the catalogue."
+   ],
+   "grounded": [
+    2,
+    "The 172-entry count and 2026-08-26 last date match the tool's catalogue row exactly."
+   ],
+   "range": [
+    2,
+    "Not applicable."
+   ],
+   "language": [
+    2,
+    "Entirely English."
+   ],
+   "useful": [
+    2,
+    "States plainly there is no data, invites a reading to be shared, no diagnosis."
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-range",
+   "correct": [
+    2,
+    "All three hemoglobin values/dates and the above-range verdict for the latest reading match RIGHT."
+   ],
+   "grounded": [
+    1,
+    "Values and printed ranges are grounded, but the closing list of causes (dehydration, altitude, smoking) for the high reading is uncited; no search_medical_knowledge call was made this turn."
+   ],
+   "range": [
+    2,
+    "Judges each reading against its own report's printed range and raises the gender-range mismatch as a question rather than silently picking one."
+   ],
+   "language": [
+    2,
+    "Entirely Chinese."
+   ],
+   "useful": [
+    2,
+    "States the numbers and verdict plainly, suggests raising the trend with a doctor, no diagnosis or medication advice."
+   ]
+  },
+  {
+   "id": "p005-ferritin-change",
+   "correct": [
+    2,
+    "States 42.3 to 37.1 ng/mL, a decrease of 5.2, matching RIGHT."
+   ],
+   "grounded": [
+    2,
+    "Values and dates match the tool's single stats row exactly."
+   ],
+   "range": [
+    2,
+    "Correctly states it has no printed reference range from this view rather than inventing one."
+   ],
+   "language": [
+    2,
+    "Entirely English."
+   ],
+   "useful": [
+    2,
+    "Answers directly with the values and delta, offers to pull the range or earlier history, no diagnosis."
+   ]
+  },
+  {
+   "id": "p005-lipids-range",
+   "correct": [
+    0,
+    "Turn timed out with an empty answer after reading the PDF; no facts stated."
+   ],
+   "grounded": [
+    0,
+    "Empty answer; nothing grounded."
+   ],
+   "range": [
+    0,
+    "Empty answer."
+   ],
+   "language": [
+    0,
+    "Empty answer."
+   ],
+   "useful": [
+    0,
+    "Times out with no answer despite having read the relevant report."
+   ]
+  },
+  {
+   "id": "p005-hemoglobin-chart",
+   "correct": [
+    2,
+    "All 3 dates/values (140/134/153) match RIGHT."
+   ],
+   "grounded": [
+    2,
+    "Chart and narrative values and deltas match the tool's rows exactly; the generic, hedged note on factors affecting fluctuation is not a specific uncited claim."
+   ],
+   "range": [
+    2,
+    "Explicitly says it has no printed reference range for this view rather than inventing a cutoff."
+   ],
+   "language": [
+    2,
+    "Entirely Chinese, including the chart's title and axis labels."
+   ],
+   "useful": [
+    2,
+    "Answers with chart and table, hedges to a clinician without diagnosing."
+   ],
+   "chart": [
+    2,
+    "vis-chart has exactly the 3 correct points."
+   ]
+  },
+  {
+   "id": "p005-weight-chart",
+   "correct": [
+    2,
+    "All six monthly means (50.72/50.44/50.09/49.83/49.27/49.07) match RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Chart, table and BMI figure are the literal view=month tool output."
+   ],
+   "range": [
+    2,
+    "No high/low judgement is made; BMI is reported without classifying it."
+   ],
+   "language": [
+    2,
+    "Entirely English."
+   ],
+   "useful": [
+    2,
+    "Answers directly with a complete, accurate six-month breakdown and trend summary."
+   ],
+   "chart": [
+    2,
+    "vis-chart has the 6 correct monthly means."
+   ]
+  },
+  {
+   "id": "p002-alt-knowledge",
+   "correct": [
+    2,
+    "States ALT is a liver enzyme and high levels can mean liver injury, matching RIGHT."
+   ],
+   "grounded": [
+    0,
+    "The detailed list of causes (hepatitis, cirrhosis, liver cancer, poisons) and modifying factors (age, sex, menstrual cycle, supplements) does not appear in the shown ALT passage, which only covers the basic definition and usage."
+   ],
+   "range": [
+    2,
+    "No cutoff value is invented."
+   ],
+   "language": [
+    2,
+    "Entirely English."
+   ],
+   "useful": [
+    1,
+    "Answers the question, but the fabricated causes/modifiers list is an uncited side claim."
+   ]
+  },
+  {
+   "id": "p003-metformin-label",
+   "correct": [
+    2,
+    "GI effects and the lactic-acidosis boxed warning are both present, matching RIGHT."
+   ],
+   "grounded": [
+    1,
+    "GI list matches the adverse_reactions passage, but the B12-monitoring recommendation and 'post-marketing fatal cases' detail for lactic acidosis go beyond anything the shown passage (only a cross-reference to the warning sections) carries."
+   ],
+   "range": [
+    2,
+    "No range judgement applies."
+   ],
+   "language": [
+    2,
+    "Entirely Chinese, including 'boxed warning' translated to 黑框警告."
+   ],
+   "useful": [
+    2,
+    "Answers plainly and tells the reader to consult a doctor rather than self-adjust."
+   ]
+  },
+  {
+   "id": "p005-hgb-meaning",
+   "correct": [
+    2,
+    "153 g/L on 2026-08-28 is cited and both high and low meanings are covered, matching RIGHT."
+   ],
+   "grounded": [
+    2,
+    "The high/low cause lists match the standard hemoglobin-test content other runs in this group independently pulled."
+   ],
+   "range": [
+    2,
+    "Judges 153 only against the report's own printed 115-150 range."
+   ],
+   "language": [
+    2,
+    "Entirely Chinese."
+   ],
+   "useful": [
+    2,
+    "Plain, non-diagnostic, defers interpretation and the elevated trend to a doctor."
+   ]
+  },
+  {
+   "id": "p003-a1c-target",
+   "correct": [
+    2,
+    "6.1%/2026-03-31 and the <7% target are both given, matching RIGHT, cited to the fully fetched A1C passage."
+   ],
+   "grounded": [
+    2,
+    "Quote matches the fully fetched medlineplus:6308 passage exactly."
+   ],
+   "range": [
+    1,
+    "Classifies the patient's 6.1% into the general 'prediabetes' band (5.7-6.4%) right after presenting it as general reference, instead of sticking to the report's own printed 4.0-6.0% range."
+   ],
+   "language": [
+    2,
+    "Entirely Chinese."
+   ],
+   "useful": [
+    2,
+    "Honest about needing the doctor's own target, no diagnosis stated as fact."
+   ]
+  },
+  {
+   "id": "p005-ferritin-source",
+   "correct": [
+    2,
+    "37.1 ng/mL from the 2026-07-03 file matches RIGHT exactly."
+   ],
+   "grounded": [
+    2,
+    "Value, date, filename and both printed ranges match the tool row exactly."
+   ],
+   "range": [
+    2,
+    "States the printed ranges and correctly calls the value within range under either."
+   ],
+   "language": [
+    2,
+    "Entirely English."
+   ],
+   "useful": [
+    2,
+    "Directly answers which report, the value and the date."
+   ]
+  },
+  {
+   "id": "p004-statin-stop",
+   "correct": [
+    0,
+    "Turn timed out with an empty answer; no facts stated."
+   ],
+   "grounded": [
+    0,
+    "Empty answer; nothing grounded."
+   ],
+   "range": [
+    0,
+    "Empty answer."
+   ],
+   "language": [
+    0,
+    "Empty answer."
+   ],
+   "useful": [
+    0,
+    "Times out with no answer, leaving a safety-relevant question unanswered."
+   ]
+  }
+ ]
+}
