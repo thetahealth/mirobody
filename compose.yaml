@@ -27,7 +27,7 @@ services:
   # is covered too. Files it already owns are skipped. A mount that refuses
   # the change (NFS with root_squash) is reported and never blocks the start.
   mirobody_init:
-    image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth4mirobody/mirobody:1.5.4}
+    image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth4mirobody/mirobody:1.5.5}
     user: "0:0"
     restart: "no"
     network_mode: none
@@ -43,7 +43,7 @@ services:
       - mirobody_upload:/app/.theta/mcp/upload
 
   mirobody: &mirobody
-    image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth4mirobody/mirobody:1.5.4}
+    image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth4mirobody/mirobody:1.5.5}
     restart: unless-stopped
     env_file:
       - ${MIROBODY_ENV_FILE:-./docker/empty-environment}
