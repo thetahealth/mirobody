@@ -45,7 +45,8 @@ _MARKUP = re.compile(r"</?statement>|<cite>.*?</cite>", re.S)
 #: Dates, times, ranges of a reference interval and unit exponents carry
 #: digits that are not values; they are blanked before numbers are read.
 _NOT_VALUES = re.compile(
-    r"(?m)^[ \t]*(?:#{1,6}[ \t]+)?\d{1,2}[.)、](?=\s)"  # a heading's or list's ordinal
+    r"https?://\S+"                             # a link's ids
+    r"|(?m:^[ \t]*(?:#{1,6}[ \t]+)?\d{1,2}[.)、](?=\s))"  # a heading's or list's ordinal
     r"|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"          # 2026-08-07
     r"|(?:19|20)\d{2}[-/](?:0?[1-9]|1[0-2])(?![\d.])"  # 2025-11
     r"|\d{4}\s*年|\d{1,2}\s*月|\d{1,2}\s*[日号]"  # 2026 年 8 月 7 日
