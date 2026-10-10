@@ -238,24 +238,50 @@ def _openai_thinking_kwargs(entry: dict, model_name: str, base_url: str, effort:
 
 # --- the OpenAI-compatible class that keeps reasoning_content ------------------------------
 
+def resend_reasoning(messages: list, wire: Any) -> None:
+    """Copy each assistant message's captured `reasoning_content` onto its wire
+    dict, for the messages after the last human one only: the current turn.
+
+    Without it a thinking model starts every tool round of a turn from blank
+    thinking. llama.cpp renders the field back into the MiniCPM5 template's
+    `<think>` block (checked with /apply-template, 2026-10-10); DeepSeek and
+    DashScope accept it (200). Earlier turns are left out: the templates and
+    DeepSeek both drop them, and they answered another question. Nothing is
+    sent when the two lists do not line up one to one.
+    """
+    if not isinstance(wire, list) or len(wire) != len(messages):
+        return
+    last_human = max((i for i, m in enumerate(messages) if m.type == "human"), default=-1)
+    for message, sent in zip(messages[last_human + 1:], wire[last_human + 1:], strict=True):
+        reasoning = (getattr(message, "additional_kwargs", None) or {}).get("reasoning_content")
+        if message.type == "ai" and isinstance(reasoning, str) and reasoning and isinstance(sent, dict):
+            sent["reasoning_content"] = reasoning
+
+
 _REASONING_CHAT_OPENAI: type | None = None
 
 
 def reasoning_chat_openai() -> type:
-    """``ChatOpenAI`` that surfaces DashScope/DeepSeek ``reasoning_content``.
+    """``ChatOpenAI`` that keeps DashScope/DeepSeek/llama.cpp ``reasoning_content``.
 
-    langchain-openai drops this non-OpenAI field (it keeps the reasoning
-    TOKEN COUNT in usage but not the reasoning TEXT) so a thinking model's
-    thoughts never reach ``additional_kwargs``. This subclass captures the
-    field from the raw streaming delta and from the non-stream message, where
-    `messages.message_reasoning` then finds it. Built lazily so langchain-openai
-    is imported only when a client is.
+    langchain-openai drops this non-OpenAI field both ways: it keeps the
+    reasoning TOKEN COUNT in usage but not the TEXT, and its request converter
+    sends only OpenAI's own assistant fields. This subclass captures the field
+    from the streaming delta and the non-stream message, where
+    `messages.message_reasoning` finds it, and sends it back within a turn
+    (`resend_reasoning`). Built lazily so langchain-openai is imported only
+    when a client is.
     """
     global _REASONING_CHAT_OPENAI
     if _REASONING_CHAT_OPENAI is None:
         from langchain_openai import ChatOpenAI
 
         class ReasoningChatOpenAI(ChatOpenAI):
+            def _get_request_payload(self, input_, *, stop=None, **kwargs):
+                payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+                resend_reasoning(self._convert_input(input_).to_messages(), payload.get("messages"))
+                return payload
+
             def _convert_chunk_to_generation_chunk(self, chunk, default_chunk_class, base_generation_info):
                 gen = super()._convert_chunk_to_generation_chunk(chunk, default_chunk_class, base_generation_info)
                 try:
