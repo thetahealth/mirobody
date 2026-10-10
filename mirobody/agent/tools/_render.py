@@ -95,7 +95,10 @@ def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
         if not group:
             continue
         method = _method_of(group[0])
-        table = query.compact(group, columns[method] if method else tuple(group[0].keys()))
+        shown = columns[method] if method else tuple(group[0].keys())
+        if any(r.get("rid") for r in group):
+            shown = ("rid", *shown)  # the handle an answer cites (kernel.citations)
+        table = query.compact(group, shown)
         parts.append(f"{heading}\n{table}" if heading else table)
     return "\n\n".join(parts)
 

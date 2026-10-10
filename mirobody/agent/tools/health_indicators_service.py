@@ -45,14 +45,18 @@ every path returns an envelope, including the ones that failed.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from mirobody.kernel import query, series, tools
+from mirobody.kernel.ops import is_driver_exception
 from ._authz import refused
-from ._base import RecordTool
+from ._base import CITATION_SESSION, RecordTool
 from ._render import awaited, envelope_meta, render_compact
+
+logger = logging.getLogger(__name__)
 
 #: The span a window covers when only ONE end is named. Three months: two lab
 #: cycles and a season of wearable data.
@@ -72,6 +76,9 @@ _WORDS_NOTE = (
     "classification of them, empty where the vocabulary could not place the words"
 )
 _SELF_DIAGNOSED_NOTE = "a condition entry is what the person reports being diagnosed with, not a clinical record"
+
+#: Repeated with every citable answer: a small model drops standing rules.
+_RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cite></statement>"
 
 #: Said on a day, week or month view: each of those reads one value per day
 #: (`collect/query.py::_DAY_AUTHORITY_CTE`), while `stats` counts every
@@ -199,6 +206,9 @@ class HealthIndicatorsService(RecordTool):
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
+        if method != "catalog" and CITATION_SESSION.get():
+            rows = await _with_rids(CITATION_SESSION.get(), subject_id, method, request, window, rows)
+
         outside = ""
         if self._outside_note and method != "catalog" and (request.start or request.end):
             outside = _outside_note(await awaited(hq.catalog(subject_id, None)), rows, window)
@@ -229,6 +239,34 @@ class HealthIndicatorsService(RecordTool):
         if method == "latest":
             return await awaited(hq.latest(subject_id, sel, window))
         raise ValueError(f"no leaf for method {method!r}")
+
+
+async def _with_rids(session_id: str, subject_id: str, method: str, request: query.QueryRequest,
+                     window: query.Window, rows: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """The rows with the rid each is cited by in this conversation. A reading
+    is its observation; an aggregate is what it was computed over. A row with
+    neither (no id) is left without one rather than given a rid nothing backs."""
+    from mirobody.collect import aggregate_definition, aggregate_key, mint_rids, reading_key
+
+    keyed: list[tuple[dict[str, Any], str, dict[str, Any] | None]] = []
+    for row in rows:
+        row = dict(row)
+        if method in ("readings", "latest"):
+            key, detail = (reading_key(row["row_id"]), None) if row.get("row_id") is not None else ("", None)
+        else:
+            detail = aggregate_definition(method, request.view, row, window.start, window.end)
+            key = aggregate_key(detail) if detail.get("series") else ""
+        keyed.append((row, key, detail))
+    try:
+        rids = await mint_rids(session_id, subject_id, [(k, d) for _, k, d in keyed if k])
+    except Exception as e:
+        # Uncitable rows are still the answer; a failed mint must not cost it.
+        logger.error("citation ids not minted: error_type=%s", type(e).__name__, exc_info=not is_driver_exception(e))
+        rids = {}
+    for row, key, _ in keyed:
+        if key in rids:
+            row["rid"] = rids[key]
+    return [row for row, _, _ in keyed]
 
 
 # --- envelope and renderings (pure) -----------------------------------------
@@ -284,6 +322,8 @@ def _envelope_for(
     if semantics == query.SEMANTICS_DATE_PADDED:
         assumptions.append("some rows predate the stored local day; their window is padded a day each way")
     assumptions.append(_ABSENCE_NOTE)
+    if any(r.get("rid") for r in rows):
+        assumptions.append(_RID_NOTE)
     reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
     if reported:
         assumptions.append(_WORDS_NOTE)

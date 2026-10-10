@@ -133,13 +133,15 @@ def _envelope_wrapper(bound_method, user_info: dict):
 async def load_global_tools(
     user_id: str,
     allowed_tools: list[str] | None = None,
-    disallowed_tools: list[str] | None = None
+    disallowed_tools: list[str] | None = None,
+    session_id: str = "",
 ) -> list[StructuredTool]:
     """
     Load global tools and properly handle async functions.
 
     Args:
         user_id: whose record the tools read, injected as `user_info`
+        session_id: the conversation, so a record tool numbers its rows for citing
         allowed_tools: List of allowed tool names (whitelist)
         disallowed_tools: List of disallowed tool names (blacklist)
 
@@ -151,7 +153,7 @@ async def load_global_tools(
     existing_tools = get_global_tools()
 
     # Prepare user_info for tools that require authentication
-    user_info = {"user_id": user_id}
+    user_info = {"user_id": user_id, **({"session_id": session_id} if session_id else {})}
     
     # Convert to LangChain tools
     langchain_tools = []

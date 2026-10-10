@@ -152,15 +152,17 @@ class MirobodyAgent:
             raise ConfigError(f"Model '{name}' cannot be used: {reason}")
         return client, name, notice
 
-    async def _load_tools(self, user_id: str) -> list[BaseTool]:
-        """The MCP tools as LangChain tools, bound to `user_id`. A tool that
-        cannot be built is logged and left out by `load_global_tools`."""
+    async def _load_tools(self, user_id: str, session_id: str = "") -> list[BaseTool]:
+        """The MCP tools as LangChain tools, bound to `user_id` and, so their
+        rows carry citable rids, to the conversation. A tool that cannot be
+        built is logged and left out by `load_global_tools`."""
         from .tool_loader import load_global_tools
 
         return await load_global_tools(
             user_id=user_id,
             allowed_tools=self.allowed_tools,
             disallowed_tools=self.disallowed_tools,
+            session_id=session_id,
         )
 
     def _get_base_prompt(self, prompt_name: str) -> str:
@@ -628,7 +630,7 @@ class MirobodyAgent:
             # `_build_backend` projects them into /uploads/ by file_key
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
-            loaded_tools = await self._load_tools(user_id)
+            loaded_tools = await self._load_tools(user_id, session_id)
             system_prompt = await self._build_system_prompt(
                 self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages))
 

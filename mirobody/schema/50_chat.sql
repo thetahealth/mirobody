@@ -81,3 +81,24 @@ CREATE TABLE IF NOT EXISTS th_session_share (
 );
 CREATE INDEX IF NOT EXISTS idx_th_session_share_session_id ON th_session_share(session_id);
 CREATE INDEX IF NOT EXISTS idx_th_session_share_user_id    ON th_session_share(user_id);
+
+-- The rows a conversation's answers cite as r1, r2, ... (`collect/citations.py`),
+-- keyed like the agent's checkpoint: owner and session (`thread_for`).
+-- Identities only: an observation id, or an aggregate's definition. Never a
+-- value, so a reading the person erases is gone from its citations too.
+CREATE TABLE IF NOT EXISTS th_chat_citation (
+    session_id text         NOT NULL,
+    rid        varchar(16)  NOT NULL,
+    row_key    text         NOT NULL,
+    subject_id varchar(100) NOT NULL,
+    detail     jsonb,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (session_id, rid),
+    UNIQUE (session_id, row_key)
+);
+-- The last number a session handed out: one row lock reserves a range, so two
+-- tool calls minting at once never draw the same rid.
+CREATE TABLE IF NOT EXISTS th_chat_citation_seq (
+    session_id text PRIMARY KEY,
+    n          integer NOT NULL DEFAULT 0
+);

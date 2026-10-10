@@ -76,7 +76,33 @@ def my_tool(arg1: str):
 If your tool needs user information (like a User ID from a JWT), add a `user_info` parameter.
 
 * **Injection**: Mirobody automatically injects this value; the AI agent does *not* see or provide it.
-* **Structure**: `{"user_id": "..."}`, the authenticated account the call reads.
+* **Structure**: `{"user_id": "..."}`, the authenticated account the call reads. Inside a chat it also
+  carries `session_id`, the conversation the call belongs to (see Citations). An MCP or REST caller has none.
+
+### 4. Citations: every number points back to its row
+
+An answer cites what it rests on, in the format of `mirobody/kernel/citations.py`:
+
+```
+<statement>LDL fell from 3.8 to 2.9 mmol/L<cite>[r3][r9]</cite></statement>
+```
+
+* **The handle.** Inside a chat, each row the readings tool returns carries a short `rid` (`r1`, `r2`, ...),
+  the first column of its table. `collect/citations.py` mints it per conversation and stores only the row's
+  identity: an observation id, or for a `stats` line or a day, week or month bucket, what it was computed
+  over. The same row keeps its rid for the life of the conversation, across restarts and workers.
+* **Three kinds of cite.** A row (`r3`); a reference passage (`ref:<source>:<id>`); lines of a document as
+  `read_file` numbered them (`/library/<file>#L12-L14`).
+* **Resolving.** `GET /api/citations?session_id=…&rids=r3,r9` returns what each rid is now: the reading with
+  its file, or an aggregate with its readings. A reading the person has deleted returns `gone`, a rid the
+  conversation never showed returns `unknown`. Only the conversation's owner can resolve, while they can
+  still read the record.
+* **Checking.** `kernel.citations.check(answer, support)` lists every number that is not traced: outside a
+  statement, cited to nothing, or neither in its cited rows nor derived from them (a difference, ratio,
+  percentage change, sum or mean). The benchmark and the training judge use the same function.
+* **A new record tool** that returns rows can join: mint keys for its rows with `mint_rids` while
+  `CITATION_SESSION` is set, and put the rid first in its table.
+
 
 ## 💡 Examples
 
