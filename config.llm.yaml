@@ -185,7 +185,8 @@ MODELS:
     base_url: LOCAL_BASE_URL
     model: minicpm5-2b
     model_env: LOCAL_MODEL
-    temperature: 0
+    temperature: 0                # MiniCPM5-2B graded 194-212 of 248 at 0 and 182-200 at its
+                                  # card's 1.0/0.95/min_p 0 (benchmarks/local_models, 2026-10-10)
     thinking_style: chat_template # thinking on/off reaches the model's chat template
     eval_fetch: false             # one path for a 2B model: query first, then arithmetic in eval
     supports_image: true          # the server says whether the model sees (/props)
@@ -342,25 +343,24 @@ LOCAL_SETUP:
   # The two sizes the page offers, small first: the model that answers
   # (`agent`) beside the document reader (`ocr`), both sections of the preset.
   # download_gb adds up the GGUF files the preset fetches (Hugging Face,
-  # 2026-10-06); memory_gb is the peak llama-server held with both loaded
+  # 2026-10-10); memory_gb is the peak llama-server held with both loaded
   # while answering, and answer_s the median seconds per answer, on the
   # machine `measured_on` names (benchmarks/local_models has the evaluation),
   # where llama.cpp runs on the GPU: with no GPU a first answer took 2-3
   # minutes on an Apple-silicon laptop's cores and up to about 15 on a 4-vCPU x86 server
   # (docs/local-models.md, Without a GPU). `sees`: whether the
   # answering model reads a photo itself (else its OCR text). MiniCPM5-1B and
-  # Qwen3.5-9B were evaluated and dropped: the 1B answered 2 of 24 questions
-  # fully for 0.4 GB less download, the 9B did not fit beside the stack on
-  # 16 GB.
+  # Qwen3.5-9B were evaluated and dropped: the 1B graded 109 of 248 to the
+  # 2B's 225-229 (2026-10-10), the 9B did not fit beside the stack on 16 GB.
   tiers:
     - id: small
       sees: false
       agent: minicpm5-2b
       ocr: glm-ocr
-      download_gb: 3.0
-      memory_gb: 5.7
-      answer_s: 28
-      measured_on: Apple silicon GPU (Metal), 16 GB
+      download_gb: 4.1
+      memory_gb: 7.6
+      answer_s: 18
+      measured_on: Apple silicon GPU (Metal), 48 GB
     - id: large
       sees: true
       agent: qwen3.8-27b
