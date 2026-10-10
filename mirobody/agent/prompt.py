@@ -17,6 +17,7 @@ from the request: see the function for why that distinction has bitten.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
 import re
@@ -24,6 +25,7 @@ from collections.abc import Mapping
 from datetime import datetime
 from pathlib import PurePosixPath
 from typing import Any
+from urllib.parse import urlsplit
 
 from mirobody.kernel.series import zone
 from mirobody.utils import prompts
@@ -94,12 +96,14 @@ async def build_system_prompt(
     tool_round_limit: int = 15,
     answer_language: str = "",
     knowledge: Mapping[str, str] | None = None,
+    deployment_facts: str = "",
 ) -> str:
     """Render `base_prompt` with tool descriptions, the current time in
     `timezone`, and the user context the template may reference.
     `record_owner` names whose record it is when that is not the asker's;
     `answer_language` the latest question's language (`question_language`);
-    `knowledge` the medical-knowledge scopes this deployment has, by name."""
+    `knowledge` the medical-knowledge scopes this deployment has, by name;
+    `deployment_facts` where this deployment's models run (`deployment_facts`)."""
     tool_prompts = [
         f"**{tool.name}**: {tool.description}"
         for tool in langchain_tools
@@ -121,7 +125,90 @@ async def build_system_prompt(
         tool_round_limit=tool_round_limit,
         answer_language=answer_language,
         knowledge=dict(knowledge or {}),
+        deployment_facts=deployment_facts,
     )
+
+
+#: Hosts that are this machine: loopback, Docker's name for its host, and the
+#: compose services that serve the local models.
+_THIS_MACHINE = frozenset({"localhost", "host.docker.internal", "llama", "llama_cpu"})
+
+#: Where an entry with no `base_url` sends requests: its family's API.
+_FAMILY_HOST = {
+    "openai": "api.openai.com",
+    "anthropic": "api.anthropic.com",
+    "google_genai": "generativelanguage.googleapis.com",
+    "google_vertexai": "aiplatform.googleapis.com",
+    "google_anthropic_vertex": "aiplatform.googleapis.com",
+}
+
+
+def place(base_url: str, llm_type: str = "openai") -> str:
+    """Where a model at `base_url` runs, as the prompt states it: on this
+    machine, on the person's own network, or the internet host it is sent
+    to. "" when that cannot be told (an endpoint name left unset)."""
+    if base_url:
+        host = (urlsplit(base_url).hostname or "") if "://" in base_url else ""
+    else:
+        host = _FAMILY_HOST.get(llm_type.strip().lower().replace("-", "_"), "")
+    host = host.lower()
+    if not host:
+        return ""
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        address = None
+    if host in _THIS_MACHINE or (address is not None and address.is_loopback):
+        return "on this machine"
+    if (address is not None and address.is_private) or "." not in host or host.endswith((".local", ".lan")):
+        return f"on your own network ({host}), not a cloud service"
+    return f"sent over the internet to {host}"
+
+
+def _as_route(spec: Any) -> tuple[str, str, str] | None:
+    return (spec.model, spec.base_url, spec.llm_type) if spec is not None else None
+
+
+def _chat_route(alias: str) -> tuple[str, str, str] | None:
+    """(model, base_url, llm_type) of a chat entry. Read from the entry itself:
+    `resolve_named` serves only the utility families, so it has no answer for
+    a Gemini or Vertex chat entry."""
+    from mirobody.utils.config.llm import base_url_override, chat_entries, endpoint_value, is_endpoint_name, resolve_named
+
+    entry = chat_entries().get(alias) if alias else None
+    if not entry:
+        return None
+    spec = resolve_named(alias)
+    if spec is not None:
+        return _as_route(spec)
+    base_url = str(entry.get("base_url") or "").strip()
+    if is_endpoint_name(base_url):
+        base_url = endpoint_value(base_url)
+    base_url = base_url_override(str(entry.get("api_key") or "").strip()) or base_url
+    return str(entry.get("model") or alias), base_url, str(entry.get("llm_type") or "openai")
+
+
+def deployment_facts(chat_alias: str) -> str:
+    """Which model answers and which ones read documents, and where each runs,
+    read from the routes in effect. The model answers "is my data uploaded"
+    and "which model are you" from this, not from what it believes it is."""
+    from mirobody.utils.config.llm import resolve_route
+
+    routes = [("the answering model", _chat_route(chat_alias)),
+              ("report photos and scanned pages are read by", _as_route(resolve_route("ocr") or resolve_route("vision"))),
+              ("text extraction, titles and summaries use", _as_route(resolve_route("text")))]
+    parts = []
+    for label, route in routes:
+        if route is None:
+            continue
+        model, base_url, llm_type = route
+        parts.append(f"{label} {model} ({place(base_url, llm_type) or 'at its configured provider'})")
+    if not parts:
+        return ""
+    facts = "In this deployment, " + "; ".join(parts) + "."
+    if all("internet" not in p and "configured provider" not in p for p in parts):
+        facts += " None of these is a cloud service."
+    return facts[0].upper() + facts[1:]
 
 
 async def report_date_status(user_id: str, file_keys: list[str]) -> str:

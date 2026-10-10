@@ -39,7 +39,7 @@ from .hitl import ASK_USER_INTERRUPT, ask_user, interrupt_block, pending_answer
 from .knowledge import tools as medical_knowledge
 from .models.clients import build_llm_clients, unavailable_reason
 from .models.usage import usage_block
-from .prompt import attachment_reminder, build_system_prompt, question_language
+from .prompt import attachment_reminder, build_system_prompt, deployment_facts, question_language
 from .wire.blocks import ERROR, NOTICE, TEXT
 from .wire.stream import TokenUsageCallback, stream_blocks
 from .middleware import (
@@ -198,9 +198,11 @@ class MirobodyAgent:
         user_id: str,
         tools: list,
         question: str = "",
+        model: str = "",
         knowledge: dict[str, str] | None = None,
     ) -> str:
-        """Build system prompt with tools, time, user context, and health-profile core."""
+        """Build system prompt with tools, time, user context, health-profile core
+        and where `model` and the document readers run."""
         from mirobody.user.profile import get_health_profile_core
         maxlen = int(safe_read_cfg("PROFILE_CORE_MAXLEN") or 2000)
         health_profile = await get_health_profile_core(user_id, maxlen) if user_id else None
@@ -215,6 +217,7 @@ class MirobodyAgent:
                 tool_round_limit=self.model_call_limit,
                 answer_language=question_language(question),
                 knowledge=knowledge,
+                deployment_facts=deployment_facts(model),
             )
             logger.info("Built system prompt successfully")
             return system_prompt
@@ -643,7 +646,7 @@ class MirobodyAgent:
             loaded_tools = await self._load_tools(user_id, session_id)
             scopes = medical_knowledge.scopes() if any(t.name == medical_knowledge.SEARCH for t in loaded_tools) else []
             system_prompt = await self._build_system_prompt(
-                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages),
+                self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages), model,
                 knowledge={s: medical_knowledge.SCOPES[s] for s in scopes})
 
             supports_file_block = self._supports_file_block(llm_client)
