@@ -83,6 +83,11 @@ def _route(model: str) -> Any:
     return resolve_named(model) if model in chat_entries() else None
 
 
+#: Every chat model thinks between its tool calls unless configured otherwise
+#: (owner, 2026-10-10). An entry's `thinking_level` overrides it.
+DEFAULT_THINKING = "medium"
+
+
 def _latest_question(messages: list) -> str:
     """The text of the last user message, whichever form the list holds."""
     for message in reversed(messages or []):
@@ -700,5 +705,7 @@ class MirobodyAgent:
 
     @classmethod
     def load_llm_clients(cls, llm_client_config: dict[str, Any]) -> dict[str, Any]:
-        """The registry's hook: one chat model per `MODELS` entry."""
-        return build_llm_clients(llm_client_config, owner=cls.__name__)
+        """The registry's hook: one chat model per `MODELS` entry, each thinking
+        at `AGENT_THINKING` (medium unless configured) between its tool calls."""
+        thinking = safe_read_cfg("AGENT_THINKING") or DEFAULT_THINKING
+        return build_llm_clients(llm_client_config, owner=cls.__name__, thinking=thinking)

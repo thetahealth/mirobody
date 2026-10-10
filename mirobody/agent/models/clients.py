@@ -66,7 +66,7 @@ Resolver = Callable[[str], "str | None"]
 NON_INIT_CONFIG_KEYS = frozenset({
     "model", "llm_type", "response_with_tools",
     "profile", "supports_pdf", "supports_image",
-    "thinking_style", "auth_type", "prompt_cache",
+    "thinking_style", "thinking_level", "auth_type", "prompt_cache",
     # read by the utility surfaces (config.llm), never by a chat constructor
     "chat", "response_format", "ocr_prompts",
     # read by config.llm.model_entries, which has already put its value in `model`
@@ -124,6 +124,8 @@ def thinking_dialect(entry: dict | None, model_name: str, base_url: str = "") ->
         return explicit
     model = (model_name or "").lower()
     host = (base_url or "").lower()
+    if "openrouter.ai" in host:
+        return "openrouter"
     if "claude" in model:
         return "anthropic"
     if "gemini" in model:
@@ -203,6 +205,23 @@ def _openai_thinking_kwargs(entry: dict, model_name: str, base_url: str, effort:
     if not effort:
         return {}
     dialect = thinking_dialect(entry, model_name, base_url)
+    if dialect == "openrouter":
+        # OpenRouter's one reasoning parameter, whatever model it routes to.
+        body = dict(entry.get("extra_body") or {})
+        reasoning = dict(body.get("reasoning") or {})
+        if effort == "off":
+            reasoning.setdefault("enabled", False)
+        else:
+            reasoning.setdefault("effort", effort)
+        body["reasoning"] = reasoning
+        return {"extra_body": body}
+    if dialect == "chat_template":
+        # llama.cpp and vLLM pass this to the model's own chat template.
+        body = dict(entry.get("extra_body") or {})
+        template_kwargs = dict(body.get("chat_template_kwargs") or {})
+        template_kwargs.setdefault("enable_thinking", effort != "off")
+        body["chat_template_kwargs"] = template_kwargs
+        return {"extra_body": body}
     if dialect == "qwen":
         body = dict(entry.get("extra_body") or {})
         if effort == "off":
@@ -237,6 +256,15 @@ def _openai_thinking_kwargs(entry: dict, model_name: str, base_url: str, effort:
 
 
 # --- the OpenAI-compatible class that keeps reasoning_content ------------------------------
+
+def _reasoning_text(message: Any) -> str | None:
+    """A response message's or delta's reasoning text: `reasoning_content`
+    (DeepSeek, DashScope, llama.cpp) or `reasoning` (OpenRouter)."""
+    if not isinstance(message, dict):
+        return None
+    text = message.get("reasoning_content") or message.get("reasoning")
+    return text if isinstance(text, str) and text else None
+
 
 def resend_reasoning(messages: list, wire: Any) -> None:
     """Copy each assistant message's captured `reasoning_content` onto its wire
@@ -286,7 +314,7 @@ def reasoning_chat_openai() -> type:
                 gen = super()._convert_chunk_to_generation_chunk(chunk, default_chunk_class, base_generation_info)
                 try:
                     choices = (chunk or {}).get("choices") or []
-                    reasoning = (choices[0].get("delta") or {}).get("reasoning_content") if choices else None
+                    reasoning = _reasoning_text(choices[0].get("delta")) if choices else None
                     if gen is not None and reasoning:
                         extra = gen.message.additional_kwargs
                         extra["reasoning_content"] = (extra.get("reasoning_content") or "") + reasoning
@@ -299,7 +327,7 @@ def reasoning_chat_openai() -> type:
                 try:
                     payload = response if isinstance(response, dict) else response.model_dump()
                     choice = (payload.get("choices") or [{}])[0]
-                    reasoning = (choice.get("message") or {}).get("reasoning_content")
+                    reasoning = _reasoning_text(choice.get("message"))
                     if reasoning and result.generations:
                         result.generations[0].message.additional_kwargs.setdefault("reasoning_content", reasoning)
                 except Exception as exc:
@@ -749,6 +777,8 @@ def build_chat_model(
     resolve = resolve or default_resolver
     model = model_name = str(entry["model"])
     family = llm_type = _llm_type(entry)
+    if thinking is None:
+        thinking = normalize_thinking(entry.get("thinking_level"))
     thinking_level = thinking or "-"
 
     if family in OPENAI_COMPATIBLE_TYPES:
@@ -818,8 +848,10 @@ def build_llm_clients(
     owner: str = "agent",
     *,
     resolve: Resolver | None = None,
+    thinking: str | None = None,
 ) -> dict[str, Any]:
-    """One chat model per `MODELS` entry.
+    """One chat model per `MODELS` entry, thinking at `thinking` unless the
+    entry names its own `thinking_level`.
 
     An entry whose key is not set becomes a `_PlaceholderClient` rather than
     an error, so a zero-key deployment still boots and the model picker can
@@ -839,7 +871,8 @@ def build_llm_clients(
             failed.append((model, "entry is not a dict with a 'model'"))
             continue
         try:
-            clients[model] = build_chat_model(entry, alias=model, resolve=resolve)
+            level = None if "thinking_level" in entry else normalize_thinking(thinking)
+            clients[model] = build_chat_model(entry, alias=model, thinking=level, resolve=resolve)
         except MissingKeyError as exc:
             logger.warning("[%s] model %s: %s %s not set — placeholder", class_name, model, exc.field, exc.key)
             hint = "Set it in .env to the URL of the model server (…/v1)." if isinstance(exc, MissingEndpointError) else ""

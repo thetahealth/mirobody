@@ -63,6 +63,9 @@
 #   chat            false = utility surfaces only, hidden from the chat picker
 #   profile         raw ModelProfile fields over the model's own profile; `max_input_tokens`
 #                   sets when the agent compacts and when it pages out a large tool result
+#   thinking_level  off | low | medium | high: this entry's thinking, over AGENT_THINKING
+#   thinking_style  the thinking dialect when the name and URL do not tell it:
+#                   qwen | openai | anthropic | gemini | openrouter | chat_template (llama.cpp)
 #   extra_body      forwarded as-is (vendor thinking switches etc.)
 #
 # The chat picker shows the entries whose key is present, in this order; the
@@ -182,6 +185,7 @@ MODELS:
     model: minicpm5-2b
     model_env: LOCAL_MODEL
     temperature: 0
+    thinking_style: chat_template # thinking on/off reaches the model's chat template
     supports_image: true          # the server says whether the model sees (/props)
     stream_chunk_timeout: 600     # nothing streams while a local model reads the prompt:
                                   # 80 s for the first 8k tokens on a 48 GB Apple-silicon machine; on 4 CPU
@@ -390,6 +394,9 @@ UTILS_OCR_MODEL: [local-ocr]
 #     empty = ~/.mirobody/knowledge/medref.sqlite3. No file, no offline tier.
 #   KNOWLEDGE_ONLINE — also search PubMed (Europe PMC) and ClinicalTrials.gov; each
 #     search sends its words to those hosts, never record data
+#   AGENT_THINKING — every chat model thinks between its tool calls at this level
+#                    (off | low | medium | high; medium when unset); an entry's
+#                    thinking_level overrides it
 
 ALLOWED_TOOLS:
 
@@ -402,3 +409,4 @@ AGENT_CHECKPOINTER: true
 
 KNOWLEDGE_INDEX:
 KNOWLEDGE_ONLINE: false
+AGENT_THINKING: medium
