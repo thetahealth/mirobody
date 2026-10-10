@@ -45,7 +45,8 @@ _MARKUP = re.compile(r"</?statement>|<cite>.*?</cite>", re.S)
 #: Dates, times, ranges of a reference interval and unit exponents carry
 #: digits that are not values; they are blanked before numbers are read.
 _NOT_VALUES = re.compile(
-    r"\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"           # 2026-08-07
+    r"(?m)^[ \t]*(?:#{1,6}[ \t]+)?\d{1,2}[.)、](?=\s)"  # a heading's or list's ordinal
+    r"|\d{4}[-/.]\d{1,2}[-/.]\d{1,2}"          # 2026-08-07
     r"|(?:19|20)\d{2}[-/](?:0?[1-9]|1[0-2])(?![\d.])"  # 2025-11
     r"|\d{4}\s*年|\d{1,2}\s*月|\d{1,2}\s*[日号]"  # 2026 年 8 月 7 日
     r"|\b\d{1,2}:\d{2}(?::\d{2})?\b"            # 07:30
@@ -54,6 +55,8 @@ _NOT_VALUES = re.compile(
     r"|\b(?:19|20)\d{2}\b"                      # a bare year
 )
 _NUMBER = re.compile(r"(?<![\w.])[-+−]?\d+(?:[.,]\d+)?(?![\w])")
+#: Typographic hyphens a model writes in dates ("2025‑11"), read as "-".
+_HYPHENS = str.maketrans({"\u2010": "-", "\u2011": "-", "\u2012": "-"})
 
 
 @dataclass(frozen=True)
@@ -121,11 +124,13 @@ def parse(answer: str) -> list[Segment]:
 def _split_claim(text: str) -> tuple[str, str]:
     """A loose cite cites its own sentence, line or table cell, not everything
     since the last statement: `| 4.60 <cite>[r5]</cite> | 4.45 <cite>[r6]` is
-    two claims."""
+    two claims. A cite alone in its cell (a "source" column) cites its row."""
     ends = list(_CLAIM_BOUNDARY.finditer(text))
     if not ends:
         return "", text
     cut = ends[-1].end()
+    if ends[-1].group() == "|" and not any(c.isdigit() for c in text[cut:]):
+        cut = text.rfind("\n", 0, cut) + 1
     return text[:cut], text[cut:]
 
 
@@ -168,7 +173,7 @@ def cite_kind(cite: str) -> str:
 def numbers(text: str) -> list[float]:
     """The values written in `text`: dates, times, years and unit exponents
     left out, `,` read as a decimal mark when it is one."""
-    blanked = _NOT_VALUES.sub(" ", text or "")
+    blanked = _NOT_VALUES.sub(" ", (text or "").translate(_HYPHENS))
     out = []
     for token in _NUMBER.findall(blanked):
         token = token.replace("−", "-").lstrip("+")

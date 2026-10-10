@@ -44,6 +44,11 @@ def test_a_loose_cite_in_a_table_cites_its_own_cell():
     assert [s.cites for s in parse(table) if s.statement] == [("r5",), ("r6",)]
 
 
+def test_a_cite_in_a_source_column_cites_its_row():
+    table = "| TC | 4.60 → 4.38 mmol/L | 3.0–5.18 | <cite>[r7][r5]</cite> |"
+    assert check(table, {"r7": [4.6, 3.0, 5.18], "r5": [4.38, 3.0, 5.18]}) == []
+
+
 def test_a_chart_block_is_not_read_as_prose():
     answer = ('```vis-chart\n{"data":[{"time":"2026-05-06","value":4.45}]}\n```\n'
               "<statement>TC fell to 4.45<cite>[r6]</cite></statement>")
@@ -71,6 +76,8 @@ def test_cite_kinds(cite, kind):
     ("LDL 3.8 mmol/L", [3.8]),
     ("2026-08-07 的空腹血糖 5.4", [5.4]),
     ("2025-11 至 2026-08 之间 4.6", [4.6]),
+    ("2025\u201111 至 2026\u201108", []),
+    ("### 2. 各项指标\n1. TC 4.6", [4.6]),
     ("range 1250-1500 mg", [1250.0, 1500.0]),
     ("2026年8月7日 血红蛋白 128 g/L", [128.0]),
     ("8月7日 07:30 心率 72", [72.0]),
