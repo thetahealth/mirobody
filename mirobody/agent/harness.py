@@ -179,7 +179,7 @@ def assemble(
         "tools": list(tools),
         "system_prompt": system_prompt,
         "backend": backend,
-        "middleware": list(middleware),
+        "middleware": [*middleware, *_offload_middleware(model, backend, permissions)],
         "subagents": [],
         "interrupt_on": dict(interrupt_on) if interrupt_on else None,
     }
@@ -195,6 +195,41 @@ def assemble(
     if recursion_limit:
         agent = agent.with_config({"recursion_limit": recursion_limit})
     return agent
+
+
+#: deepagents counts a tool result as characters / 4 before paging it out to the
+#: virtual filesystem. Measured with MiniCPM5's tokenizer on the tool tables of
+#: benchmarks/local_models (2026-10-10): 1.85 characters per token for Chinese-heavy
+#: tables, 2.21 for English ones (dates, digits and pipes tokenize densely).
+_CHARS_PER_TOKEN = 1.8
+_DEEPAGENTS_CHARS_PER_TOKEN = 4
+#: deepagents' own threshold, in its units. The derived one never exceeds it.
+_DEEPAGENTS_OFFLOAD_LIMIT = 20000
+
+
+def tool_offload_limit(model: Any) -> int | None:
+    """The `tool_token_limit_before_evict` for `model`, in deepagents' units: a
+    result longer than a quarter of the model's declared input window is paged
+    from the virtual filesystem instead of sitting inline. None when the model
+    declares no `max_input_tokens` (deepagents' default then stands)."""
+    profile = getattr(model, "profile", None)
+    window = profile.get("max_input_tokens") if isinstance(profile, dict) else None
+    if not isinstance(window, int) or window <= 0:
+        return None
+    limit = round(window / 4 * _CHARS_PER_TOKEN / _DEEPAGENTS_CHARS_PER_TOKEN)
+    return max(1, min(limit, _DEEPAGENTS_OFFLOAD_LIMIT))
+
+
+def _offload_middleware(model: Any, backend: Any, permissions: Any) -> list[Any]:
+    """A FilesystemMiddleware with the derived offload threshold, or [] to keep
+    the built-in one. It replaces the built-in by name, so it must carry the
+    mount permissions the built-in would have been given."""
+    limit = tool_offload_limit(model)
+    if limit is None or limit == _DEEPAGENTS_OFFLOAD_LIMIT:
+        return []
+    from deepagents.middleware.filesystem import FilesystemMiddleware
+
+    return [FilesystemMiddleware(backend=backend, tool_token_limit_before_evict=limit, _permissions=permissions)]
 
 
 def recursion_limit_for(agent: Any, model_call_limit: int) -> int:
