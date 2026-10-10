@@ -5,10 +5,10 @@ Purpose: the small local models this deployment runs on weak world knowledge.
 Grounding a "what is this drug for" answer in bundled authoritative text
 (MedlinePlus health-topic summaries, FDA drug labels for common chronic
 medicines) keeps the model from inventing pharmacology and gives it something
-to cite. The corpus ships as one SQLite FTS5 file at
-``mirobody/res/medref/index.sqlite3`` (built offline by
-process/medref/build_index.py; licenses in res/medref/NOTICE); this module
-opens it read-only and makes no network calls.
+to cite. The corpus is one SQLite FTS5 file at
+``mirobody/res/medref/index.sqlite3``, built on site by
+scripts/medref/build_index.py (gitignored build output; licenses in
+res/medref/NOTICE); this module opens it read-only and makes no network calls.
 
 Wired into the agent next to `ask_user` (agent.py `_build_agent`), NOT into
 `agent/tools/`: the MCP surface is exactly seven tools and the local suite
@@ -146,8 +146,8 @@ def search_medref(query: str, k: int = DEFAULT_K, source: str | None = None,
         logger.error("[%s] reference index missing or unreadable", tool_name)
         return {"ok": False, "rows": [],
                 "note": "the bundled medical-reference index is not installed "
-                        "(res/medref/index.sqlite3; run `git lfs pull` or rebuild it with "
-                        "process/medref/build_index.py); answer without it and say the "
+                        "(res/medref/index.sqlite3; build it with "
+                        "scripts/medref/build_index.py); answer without it and say the "
                         "reference lookup was unavailable"}
 
     terms, zh_terms, dropped_count = _fts_terms(query, zh_alias_keys)

@@ -22,7 +22,7 @@
 - **`search_medical_reference`, an agent-only offline medical-reference
   search.** The chat model can now ground general medical knowledge — what a
   drug is for, label warnings and interactions, what a condition or lab test
-  means — in a bundled SQLite FTS5 index (`mirobody/res/medref/index.sqlite3`)
+  means — in an offline SQLite FTS5 index (`mirobody/res/medref/index.sqlite3`)
   instead of its own recall: MedlinePlus health-topic summaries (English and
   Spanish, public domain with attribution) plus FDA drug labels for 177
   common chronic-disease generics (CC0). Each passage returns a citeable
@@ -30,8 +30,10 @@
   hand-written zh↔en synonym table embedded in the index. It is agent-internal
   (wired next to `ask_user`, capped at 8 calls per turn, `DISALLOWED_TOOLS`
   can drop it): the MCP surface stays the asserted seven tools. The index is
-  built offline by `process/medref/build_index.py`; provenance and license
-  terms are in `res/medref/NOTICE`. To tell: ask the agent "他汀有什么副作用"
+  build output, not shipped in git: `scripts/medref/build_index.py` writes it
+  on site, and without it the tool answers "unavailable" explicitly.
+  Provenance and license terms are in `res/medref/NOTICE`. To tell: ask the
+  agent "他汀有什么副作用"
   or "what is metformin for" — the answer cites `ref:` passages instead of
   recalling from weights.
 - **`eval` results now carry the citations for values computed inside the

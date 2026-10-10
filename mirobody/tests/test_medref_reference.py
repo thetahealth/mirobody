@@ -8,11 +8,11 @@
   so accidentally dropping the tool module into `agent/tools/` turns a test
   red here, not in a maintainer's suite downstream.
 
-The shipped index itself is the fixture (res/medref/index.sqlite3, built by
-process/medref/build_index.py; builder-level coverage lives beside it on a
-tiny fixture corpus). A checkout without the data — LFS not pulled, or a
-wheel built without the bundle — skips rather than fails, the same way
-test_skills treats the repository-only `skills/` tree.
+The built index itself is the fixture (res/medref/index.sqlite3, gitignored
+build output of scripts/medref/build_index.py; builder-level coverage lives
+beside it on a tiny fixture corpus). A checkout without the data — the index
+not built yet — skips rather than fails, the same way test_skills treats the
+repository-only `skills/` tree.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from mirobody.agent import medref
 
 pytestmark = pytest.mark.skipif(
     not medref.INDEX_PATH.is_file() or is_lfs_pointer(str(medref.INDEX_PATH)),
-    reason="medref index not in this checkout (git lfs pull, or build with process/medref/build_index.py)",
+    reason="medref index not built in this checkout (scripts/medref/build_index.py)",
 )
 
 EXPECTED_MCP_TOOLS = {

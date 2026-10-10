@@ -164,13 +164,6 @@ MODELS:
     model_env: DEEPSEEK_CHAT_MODEL
     supports_image: true
     response_format: json_object  # DeepSeek's JSON mode refuses a schema
-    # Teacher-production effort (measured A/B 2026-10-09, 60-question pilot,
-    # out/teacher/rejudge-v2.md): reasoning_effort low beats the default high on
-    # every axis — judge pass 30% vs 18%, 486 vs 1133+ reasoning tokens/question,
-    # and ~40% lower spend. The dialect table sends nothing for this family, so
-    # extra_body is the only channel the effort reaches the API by.
-    extra_body:
-      reasoning_effort: low
   gpt:
     llm_type: openai
     api_key: OPENROUTER_API_KEY
@@ -182,15 +175,6 @@ MODELS:
                                   # questions and 50 of 140 document rows unanswered, at 20 times
                                   # the price. No temperature: OpenAI's GPT-6 guide says to remove it.
     supports_image: true
-  # Cross-teacher corroboration arm (out/teacher/pilotA-apodex): a third-party
-  # teacher on the same prompts/tools, to measure agreement with deepseek.
-  # Free tier — drivers pace it (concurrency ≤4, honor 429 Retry-After).
-  apodex:
-    llm_type: openai
-    api_key: OPENROUTER_API_KEY
-    base_url: https://openrouter.ai/api/v1
-    model: apodex/apodex-1.1-mini:free
-    supports_image: false
   local:
     # The local agent: MiniCPM5-2B, the `minicpm5-2b` section of
     # docker/local-models.ini on llama.cpp's router: the small size, which an

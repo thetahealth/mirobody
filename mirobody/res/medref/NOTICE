@@ -2,8 +2,8 @@ medref/index.sqlite3 — the bundled offline medical reference
 =============================================================
 
 One SQLite FTS5 file, read by `mirobody/agent/medref.py` (the agent-only
-`search_medical_reference` tool). Built offline by
-`process/medref/build_index.py` from the two corpora below; no other content
+`search_medical_reference` tool). Built on site by
+`scripts/medref/build_index.py` from the two corpora below; no other content
 is in it. The builder asserts neither corpus grew a third source.
 
 Corpus version of this build: see `SELECT value FROM meta WHERE key='version'`
@@ -26,7 +26,7 @@ inside the file.
 
 2. openFDA drug labels (en)
    Source: https://api.fda.gov/drug/label.json, one label per generic for the
-   177 chronic-disease primary-care generics of process/medref/
+   177 chronic-disease primary-care generics of scripts/medref/
    fetch_openfda.py, fetched 2026-10-08.
    Status: public domain — CC0 1.0 Universal (https://open.fda.gov/license/).
    The GMDN restriction on that page concerns device term codes, which this

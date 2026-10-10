@@ -1,0 +1,293 @@
+# zh term <TAB> English trigger terms (| separated). Ours — Apache-2.0.
+# Build side: a passage carrying any trigger gets the zh term in its `zh`
+# column. Query side: a Chinese query is segmented against the zh column and
+# expanded with the triggers. Both sides read this one table through the
+# built index (`aliases` table), so they cannot drift apart.
+# Drug classes
+他汀	statin|atorvastatin|rosuvastatin|simvastatin
+降脂药	statin|cholesterol-lowering|lipid
+降压药	antihypertensive|blood pressure medication|blood pressure medicine|lisinopril|losartan|amlodipine
+降糖药	diabetes medication|diabetes medicine|metformin|insulin|glipizide
+抗凝药	anticoagulant|warfarin|apixaban|blood thinner
+阿司匹林	aspirin 81|aspirin tablet|daily aspirin
+抗生素	antibiotic|amoxicillin|azithromycin
+胰岛素	insulin
+利尿剂	diuretic|water pill|hydrochlorothiazide|furosemide
+β受体阻滞剂	beta blocker|metoprolol
+贝塔受体阻滞剂	beta blocker|metoprolol
+钙通道阻滞剂	calcium channel blocker|amlodipine|nifedipine
+血管紧张素转换酶抑制剂	ace inhibitor|lisinopril|enalapril
+血管紧张素受体阻滞剂	angiotensin receptor blocker|losartan|valsartan
+质子泵抑制剂	proton pump inhibitor|omeprazole|pantoprazole
+抗抑郁药	antidepressant|sertraline|fluoxetine|escitalopram
+抗血小板药	antiplatelet|clopidogrel
+糖皮质激素	glucocorticoid|prednisone|corticosteroid
+退烧药	fever reducer|acetaminophen|ibuprofen
+止痛药	pain reliever|painkiller|acetaminophen|ibuprofen|naproxen
+安眠药	sleep aid|zolpidem
+抗组胺药	antihistamine|cetirizine|loratadine|diphenhydramine
+# Drug generics (mirror the openFDA bundle list)
+阿托伐他汀	atorvastatin|lipitor
+瑞舒伐他汀	rosuvastatin|crestor
+辛伐他汀	simvastatin|zocor
+普伐他汀	pravastatin
+依折麦布	ezetimibe|zetia
+非诺贝特	fenofibrate
+二甲双胍	metformin|glucophage
+格列美脲	glimepiride
+格列吡嗪	glipizide
+西格列汀	sitagliptin|januvia
+恩格列净	empagliflozin|jardiance
+达格列净	dapagliflozin|farxiga
+卡格列净	canagliflozin
+利拉鲁肽	liraglutide|victoza
+司美格鲁肽	semaglutide|ozempic|wegovy|rybelsus
+杜拉鲁肽	dulaglutide|trulicity
+替尔泊肽	tirzepatide|mounjaro|zepbound
+赖诺普利	lisinopril|zestril
+依那普利	enalapril
+雷米普利	ramipril
+氯沙坦	losartan|cozaar
+缬沙坦	valsartan|diovan
+厄贝沙坦	irbesartan
+奥美沙坦	olmesartan
+替米沙坦	telmisartan
+氨氯地平	amlodipine|norvasc
+硝苯地平	nifedipine
+地尔硫卓	diltiazem
+维拉帕米	verapamil
+美托洛尔	metoprolol|lopressor|toprol
+阿替洛尔	atenolol
+普萘洛尔	propranolol
+卡维地洛	carvedilol
+比索洛尔	bisoprolol
+氢氯噻嗪	hydrochlorothiazide
+氯噻酮	chlorthalidone
+吲达帕胺	indapamide
+呋塞米	furosemide|lasix
+螺内酯	spironolactone|aldactone
+可乐定	clonidine
+沙库巴曲缬沙坦	sacubitril|entresto
+地高辛	digoxin
+单硝酸异山梨酯	isosorbide mononitrate
+华法林	warfarin|coumadin
+阿哌沙班	apixaban|eliquis
+利伐沙班	rivaroxaban|xarelto
+达比加群	dabigatran|pradaxa
+氯吡格雷	clopidogrel|plavix
+替格瑞洛	ticagrelor
+左甲状腺素	levothyroxine|synthroid
+甲巯咪唑	methimazole|tapazole
+丙硫氧嘧啶	propylthiouracil
+沙丁胺醇	albuterol|ventolin
+氟替卡松	fluticasone|flonase
+布地奈德	budesonide
+噻托溴铵	tiotropium|spiriva
+孟鲁司特	montelukast|singulair
+西替利嗪	cetirizine|zyrtec
+氯雷他定	loratadine|claritin
+非索非那定	fexofenadine|allegra
+泼尼松	prednisone
+泼尼松龙	prednisolone
+甲泼尼龙	methylprednisolone|medrol
+奥美拉唑	omeprazole|prilosec
+艾司奥美拉唑	esomeprazole|nexium
+兰索拉唑	lansoprazole
+泮托拉唑	pantoprazole|protonix
+法莫替丁	famotidine|pepcid
+昂丹司琼	ondansetron|zofran
+舍曲林	sertraline|zoloft
+氟西汀	fluoxetine|prozac
+艾司西酞普兰	escitalopram|lexapro
+西酞普兰	citalopram|celexa
+帕罗西汀	paroxetine|paxil
+文拉法辛	venlafaxine|effexor
+度洛西汀	duloxetine|cymbalta
+安非他酮	bupropion|wellbutrin
+米氮平	mirtazapine|remeron
+曲唑酮	trazodone
+阿米替林	amitriptyline
+喹硫平	quetiapine|seroquel
+阿立哌唑	aripiprazole|abilify
+奥氮平	olanzapine|zyprexa
+利培酮	risperidone|risperdal
+拉莫三嗪	lamotrigine|lamictal
+左乙拉西坦	levetiracetam|keppra
+丙戊酸	valproate|divalproex|depakote
+卡马西平	carbamazepine|tegretol
+加巴喷丁	gabapentin|neurontin
+普瑞巴林	pregabalin|lyrica
+托吡酯	topiramate|topamax
+碳酸锂	lithium
+丁螺环酮	busprione|buspirone
+劳拉西泮	lorazepam|ativan
+氯硝西泮	clonazepam|klonopin
+阿普唑仑	alprazolam|xanax
+唑吡坦	zolpidem|ambien
+多奈哌齐	donepezil|aricept
+美金刚	memantine|namenda
+舒马曲坦	sumatriptan|imitrex
+对乙酰氨基酚	acetaminophen|tylenol
+布洛芬	ibuprofen|advil|motrin
+萘普生	naproxen|aleve
+双氯芬酸	diclofenac
+塞来昔布	celecoxib|celebrex
+美洛昔康	meloxicam|mobic
+曲马多	tramadol|ultram
+别嘌醇	allopurinol|zyloprim
+非布司他	febuxostat|uloric
+秋水仙碱	colchicine
+甲氨蝶呤	methotrexate
+羟氯喹	hydroxychloroquine|plaquenil
+阿仑膦酸钠	alendronate|fosamax
+地舒单抗	denosumab|prolia
+坦索罗辛	tamsulosin|flomax
+非那雄胺	finasteride|proscar|propecia
+西地那非	sildenafil|viagra
+他达拉非	tadalafil|cialis
+阿莫西林	amoxicillin
+阿奇霉素	azithromycin|zithromax
+多西环素	doxycycline
+头孢氨苄	cephalexin|keflex
+环丙沙星	ciprofloxacin|cipro
+左氧氟沙星	levofloxacin
+甲硝唑	metronidazole|flagyl
+氟康唑	fluconazole|diflucan
+伐昔洛韦	valacyclovir|valtrex
+奥司他韦	oseltamivir|tamiflu
+呋喃妥因	nitrofurantoin|macrobid
+# Conditions / tests / everyday terms (MedlinePlus health topics)
+高血压	high blood pressure|hypertension
+低血压	low blood pressure|hypotension
+糖尿病	diabetes|type 2 diabetes|blood sugar
+1型糖尿病	type 1 diabetes
+2型糖尿病	type 2 diabetes|diabetes type 2
+糖尿病前期	prediabetes|pre-diabetes
+高血糖	high blood sugar|hyperglycemia
+低血糖	low blood sugar|hypoglycemia
+血糖	blood sugar|blood glucose
+糖化血红蛋白	a1c|hba1c|glycohemoglobin
+血红蛋白	hemoglobin
+胆固醇	cholesterol
+高胆固醇	high cholesterol
+低密度脂蛋白	ldl|low-density lipoprotein|bad cholesterol
+高密度脂蛋白	hdl|high-density lipoprotein|good cholesterol
+甘油三酯	triglycerides
+血脂	blood lipid|cholesterol|triglycerides
+甲状腺功能减退	hypothyroidism|underactive thyroid
+甲状腺功能亢进	hyperthyroidism|overactive thyroid
+甲状腺	thyroid
+冠心病	coronary artery disease|coronary heart disease
+心绞痛	angina
+心脏病	heart disease
+心力衰竭	heart failure
+心肌梗死	myocardial infarction|heart attack
+心律失常	arrhythmia|irregular heartbeat
+心房颤动	atrial fibrillation|afib
+中风	stroke
+脑卒中	stroke
+哮喘	asthma
+慢阻肺	copd|chronic obstructive pulmonary
+肺炎	pneumonia
+支气管炎	bronchitis
+流感	influenza|flu
+感冒	common cold
+过敏	allergy|allergies|allergic
+过敏性鼻炎	allergic rhinitis|hay fever
+贫血	anemia
+缺铁性贫血	iron deficiency anemia
+肥胖	obesity|overweight
+超重	overweight|obesity
+体重指数	body mass index|bmi
+骨质疏松	osteoporosis
+骨关节炎	osteoarthritis
+类风湿性关节炎	rheumatoid arthritis
+类风湿关节炎	rheumatoid arthritis
+痛风	gout
+尿酸	uric acid
+腰痛	low back pain|back pain
+背痛	back pain
+偏头痛	migraine
+头痛	headache
+失眠	insomnia|trouble sleeping
+睡眠呼吸暂停	sleep apnea
+抑郁症	depression|major depressive
+焦虑症	anxiety|anxiety disorder
+阿尔茨海默病	alzheimer|dementia
+痴呆	dementia|alzheimer
+癫痫	epilepsy|seizure
+帕金森病	parkinson
+慢性胃炎	gastritis
+胃食管反流	gerd|gastroesophageal reflux|acid reflux
+胃溃疡	stomach ulcer|peptic ulcer
+肠易激综合征	irritable bowel syndrome|ibs
+炎症性肠病	inflammatory bowel disease|crohn|ulcerative colitis
+便秘	constipation
+腹泻	diarrhea
+痔疮	hemorrhoids
+脂肪肝	fatty liver|nonalcoholic fatty liver
+肝炎	hepatitis
+乙肝	hepatitis b
+丙肝	hepatitis c
+肝硬化	cirrhosis
+慢性肾病	chronic kidney disease|ckd
+肾结石	kidney stones
+肾功能	kidney function
+尿路感染	urinary tract infection|uti
+前列腺增生	enlarged prostate|benign prostatic hyperplasia|bph
+前列腺癌	prostate cancer
+乳腺癌	breast cancer
+结直肠癌	colorectal cancer|colon cancer
+肺癌	lung cancer
+宫颈癌	cervical cancer
+贫血症	anemia
+类风湿	rheumatoid arthritis
+银屑病	psoriasis
+湿疹	eczema|atopic dermatitis
+荨麻疹	hives|urticaria
+带状疱疹	shingles|herpes zoster
+艾滋病	hiv|aids
+结核病	tuberculosis
+梅毒	syphilis
+淋病	gonorrhea
+妊娠	pregnancy
+孕期	pregnancy|pregnant
+哺乳期	breastfeeding|lactation|breast-feeding
+更年期	menopause
+避孕	birth control|contraception
+疫苗	vaccine|vaccination
+戒烟	smoking cessation|quit smoking
+饮酒	alcohol|drinking alcohol
+咖啡因	caffeine
+维生素d	vitamin d
+维生素b12	vitamin b12
+叶酸	folic acid|folate
+钙	calcium
+铁	iron
+钾	potassium
+钠	sodium
+血红蛋白	a1c|hemoglobin
+血常规	complete blood count|cbc
+肝功能	liver function|liver tests
+肾小球滤过率	egfr|glomerular filtration rate
+肌酐	creatinine
+尿蛋白	proteinuria|protein in urine
+白细胞	white blood cell|wbc
+血小板	platelet
+红细胞	red blood cell|rbc
+c反应蛋白	c-reactive protein|crp
+降钙素原	procalcitonin
+b型钠尿肽	bnp|b-type natriuretic
+副作用	side effect|adverse reaction
+不良反应	adverse reaction|side effect
+禁忌	contraindication
+相互作用	drug interaction|interaction
+剂量	dosage|dose
+用法用量	dosage and administration|dosage
+警告	warning|boxed warning|black box
+过量	overdose|overdosage
+适应症	indication|indications and usage
+注意事项	precautions
+孕妇用药	pregnancy|use in specific populations
+儿童用药	pediatric use|children
+老年人用药	geriatric use|older adults

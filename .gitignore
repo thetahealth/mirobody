@@ -110,5 +110,15 @@ eval/*
 # `mirobody/` and are pruned from the artifact by `scripts/build_backend.py`.
 /tests/
 
+# Built data, not source. The medical-reference FTS index is 25 MB of build
+# OUTPUT: scripts/medref/build_index.py regenerates it from the two corpora
+# its README names (fetch step: scripts/medref/fetch_openfda.py into
+# scripts/medref/raw/). A deployment builds it on site; the runtime answers
+# explicitly when it is absent (agent/medref.py's no-index note), and
+# mirobody/tests/test_medref_reference.py skips. res/medref/NOTICE stays
+# tracked: the licence terms are prose anybody building the index needs.
+mirobody/res/medref/index.sqlite3
+scripts/medref/raw/
+
 # Local virtualenvs under any suffix (.venv-dev, .venv-py313, ...).
 .venv*/
