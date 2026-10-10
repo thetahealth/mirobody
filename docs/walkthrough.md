@@ -105,9 +105,11 @@ key; on the device side the conversion already happens, and
 [`examples/02_standardize_a_reading.py`](../examples/02_standardize_a_reading.py)
 turns `154.5 lb` into `70.08 kg` offline.
 
-**4 · ③ Agent.** Ask how the cholesterol has moved. The agent finds every file
-that carries it, the csv's other spelling included, and answers from what it
-read:
+**4 · ③ Agent.** Ask how the cholesterol has moved. While it works, the
+answer shows each step it takes ("Looking up your health data", "Reading a
+document") beside its reasoning, then folds them away. It finds every file
+that carries the test, the csv's other spelling included, and answers from
+what it read:
 
 ```
 Total Cholesterol   4.60 mmol/L   2025-11-12   you_lab_2025-11.md
@@ -115,13 +117,14 @@ Total Cholesterol   4.60 mmol/L   2025-11-12   you_lab_2025-11.md
                     4.38 mmol/L   2026-08-04   you_lipid_panel_2026-08.csv
 ```
 
-Three files, three vocabularies, one line, and the file each number came off
-named beside it. Ask the same question about the shared record and the answer
-is a different person's.
+Three files, three vocabularies, one line. Every number carries a numbered
+source: click it and the reading, its date and range, and the file it came off
+open beside it. Ask the same question about the shared record and the answer is
+a different person's.
 
 <p align="center">
   <img src="images/ask-own-demo.gif"
-       alt="Asking about your own panels; the agent charts both draws, cites the file each came from, and reads the trend" width="880">
+       alt="Asking how your cholesterol has changed: the steps show as the agent works, the three reports become one trend, and a numbered source on a number opens the reading and its file" width="880">
 </p>
 
 <p align="center">

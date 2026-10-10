@@ -23,7 +23,7 @@ Start with Docker and one model key, or run every model on your own machine.
 </div>
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent finds three files that name the test differently, charts one trend and names the file behind every number" width="880">
+  <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent shows each step as it works, charts three reports that name the test differently as one trend, and a numbered source on a number opens the reading and its file" width="880">
 </p>
 <p align="center"><em>Three reports, three names for the same test. One trend, with the file behind every number.</em></p>
 
