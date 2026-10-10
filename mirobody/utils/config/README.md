@@ -258,8 +258,9 @@ The design (two tiers, citations, rules) is in `mirobody/agent/tools/README.md`.
   ClinicalTrials.gov. Each search sends its words to `www.ebi.ac.uk` or
   `clinicaltrials.gov`; no record data leaves the server.
 
-With neither, the agent has no knowledge tools. `DISALLOWED_TOOLS:
-[search_medical_knowledge, read_medical_source]` turns them off.
+With neither, the two tools are not listed, to the chat agent or over MCP.
+`DISALLOWED_TOOLS: [search_medical_knowledge, read_medical_source]` keeps them
+from the chat agent.
 
 ## 🔒 Security
 

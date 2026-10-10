@@ -108,8 +108,10 @@ An answer cites what it rests on, in the format of `mirobody/kernel/citations.py
 
 The record tools answer "what does my record say". General medical knowledge ("what is metformin for",
 "what does a high ALT mean", "what do guidelines say about statins") comes from a second capability that
-never reads the record, so a small model does not answer it from memory. It lives in `agent/knowledge/`,
-not in this directory: it is agent-only, and the MCP surface stays the record tools.
+never reads the record, so a small model does not answer it from memory. The tools are
+`knowledge_service.py` in this directory, over `agent/knowledge/`: the chat agent and any signed-in MCP
+client call the same two. They are listed only while the deployment has a tier, and they take `user_info`
+only to refuse an anonymous caller, who could otherwise use the server to query the online hosts.
 
 | | Offline, the default | Online, optional |
 | --- | --- | --- |
@@ -118,17 +120,17 @@ not in this directory: it is agent-only, and the MCP surface stays the record to
 | Turned on by | an index built once with `mirobody fetch knowledge` (the Docker image ships one) | `KNOWLEDGE_ONLINE: true` |
 | Cites | `ref:medlineplus:<topic id>`, `ref:medlineplus_test:<page>`, `ref:openfda:<label set id>#<section>` | `ref:pmid:<id>`, `ref:pmc:<id>`, `ref:doi:<doi>`, `ref:nct:<id>` |
 
-**Two tools**, offered only for the tiers a deployment has. `search_medical_knowledge(query, scope)` searches
-`"reference"` (offline), `"literature"` or `"trials"` (online); `read_medical_source(ref)` reads one result in
-full. Both return passages with `ref:` ids, which the answer cites the way it cites a row (Citations):
+**Two tools.** `search_medical_knowledge(query, scope)` searches `"reference"` (offline), `"literature"` or
+`"trials"` (online); `read_medical_source(ref)` reads one result in full. Both return passages as text, each
+headed by its `ref:` id, title, source and link; the chat agent cites a ref the way it cites a row (Citations):
 `<statement>ALT is an enzyme found mainly in the liver<cite>[ref:medlineplus_test:alt-blood-test]</cite></statement>`.
 `/api/citations` resolves a ref to its title, source and public page without a network call, so the chip
 opens the page the passage came from.
 
 **Rules the prompt states.** A general medical fact comes only from what these tools returned, never from
 memory; "your record shows" and "the reference says" stay separate statements; a label's dosage never
-becomes an instruction for this person. Each turn may search 3 times and read 2 sources. An unreachable
-source is reported as an outage, never as "no evidence".
+becomes an instruction for this person. Each chat turn may search 3 times and read 2 sources. An
+unreachable source is reported as an outage, never as "no evidence".
 
 **The index** is a SQLite FTS5 file at `KNOWLEDGE_INDEX` (default `~/.mirobody/knowledge/medref.sqlite3`),
 about 15 MB, built in about 13 minutes from the sources above and kept out of git and the wheel. Without it the offline tier is

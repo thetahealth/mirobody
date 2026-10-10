@@ -293,6 +293,9 @@ def load_tools_from_class(klass, module_name: str) -> dict:
             "auth"          : require_user_info,
             "instance"      : getattr(class_instance, function_name),
             "parameters"    : parameters,
+            # A service whose tools need something a deployment may lack (the
+            # medical-knowledge index) says so; unavailable tools are not listed.
+            "available"     : getattr(class_instance, "available", None),
         }
 
         logger.info(f"Loaded tool: {function_name}")

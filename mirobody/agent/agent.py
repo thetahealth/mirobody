@@ -187,11 +187,6 @@ class MirobodyAgent:
         raise AgentError("No prompt template is configured (check PROMPTS in config)")
 
 
-    def _knowledge_tools(self) -> list[BaseTool]:
-        """The medical-knowledge tools this deployment has (`knowledge/`),
-        less any `DISALLOWED_TOOLS` names. Agent-only, like `ask_user`."""
-        return [t for t in medical_knowledge.knowledge_tools() if t.name not in self.disallowed_tools]
-
     async def _build_system_prompt(
         self,
         base_prompt: str,
@@ -450,7 +445,6 @@ class MirobodyAgent:
         file_list: list[dict[str, Any]] | None = None,
         supports_file_block: bool = False,
         supports_image: bool = True,
-        knowledge_tools: list[BaseTool] | None = None,
     ) -> tuple[Any, Any]:
         """The compiled graph and the backend it reads through."""
         try:
@@ -489,7 +483,8 @@ class MirobodyAgent:
                 # A cap on ONE tool rather than on the loop: the health-data tool
                 # is the one a confused model can spin on.
                 tool_call_limits={query.TOOL_NAME: self._QUERY_CALL_LIMIT,
-                                  **{t.name: medical_knowledge.CALL_LIMITS[t.name] for t in knowledge_tools or []}},
+                                  **{t.name: medical_knowledge.CALL_LIMITS[t.name]
+                                     for t in tools if t.name in medical_knowledge.CALL_LIMITS}},
                 # In-process JS/TS REPL (`eval`). The read-only data tool is
                 # exposed inside it as `tools.<name>`; PTC calls bypass the tool
                 # middleware, so the data tool guards itself.
@@ -513,7 +508,7 @@ class MirobodyAgent:
                 # question; the answer is applied on resume, in generate_response.
                 # Never in the MCP tool directory: an MCP client has no widget
                 # to answer ask_user with.
-                tools=[*tools, ask_user, *(knowledge_tools or [])],
+                tools=[*tools, ask_user],
                 system_prompt=system_prompt,
                 backend=backend,
                 permissions=permissions,
@@ -641,8 +636,7 @@ class MirobodyAgent:
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
             loaded_tools = await self._load_tools(user_id, session_id)
-            knowledge = self._knowledge_tools()
-            scopes = medical_knowledge.scopes() if any(t.name == medical_knowledge.SEARCH for t in knowledge) else []
+            scopes = medical_knowledge.scopes() if any(t.name == medical_knowledge.SEARCH for t in loaded_tools) else []
             system_prompt = await self._build_system_prompt(
                 self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages),
                 knowledge={s: medical_knowledge.SCOPES[s] for s in scopes})
@@ -659,7 +653,6 @@ class MirobodyAgent:
                 file_list=file_list,
                 supports_file_block=supports_file_block,
                 supports_image=supports_image,
-                knowledge_tools=knowledge,
             )
 
             token_counter = TokenUsageCallback()

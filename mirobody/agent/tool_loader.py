@@ -183,6 +183,10 @@ async def load_global_tools(
                 if tool_name in _MCP_ONLY_TOOLS:
                     continue
 
+                available = tool_info.get("available")
+                if callable(available) and not available():
+                    continue
+
                 # Get original function for async check (before partial wrapping)
                 original_func = tool_func
                 

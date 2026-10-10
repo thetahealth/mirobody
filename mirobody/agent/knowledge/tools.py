@@ -1,19 +1,16 @@
-"""The two agent-only tools of the medical-knowledge capability.
+"""The two medical-knowledge tools, as text an agent reads.
 
-`knowledge_tools()` builds them for the tiers this deployment has: the
-offline reference when its index is installed, the literature and trials when
-`KNOWLEDGE_ONLINE` is on. With neither there are no tools, and the prompt's
-"Medical knowledge" section is not rendered.
+`search` and `read` back `search_medical_knowledge` and `read_medical_source`
+(`agent/tools/knowledge_service.py`), which the chat agent and any signed-in
+MCP client call alike. `scopes()` is what this deployment has: the offline
+reference when its index is installed, the literature and trials when
+`KNOWLEDGE_ONLINE` is on. With neither, the tools are not listed.
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Literal
-
-from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import BaseModel, Field, create_model
 
 from . import offline, online, refs
 
@@ -21,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 SEARCH = "search_medical_knowledge"
 READ = "read_medical_source"
-#: Calls per turn (`harness.standard_middleware`'s per-tool caps).
+#: Calls per chat turn (`harness.standard_middleware`'s per-tool caps).
 CALL_LIMITS = {SEARCH: 3, READ: 2}
 
 SCOPES = {
@@ -39,39 +36,7 @@ def scopes() -> list[str]:
     return available + (["literature", "trials"] if online.enabled() else [])
 
 
-def knowledge_tools() -> list[BaseTool]:
-    available = scopes()
-    if not available:
-        return []
-    fields: dict = {"query": (str, Field(description="English medical terms, e.g. 'metformin side effects', "
-                                                     "'high ALT'. Translate the question; never include the "
-                                                     "person's name or values."))}
-    if len(available) > 1:
-        # One scope is no choice, and a one-value enum is a JSON-schema
-        # `const` some providers' tool schemas reject.
-        listed = "; ".join(f'"{s}": {SCOPES[s]}' for s in available)
-        fields["scope"] = (Literal[tuple(available)], Field(default=available[0], description=listed))
-    search_args = create_model("SearchMedicalKnowledge", **fields)
-    search = StructuredTool.from_function(
-        coroutine=_search, name=SEARCH, args_schema=search_args,
-        description=("Search general medical knowledge: what a test measures and what its results mean, what a "
-                     "condition is, what a medicine is for, its side effects and interactions. It never reads "
-                     "the person's record. Returns passages, each with a ref to cite."),
-    )
-    read = StructuredTool.from_function(
-        coroutine=_read, name=READ, args_schema=_ReadArgs,
-        description="Read one passage from search_medical_knowledge in full. Pass its ref exactly as shown.",
-    )
-    return [search, read]
-
-
-class _ReadArgs(BaseModel):
-    ref: str = Field(description="A ref from a search result, e.g. ref:medlineplus_test:alt-blood-test")
-
-
-async def _search(query: str, scope: str | None = None) -> str:
-    # A tool is called with the arguments the model sent, not the schema's
-    # defaults, so an omitted scope is chosen here.
+async def search(query: str, scope: str = "") -> str:
     scope = scope or (scopes() or ["reference"])[0]
     try:
         if scope == "reference":
@@ -94,11 +59,11 @@ async def _search(query: str, scope: str | None = None) -> str:
                 "too, say the reference has nothing on it. Do not answer from memory.")
     blocks = [_passage(row) for row in rows]
     return (f"{len(rows)} passages ({SCOPES[scope]}).\n\n" + "\n\n".join(blocks) +
-            f"\n\nUse only what these passages say, citing each fact by its ref: <cite>[{rows[0]['ref']}]</cite>. "
+            f"\n\nUse only what these passages say, and give each fact its source by ref and link. "
             f"{READ}(ref) shows one passage in full.")
 
 
-async def _read(ref: str) -> str:
+async def read(ref: str) -> str:
     parsed = refs.parse(ref)
     if parsed is None:
         return "That is not a ref a search returned. Copy one exactly, e.g. ref:medlineplus:6308."
