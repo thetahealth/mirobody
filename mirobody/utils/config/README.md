@@ -184,7 +184,7 @@ MODELS:
 Notes:
 
 - `PPT`/`PPTX` always read as extracted text (no provider accepts them as a file block).
-- Advanced: a raw `profile: { … }` dict of [`ModelProfile`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.language_models.ModelProfile) fields is also honored and overrides the friendly flags.
+- Advanced: a raw `profile: { … }` dict of [`ModelProfile`](https://reference.langchain.com/python/langchain_core/language_models/#langchain_core.language_models.ModelProfile) fields is also honored and overrides the friendly flags. `max_input_tokens` is the one a small local model needs: the agent compacts the conversation at 85% of it and pages a tool result longer than a quarter of it out to its virtual filesystem.
 
 ### 2. Tools (`ALLOWED_TOOLS` / `DISALLOWED_TOOLS`)
 

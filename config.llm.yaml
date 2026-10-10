@@ -61,6 +61,8 @@
 #   response_format json_schema (default) | json_object | none — what the endpoint
 #                   accepts. Below json_schema the schema is written into the prompt
 #   chat            false = utility surfaces only, hidden from the chat picker
+#   profile         raw ModelProfile fields over the model's own profile; `max_input_tokens`
+#                   sets when the agent compacts and when it pages out a large tool result
 #   extra_body      forwarded as-is (vendor thinking switches etc.)
 #
 # The chat picker shows the entries whose key is present, in this order; the
@@ -189,6 +191,11 @@ MODELS:
                                   # context: MiniCPM5-2B generated with no end on two of the
                                   # evaluation's questions and they hit the 600 s timeout
                                   # (benchmarks/local_models, small-v2). A chart answer needs ~2k.
+    profile:
+      max_input_tokens: 24000     # docker/local-models.ini serves c = 32768, one KV pool for both
+                                  # slots: 24000 + max_tokens fits. Undeclared, deepagents compacts
+                                  # at a fixed 170000 tokens, so a long turn overflowed first. It also
+                                  # sets when a large tool result is paged out (agent/harness.py).
 
   # Utility entries (chat: false) — the models behind file parsing, indicator
   # extraction, titles and summaries. MULTIMODAL, one per key, thinking off:
