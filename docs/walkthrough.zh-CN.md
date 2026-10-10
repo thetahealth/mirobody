@@ -84,6 +84,7 @@ Low-Density Lipoprotein-LDL 2.48 mmol/L  loinc 22748-8
 设备一侧的换算已经在做，[`examples/02_standardize_a_reading.py`](../examples/02_standardize_a_reading.py) 能离线把 `154.5 lb` 换算成 `70.08 kg`。
 
 **4 · ③ 智能体。** 问一句胆固醇有什么变化。
+回答过程中，每一步都会实时显示在思考旁边（「正在查询健康数据」「正在阅读文件」），答案开始后再收起来。
 agent 会把带着这一项的文件全部找出来，包括 CSV 里不同的写法，然后根据它读到的内容作答：
 
 ```
@@ -92,12 +93,13 @@ Total Cholesterol   4.60 mmol/L   2025-11-12   you_lab_2025-11.md
                     4.38 mmol/L   2026-08-04   you_lipid_panel_2026-08.csv
 ```
 
-三份文件，三套写法，一条线，每个数字旁边都写着它出自哪一份。
+三份文件，三套写法，一条线。
+每个数字都带一个编号的来源，点开就能看到这条读数、日期、参考范围和它出自哪份文件。
 同一个问题问到共享的那份记录上，答案就来自另一个人。
 
 <p align="center">
   <img src="images/ask-own-demo.zh-CN.gif"
-       alt="查询自己的体检结果；agent 把两次抽血都画出来，注明每个数字来自哪份文件，并解读趋势" width="880">
+       alt="问胆固醇怎么变化：agent 工作时实时显示每一步，三份报告画成一条趋势，点开数字上的编号来源，就能看到这条读数和它出自的文件" width="880">
 </p>
 
 <p align="center">

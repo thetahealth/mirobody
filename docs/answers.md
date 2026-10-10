@@ -267,6 +267,46 @@ strategy.
 
 ---
 
+## Every number has a source
+
+A chat answer cites what it rests on, in the LongCite form
+(`mirobody/kernel/citations.py`):
+
+```
+<statement>LDL fell from 2.48 to 2.41 mmol/L<cite>[r3][r4]</cite></statement>
+```
+
+* **Row ids.** Every row a record tool shows in a conversation carries a short
+  id (`r1`, `r2`, …), minted the first time that conversation sees the row and
+  stored in `th_chat_citation`. The id stores which row it is, never its value:
+  `GET /api/citations` reads the row live, so an id still names the same
+  reading after a restart, and a reading the person has deleted resolves to
+  "gone".
+* **Three kinds of cite.** A row (`r3`), a reference passage
+  (`ref:medlineplus_test:alt-blood-test`, from the medical-knowledge tools in
+  `mirobody/agent/tools/README.md`), or lines of a document as `read_file`
+  numbered them (`/library/report.pdf#L12-L14`).
+* **The check.** `citations.check(answer, support)` returns every number that
+  is not traced: written outside a statement, cited to nothing, or found
+  neither in its cited rows nor as a difference, ratio, percentage change, sum
+  or mean of their values. Chart data in a fenced block is not read as prose.
+  It is stdlib only, so the agent, the benchmark and a training judge run the
+  same copy.
+
+The web client draws each cite as a numbered chip; clicking it shows the
+reading, its date and range, and the file it came from.
+
+## What the person sees while it works
+
+The web client shows the work behind an answer as it happens: the model's
+reasoning streams into a panel, and each tool call is a step in the reader's
+language ("Looking up your health data · LDL", "Searching medical
+references"), with a timer. When the answer starts, the panel folds to one
+line ("Thought for 12s · 4 steps") that opens again on a click. Which models
+stream their reasoning is in [model-choice.md](model-choice.md).
+
+---
+
 ## Governance: what stops a loop
 
 The harness's own middleware, outermost first (`harness.standard_middleware`;

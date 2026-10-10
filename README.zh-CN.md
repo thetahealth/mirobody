@@ -23,7 +23,7 @@ Docker 启动后配置一个模型 Key 即可使用，也可以让所有模型�
 </div>
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.zh-CN.gif" alt="用中文问胆固醇怎么变化：agent 找到三份用不同写法记录同一项检查的文件，画出一条趋势，并标出每个数字来自哪份文件" width="880">
+  <img src="docs/images/ask-own-demo.zh-CN.gif" alt="用中文问胆固醇怎么变化：agent 实时显示每一步，把三份用不同写法记录同一项检查的报告画成一条趋势，点开数字上的编号来源就能看到读数和它出自的文件" width="880">
 </p>
 <p align="center"><em>不同医院，不同写法。放进同一条趋势，回看每个数值的来源。</em></p>
 

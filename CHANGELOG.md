@@ -1,3 +1,46 @@
+## Unreleased
+
+### Added
+
+- **Every number in a chat answer cites its source.** Each row a record tool
+  shows carries a short id (`r3`) kept per conversation, and the answer cites
+  it in the LongCite form; the web client draws a numbered chip that opens the
+  reading, its date, range and file. A deleted reading resolves to "gone", and
+  `kernel.citations.check` finds every number that is not traced. Over 28
+  answers from six models (DeepSeek, Qwen, Claude Sonnet, GPT, Gemini,
+  MiniCPM5-2B on llama.cpp) to three questions, one cited an id no tool had
+  shown and one cited the wrong row; the check flagged both.
+- **General medical knowledge comes from cited sources, not memory.**
+  `search_medical_knowledge` and `read_medical_source` search a local index
+  of MedlinePlus topics and lab test pages and FDA labels (`mirobody fetch
+  knowledge`, about 15 MB; the Docker image ships one), plus PubMed and
+  ClinicalTrials.gov with `KNOWLEDGE_ONLINE: true`, which sends only the query
+  words. They read no record, so a signed-in MCP client gets them too.
+- **The Ask page shows the work as it happens.** The reasoning streams into a
+  panel and each tool call is a step in the reader's language ("Looking up
+  your health data · LDL"), folded to one line when the answer starts. The
+  status line above an answer was English only and named raw tool names.
+- **The system prompt says where each model runs:** on this machine, on your
+  own network, or sent to a named cloud host.
+
+### Changed
+
+- **Every chat model reasons between its tool calls.** `AGENT_THINKING`
+  (default `medium`) sets it, a `MODELS` entry's `thinking_level` overrides
+  it, and OpenRouter and llama.cpp now get their own switches.
+- **`eval` may fetch records per model.** The shipped `local` entry sets
+  `eval_fetch: false`, so a small model queries first and then computes.
+- **The local model declares its context** (`profile: max_input_tokens:
+  24000`), and a large tool result is paged to a file at a size derived from
+  it rather than deepagents' fixed 80,000 characters.
+
+### Fixed
+
+- **A reasoning model saw its own reasoning again within a turn.** The
+  `reasoning_content` of earlier tool rounds in the same turn was dropped from
+  the request; it is passed back now (verified on llama.cpp, DeepSeek,
+  DashScope and OpenRouter).
+
 ## 1.5.4
 
 ### Upgrade notes
