@@ -39,6 +39,13 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 RUN cd / && python -c \
     'import mirobody; from mirobody import resolve; assert mirobody.BUNDLE_VERSION; assert resolve("hemoglobin").loinc == "718-7"'
 
+# The offline medical reference (`mirobody fetch knowledge`): public MedlinePlus
+# and FDA label text. When the sources cannot be reached the image ships
+# without it, which turns that tier off rather than failing the build.
+FROM builder AS knowledge
+RUN mkdir /knowledge \
+    && (mirobody fetch knowledge --out /knowledge/medref.sqlite3 || echo "knowledge index not built" >&2)
+
 FROM ${UBUNTU_IMAGE}
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -59,6 +66,8 @@ COPY frontend/ frontend/
 # /opt/venv, so the seed cannot find them beside itself.
 COPY demo/seed/ demo/seed/
 ENV DEMO_DATA_DIR=/app/demo
+COPY --from=knowledge /knowledge/ knowledge/
+ENV KNOWLEDGE_INDEX=/app/knowledge/medref.sqlite3
 # A fixed uid AND gid: bind mounts and restored backups are owned by number,
 # and `mirobody_init` in compose.yaml hands the upload volume to this user.
 RUN groupadd --system --gid 10001 mirobody \

@@ -279,6 +279,22 @@ def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
     print(f"CPIC {version} installed at {installed}; source sha256={digest}")
 
 
+def _cmd_fetch_knowledge(args: argparse.Namespace) -> None:
+    from pathlib import Path
+
+    from mirobody.agent.knowledge.build import build_index
+    from mirobody.agent.knowledge.offline import index_path
+
+    path = Path(args.out).expanduser() if args.out else index_path()
+    try:
+        meta = asyncio.run(build_index(path, medicines=args.medicines))
+    except (OSError, ValueError, RuntimeError) as exc:
+        sys.exit(f"knowledge build failed: {type(exc).__name__}: {exc}; the previous index, if any, is unchanged")
+    print(f"{meta['passages']} passages written to {path}")
+    if path != index_path():
+        print(f"set KNOWLEDGE_INDEX={path} for the agent to use it")
+
+
 def _cmd_migrate_observations(args: argparse.Namespace) -> None:
     """Move the retired `th_series_data` history into the observation model,
     and drop it once every row is proven moved. Bounded and safe to re-run;
@@ -623,6 +639,11 @@ def main(argv: list[str] | None = None) -> None:
     p_fetch_cpic.add_argument("--version", default="latest", help="exact vX.Y.Z tag or latest")
     p_fetch_cpic.add_argument("--dir", default="", help="CPIC extract directory (or CPIC_DIR)")
     p_fetch_cpic.set_defaults(func=_cmd_fetch_cpic)
+    p_fetch_knowledge = fetch_sub.add_parser(
+        "knowledge", help="build the offline medical reference the agent searches (MedlinePlus, FDA labels)")
+    p_fetch_knowledge.add_argument("--out", default="", help="index file (default: KNOWLEDGE_INDEX or ~/.mirobody/knowledge/medref.sqlite3)")
+    p_fetch_knowledge.add_argument("--medicines", type=int, default=200, help="FDA labels of this many of the most-labelled generics (default: 200)")
+    p_fetch_knowledge.set_defaults(func=_cmd_fetch_knowledge)
 
     p_parse = sub.add_parser("parse", help="parse a health document into standardized indicators (requires the [parse] extra and one LLM key)")
     p_parse.add_argument("file", help="path to a lab report (pdf/png/jpg/txt/csv)")

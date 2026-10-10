@@ -269,6 +269,11 @@ class McpService:
                                name, type(e).__name__)
         return hidden
 
+    def _unavailable_tools(self) -> set[str]:
+        """Tools whose service says this deployment cannot serve them now."""
+        return {name for name, tool in self._callable.items()
+                if tool and callable(tool.get("available")) and not tool["available"]()}
+
     #-----------------------------------------------------
 
     def tool_counts(self) -> tuple[int, int]:
@@ -407,6 +412,7 @@ class McpService:
             # /mcp before OAuth) keep the full list: capability discovery must
             # not require auth.
             hidden = await self._data_gated_tools(await self._caller(request, secret_user))
+            hidden |= self._unavailable_tools()
             if hidden:
                 base_tools = [t for t in self._tool_descriptions if t.get("name") not in hidden]
             else:
@@ -523,11 +529,15 @@ class McpService:
                 elif not is_error and "data" in result:
                     data = result["data"]
 
+            # A tool that answers in prose (the medical-knowledge passages) is
+            # sent as that text, not as a JSON string of it.
+            text = data if isinstance(data, str) else json.dumps(
+                data, ensure_ascii=False, separators=(',', ':'), cls=ResponseEncoder)
             result={
                 "content": [
                     {
                         "type": "text",
-                        "text": json.dumps(data, ensure_ascii=False, separators=(',', ':'), cls=ResponseEncoder)
+                        "text": text
                     }
                 ],
                 "isError": is_error,

@@ -379,6 +379,10 @@ UTILS_OCR_MODEL: [local-ocr]
 #   DEFAULT_MODEL — a MODELS entry; unset = first entry whose key is present
 #   AGENT_NAME — the persona name in the prompt
 #   AGENT_CHECKPOINTER — LangGraph Postgres memory per session; false = every turn fresh
+#   KNOWLEDGE_INDEX — the offline medical reference `mirobody fetch knowledge` builds;
+#     empty = ~/.mirobody/knowledge/medref.sqlite3. No file, no offline tier.
+#   KNOWLEDGE_ONLINE — also search PubMed (Europe PMC) and ClinicalTrials.gov; each
+#     search sends its words to those hosts, never record data
 
 ALLOWED_TOOLS:
 
@@ -388,3 +392,6 @@ PROMPTS:
   - agent/prompts/mirobody.jinja
 
 AGENT_CHECKPOINTER: true
+
+KNOWLEDGE_INDEX:
+KNOWLEDGE_ONLINE: false

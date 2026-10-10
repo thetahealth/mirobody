@@ -245,6 +245,23 @@ DISALLOWED_TOOLS:
   - eval
 ```
 
+## 📚 Medical knowledge (`KNOWLEDGE_INDEX` / `KNOWLEDGE_ONLINE`)
+
+General medical facts come from a search tool, not from the model's memory.
+The design (two tiers, citations, rules) is in `mirobody/agent/tools/README.md`.
+
+- **Offline**: `mirobody fetch knowledge` builds a SQLite index of MedlinePlus
+  health topics and lab test pages and FDA labels (about 13 minutes, 15 MB)
+  at `KNOWLEDGE_INDEX` (default `~/.mirobody/knowledge/medref.sqlite3`). The
+  Docker image ships one. Without the file the tier is off.
+- **Online**: `KNOWLEDGE_ONLINE: true` adds PubMed (through Europe PMC) and
+  ClinicalTrials.gov. Each search sends its words to `www.ebi.ac.uk` or
+  `clinicaltrials.gov`; no record data leaves the server.
+
+With neither, the two tools are not listed, to the chat agent or over MCP.
+`DISALLOWED_TOOLS: [search_medical_knowledge, read_medical_source]` keeps them
+from the chat agent.
+
 ## 🔒 Security
 
 ### Credential Encryption
