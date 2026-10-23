@@ -5,7 +5,10 @@
 > "47.6 hours" for 2858.25 minutes and 78 mmHg for a 77.67 mean failed.
 > `harness100-20261023` asks the same questions of the same record with duration
 > facts and tolerances from each metric's precision; pass totals of the two are
-> not comparable.
+> not comparable. `harness100-20261023b` (same questions and record) reads
+> absence and evidence-limit phrases, binds a value to the label written before
+> it, and lets a document question be answered from the file's stored readings;
+> its pass totals are not comparable with the earlier two either.
 
 # Local model sizes: an evaluation you can rerun
 

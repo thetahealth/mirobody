@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from cases import ALIASES
 from common import read_json, write_json
 
 from mirobody.kernel import citations
@@ -337,25 +338,80 @@ def _bound_numbers(fact: dict, clause: str) -> list[float]:
             for value in numbers(match.group())]
 
 
-def _fact_scopes(fact: dict, answer: str) -> list[str]:
+#: A period ends a clause only before a space or the end: the one in
+#: "(p002_2026-04-02_e15a.jpg): … 6.24" parted the date from its value.
+_CLAUSE = re.compile(r"\n|[。；;!?！？，]|(?<!\d),|,(?!\d)|\.(?=\s|$)")
+_SENTENCE = re.compile(r"\n|[。!?！？]|\.(?=\s|$)")
+_LIST_LINE = re.compile(r"\s*(?:[-*+•]\s|\d+[.)、](?!\d)|\|)")
+#: Every measure a case names. One written before an unlabelled clause may be
+#: what the clause is about, so it blocks borrowing a label from further back.
+_LABELS = sorted({a for aliases in ALIASES.values() for a in aliases})
+
+
+def _pieces(pattern: re.Pattern, text: str) -> list[tuple[int, int]]:
+    spans, start = [], 0
+    for m in pattern.finditer(text):
+        spans.append((start, m.start()))
+        start = m.end()
+    return [*spans, (start, len(text))]
+
+
+def _lead_in(answer: str, start: int) -> str:
+    """What is written before `start` that can label it: its sentence so far,
+    or, for a list item or table row, the list or table so far and the line
+    that introduces it."""
+    line_start = answer.rfind("\n", 0, start) + 1
+    if not _LIST_LINE.match(answer, line_start):
+        return answer[max((m.end() for m in _SENTENCE.finditer(answer, 0, start)), default=0):start]
+    begin = line_start
+    while begin > 0:
+        previous = answer.rfind("\n", 0, begin - 1) + 1
+        line, begin = answer[previous:begin - 1], previous
+        if line.strip() and not _LIST_LINE.match(line):
+            break
+    return answer[begin:start]
+
+
+def _rival_present(own: list[str], rivals: list[str], text: str) -> bool:
+    sites = {a.casefold() for a in own}
+    return (any(_anchor_present(a, text) for a in rivals)
+            or any(m.group().casefold() not in sites for m in re.finditer(r"\brs\d+\b", text, re.I)))
+
+
+def _fact_scopes(fact: dict, answer: str) -> list[tuple[str, bool]]:
     """Bind the fact to a clause/table row, rather than any number nearby.
 
+    Each scope is `(clause, inherited)`. A clause without the fact's label
+    inherits it from what is written before it (`_lead_in`): "8 月共记录了 3 次
+    舒张压，平均值是 77.7" and a "结果：2.68" line under an LDL heading state
+    the value apart from its label. It inherits only when no other measure is
+    named there or in the clause, so a value cannot pass on a label that
+    belongs to its neighbour.
+
     This is deliberately a conservative structural check, not an NLI judge.
-    Headings, unusual paraphrases and wide tables can need human review.
-    Keeping clauses separate catches swapped ALT/AST and genotype labels.
+    Unusual paraphrases and wide tables can need human review. Keeping
+    clauses separate catches swapped ALT/AST and genotype labels.
     """
     scope = fact.get("scope")
     if not scope:
-        return [answer]
-    clauses = re.split(r"\n|[。；;!?！？，]|(?<!\d)[.,]|[.,](?!\d)", answer)
+        return [(answer, False)]
+    own = scope.get("anchors") or []
+    folded = [a.casefold() for a in own]
+    rivals = scope.get("other_anchors", []) + [label for label in _LABELS
+                                               if not any(label in a or a in label for a in folded)]
     matches = []
-    for clause in clauses:
-        if scope.get("anchors") and not any(_anchor_present(a, clause) for a in scope["anchors"]):
+    for start, end in _pieces(_CLAUSE, answer):
+        clause = answer[start:end]
+        context, inherited = clause, False
+        if own and not any(_anchor_present(a, clause) for a in own):
+            lead = _lead_in(answer, start)
+            if (_rival_present(own, rivals, clause) or not any(_anchor_present(a, lead) for a in own)
+                    or _rival_present(own, rivals, lead)):
+                continue
+            context, inherited = lead + clause, True
+        if scope.get("date") and scope["date"] not in dates_in(context):
             continue
-        found_dates = dates_in(clause)
-        if scope.get("date") and scope["date"] not in found_dates:
-            continue
-        matches.append(clause)
+        matches.append((clause, inherited))
     return matches
 
 
@@ -395,13 +451,15 @@ def fact_present(fact: dict, answer: str, nums: list[float], trace: dict | None 
     """`answer` is the prose (`prose_of`); the citation facts read `trace`."""
     kind = fact["kind"]
     if fact.get("scope"):
+        # An inherited clause names no measure, so every value in it is bound.
         if kind == "genotype":
-            return any(_bound_genotype_present(fact, clause) for clause in _fact_scopes(fact, answer))
+            return any(_genotype_present(fact["value"], nfkc(clause)) if inherited else _bound_genotype_present(fact, clause)
+                       for clause, inherited in _fact_scopes(fact, answer))
         unscoped = {k: v for k, v in fact.items() if k != "scope"}
+        bind = kind == "number" and fact["scope"].get("other_anchors")
         return any(fact_present(unscoped, clause,
-                               _bound_numbers(fact, clause) if kind == "number" and fact["scope"].get("other_anchors")
-                               else numbers(strip_dates(clause)), trace)
-                   for clause in _fact_scopes(fact, answer))
+                               _bound_numbers(fact, clause) if bind and not inherited else numbers(strip_dates(clause)), trace)
+                   for clause, inherited in _fact_scopes(fact, answer))
     if kind in ("cites_ref", "cites_row"):
         want = "ref" if kind == "cites_ref" else "row"
         bad = [c for c in (trace or {}).get("made_up", []) if citations.cite_kind(c) == want]
@@ -409,8 +467,10 @@ def fact_present(fact: dict, answer: str, nums: list[float], trace: dict | None 
     if kind == "number":
         return _number_present(fact, nums)
     if kind == "words":
-        low = nfkc(answer).lower().replace("\u2019", "'")        # couldn’t, as GPT models write it
-        return any(w.lower() in low for w in fact["any"])
+        # couldn’t, as GPT models write it; "does **not** mean" is the phrase in bold
+        low = nfkc(answer).lower().replace("\u2019", "'").replace("*", "")
+        return (any(w.lower() in low for w in fact["any"])
+                or any(re.search(p, low) for p in fact.get("patterns", [])))
     if kind == "date":
         return fact["value"] in dates_in(answer)
     if kind == "duration":

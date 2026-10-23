@@ -576,3 +576,101 @@ def test_runner_dispatches_heavy_followup_through_source_pressure_helper(monkeyp
     assert len(runs) == 2
     assert not runs[1]["score"]["checks"]["context"]
     assert not runs[1]["score"]["pass"]
+
+
+def case_fact(cases, case_id, label):
+    return next(f for f in next(c for c in cases if c["id"] == case_id)["facts"] if f["label"] == label)
+
+
+@pytest.mark.parametrize(("case_id", "answer", "passes"), [
+    ("h100-no-genomics", "There is no genotype file on your account.", True),
+    ("h100-no-genomics", "I don't have any active genotype upload on file for you.", True),
+    ("h100-unmeasured-analyte", "No insulin value is in your records.", True),
+    ("h100-unmeasured-analyte", "No — there is no insulin result in your uploaded reports.", True),
+    ("h100-unmeasured-analyte", "I don't see any insulin level recorded.", True),
+    ("h100-p008-med-adherence", "No dose of amlodipine is recorded for August 31.", True),
+    ("h100-unmeasured-analyte", "Your insulin result is 7.2 uIU/mL.", False),
+    ("h100-unmeasured-analyte", "No, your insulin value is 7.2 uIU/mL.", False),
+    ("h100-unmeasured-analyte", "No problem: your insulin result is 7.2 uIU/mL.", False),
+    ("h100-unmeasured-analyte", "There is no doubt your insulin value is 7.2 uIU/mL.", False),
+])
+def test_absence_is_read_as_a_phrase_but_a_reported_value_is_not_absence(manifest, case_id, answer, passes):
+    cases, _ = manifest
+    absent = next(f for f in next(c for c in cases if c["id"] == case_id)["facts"]
+                  if f["label"] in {"absence explicitly reported", "no intake log"})
+    assert present(absent, answer) is passes
+
+
+@pytest.mark.parametrize(("case_id", "label", "answer", "passes"), [
+    ("h100-p008-no-call", "no-call is not normal", "A no-call does not establish a normal genotype.", True),
+    ("h100-p008-med-adherence", "no log does not prove no intake",
+     "A missing entry does not mean you didn't take it.", True),
+    ("h100-p008-med-adherence", "no log does not prove no intake",
+     "A missing entry in the log does **not** mean you didn't take the medication.", True),
+    ("h100-p008-no-call", "no-call is not normal", "Yes, a no-call means your genotype is normal.", False),
+])
+def test_limits_of_evidence_are_read_as_phrases(manifest, case_id, label, answer, passes):
+    cases, _ = manifest
+    assert present(case_fact(cases, case_id, label), answer) is passes
+
+
+@pytest.mark.parametrize(("answer", "passes"), [
+    ("8 月共记录了 3 次舒张压，平均值是 77.7 mmHg。", True),
+    ("8 月共记录了 3 次舒张压，平均值是 77.0 mmHg。", False),
+    # A clause takes the label written before it only when no other measure intervenes.
+    ("8 月舒张压与收缩压都有记录，平均值是 77.7 mmHg。", False),
+    ("舒张压平均 110.3 mmHg，收缩压 77.7 mmHg。", False),
+])
+def test_an_unlabelled_clause_takes_the_label_before_it_in_its_sentence(manifest, answer, passes):
+    cases, _ = manifest
+    assert present(case_fact(cases, "h100-diastolic-average", "舒张压"), answer) is passes
+
+
+def test_a_list_line_takes_the_label_of_its_heading_or_an_earlier_item(manifest):
+    cases, _ = manifest
+    ldl = case_fact(cases, "h100-p005-lab-inequality", "ldl")
+    listed = "LDL-C 的資料如下：\n\n- **結果**：2.68 mmol/L\n- **參考範圍**：<3.37 mmol/L"
+    assert present(ldl, listed)
+    assert not present(ldl, listed.replace("2.68", "3.37").replace("<3.37", "<2.68"))
+    hgb = case_fact(cases, "h100-p001-lab-range", "printed hemoglobin reference interval")
+    assert present(hgb, "实验室检查部分：\n\n- **血红蛋白（HGB）测定值**：147 g/L\n- **本报告正常范围值**：130 - 175 g/L")
+    assert present(hgb, "血红蛋白（HGB）：147 g/L，报告上印的参考范围是 130 - 175 g/L。")
+    assert not present(hgb, "- 血红蛋白（HGB）：147 g/L\n- 血糖：5.1 mmol/L\n- 参考范围：130 - 175")
+    weight = case_fact(cases, "h100-latest-weight", "体重")
+    assert present(weight, "| 日期 | 体重 (kg) |\n|---|---|\n| 2026-08-19 | 63.8 |")
+    site = cases_module.genotype("GA", "rs671")
+    assert present(site, "rs671 の記録は以下の通りです。\n\n- **座位**: 12号染色体\n- **遺伝子型**: GA")
+    assert not present(site, "rs671 と rs4149056 の記録：\n\n- **遺伝子型**: GA")
+    alt = case_fact(cases, "h100-p001-lab-pair", "alt")
+    assert not present(alt, "| ALT | AST |\n|---|---|\n| 27 | 18 |")
+    assert not present(alt, "ALT 与 AST 如下：\n- 结果 27\n- 结果 18")
+
+
+def test_a_file_name_does_not_split_a_date_from_its_value(manifest):
+    cases, _ = manifest
+    dated = case_fact(cases, "h100-p002-lab-trend", "2026-04-02")
+    assert present(dated, "- **2026-04-02** (p002_2026-04-02_e15a.jpg): Fasting plasma glucose **6.24 mmol/L**")
+    assert not present(dated, "- **2026-04-02** (p002_2026-04-02_e15a.jpg): see below.\n- 6.24 mmol/L on 2026-08-07")
+
+
+def test_a_document_can_be_answered_from_its_stored_readings(manifest):
+    cases, _ = manifest
+    case = next(c for c in cases if c["id"] == "h100-spreadsheet-thyroid")
+    tsh, ft4 = (f["value"] for f in case["facts"] if f["kind"] == "number")
+    run = {"person": case["person"], "finish_reason": "stop", "blocks": [
+        {"type": "tool_call", "name": "query_health_indicators"},
+        {"type": "text", "text": f"TSH was {tsh} mIU/L and free T4 {ft4} pmol/L, both measured on 2026-04-29."}]}
+    score = scorer.score_case(case, run)
+    assert score["checks"]["tool"]
+    assert score["checks"]["facts"]
+    assert all("read_file" in c["expect_tools"] for c in cases if c["domain"] == "document")
+
+
+def test_a_medication_is_named_by_its_common_short_name(manifest):
+    cases, _ = manifest
+    name = case_fact(cases, "h100-p005-med-history", "medication name")
+    dose = case_fact(cases, "h100-p005-med-history", "historical dose")
+    answer = "Your first levothyroxine dose was 25 ug once daily, until 2024-09-07."
+    assert present(name, answer) and present(dose, answer)
+    assert not present(dose, "Your first ibuprofen dose was 25 mg.")
+    assert "左甲状腺素" in name["any"]

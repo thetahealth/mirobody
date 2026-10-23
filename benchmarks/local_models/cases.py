@@ -30,6 +30,20 @@ NO_DATA = ["no record", "no data", "not recorded", "not found", "could not find"
            "no matching", "nothing on file", "not on file", "没有", "未找到", "暂无", "无记录", "未记录", "未查到", "查不到"]
 UNCERTAIN = ["cannot", "can't", "not enough", "insufficient", "does not prove", "doesn't prove", "not evidence",
              "unknown", "cannot determine", "unable", "不能", "无法", "不足", "不代表", "不等于", "不确定"]
+# Phrases read beside the words above (`score.fact_present`, on lowercased text).
+# "There is no genotype file" and "No dose of amlodipine is recorded" hold none of
+# NO_DATA, but a bare "no" also opens "No, your insulin is 7.2": a record noun must
+# follow within three plain words, none of them a determiner or possessive.
+_RECORD = r"(?:records?|results?|values?|entr(?:y|ies)|readings?|data|doses?|files?|uploads?|logs?|levels?|measurements?)"
+_GAP = r"(?:(?!(?:a|an|the|your|my|this|that)\b)[a-z-]+\s+){0,3}"
+NO_DATA_PATTERNS = [
+    rf"\bno\s+{_GAP}{_RECORD}\b",
+    (r"(?:\b(?:i|we|you)\s+(?:do|did|could)(?:\s+not|n't)\s+(?:see|find|have)|\bthere\s+(?:is|are|was|were)(?:\s+not|n't))"
+     rf"\s+any\s+{_GAP}{_RECORD}\b"),
+]
+# "A no-call does not establish a normal genotype", "does not mean you didn't take".
+UNCERTAIN_PATTERNS = [(r"\b(?:does|do|did|can|could|would|is|are)(?:\s+not|n't)\s+(?:by itself\s+|necessarily\s+)?"
+                       r"(?:establish|mean|prove|show|confirm|imply|guarantee|rule out)\b")]
 ALIASES = {
     "weight": ["weight", "体重"], "steps": ["steps", "step count", "步数", "步"],
     "rhr": ["resting heart rate", "resting pulse", "静息心率"], "sleep": ["sleep", "睡眠"],
@@ -101,8 +115,11 @@ def right_of(facts: list[dict]) -> str:
     return "; ".join(f["label"] + "=" + str(f.get("value", f.get("any", f.get("minutes", "")))) for f in facts)
 
 
-def words(values: list[str], label: str, *, anchors: list[str] | None = None) -> dict:
+def words(values: list[str], label: str, *, anchors: list[str] | None = None,
+          patterns: list[str] | None = None) -> dict:
     out = {"kind": "words", "any": values, "label": label}
+    if patterns:
+        out["patterns"] = list(patterns)
     if anchors:
         out["scope"] = {"anchors": list(anchors)}
     return out
@@ -475,7 +492,9 @@ def document_cases(b: Builder) -> None:
                 facts.append(row_fact(row2))
                 question += " Include free T4 separately; do not interchange TSH and free T4."
             refs["rows"] = [f["source"][1] for f in facts if f.get("source")]
-        b.add(slug, person, lang, "document", prefix + question, facts, [refs], tools=["read_file"],
+        # The readings stored from the file at upload are the product's reading of it,
+        # as for laboratory reports; the value and date facts pin the reading.
+        b.add(slug, person, lang, "document", prefix + question, facts, [refs], tools=READ,
               tags=(doc["tier"], "ocr" if doc["scene"] or hand else "text_layer", "source_reading"))
 
 
@@ -495,7 +514,7 @@ def genetic_cases(b: Builder) -> None:
                     f"Does {site['rsid']} have a valid call in my file? Can a no-call establish a normal genotype?")
         b.add(f"{person}-no-call", person, lang, "genetics", question,
               [words(["no-call", "no_call", "no call", "未分型", "未判定", "未检出", "缺失", "无有效", "没有有效"], "no-call"),
-               words(UNCERTAIN, "no-call is not normal")],
+               words(UNCERTAIN, "no-call is not normal", patterns=UNCERTAIN_PATTERNS)],
               [{"file": "genomics.jsonl", "person_id": person, "rsids": [site["rsid"]]}], tools=["query_genetic_data"], tags=("no_call",))
         gene, drug, rsid = ("SLCO1B1", "simvastatin", "rs4149056") if lang == "zh" else ("CYP2C19", "clopidogrel", "rs4244285")
         question = (f"结合我的药物基因组结果，{gene} 与 {drug} 有什么关联？请核实 {rsid} 基因型，说明检测覆盖限制，不自行给我改剂量。" if lang == "zh" else
@@ -508,9 +527,16 @@ def genetic_cases(b: Builder) -> None:
         question = ("我的消费级基因报告能排除所有药物不良反应吗？查一下药物基因组覆盖，说明数据局限。" if lang == "zh" else
                     "Can my consumer genotype file rule out every adverse drug reaction? Check pharmacogenomic coverage and explain the limits.")
         b.add(f"{person}-pgx-limits", person, lang, "genetics", question,
-              [words(UNCERTAIN, "cannot rule out all reactions"), words(["coverage", "cover", "覆盖", "检测范围"], "scope of assay")],
+              [words(UNCERTAIN, "cannot rule out all reactions", patterns=UNCERTAIN_PATTERNS), words(["coverage", "cover", "覆盖", "检测范围"], "scope of assay")],
               [{"file": "genomics.jsonl", "person_id": person, "sites": g["n_sites"], "no_calls": g["n_no_call"]}],
               tools=["query_pharmacogenomics"], tags=("pgx", "negative_evidence"))
+
+
+def short_names(plan: dict) -> list[str]:
+    """The name a person says: "levothyroxine" for Levothyroxine Sodium, 左甲状腺素 for 左甲状腺素钠片."""
+    en = re.sub(r"\s+(?:sodium|potassium|calcium|hydrochloride|besylate)$", "", plan["generic"])
+    zh = re.sub(r"^(?:盐酸|苯磺酸)|[钠钾钙]?(?:片|胶囊)$", "", plan["name_zh"])
+    return [n for n in (en, zh) if n not in (plan["generic"], plan["name_zh"])]
 
 
 def medication_cases(b: Builder) -> None:
@@ -520,7 +546,7 @@ def medication_cases(b: Builder) -> None:
     for person, lang, index, op in specs:
         plan = b.c.medications[person]["plans"][index]
         label = plan["name_zh"] if lang == "zh" else plan["name_en"]
-        anchors = [plan["name_en"], plan["generic"], plan["name_zh"]]
+        anchors = list(dict.fromkeys([plan["name_en"], plan["generic"], plan["name_zh"], *short_names(plan)]))
         versions = medication_versions(plan)
         strength, unit = versions[-1]["strength"].split()
         facts = [words(anchors, "medication name")]
@@ -546,7 +572,8 @@ def medication_cases(b: Builder) -> None:
             facts += [day_fact(plan["start"], "course start"), day_fact(plan["end"], "course end")]
             question = f"我的{label}短疗程记录是从哪天到哪天？不要把它说成目前仍在持续的用药。"
         else:
-            facts += [words(NO_DATA, "no intake log"), words(UNCERTAIN, "no log does not prove no intake")]
+            facts += [words(NO_DATA, "no intake log", patterns=NO_DATA_PATTERNS),
+                      words(UNCERTAIN, "no log does not prove no intake", patterns=UNCERTAIN_PATTERNS)]
             question = f"Did I actually take {label} on 2026-08-31? Check intake logs; a plan alone cannot prove ingestion or a missed dose."
         b.add(f"{person}-med-{op}", person, lang, "medication", question, facts,
               [{"file": "medications.jsonl", "person_id": person, "plan_id": plan["plan_id"], "projection": "dated_schedule_versions"}],
@@ -595,9 +622,9 @@ def absence_cases(b: Builder) -> None:
         ("unmeasured-analyte", "p007", "en", "Is there an insulin result in my uploaded reports? If absent, say so rather than substituting glucose.", QHI, "files.jsonl"),
     ]
     for slug, person, lang, question, tools, source in specs:
-        facts = [words(NO_DATA, "absence explicitly reported")]
+        facts = [words(NO_DATA, "absence explicitly reported", patterns=NO_DATA_PATTERNS)]
         if slug == "future-is-not-normal":
-            facts.append(words(UNCERTAIN, "absence is not normal"))
+            facts.append(words(UNCERTAIN, "absence is not normal", patterns=UNCERTAIN_PATTERNS))
         b.add(slug, person, lang, "absence", question, facts,
               [{"file": source, "person_id": person, "assertion": "no matching records in the loaded scope"}],
               tools=tools, tags=("missingness", "abstention", "scope"))

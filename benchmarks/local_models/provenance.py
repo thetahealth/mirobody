@@ -8,7 +8,7 @@ from datetime import date, timedelta
 
 from common import HERE, Corpus, read_jsonl, sha256
 
-SUITE_ID = "harness100-20261023"
+SUITE_ID = "harness100-20261023b"
 GENERATOR_COMMIT = "9723605"
 AS_OF = "2026-09-02T00:00:00+00:00"
 RECIPE = "python -m mirobody_gen build --seed 7 --people 8 --render --clinical --handwriting --verify --out <corpus>"

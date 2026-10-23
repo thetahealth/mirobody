@@ -12,6 +12,23 @@
   `harness100-20261023`, with the same questions and loaded record;
   `tests/agent/test_local_eval_contract.py` pins both cases.
 
+- **The 100-question benchmark failed correct answers that did not repeat
+  its vocabulary.** "There is no genotype file", "No insulin value is in
+  your records" and "does not establish a normal genotype" matched no
+  absence or evidence-limit word. A value stated apart from its label ("8 月共记录了
+  3 次舒张压，平均值是 77.7", a "结果：2.68" line under an LDL heading) was
+  not bound, and the "." of a file name split a date from its value. A
+  document question answered from the readings stored from that document
+  failed the tool check, and "levothyroxine" did not name Levothyroxine
+  Sodium. `score.py` now reads absence and evidence-limit phrases. A clause
+  without a label borrows the one written before it in its sentence, list
+  or table, unless another measure is named there. Document questions accept
+  `read_file` or `query_health_indicators`, and medications also match their
+  short name. The suite is now `harness100-20261023b`, with the same
+  questions and loaded record. `tests/agent/test_local_eval_contract.py`
+  covers each fix, along with swapped values, reported values and a rival
+  label, which still fail.
+
 - **The 100-question benchmark failed unit conversions written in the
   plural.** An English label bound only its exact word, so "about 153.7 lbs"
   or "153.66 pounds" never matched the `lb`/`pound` label and a correct
