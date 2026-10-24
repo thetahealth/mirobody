@@ -65,7 +65,16 @@ def history_path_for(model: Any, file_path: str | None) -> str | None:
     Told the path, MiniCPM5-2B read it page by page, each read compacting the
     context again and lengthening the file (270 to 1,653 lines) until the turn
     ran out. No cloud model read it in the 570 answers of 2026-10-10."""
-    return None if _is_local(model) else file_path
+    # A local model gets the path too. Without it a compacted conversation has no
+    # way back to a detail the summary dropped: the long-context turn ended with
+    # no answer at all. The page-reading loop the original comment measured is
+    # bounded in the prompt now - one page, only when the summary lacks what the
+    # question needs - and ``LOCAL_HISTORY_OFFLOAD=off`` restores the old rule.
+    import os as _os
+
+    if _is_local(model) and _os.environ.get("LOCAL_HISTORY_OFFLOAD", "on").lower() == "off":
+        return None
+    return file_path
 
 
 #: A local window at least this wide keeps a quarter of itself after compaction.

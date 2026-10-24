@@ -121,7 +121,11 @@ async def test_two_genuine_auto_compactions_preserve_early_facts_corrections_and
     assert all("_summarization_event" not in item["text"] for item in summaries)
     history_path = state[SUMMARIZATION_EVENT_KEY]["file_path"]
     assert history_path
-    assert all(history_path not in item["text"] for item in summaries)
+    # A local model is given the path so a compacted turn can look up a detail the
+    # summary dropped; the prompt bounds it to one page. Set LOCAL_HISTORY_OFFLOAD=off
+    # to keep the path out of the summary again.
+    with_path = [item for item in summaries if history_path in item["text"]]
+    assert with_path or not summaries
     assert state[SUMMARIZATION_EVENT_KEY]["cutoff_index"] == cutoffs[-1]
     assert sum(receipt["summaries"] for receipt in receipts) >= 2
     assert [cutoff for receipt in receipts for cutoff in receipt["summary_cutoffs"]] == cutoffs

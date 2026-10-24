@@ -34,7 +34,10 @@ _NATIVE_TOOL_BLOCKLIST = frozenset({
 # turn reads through `query_health_indicators`, which already resolves every
 # name to its LOINC code and every value to the catalogue's unit, so these
 # only offered the model three more choices that answer nothing about the record.
-_MCP_ONLY_TOOLS = frozenset({"resolve_indicator", "convert_unit", "normalize_unit"})
+#: Tools that stay on the MCP surface only. Unit conversion is not one of them:
+#: it is offline, read-only, carries no user data, and a chat answer about a
+#: reading recorded in another unit needs it before comparing or charting.
+_MCP_ONLY_TOOLS = frozenset({"resolve_indicator"})
 
 
 def mcp_args_schema(input_schema: dict) -> dict:

@@ -8,6 +8,7 @@ remote Docker context cannot move computation off this machine.
 
 from __future__ import annotations
 
+import base64
 import io
 import json
 import logging
@@ -26,6 +27,7 @@ from deepagents.backends.sandbox import BaseSandbox
 
 logger = logging.getLogger(__name__)
 
+_CHUNK_CHARS = 30000
 _WORKSPACE = PurePosixPath("/workspace")
 _FILE_LIMIT = 8 * 1024 * 1024
 _RUNNER = b"""import json, runpy
@@ -167,7 +169,27 @@ class LocalPythonSandbox(BaseSandbox):
                     bundle.addfile(info, io.BytesIO(content))
                 # Docker's archive API cannot see a live tmpfs on a read-only
                 # rootfs (Docker 29 returns 400); exec writes into the actual mount.
-                _, code, _ = self._command(["tar", "-xf", "-", "-C", str(_WORKSPACE)], stdin=archive.getvalue())
+                # ``exec_run(stdin=...)`` depends on the docker SDK and daemon
+                # agreeing on an attach socket; with some pairs it returns ``None``
+                # instead of an exit code and the payload never arrives, so every
+                # calculation answers "inputs could not be transferred". A base64 body
+                # over a plain command needs neither an attach socket nor a writable
+                # rootfs (``put_archive`` is refused on this read-only container).
+                #
+                # It is written in chunks: one argv holds a single argument at most
+                # ~128 KiB on Linux, and a whole payload in one ``printf`` failed above
+                # 64 KiB of input long before the 8 MiB transfer budget.
+                archive.seek(0)
+                payload = base64.b64encode(archive.getvalue()).decode("ascii")
+                stage = "/tmp/.mirobody-upload.b64"
+                _, code, _ = self._command(["/bin/sh", "-c", f": > {stage}"])
+                for start in range(0, len(payload), _CHUNK_CHARS):
+                    chunk = payload[start:start + _CHUNK_CHARS]
+                    _, code, _ = self._command(["/bin/sh", "-c", f"printf %s '{chunk}' >> {stage}"])
+                    if code != 0:
+                        raise OSError("input transfer failed")
+                script = (f"base64 -d {stage} | tar -xf - -C '{_WORKSPACE}' && rm -f {stage}")
+                _, code, _ = self._command(["/bin/sh", "-c", script])
                 if code != 0:
                     raise OSError("input transfer failed")
                 responses.append(FileUploadResponse(path))

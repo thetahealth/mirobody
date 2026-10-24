@@ -18,6 +18,7 @@ The agent runs in a background task feeding a queue, so a client that
 disconnects mid-answer does not cancel a turn still worth saving.
 """
 
+import os
 import asyncio
 import json
 import logging
@@ -345,6 +346,31 @@ async def _pump(
         raise
 
 
+
+def _attach_citations(block: dict[str, Any], transcript: list[dict[str, Any]]) -> dict[str, Any]:
+    """Cite the numbers the answer states, from the rows this turn read.
+
+    A citation is a statement about provenance, and the turn already holds every
+    row the record tools returned, so it can be attached deterministically
+    instead of asked of the model: ``69.5 kg`` becomes
+    ``69.5 kg<cite>[r3]</cite>``. Numbers with no matching row are left alone -
+    they are the unsupported numbers a reviewer is meant to see.
+
+    ``AUTO_CITE=off`` keeps the previous behaviour for a deployment that would
+    rather cite nothing than cite mechanically.
+    """
+    if os.environ.get("AUTO_CITE", "on").lower() == "off":
+        return block
+    from .citations_auto import attach_citations, collect_rows
+
+    text = str(block.get("text") or "")
+    cited_text, cited, uncited = attach_citations(text, collect_rows(transcript))
+    if not cited and not uncited:
+        return block
+    # The uncited numbers are the review signal even when nothing could be cited: a turn
+    # whose every figure is unsupported is exactly the one a reviewer must see.
+    return {**block, "text": cited_text, "auto_cited": cited, "auto_uncited": uncited}
+
 async def _accumulate(
     blocks: AsyncGenerator[dict[str, Any], None],
     params: ChatStreamRequest,
@@ -368,6 +394,8 @@ async def _accumulate(
                 reason = block.get("finish_reason")
                 finish_reason = reason if isinstance(reason, str) else finish_reason
                 continue
+            if block.get("type") == TEXT:
+                block = _attach_citations(block, transcript)
             merge(transcript, block)
             await queue.put(block)
 
