@@ -91,13 +91,24 @@ _ANNOTATION = re.compile(r"/?\s*\{[^}]*\}")
 
 def _clean(s: str) -> str:
     """Unicode-normalize and symbol-fold without case changes."""
+    # NFKC leaves ASCII unchanged; keep subclasses on the normalization path.
+    if type(s) is str and s.isascii():
+        s = s.strip()
+        if " " in s:
+            s = s.replace(" ", "")
+        if "\t" in s:
+            s = s.replace("\t", "")
+        return s
     s = unicodedata.normalize("NFKC", s).strip()
     if not s:
         return s
-    out = []
-    for ch in s:
-        out.append(_SYMBOL_FOLD.get(ch, ch))
-    return "".join(out)
+    if s.isascii():
+        return s.replace(" ", "").replace("\t", "")
+    return s.translate({
+        0x00B5: "u", 0x03BC: "u", 0x00D7: "x",
+        0x00B7: ".", 0x22C5: ".", 0x00B0: "deg",
+        0x20: None, 0x09: None,
+    })
 
 
 def _strip_annotations(s: str) -> str:
@@ -274,7 +285,19 @@ def normalize_unit(text: str | None) -> str | None:
     in ``<5.6 mg/dL``) and retry. Canonicals that start with digits
     (``10*9/L``) hit the alias table first, so they're not clobbered.
     """
-    if not isinstance(text, str) or not text:
+    # Alias keys are already cleaned; subclasses retain the cleanup path.
+    if type(text) is str:
+        if not text:
+            return None
+        alias = _alias_table()
+        try:
+            hit = alias[text]
+        except KeyError:
+            pass
+        else:
+            if hit is not None:
+                return hit
+    elif not isinstance(text, str) or not text:
         return None
     cleaned = _clean(text)
     if not cleaned:
