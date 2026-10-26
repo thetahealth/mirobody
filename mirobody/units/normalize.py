@@ -77,6 +77,7 @@ _SYMBOL_FOLD: dict[str, str] = {
     " ":  "",    # collapse internal whitespace
     "\t": "",
 }
+_FOLD_TABLE = str.maketrans(_SYMBOL_FOLD)
 
 
 # UCUM annotations ``{xxx}`` carry semantic meaning only, they do not
@@ -91,24 +92,11 @@ _ANNOTATION = re.compile(r"/?\s*\{[^}]*\}")
 
 def _clean(s: str) -> str:
     """Unicode-normalize and symbol-fold without case changes."""
-    # NFKC leaves ASCII unchanged; keep subclasses on the normalization path.
-    if type(s) is str and s.isascii():
-        s = s.strip()
-        if " " in s:
-            s = s.replace(" ", "")
-        if "\t" in s:
-            s = s.replace("\t", "")
-        return s
-    s = unicodedata.normalize("NFKC", s).strip()
-    if not s:
-        return s
+    # NFKC is the identity on ASCII, and space and tab are the only ASCII
+    # keys in _SYMBOL_FOLD, so most lab-report units skip the normalizer.
     if s.isascii():
-        return s.replace(" ", "").replace("\t", "")
-    return s.translate({
-        0x00B5: "u", 0x03BC: "u", 0x00D7: "x",
-        0x00B7: ".", 0x22C5: ".", 0x00B0: "deg",
-        0x20: None, 0x09: None,
-    })
+        return s.strip().replace(" ", "").replace("\t", "")
+    return unicodedata.normalize("NFKC", s).strip().translate(_FOLD_TABLE)
 
 
 def _strip_annotations(s: str) -> str:
@@ -285,20 +273,12 @@ def normalize_unit(text: str | None) -> str | None:
     in ``<5.6 mg/dL``) and retry. Canonicals that start with digits
     (``10*9/L``) hit the alias table first, so they're not clobbered.
     """
-    # Alias keys are already cleaned; subclasses retain the cleanup path.
-    if type(text) is str:
-        if not text:
-            return None
-        alias = _alias_table()
-        try:
-            hit = alias[text]
-        except KeyError:
-            pass
-        else:
-            if hit is not None:
-                return hit
-    elif not isinstance(text, str) or not text:
+    if not isinstance(text, str) or not text:
         return None
+    # Alias keys are _clean's own output, so an exact hit needs no cleaning.
+    hit = _alias_table().get(text)
+    if hit is not None:
+        return hit
     cleaned = _clean(text)
     if not cleaned:
         return None
