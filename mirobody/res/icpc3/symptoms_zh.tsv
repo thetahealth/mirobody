@@ -11,7 +11,7 @@
 #   !too-broad   names a family, not a complaint. Never answered.
 #   !ambiguous   names two complaints. A person can say which; we cannot.
 #
-# Matching is exact over translate.fold.name_key, so write the surface as a
+# Matching is exact over standardize.fold.name_key, so write the surface as a
 # person types it and add one row per spelling. No suffix stripping, no
 # substring search: 肚子疼 and 肚子痛 are two rows on purpose.
 surface	code	note

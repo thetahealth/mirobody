@@ -1,5 +1,5 @@
 ---
-name: translate-health-data
+name: standardize-health-data
 description: Turn raw health data into standardized data, and read a lab report without guessing. A lab report PDF, photo, spreadsheet or CSV becomes readings with LOINC codes and UCUM units; an Apple Health export becomes JSON lines; a symptom or diagnosis in any language becomes an ICPC-3 code; any reading becomes a FHIR Observation. Use whenever health data must be standardized for a pipeline, dataset or app, and whenever a blood test, lab report or checkup result is shared and each row must be identified from the vocabulary rather than from memory. Resolution is offline and needs no key; parsing a document needs one model key.
 license: Apache-2.0
 metadata:
@@ -7,7 +7,7 @@ metadata:
   homepage: https://github.com/thetahealth/mirobody
 ---
 
-# Translate health data
+# Standardize health data
 
 Health data arrives under whatever name the source used. Last year's checkup
 wrote `A1c`, this year's `HbA1c`, the clinic `Glycated Hemoglobin`; a Chinese
@@ -16,7 +16,7 @@ test, several names, nothing to compare until each lands on one code. And a
 model reading a report is fluent about the rows it got wrong: the failure is
 never "I don't know", it is a confident paragraph about the wrong analyte.
 
-This skill is the offline translator for both problems: names to LOINC,
+This skill is the offline standardizer for both problems: names to LOINC,
 units to UCUM, complaints and diagnoses to ICPC-3, a FHIR Observation for
 the result. **The codes come from the vocabulary, never from you.** When the
 vocabulary does not know a term the answer is a refusal, and a refusal is an
@@ -160,7 +160,7 @@ a fever is not a fever-virus assay. They have their own axis, with the same
 refusal rule.
 
 ```python
-from mirobody.translate import resolve_symptom, resolve_condition
+from mirobody.standardize import resolve_symptom, resolve_condition
 
 resolve_symptom("头疼").code            # 'NS01'        Headache; 'headache' and 'головная боль' answer the same
 resolve_symptom("疼").outcome          # 'refused'     too broad: r.reason == 'icpc3:too-broad'

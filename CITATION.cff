@@ -11,7 +11,7 @@ authors:
 repository-code: "https://github.com/thetahealth/mirobody"
 url: "https://docs.mirobody.ai"
 abstract: >-
-  Mirobody collects readings from labs, wearables and genetic tests, translates
+  Mirobody collects readings from labs, wearables and genetic tests, standardizes
   them to canonical codes (LOINC, UCUM, FHIR-recognized code systems), and
   answers questions over them with an agent. The resolver runs offline against a
   shipped LOINC 2.82 bundle with 49,253 multilingual aliases.

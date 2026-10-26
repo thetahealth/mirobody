@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from mirobody import translate
+from mirobody import standardize
 
 
 def test_confirmed_glucose_without_a_unit_still_needs_input():
-    coding = translate.code(
+    coding = standardize.code(
         "FPG", name_key="fpg", local_key="fpg|", value_kind="quantity",
         value_text="4.76", value_num=4.76,
-        alias=translate.Alias("user:1", translate.LOINC_SYSTEM, "14771-0"),
+        alias=standardize.Alias("user:1", standardize.LOINC_SYSTEM, "14771-0"),
     )
     assert coding.outcome == "needs-input"
     assert coding.reason == "unit:missing"
@@ -23,10 +23,10 @@ def test_confirmed_glucose_without_a_unit_still_needs_input():
     ("mmol/L", 4.76, "14771-0"), ("mg/dL", 90.0, "1558-6"),
 ])
 def test_confirmed_glucose_with_a_unit_has_a_canonical_value(unit, number, code):
-    coding = translate.code(
+    coding = standardize.code(
         "FPG", name_key="fpg", local_key=f"fpg|{unit}", value_kind="quantity",
         value_text=str(number), value_num=number, unit_text=unit, unit_ucum=unit,
-        alias=translate.Alias("user:1", translate.LOINC_SYSTEM, "14771-0"),
+        alias=standardize.Alias("user:1", standardize.LOINC_SYSTEM, "14771-0"),
     )
     assert coding.outcome == "coded"
     assert coding.code == code

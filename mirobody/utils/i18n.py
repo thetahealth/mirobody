@@ -74,8 +74,9 @@ def localize(key: str, language: str, module: str, **kwargs) -> str:
     Named for what it does. It was `t`, which is the JavaScript convention
     (i18next, vue-i18n); Python's is gettext's `_`, and neither says anything
     at a call site. `translate` was the obvious alternative and is taken:
-    `mirobody.translate` is the ② stage, and a reader seeing `translate(...)`
-    in a progress message would have to check which one it is.
+    `str.translate` is the character map `zh_fold` and `lexical` fold with,
+    and a reader seeing `translate(...)` in a progress message would have to
+    check which one it is.
     """
     lang_code = LANGUAGE_CODES.get(language.lower(), "en")
     text_dict = _translations(module).get(key, {})

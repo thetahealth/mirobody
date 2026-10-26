@@ -6,7 +6,7 @@
 # symptoms_zh.tsv and symptoms_en.tsv already use. See res/icpc3/icpc3.NOTICE.
 #
 # Same two sentinels as symptoms_zh.tsv: !too-broad and !ambiguous. Matching is
-# exact over translate.fold.name_key: one row per spelling a person types,
+# exact over standardize.fold.name_key: one row per spelling a person types,
 # kana and kanji both. Bare 熱 is left out on purpose: after the zh-Hant fold
 # it would also answer a Chinese 熱 that means only hot.
 surface	code	note

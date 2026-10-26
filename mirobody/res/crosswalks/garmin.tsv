@@ -20,7 +20,7 @@
 # No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
 # Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
 # Generated from the maintainers' review tables; edit through a pull request,
-# and keep the file loadable by mirobody.translate.devices.
+# and keep the file loadable by mirobody.standardize.devices.
 type	field	metric	loinc	confidence	note
 Steps		steps	55423-8	confident	日汇总用 41950-7
 Intensity Minutes		dailyActivityIntensityMedium	101689-8	unverified	Garmin 的 Intensity Minutes 中高强度按 2 倍加权（与 Fitbit AZM 同类陷阱）,须先还原成真实分钟再落码 —— 加权口径待字段级文档确认

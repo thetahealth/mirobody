@@ -1,4 +1,4 @@
-# `mirobody/translate` — indicators, units and standardization
+# `mirobody/standardize` — indicators, units and standardization
 
 The layer that decides what a value *means*: which indicators exist, what unit
 each is stored in, the conversion a device's raw number passes through on its
@@ -20,7 +20,7 @@ it has no database, clock or model. Around it: the device crosswalks
 units and ranges:
 
 ```
-mirobody/translate/
+mirobody/standardize/
 ├── indicators_info.py       # StandardIndicator: the catalogue: name, category,
 │                            #   stored unit, aggregation methods, per language
 ├── canonical_units.py       # convert_to_standard(), on mirobody.units
@@ -29,7 +29,7 @@ mirobody/translate/
 └── derive/                  # quantities computed from those summaries
 ```
 
-`mirobody/translate/__init__.py` lists every module and the names other
+`mirobody/standardize/__init__.py` lists every module and the names other
 packages import.
 
 ## Where a device reading is converted
@@ -57,7 +57,7 @@ catalogue, not merely sent.
 ### **Utility Function Usage (Testing and Validation)**
 
 ```python
-from mirobody.translate import (
+from mirobody.standardize import (
     convert_to_standard,
     StandardIndicator,
     is_valid_indicator,
@@ -84,7 +84,7 @@ value, unit = convert_to_standard(
 
 Members are **UPPERCASE** (`StandardIndicator.HEART_RATE`), and the unit shown
 is the one values are STORED in after conversion — not necessarily the unit a
-device reports. The full catalogue is `mirobody/translate/indicators_info.py`;
+device reports. The full catalogue is `mirobody/standardize/indicators_info.py`;
 this table is generated from it.
 
 | Member | Stored unit | Name |

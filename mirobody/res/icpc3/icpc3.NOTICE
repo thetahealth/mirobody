@@ -37,7 +37,7 @@ editorial content for it, the preferred term, the description, and the
 inclusion and exclusion annotations. Columns: component, chapter, code, kind,
 preferred, description, inclusions, exclusions, depth.
 
-`translate_build/icpc3.py` fetches and builds it from one request to WONCA's
+`standardize_build/icpc3.py` fetches and builds it from one request to WONCA's
 Coding Tool (`ct.icpc-3.info/download.php?language=english`, 10,886 rubrics),
 and keeps that answer under `internal/indicators/icpc3/` as the evidence that
 the table was not edited by hand.
@@ -81,7 +81,7 @@ THIS file, in English.
 VERSION
 -------
 ICPC-3 publishes no release number inside the data retrieved above.
-`mirobody.translate.icpc3.release()` therefore reports
+`mirobody.standardize.icpc3.release()` therefore reports
 `icpc-3+<12 hex>`, a digest over the parsed codes, components, preferred
 terms and inclusions of this file and over our own surface files beside it, so
 a coding names content that cannot disagree with the stamp. Replace any of

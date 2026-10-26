@@ -990,7 +990,7 @@ def test_every_conversion_factor_is_the_one_ucum_defines():
     beside it, so every unit the table reads must convert by UCUM's ratio.
     Energy, pressure and the US volumes had no factor at all: `kcal` to `kJ`
     and `mmHg` to `kPa` came from a second, hand-copied table in
-    `translate.canonical_units`, and the MCP `convert_unit` refused both."""
+    `standardize.canonical_units`, and the MCP `convert_unit` refused both."""
     import math
 
     from mirobody.units import UCUM_FAMILY, conversion_factor, convert_value, convertible, scale
@@ -1046,7 +1046,7 @@ def test_a_reading_of_exactly_one_keeps_its_number():
     """`1` is also the UCUM unity unit, so a value cell holding exactly 1 was
     read as a unit with no number and stored as narrative: a series 1, 2, 3
     counted three readings and averaged two of them to 2.5."""
-    from mirobody.translate.parse import KIND_QUANTITY, parse_value
+    from mirobody.standardize.parse import KIND_QUANTITY, parse_value
     from mirobody.units import normalize_unit, parse_value_unit
 
     assert parse_value_unit("1") == parse_value_unit("1.0")
@@ -1278,7 +1278,7 @@ def test_the_crosswalk_names_real_codes_and_catalogue_rows(resolver):
     A confident vendor code and that metric's confident catalogue code are
     the same code, or two unit variants of one analyte (glucose in mmol/L)."""
     from mirobody.kernel import metrics
-    from mirobody.translate import devices
+    from mirobody.standardize import devices
 
     base = devices.base_table()
     assert len(base) >= 60
@@ -1321,7 +1321,7 @@ def test_the_apple_crosswalk_says_what_the_apple_decoder_does():
     """The public table and the shipped decoder must tell the same story
     about an Apple identifier: the same catalogue metric, or none."""
     from mirobody.kernel.decoders import apple
-    from mirobody.translate import devices
+    from mirobody.standardize import devices
 
     quantity = {k.lower(): v for k, v in apple.QUANTITY.items()}
     stages = {k.lower(): v for k, v in apple.SLEEP_STAGES.items()}
@@ -1347,14 +1347,14 @@ def test_a_catalogue_alias_lets_the_unit_pick_the_variant():
     analyte and the unit picks the sibling. A unit that fits no sibling
     leaves the alias's code: the alias is a decision, not a guess. Missing
     units still need input; an alias cannot create a canonical quantity."""
-    from mirobody import translate
-    from mirobody.translate.parse import KIND_QUANTITY
+    from mirobody import standardize
+    from mirobody.standardize.parse import KIND_QUANTITY
 
-    alias = translate.Alias("catalog", translate.LOINC_SYSTEM, "2339-0")
+    alias = standardize.Alias("catalog", standardize.LOINC_SYSTEM, "2339-0")
 
-    def run(value: str, unit: str) -> translate.Coding:
-        return translate.code(
-            "bloodGlucoses", name_key=translate.name_key("bloodGlucoses"), local_key="device:bloodGlucoses",
+    def run(value: str, unit: str) -> standardize.Coding:
+        return standardize.code(
+            "bloodGlucoses", name_key=standardize.name_key("bloodGlucoses"), local_key="device:bloodGlucoses",
             value_kind=KIND_QUANTITY, value_text=value, unit_text=unit, unit_ucum=unit,
             value_num=float(value), alias=alias,
         )
@@ -1374,12 +1374,12 @@ def test_a_printed_unit_that_does_not_normalize_picks_no_variant():
     to the mass code 1558-6, beside the mg/dL readings it is not. It needs a
     person, like a reading with no unit, and its decision is not the
     no-unit one, or one decision row would stand for two outcomes."""
-    from mirobody import translate
+    from mirobody import standardize
 
-    def run(unit: str) -> translate.Coding:
-        parsed = translate.parse_value("6.1", unit)
-        key = translate.name_key("空腹血糖")
-        return translate.code(
+    def run(unit: str) -> standardize.Coding:
+        parsed = standardize.parse_value("6.1", unit)
+        key = standardize.name_key("空腹血糖")
+        return standardize.code(
             "空腹血糖", name_key=key, local_key=f"{key}|{parsed.unit_ucum}", value_kind=parsed.value_kind,
             value_text="6.1", unit_text=unit, unit_ucum=parsed.unit_ucum, value_num=parsed.value_num,
         )

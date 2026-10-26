@@ -10,7 +10,7 @@ routes the text surface to (:mod:`mirobody.utils.config.llm`).
     resolve("血红蛋白").loinc          # -> "718-7", offline
     await parse_file("labs.pdf")       # -> readings + resolutions, one LLM call
 
-The first two engine stages (① Collect, ② Translate) without persistence:
+The first two engine stages (① Collect, ② Standardize) without persistence:
 
 * **Lexical resolution** against the shipped LOINC bundle: a multilingual
   alias index of LOINC's own designations, the long name of every code the

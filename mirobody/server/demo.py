@@ -13,7 +13,7 @@ What the database gets directly is ONE set per account: a year of device
 readings and one lab panel. Everything else arrives the way a real record grows,
 through the upload page, from `demo/upload/`: a PDF, a phone photo of a printed
 slip, a spreadsheet and a CSV, none of them seeded. Uploading one walks the
-whole chain rather than being a no-op. ① Collect stores the file, ② Translate
+whole chain rather than being a no-op. ① Collect stores the file, ② Standardize
 turns its analytes into readings in the catalogue's unit, ③ Agent answers over
 both panels at once and charts them against the device series. The seeded panel
 prints mg/dL where the uploaded one prints mmol/L, on purpose: what makes the
@@ -169,7 +169,7 @@ def documents_for(email: str) -> list[dict]:
 
     One document, not two. The second panel is a real file in `demo/upload/`
     that a reader uploads, which is the only way the demo can show ① Collect
-    and ② Translate doing anything.
+    and ② Standardize doing anything.
     """
     name = profile_for(email)["lab"][1]
     path = SEED_DIR / name

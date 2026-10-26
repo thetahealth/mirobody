@@ -20,7 +20,7 @@
 # No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
 # Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
 # Generated from the maintainers' review tables; edit through a pull request,
-# and keep the file loadable by mirobody.translate.devices.
+# and keep the file loadable by mirobody.standardize.devices.
 type	field	metric	loinc	confidence	note
 com.xiaomi.micloud.fit.heart_rate.bpm		heartRates	8867-4	confident	Heart rate
 com.xiaomi.micloud.fit.step_count.delta		steps	55423-8	confident	Number of steps in unspecified time Pedometer

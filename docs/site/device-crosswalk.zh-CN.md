@@ -19,7 +19,7 @@ Mirobody 的对照表将厂商字段映射到内部指标；确认含义一致�
 基础 Python 包已包含对照表，无需模型密钥：
 
 ```python
-from mirobody.translate import devices
+from mirobody.standardize import devices
 
 field = devices.lookup("apple", "HKQuantityTypeIdentifier", "stepCount")
 print(field.metric, field.loinc, field.confidence)

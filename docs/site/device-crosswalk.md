@@ -21,7 +21,7 @@ because both are called HRV. Proprietary scores may have no standard equivalent.
 The crosswalk ships with the base Python package and needs no API key:
 
 ```python
-from mirobody.translate import devices
+from mirobody.standardize import devices
 
 field = devices.lookup("apple", "HKQuantityTypeIdentifier", "stepCount")
 print(field.metric, field.loinc, field.confidence)

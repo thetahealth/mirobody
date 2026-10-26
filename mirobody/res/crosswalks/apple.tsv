@@ -22,7 +22,7 @@
 # No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
 # Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
 # Generated from the maintainers' review tables; edit through a pull request,
-# and keep the file loadable by mirobody.translate.devices.
+# and keep the file loadable by mirobody.standardize.devices.
 type	field	metric	loinc	confidence	note
 HKQuantityTypeIdentifier	heartRate	heartRates	8867-4	confident	本仓已有，核轴通过（NRat/Pt/XXX/Qn）
 HKQuantityTypeIdentifier	restingHeartRate	restingHeartRates	40443-4	confident	本仓已有；Heart rate^resting NRat/Pt/Qn

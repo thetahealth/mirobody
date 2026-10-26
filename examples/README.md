@@ -6,7 +6,7 @@ missing step.
 
 | | Example | Needs | Shows |
 |---|---|---|---|
-| 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Translate: name → LOINC, any language, fully offline |
+| 01 | [`01_resolve_offline.py`](01_resolve_offline.py) | `pip install mirobody` | ② Standardize: name → LOINC, any language, fully offline |
 | 02 | [`02_standardize_a_reading.py`](02_standardize_a_reading.py) | `pip install mirobody` | ① Collect: unit conversion + the indicator catalogue |
 | 03 | [`03_parse_a_lab_report.py`](03_parse_a_lab_report.py) | `pip install 'mirobody[parse]'` + one model key, only to read a file | a document → standardized readings in one call |
 | 04 | [`04_mcp_tool_surface.py`](04_mcp_tool_surface.py) | `pip install 'mirobody[agent]'` | ③ Agent: exactly what an external MCP client receives |

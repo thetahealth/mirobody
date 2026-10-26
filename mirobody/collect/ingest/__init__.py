@@ -6,9 +6,9 @@ until here. `models/requests.py` is the shape they all arrive in
 upload_health.py` writes it, and `services/repair_reconcile.py` handles a
 client resending a window it has corrected.
 
-Landing is ① Collect's last step, not ② Translate's first: what gets written is
+Landing is ① Collect's last step, not ② Standardize's first: what gets written is
 what the source said, with its own unit and its own timestamp, so a row can
-always be traced back. What the value MEANS is `mirobody.translate`.
+always be traced back. What the value MEANS is `mirobody.standardize`.
 
 `collect/observations.py` one level up is the single writer of
 observations; this package is the request path that calls it, and the

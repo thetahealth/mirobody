@@ -6,7 +6,7 @@
 #     scripts/fetch_data.sh --all    # those, plus the bundle-build inputs
 #
 # As of 1.5.0 every row is `archive`: the bundle is cut from a LOINC release
-# by `translate_build/` and nothing in the package opens these files. Both
+# by `standardize_build/` and nothing in the package opens these files. Both
 # commands therefore download nothing, and both still exit 0.
 #     scripts/fetch_data.sh --check  # report what is present, download nothing
 #

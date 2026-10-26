@@ -15,7 +15,7 @@ reader re-derives a day, a unit or an identity.
 
 ## What an "indicator" is now
 
-The unit of comparison is the SERIES (`translate.series`): every cholesterol
+The unit of comparison is the SERIES (`standardize.series`): every cholesterol
 reading of this person, in mg/dL or mmol/L, from a file or typed in, is one
 series with one `series_id`. The catalogue lists series; a selection by
 `indicators` accepts a series id, a LOINC code, the series' display name or
@@ -37,7 +37,7 @@ For `view=day` and coarser, the answer is the day's published authority:
 the observation `th_day_authority` names for that (series, local day), or the
 newest reading of the day where nothing has been elected, and `provenance`
 says which. Election happens once, on the write side
-(`translate/aggregate/election.py`), which is what keeps the chat answer and
+(`standardize/aggregate/election.py`), which is what keeps the chat answer and
 the dashboard identical by construction rather than by two implementations
 agreeing.
 """
@@ -48,7 +48,7 @@ import logging
 from datetime import date, datetime
 from typing import Any
 
-from mirobody import translate
+from mirobody import standardize
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
@@ -601,7 +601,7 @@ class PostgresHealthQuery:
             "uid": str(subject_id),
             "names": names,
             "lower": [n.lower() for n in names],
-            "keys": [translate.name_key(n) for n in names],
+            "keys": [standardize.name_key(n) for n in names],
         }
         kinds = self._kinds(params)
         rows = await execute_query(
@@ -671,21 +671,21 @@ class PostgresHealthQuery:
         a reading is coded by its unit too: "triglycerides" resolves to 2571-8
         (mass) and a reading printed in mmol/L is 14927-8 (moles), so matching
         codes missed it (1.5.4 local-model evaluation). The series is where the
-        writer files both (`translate.series_of`), mass and moles, with or
+        writer files both (`standardize.series_of`), mass and moles, with or
         without a method."""
         named: set[str] = set()
         try:
             from mirobody.engine import resolve
             hit = resolve(keyword)
             if hit.resolved and hit.loinc and hit.method == "lexical":
-                series = translate.series_of(hit.loinc)
+                series = standardize.series_of(hit.loinc)
                 if series:
                     named.add(series)
         except Exception as e:
             logger.warning("offline resolver unavailable in keyword recall: error_type=%s", type(e).__name__,
                            exc_info=not is_driver_exception(e))
         if self._reported:
-            for coding in (translate.resolve_symptom(keyword), translate.resolve_condition(keyword)):
+            for coding in (standardize.resolve_symptom(keyword), standardize.resolve_condition(keyword)):
                 if coding.outcome == "coded" and coding.code:
                     named.add(coding.series_id)
         return named
@@ -813,7 +813,7 @@ def _window_clause(params: dict[str, Any], window: query.Window | None) -> str:
 
 
 def _date_of(ms: int, tz: str) -> date:
-    return datetime.fromtimestamp(ms / 1000, translate.zone_for(tz)).date()
+    return datetime.fromtimestamp(ms / 1000, standardize.zone_for(tz)).date()
 
 
 def _identity(r: dict) -> dict:

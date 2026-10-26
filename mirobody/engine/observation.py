@@ -52,7 +52,7 @@ def standardize_reading(name: str, value: str | float | None = None, unit: str |
 def _complaint(name: str, value: str) -> dict[str, Any] | None:
     """What `standardize_complaint` would answer, when the name is a complaint
     (or a bare diagnosis) rather than something measured."""
-    from mirobody.translate.icpc3 import resolve_condition, resolve_symptom
+    from mirobody.standardize.icpc3 import resolve_condition, resolve_symptom
 
     for kind, coding in (("symptom", resolve_symptom(name)), ("condition", None if value else resolve_condition(name))):
         if coding is not None and coding.outcome == "coded" and coding.code:

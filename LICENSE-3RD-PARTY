@@ -142,7 +142,7 @@ License   : LOINC License (free, requires attribution)
             https://loinc.org/kb/license/
 Scope     : LOINC 2.83. `fhir_loinc_bundle.tar.gz` carries 63,416 of the
             99,737 ACTIVE codes, cut by the rule in
-            translate_build/loinc_cut.py; every column in it is a LOINC
+            standardize_build/loinc_cut.py; every column in it is a LOINC
             column with its content unchanged, rows are dropped and never
             edited (section 3 of the LOINC licence itself), and the 153 rows
             carrying a third party's EXTERNAL_COPYRIGHT_NOTICE are dropped

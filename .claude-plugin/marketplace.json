@@ -11,11 +11,11 @@
   "plugins": [
     {
       "name": "mirobody",
-      "description": "Translate raw health data into LOINC/UCUM/ICPC-3 coded rows and read lab reports against an offline resolver; self-host Mirobody and connect an agent over MCP.",
+      "description": "Standardize raw health data into LOINC/UCUM/ICPC-3 coded rows and read lab reports against an offline resolver; self-host Mirobody and connect an agent over MCP.",
       "source": "./",
       "strict": false,
       "skills": [
-        "./skills/translate-health-data",
+        "./skills/standardize-health-data",
         "./skills/mirobody"
       ]
     }

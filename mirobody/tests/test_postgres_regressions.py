@@ -262,7 +262,7 @@ async def test_apple_import_selects_one_device_before_cumulative_aggregation(dat
     first = await cli._store_export(args)
     assert first["records"] == first["facts"] == 2
     assert first["added"] > 0
-    from mirobody.translate.aggregate.aggregators.sql_aggregator import SQLAggregator
+    from mirobody.standardize.aggregate.aggregators.sql_aggregator import SQLAggregator
     sums = await SQLAggregator()._execute_single_sql_aggregation(["1"], ["steps"], datetime(2026, 1, 1), "UTC", {"sum"})
     assert float(sums[0]["sum_value"]) == 100
     if same_instant:
@@ -280,7 +280,7 @@ async def test_vcf_loc_and_rsid_citations_resolve_with_ownership_and_upload_life
     from mirobody.collect import citations
     from mirobody.collect.files.services import genotype_format
     from mirobody.collect.files.services.genetic_processor import GeneticDataLoader
-    from mirobody.translate.genotype import normalize
+    from mirobody.standardize.genotype import normalize
 
     vcf = '##fileformat=VCFv4.2\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tSYNTHETIC\n1\t123456\t.\tA\tG\t.\tPASS\t.\tGT\t0/1\n'
     file = tmp_path / "synthetic.vcf"

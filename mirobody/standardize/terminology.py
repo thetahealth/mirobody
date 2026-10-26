@@ -115,7 +115,7 @@ def standardize_complaint(text: str, kind: str = "symptom") -> dict[str, Any]:
     the person's own words, as a FHIR Observation coded on ICPC-3. The words
     stay in `code.text`; `coding` is absent when the vocabulary abstains, and
     the `coding-decision` extension's `reason` says why."""
-    from mirobody.translate.icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
+    from mirobody.standardize.icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 
     words = (text or "").strip()
     if not words:

@@ -8,8 +8,8 @@ import unittest
 from importlib.resources import as_file, files
 
 from mirobody.collect.files.services import genotype_format
-from mirobody.translate.genotype import normalize
-from mirobody.translate.genotype_sites import SiteCatalog
+from mirobody.standardize.genotype import normalize
+from mirobody.standardize.genotype_sites import SiteCatalog
 
 EXAMPLES = files("mirobody.testing").joinpath("genomics")
 ARRAY_FILES = (

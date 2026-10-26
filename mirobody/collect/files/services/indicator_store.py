@@ -5,7 +5,7 @@ the extractor found in one document and lands it through
 `collect.observations.ingest`, the single writer.
 
 Splitting a unit off the value used to happen here, on the string. It happens
-in `translate.parse.parse_value` now, which reads the value column and the
+in `standardize.parse.parse_value` now, which reads the value column and the
 unit column together and returns a typed value: the number, the comparator
 ("<2.5" is 2.5 and "<", not the text), and the unit in UCUM. The extraction
 prompt asks for the two columns separately; this is what holds when a model
@@ -24,7 +24,7 @@ from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date, file_source_ref
 from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.translate import RANGE_SEPARATOR
+from mirobody.standardize import RANGE_SEPARATOR
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ STORED_FLAGS = ("high", "low")
 #: The extraction's `detection_method` values whose rows are findings, not measurements.
 FINDING_METHODS = ("Imaging", "Pathological")
 
-# A doubled dash is one range separator, as in `translate.parse_range`:
+# A doubled dash is one range separator, as in `standardize.parse_range`:
 # `125--350` ends at 350, while `-5---1` ends at -1.
 _NUMERIC_TOKEN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _NUMBER = re.compile(rf"(?<![\d.])({_NUMERIC_TOKEN})(?:\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUMERIC_TOKEN}))?")

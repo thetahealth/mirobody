@@ -324,7 +324,7 @@ async def start_schedulers() -> None:
     runs: the vendor pull, the aggregation of readings and the derived
     indicators. A failure stops the boot."""
     from mirobody.collect import setup_platform_system_async, start_theta_pull_scheduler
-    from mirobody.translate import start_aggregate_indicator_scheduler, start_derived_scheduler
+    from mirobody.standardize import start_aggregate_indicator_scheduler, start_derived_scheduler
 
     await setup_platform_system_async()
     await start_theta_pull_scheduler()

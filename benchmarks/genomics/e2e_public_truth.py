@@ -21,7 +21,7 @@ import httpx
 import jwt
 import websockets
 
-from mirobody.translate.pgx import load_cpic
+from mirobody.standardize.pgx import load_cpic
 
 
 def _table_positions(rendered: str) -> dict[str, int]:

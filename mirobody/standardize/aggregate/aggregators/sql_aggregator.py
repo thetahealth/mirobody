@@ -15,11 +15,11 @@ from zoneinfo import ZoneInfo
 
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
-from mirobody.translate.aggregate import windows
-from mirobody.translate.aggregate.models import CalculationTask
-from mirobody.translate.aggregate.rule_generator import get_rules_by_source_indicator
+from mirobody.standardize.aggregate import windows
+from mirobody.standardize.aggregate.models import CalculationTask
+from mirobody.standardize.aggregate.rule_generator import get_rules_by_source_indicator
 from .source_id_priority import APPLE_SOURCES, build_apple_priority_case
-from mirobody.translate import StandardIndicator, zone_for
+from mirobody.standardize import StandardIndicator, zone_for
 
 logger = logging.getLogger(__name__)
 

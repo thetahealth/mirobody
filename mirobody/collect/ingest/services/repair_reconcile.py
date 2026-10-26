@@ -32,8 +32,8 @@ from typing import Any
 from mirobody.collect import observations
 from mirobody.collect.ingest.repositories.health_data import HealthDataRepository
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.translate import AggregateIndicatorService
-from mirobody.translate import HealthDataType, get_indicators_in_same_categories
+from mirobody.standardize import AggregateIndicatorService
+from mirobody.standardize import HealthDataType, get_indicators_in_same_categories
 
 logger = logging.getLogger(__name__)
 

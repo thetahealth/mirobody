@@ -19,10 +19,10 @@ how a reader comes to believe a boundary does not exist.
 | 3 | **Decode** | vendor JSON → `series.Fact`, in the catalogue's units | `kernel/decoders/` |
 | 4 | **Resolve** | which metric IS this — name, code, shape | `kernel/metrics.py`, `engine/` |
 | 5 | **Gate** | reject the impossible; convert what is convertible | `kernel/quality.py`, applied in `collect/observations.py` |
-| 6 | **Store** | one writer, one day column, one fingerprint, the coding beside the row | `collect/observations.py`, `mirobody/translate/` |
-| 7 | **Aggregate** | a day of points → one number, under the metric's policy | `kernel/series.py`, `translate/aggregate/` |
-| 8 | **Elect** | which source the day publishes from | `series.elect`, `translate/aggregate/election.py` |
-| 8b | **Derive** | quantities nothing measured: sleep efficiency, HR range | `translate/derive/rules.py` |
+| 6 | **Store** | one writer, one day column, one fingerprint, the coding beside the row | `collect/observations.py`, `mirobody/standardize/` |
+| 7 | **Aggregate** | a day of points → one number, under the metric's policy | `kernel/series.py`, `standardize/aggregate/` |
+| 8 | **Elect** | which source the day publishes from | `series.elect`, `standardize/aggregate/election.py` |
+| 8b | **Derive** | quantities nothing measured: sleep efficiency, HR range | `standardize/derive/rules.py` |
 | 9 | **Correct** | a person's edit, as a layer over the row | `kernel/overlay.py` |
 | 10 | **Read** | one authority, one window semantics | `kernel/query.py` |
 | 11 | **Answer** | one tool, an envelope, a model that narrates | `agent/tools/` |
@@ -94,7 +94,7 @@ written. `reconcile_unit`,
 consumer's own decoders and aggregation; the reference application calls none
 of them. Its decoders convert with `mirobody.units`, and its aggregation pass
 applies the last two rules through `kernel/series.py`:
-`translate/aggregate/election.py` rejects a duration longer than its window
+`standardize/aggregate/election.py` rejects a duration longer than its window
 with `series.coverage_bound` rather than ranking it, and ranks a profile echo
 below a measurer (`series.elect`).
 
@@ -111,12 +111,12 @@ maintains none. Only the physically impossible is rejected.
 
 **Not implemented.** A marker for which readings were unit-converted.
 `collect/ingest/services/base.py` converts a device reading's unit with
-`translate.convert_to_standard`, and keeps the original value and unit when the
+`standardize.convert_to_standard`, and keeps the original value and unit when the
 conversion raises, but neither path is tagged. `kernel/quality.py` computes a
 `unit_converted` flag (`FLAG_UNIT_CONVERTED`) for exactly this purpose and
 nothing downstream stores it, so a converted reading and one that arrived
 already in the catalogue's unit are the same shape in `th_observation` today.
-`mirobody/translate/__init__.py` carries the plan to separate them.
+`mirobody/standardize/__init__.py` carries the plan to separate them.
 
 ## 6. Store
 
@@ -124,12 +124,12 @@ already in the catalogue's unit are the same shape in `th_observation` today.
 model (`mirobody/schema/30_observations.sql`): `th_observation` holds
 what was printed, verbatim, beside the typed layer derived from it, and
 `th_coding_current` holds the code and the series it belongs to. Derived at
-write time, by `mirobody.translate`, and never again:
+write time, by `mirobody.standardize`, and never again:
 
 | Column | From | Why at write time |
 |---|---|---|
-| `local_date` | `translate.local_day` through the metric's `window` and the row's own `tz` | the day is a fact about the reading, and computing it at read time means computing it differently in each reader |
-| `value_kind`, `value_num`, `unit_ucum` | `translate.parse_value` | a number is compared as a number, "阴性" is never averaged |
+| `local_date` | `standardize.local_day` through the metric's `window` and the row's own `tz` | the day is a fact about the reading, and computing it at read time means computing it differently in each reader |
+| `value_kind`, `value_num`, `unit_ucum` | `standardize.parse_value` | a number is compared as a number, "阴性" is never averaged |
 | `series_id` | the LOINC axes, or `local:<name>\|<unit>` | what may be plotted on one axis, across units and across people |
 | `stream_key` | `name\|unit\|source:vendor` | two devices' curves must never be averaged together |
 | `source_class` | the provenance | election's first criterion |
@@ -182,7 +182,7 @@ LIKE '%sleep%'`. That matched 58 `daily…Sleep…` metrics which are
 `provider_daily` — the vendor's own figure, already dated — and re-anchoring
 those moved every one a day; and it missed `napDuration`, which is a real
 interval belonging to the night. The catalogue's `window` answers both
-(`translate/aggregate/windows.py`).
+(`standardize/aggregate/windows.py`).
 
 **Suggested extension.** `series.sessionize(segments, gap_ms)` — stitching stage
 fragments into one night before `duration_union` — is designed and not built.
@@ -195,7 +195,7 @@ overlap.
 themselves. `series.elect` ranks the sources — measurer over profile echo, then
 coverage, then the MEASUREMENT instant (never the row's update time: an echo is
 rewritten daily and looks fresh), then the deployment's own priority list — and
-`translate/aggregate/election.py` records the winner in `th_day_authority`,
+`standardize/aggregate/election.py` records the winner in `th_day_authority`,
 which the read view exposes as `elected`.
 
 A candidate is **rejected** rather than ranked when its numbers are impossible:
@@ -267,5 +267,5 @@ in this pipeline decides whether a number is good news.
 10. A log line carries ids, counts, durations, status codes and type names — never a value.
 
 Each one is a test in the maintainers' local suite, one module per subject:
-series, quality, metrics, translate, observations, election, decoders and the
+series, quality, metrics, standardize, observations, election, decoders and the
 PHI baseline.

@@ -572,7 +572,7 @@ after a delete writes them fresh:
 |-------|-------------|
 | user_id | The person the file was uploaded into |
 | name_text / value_text / unit_text / ref_text / flag_text | As printed on the report, never translated or edited |
-| value_kind / value_num / comparator / unit_ucum | The typed layer derived from the text (`mirobody.translate.parse_value`) |
+| value_kind / value_num / comparator / unit_ucum | The typed layer derived from the text (`mirobody.standardize.parse_value`) |
 | observed_start / observed_end / tz / local_date | The report date (see above), the zone it was placed in, and the local day computed once |
 | source_kind / source_ref | `file` / `th_files:<file_key>`: the handle back to the original document |
 | extraction_id | The frozen `th_extraction` row holding the model's output verbatim |

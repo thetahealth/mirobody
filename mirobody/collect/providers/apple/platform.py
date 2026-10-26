@@ -10,7 +10,7 @@ from .provider import AppleHealthProvider, CDAProvider
 from .services.database_service import AppleDatabaseService
 from mirobody.collect.base import LinkRequest, Platform, ProviderInfo
 from mirobody.collect.core import CacheConfig, UserProvider
-from mirobody.translate import AggregateIndicatorService
+from mirobody.standardize import AggregateIndicatorService
 from mirobody.utils.distributed_lock import pull_task_lock_manager
 from mirobody.collect.ingest import FormatDataContext, FormatDataInput
 from mirobody.collect.ingest import StandardHealthService

@@ -20,7 +20,7 @@
 # No vendor API carries a LOINC code of its own. LOINC is copyright Regenstrief
 # Institute, Inc. (https://loinc.org/kb/license/); see LICENSE-3RD-PARTY section 3.
 # Generated from the maintainers' review tables; edit through a pull request,
-# and keep the file loadable by mirobody.translate.devices.
+# and keep the file loadable by mirobody.standardize.devices.
 type	field	metric	loinc	confidence	note
 sleep	average_hrv	hrvRMSSD			Oura 的 HRV 是 RMSSD（spec 本身未声明算法；Oura 公开文档与第三方验证文献一致确认为 rMSSD）。LOINC 无 RMSSD 码。印证归一化风险：把 Oura 同步进 Apple Health 会把 RMSSD 写入 SDNN 类型的字段
 sleep	hrv	hrvDatas			5 分钟粒度 RMSSD 时间序列（PublicSample: interval + items）。同上无码；且不可落 `112429-6`（那是 SDNN）

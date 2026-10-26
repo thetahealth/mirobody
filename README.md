@@ -118,19 +118,19 @@ The local models belong to the Docker path, so this one answers through a model 
 - **Explore genetic data.** Upload a 23andMe, AncestryDNA or WeGene export, or a VCF, and ask by rsID, gene or region. Drug questions get CPIC coverage, never a change of medication.
 - **Use your own agent.** Connect Claude Code, Codex or Cursor over MCP, or embed the offline engine in Python.
 
-## Collect · Translate · Agent
+## Collect · Standardize · Agent
 
 <p align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/collect-translate-agent-dark.svg">
-  <img src="docs/images/collect-translate-agent.svg" alt="Collect reports, device data and genetics; translate names and units so sources compare; ask across your history and trace each answer to its source" width="920">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/collect-standardize-agent-dark.svg">
+  <img src="docs/images/collect-standardize-agent.svg" alt="Collect reports, device data and genetics; standardize names and units so sources compare; ask across your history and trace each answer to its source" width="920">
 </picture>
 </p>
 
 | Stage | What it does | Where |
 | --- | --- | --- |
 | **① Collect** | Files, devices and journal entries come in; the source is kept, so every reading points back to it. | [`collect/`](mirobody/collect/) |
-| **② Translate** | `A1c`, `HbA1c` and `Glycated Hemoglobin` resolve to one code, units to one standard, offline. A name it cannot place stays unresolved. | [`engine/`](mirobody/engine/) · [`translate/`](mirobody/translate/) |
+| **② Standardize** | `A1c`, `HbA1c` and `Glycated Hemoglobin` resolve to one code, units to one standard, offline. A name it cannot place stays unresolved. | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ Agent** | Ask over the coded record: trends, comparisons across labs and devices, a chart, and the file behind every number. | [`agent/`](mirobody/agent/) |
 
 The model reads documents and reasons; the codes and units come from vocabularies bundled with the package, never from the model. [How a reading moves through the pipeline](docs/pipeline.md).
@@ -156,7 +156,7 @@ Where the app runs and where the model runs are separate choices. Mirobody does 
 | --- | --- | --- | --- |
 | App and stored records | in your codespace on GitHub's cloud | on your machine | on your machine |
 | Documents and questions sent for model processing | sent to your model vendor, under its terms | sent to your model vendor, under its terms | stay on your machine |
-| A name to a code, a unit to UCUM (**② Translate**) | in the codespace, from the bundled vocabulary | on your machine, with no network | on your machine, with no network |
+| A name to a code, a unit to UCUM (**② Standardize**) | in the codespace, from the bundled vocabulary | on your machine, with no network | on your machine, with no network |
 | Model weights | managed by the model vendor | managed by the model vendor | downloaded once from Hugging Face |
 
 The command-line resolver also runs on your machine without a model or network access after its initial download.
@@ -169,7 +169,7 @@ Device vendors see data only after you link one. Before this reaches a network y
 | --- | --- |
 | Your record in Claude Code, Codex, Cursor or Gemini CLI | **Settings → MCP link**, then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
 | Names and units resolved in your own code | `pip install mirobody`: offline, no key, numpy the only dependency ([library guide](docs/quickstart.md#a--the-library)) |
-| Your coding agent taught the workflow | `npx skills add thetahealth/mirobody --skill translate-health-data` ([skills](skills/README.md)) |
+| Your coding agent taught the workflow | `npx skills add thetahealth/mirobody --skill standardize-health-data` ([skills](skills/README.md)) |
 | A new device provider or tool | Drop a file into `mirobody/collect/providers/` or `mirobody/agent/tools/` ([CONTRIBUTING](CONTRIBUTING.md)) |
 | Try the app without deploying | [Mirobody Web demo](https://chat.mirobody.ai/demo?ref=github-readme&lang=en), using the same [synthetic demo files](demo/README.md) |
 

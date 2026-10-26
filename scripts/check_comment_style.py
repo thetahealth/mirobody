@@ -25,7 +25,8 @@ from pathlib import Path
 MAX_BLOCK = 8
 
 SKIP_DIRS = ("__pycache__", "/tests/")
-# Deleted wholesale by the 1.5.0 Translate refactor; cleaning it is wasted work.
+# Deleted wholesale by the 1.5.0 refactor of ② (then named Translate); cleaning
+# it is wasted work.
 SKIP_PREFIXES = ("mirobody/indicator/", "mirobody/res/")
 
 

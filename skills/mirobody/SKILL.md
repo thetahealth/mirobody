@@ -20,7 +20,7 @@ stay on the machine. Either way the record stays in the user's own Postgres,
 and a wearable vendor is called only once one is linked.
 
 This skill gets a stack running and connects an agent to it. The sibling
-`translate-health-data` skill covers the library without Docker: it turns raw
+`standardize-health-data` skill covers the library without Docker: it turns raw
 files into coded rows and explains a report only from resolved evidence.
 
 ## Agent contract

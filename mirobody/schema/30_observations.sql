@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS th_observation (
     observed_end       timestamptz NOT NULL,
     tz                 text NOT NULL,            -- IANA name, or UTC±HH:MM when only an offset was known
     tz_source          text NOT NULL,            -- iana | offset-only | floating | user-default
-    local_date         date NOT NULL,            -- translate.local_day(), nowhere else
+    local_date         date NOT NULL,            -- standardize.local_day(), nowhere else
     grain              text NOT NULL,            -- instant | window | day
     stat               text NOT NULL DEFAULT '', -- Open mHealth descriptive statistic for window/day rows
     name_text          text NOT NULL,            -- as printed, never translated
@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS th_observation (
     method_text        text NOT NULL DEFAULT '',
     specimen_text      text NOT NULL DEFAULT '',
     note_text          text,                     -- ENCRYPTED free text; NULL when there is none
-    name_key           text NOT NULL,            -- translate.fold.name_key(name_text)
+    name_key           text NOT NULL,            -- standardize.fold.name_key(name_text)
     value_kind         text NOT NULL,            -- quantity | ordinal | nominal | narrative | absent
     value_num          numeric,
     comparator         text NOT NULL DEFAULT '', -- '' < <= > >=

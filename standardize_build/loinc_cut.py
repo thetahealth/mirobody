@@ -17,7 +17,7 @@ The rule is the one measured on LOINC 2.83 (63,542 of 99,737 ACTIVE codes):
     minus rows carrying EXTERNAL_COPYRIGHT_NOTICE (owner's call, 2026-09-14)
 
 Usage:
-    python -m translate_build.loinc_cut --loinc /path/to/Loinc_2.83 --out mirobody/translate/data/loinc
+    python -m standardize_build.loinc_cut --loinc /path/to/Loinc_2.83 --out mirobody/standardize/data/loinc
 """
 
 from __future__ import annotations

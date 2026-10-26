@@ -81,10 +81,10 @@ def main() -> int:
         print(f"OK   {args.bundle}: {stamped}")
         return 0
 
-    # Writing the stamp is `translate_build/build_bundle.py`'s job now: it
+    # Writing the stamp is `standardize_build/build_bundle.py`'s job now: it
     # mints every member and computes this digest in the same pass, so a
     # second writer could only disagree with it. This script verifies.
-    print(f"FAIL {args.bundle}: stamping moved to `python -m translate_build.build_bundle`")
+    print(f"FAIL {args.bundle}: stamping moved to `python -m standardize_build.build_bundle`")
     return 2
 
 

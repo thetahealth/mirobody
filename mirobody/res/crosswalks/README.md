@@ -119,7 +119,7 @@ files a reading under another measurement; a wrong range marks a real reading
 as suspect. Neither answer helps with the other question.
 
 **These ship, the SQL does not.** `pip install mirobody` gets the crosswalks
-and reads them through `mirobody.translate.devices` with no database and no
+and reads them through `mirobody.standardize.devices` with no database and no
 network, which is what lets `mirobody parse` code a device reading offline.
 The table exists only where there is a Postgres. Moving identity into SQL
 would put it behind a dependency the library contract forbids: import-linter

@@ -38,17 +38,17 @@ the second is a manifest of data that is deliberately NOT in the checkout.
 | `loinc/aliases_src/zh_curated.tsv` | our corrections to the above, and they win | same |
 | `loinc/resolver_overrides.tsv` | term → target for what the index gets wrong, ours | `engine`, first in precedence |
 | `loinc/recall_synonyms.tsv` | query-side synonyms, ours | `kernel.query` |
-| `icpc3/icpc3.tsv` | ICPC-3 S and D components, 1,218 codes, verbatim | `translate.icpc3` |
+| `icpc3/icpc3.tsv` | ICPC-3 S and D components, 1,218 codes, verbatim | `standardize.icpc3` |
 | `icpc3/icpc3.NOTICE` | WONCA's attribution, and what "verbatim" means here | prose |
 | `ucum/ucum-essence.xml` | UCUM 2.2, byte for byte; an edited copy is refused | `units.essence`, and the gates on our unit tables |
 | `ucum/ucum-essence.NOTICE`, `ucum/UCUM-LICENSE.md` | Regenstrief's notice and licence, which must travel with the file | prose; UCUM License §3 |
-| `icpc3/symptoms_{en,zh,ja,ru}.tsv` | everyday words for a complaint → an S code, ours | `translate.icpc3` |
-| `icpc3/conditions_{en,zh,ja,ru}.tsv` | everyday words for a diagnosis → a D code, ours | `translate.icpc3` |
+| `icpc3/symptoms_{en,zh,ja,ru}.tsv` | everyday words for a complaint → an S code, ours | `standardize.icpc3` |
+| `icpc3/conditions_{en,zh,ja,ru}.tsv` | everyday words for a diagnosis → a D code, ours | `standardize.icpc3` |
 | `catalog/metrics.tsv` | the indicator catalogue: unit, window, aggregation, code | `kernel.metrics` |
 | `catalog/labels/zh.tsv` | Chinese display names for catalogue members | `kernel.metrics.register_labels` |
-| `crosswalks/*.tsv` | a vendor's data types → LOINC, with confidence and source | `translate.devices` |
+| `crosswalks/*.tsv` | a vendor's data types → LOINC, with confidence and source | `standardize.devices` |
 | `dose_forms.tsv` | UCUM dose-form annotations | `kernel.meds` |
-| `genomics/genotype_sites.sqlite3` | Public dbSNP 155 Common site index: 489 dual-build SNVs in twelve pharmacogene regions; `genotype_sites.NOTICE` gives its sources and coverage | `translate.genotype_sites.SiteCatalog` |
+| `genomics/genotype_sites.sqlite3` | Public dbSNP 155 Common site index: 489 dual-build SNVs in twelve pharmacogene regions; `genotype_sites.NOTICE` gives its sources and coverage | `standardize.genotype_sites.SiteCatalog` |
 | `genomics/genotype_sites.NOTICE` | source URL, hashes and sample limits | prose |
 | `EXTERNAL.tsv` | what is NOT here, and where it was | `scripts/fetch_data.sh` |
 

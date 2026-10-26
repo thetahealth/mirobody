@@ -33,7 +33,7 @@ The order of authority inside one axis, highest first:
 
 The classification's index words would be a fifth tier and are deliberately
 not shipped: 40.6% of them are SNOMED CT description text, and `res/` carries
-no SNOMED CT derivative. `translate_build/icpc3.py` has the measurement.
+no SNOMED CT derivative. `standardize_build/icpc3.py` has the measurement.
 
 Inside one tier, two codes means no code, and the tie abstains as
 `needs-input` rather than being settled by file order.

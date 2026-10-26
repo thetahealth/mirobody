@@ -2,16 +2,16 @@
 
 **[English](standardization.md)** · **中文**
 
-README 里 **② 转译 Translate（标准化）** 那一阶段的长版本：随包发布的词表到底是
+README 里 **② 标准化 Standardize** 那一阶段的长版本：随包发布的词表到底是
 什么、它刻意不做什么、切自哪个 LOINC 版本、为什么停在那里，以及那个默认关闭的
 语义层。这里每一个精确数字都和 README 引用的是同一个，而 README 里的数字由它们
 来源的产物守着，这一页跟着它走。
 
 <p align="center">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="images/collect-translate-agent-dark.zh-CN.svg">
-  <source media="(prefers-color-scheme: light)" srcset="images/collect-translate-agent.zh-CN.svg">
-  <img src="images/collect-translate-agent.zh-CN.svg" alt="收集、转译、智能体：三个阶段，从左到右" width="920">
+  <source media="(prefers-color-scheme: dark)" srcset="images/collect-standardize-agent-dark.zh-CN.svg">
+  <source media="(prefers-color-scheme: light)" srcset="images/collect-standardize-agent.zh-CN.svg">
+  <img src="images/collect-standardize-agent.zh-CN.svg" alt="收集、标准化、智能体：三个阶段，从左到右" width="920">
 </picture>
 </p>
 
@@ -87,7 +87,7 @@ pytest mirobody/tests/test_engine_coverage.py -s   # 离线，大约一秒
 负责让这个戳保持诚实。
 
 **这一刀切下了什么。** 2.83 的 99,737 个 ACTIVE 码里留 63,416 个，按规则切而不是
-手挑（`translate_build/loinc_cut.py`）：CLASSTYPE 是实验室或临床；从来不承载读数的
+手挑（`standardize_build/loinc_cut.py`）：CLASSTYPE 是实验室或临床；从来不承载读数的
 CLASS 族丢掉（问卷、文档、放射、行政）；SCALE_TYP 为 `Doc`/`Nar`/`-`/`Set`/`Multi`
 的丢掉；体格检查类只在 `Qn` 或 `Ord` 时留；面板留化验那几个子类，外加生命体征与个人
 健康记录那几个。**只删行，不改行**——这是[许可](https://loinc.org/license/)第 3 条的

@@ -36,8 +36,8 @@ from mirobody.collect.files.services.genetic_processor import build_from_votes
 from mirobody.collect.files.services.genotype_format import sniff_stream
 from mirobody.kernel import tools
 from mirobody.utils import db
-from mirobody.translate.genotype import normalize, pseudoautosomal_status
-from mirobody.translate.genotype_sites import SiteCatalog
+from mirobody.standardize.genotype import normalize, pseudoautosomal_status
+from mirobody.standardize.genotype_sites import SiteCatalog
 
 
 PUBLIC_VCF = Path(__file__).parent / "fixtures/public-hg00096.vcf"

@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from mirobody.translate.cpic_extract import fetch_extract
-from mirobody.translate.pgx import load_cpic
+from mirobody.standardize.cpic_extract import fetch_extract
+from mirobody.standardize.pgx import load_cpic
 
 
 PUBLIC_DUMP = Path("internal/genomics/corpus/reference/cpic_db_dump-v1.59.1.sql.gz")

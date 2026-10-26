@@ -14,16 +14,16 @@ resolver needs::
     └── loinc_units.tsv                      # EXAMPLE_UCUM_UNITS per code
 
 Each table is one blob plus an offset array, so a lookup slices bytes and
-allocates nothing per entry. `translate_build/build_bundle.py` mints them all
+allocates nothing per entry. `standardize_build/build_bundle.py` mints them all
 from one LOINC release in one pass; before 1.5.0 they were repacked from a
 second set of members (`loinc_axis.csv`, `loinc_alias_index.npz`) that the cut
 no longer ships.
 
 This is the read side, and it is runtime: `engine/resolver.py`, the front door
-of ② Translate and the one thing a `pip install mirobody` actually runs, reads
+of ② Standardize and the one thing a `pip install mirobody` actually runs, reads
 its data here. It used to read through the bundle-BUILD package, which tied
 the runtime to tooling that cannot ship. The write side is
-`translate_build/build_bundle.py`, outside the package.
+`standardize_build/build_bundle.py`, outside the package.
 
 Everything needed to CONSUME the bundle ships. The script that mints it from
 a raw LOINC release does not, because that release is licensed per user (see
@@ -216,7 +216,7 @@ def load_axis(
             f"{AXIS_BLOB_MEMBER} / {AXIS_INDEX_MEMBER} not found in "
             f"{bundle_path or BUNDLE_PATH}. Run `git lfs pull` for the data "
             "bundles; if the bundle predates 1.3.0, rebuild the runtime index "
-            "with `python -m translate_build.build_bundle --loinc <release>`."
+            "with `python -m standardize_build.build_bundle --loinc <release>`."
         )
     import io
 

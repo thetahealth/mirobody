@@ -1,6 +1,6 @@
 -- 41_device_rules.sql: the value ranges a device reading must fall in.
 --
--- Evaluated at ingestion by translate/value_range_validator.py; a
+-- Evaluated at ingestion by standardize/value_range_validator.py; a
 -- value outside its range is kept and marked task_id='filtered_out_of_range'.
 -- One row per (rule_set, indicator); the seed below is re-applied on every
 -- boot and never overwrites a row someone edited (ON CONFLICT DO NOTHING).

@@ -223,7 +223,7 @@ same OTSL rule, written here) before.
 Rows are aligned to the truth with mirobody-gen's own aligner
 (`mirobody_gen.harness.score.align`: the best one-to-one match on name
 similarity and value). A field is compared as the product stores it: a value
-through `translate.parse_value` ("42.4 %" is 42.4, right; "6.49↑" before
+through `standardize.parse_value` ("42.4 %" is 42.4, right; "6.49↑" before
 490a0e1 was a narrative with no number, wrong); a unit through
 `normalize_unit`; a range as printed less spacing, brackets and the dash or
 tilde between its ends. A stored row that matches no printed row is **stored
@@ -359,7 +359,7 @@ agent, then measured here:
 
 | Fixed in | What was wrong | Measured effect |
 |---|---|---|
-| d6c9880 | `translate.parse_range("35.0--45.0")` was (-45.0, 35.0), stored as `ref_low`/`ref_high` for every doubled-dash range | ranges right |
+| d6c9880 | `standardize.parse_range("35.0--45.0")` was (-45.0, 35.0), stored as `ref_low`/`ref_high` for every doubled-dash range | ranges right |
 | d6c9880 | a flag left after the model's number ("6.49↑") was stored as a narrative with no number | all 16 of GLM-OCR's (b) value errors at 6b5933b |
 | 5c1b36f | the table rules knew few headers (检测结果, 化验结果, 数值, Test Item, REF.RANGE, Traditional 檢驗項目 …) and took "Measurement" for the name column | rule rows 51 → 162 (GLM-OCR), none wrong |
 | e2044e9 | no OCR answer was cleaned: OTSL unread (0 of PaddleOCR-VL's rows), LaTeX units, loops kept, no token cap (a loop ran to the 16k context) | PaddleOCR-VL rule rows 0 → 276 through the product path |

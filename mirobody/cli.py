@@ -61,7 +61,7 @@ def _require_extra(command: str, extra: str, marker: str, what: str) -> None:
     opaque ``ModuleNotFoundError``. Checking one marker dependency up front and
     naming the pip command is the entire fix.
 
-    ``pip install mirobody`` is ② Translate: ``resolve``, units, lexical,
+    ``pip install mirobody`` is ② Standardize: ``resolve``, units, lexical,
     numpy and nothing else. That is deliberate: it is the surface other
     software depends ON, and it used to drag 93 packages and 245 MB behind it.
     """
@@ -268,7 +268,7 @@ def _cmd_doctor(args: argparse.Namespace) -> None:
 def _cmd_fetch_cpic(args: argparse.Namespace) -> None:
     from pathlib import Path
 
-    from mirobody.translate.cpic_extract import fetch_extract
+    from mirobody.standardize.cpic_extract import fetch_extract
 
     directory = Path(args.dir or os.environ.get("CPIC_DIR") or "~/.mirobody/cpic")
     try:
@@ -408,7 +408,7 @@ def _complaint_axis_hint(term: str) -> str:
     reaches it. Empty when neither axis codes the term, so a pure miss keeps its
     one-line message unchanged.
     """
-    from mirobody.translate import resolve_condition, resolve_symptom
+    from mirobody.standardize import resolve_condition, resolve_symptom
 
     for fn, flag, kind in ((resolve_symptom, "--symptom", "complaint"),
                            (resolve_condition, "--condition", "diagnosis")):
@@ -426,7 +426,7 @@ def _print_icpc3(terms: list[str], width: int, *, condition: bool) -> None:
     "unresolved: ..." line, because a complaint ICPC-3 cannot place is a decision a
     person can close, not a miss to guess past.
     """
-    from mirobody.translate import resolve_condition, resolve_symptom
+    from mirobody.standardize import resolve_condition, resolve_symptom
 
     code = resolve_condition if condition else resolve_symptom
     for term in terms:
@@ -475,7 +475,7 @@ def _cmd_mcp(args: argparse.Namespace) -> None:
 def _cmd_device_bundle(args: argparse.Namespace) -> None:
     import json
 
-    from mirobody.translate import device_bundle
+    from mirobody.standardize import device_bundle
 
     data = device_bundle.dumps()
     if not args.out:
@@ -627,7 +627,7 @@ async def _store_export(args: argparse.Namespace) -> dict[str, int]:
     from mirobody.collect.ingest import StandardHealthService
     from mirobody.kernel import decoders
     from mirobody.kernel.decoders import apple_export
-    from mirobody.translate import AggregateIndicatorService
+    from mirobody.standardize import AggregateIndicatorService
     from mirobody.utils import execute_query
     from mirobody.utils.config import Config
 

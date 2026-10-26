@@ -134,9 +134,9 @@ One table, one file. Add the identifier to `QUANTITY` (or `CATEGORY`) in
 [`mirobody/kernel/decoders/apple.py`](../mirobody/kernel/decoders/apple.py),
 pointing at a catalogue metric. If that metric does not exist yet, add it to
 `StandardIndicator` in
-[`mirobody/translate/indicators_info.py`](../mirobody/translate/indicators_info.py)
+[`mirobody/standardize/indicators_info.py`](../mirobody/standardize/indicators_info.py)
 with its canonical unit, and see that package's
-[README](../mirobody/translate/README.md).
+[README](../mirobody/standardize/README.md).
 
 Add a case to `mirobody/kernel/decoders/samples/apple/` in the same change: the
 expected numbers there are worked by hand, never read back from the decoder,

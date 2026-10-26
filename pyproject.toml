@@ -47,7 +47,7 @@ classifiers = [
 # about it. The Docker application is a PRODUCT and wants everything in the
 # box. Until 1.3.0 the pyproject described only the second: base carried the
 # whole ① Collect extraction stack and three LLM SDKs, so a consumer who wanted
-# ② Translate — offline name → LOINC, UCUM units — installed 93 packages and
+# ② Standardize — offline name → LOINC, UCUM units — installed 93 packages and
 # 245 MB, of which mirobody itself was 29 MB.
 #
 # That was not merely wasteful. `mcp>=2.0.0` in base made the package
@@ -60,7 +60,7 @@ classifiers = [
 # is numpy and nothing else (measured — `import mirobody.engine` pulls zero
 # third-party packages; numpy is imported inside `OfflineResolver.__init__`).
 dependencies = [
-    # ② Translate. `_bundle` and `_strtab` read the shipped offset arrays with
+    # ② Standardize. `_bundle` and `_strtab` read the shipped offset arrays with
     # it, and the resolver builds its lookup orders from them. It went
     # undeclared for a long time and worked only because pandas (since
     # removed) happened to pull it in, i.e. `mirobody resolve` depended on a
@@ -323,7 +323,7 @@ include = ["mirobody", "mirobody.*"]
     "**/*.so",
     # ── engine data bundles (Git LFS) ────────────────────────────────────────
     # These are not optional extras: `mirobody.engine.resolve` — the front door
-    # of ② Translate, and the one line the README leads with — reads
+    # of ② Standardize, and the one line the README leads with — reads
     # res/loinc/fhir_loinc_bundle.tar.gz and res/loinc/aliases_src/*.tsv
     # at import time. Until 1.0.62 only *.bin was listed here, so every published
     # wheel shipped an engine that could not resolve anything. Keep .gz/.npy/.tsv
@@ -396,10 +396,11 @@ markers = [
 # ── Architectural boundary, machine-enforced (run: lint-imports) ─────────────
 #
 # The engine follows the langchain / langchain-core layering: the DATA ENGINE
-# (① Collect: collect · ② Translate: translate, plus the shared utils/user/mcp/task
-# infra) must stay importable without any agent framework, while the AGENT
-# LAYER (③ Agent: agent, server) is the only place LangChain and friends
-# may appear. These contracts turn that rule from a convention into a CI check.
+# (① Collect: collect · ② Standardize: standardize, plus the shared
+# utils/user/mcp/task infra) must stay importable without any agent framework,
+# while the AGENT LAYER (③ Agent: agent, server) is the only place LangChain
+# and friends may appear. These contracts turn that rule from a convention into
+# a CI check.
 # import-linter parses function-local imports too, so lazy imports can't sneak
 # a violation past it.
 [tool.importlinter]
@@ -435,7 +436,7 @@ source_modules = [
     "mirobody.kernel.decoders",
     "mirobody.value_scale",
     "mirobody.zh_fold",
-    "mirobody.translate",
+    "mirobody.standardize",
     # The rest of the engine.
     "mirobody.collect",
     "mirobody.documents",
@@ -468,7 +469,7 @@ name = "the library layer stands alone (the numpy-only rule)"
 # `mirobody.engine` is deliberately NOT in this list: `parse_file` reaches into
 # `utils.llm`, which is the [parse] extra, and does so inside the function so
 # `resolve` never pays for it. That seam is the exception that needs the rule
-# written down. `mirobody.translate` codes through the engine and inherits
+# written down. `mirobody.standardize` codes through the engine and inherits
 # the same exemption; it is held to the agent-framework rule above instead.
 type = "forbidden"
 source_modules = [
@@ -677,12 +678,12 @@ forbidden_modules = [
 ignore_imports = []
 
 [[tool.importlinter.contracts]]
-name = "translate has one front door (② Translate is imported as a package)"
+name = "standardize has one front door (② Standardize is imported as a package)"
 type = "forbidden"
 allow_indirect_imports = true
 # `standardize/` moved out of `collect/` in 1.4.4 and became this package, so
 # "collect only collects" is something the tree shows rather than a sentence in
-# a document. Naming the crossing symbols in `translate/__init__` means a
+# a document. Naming the crossing symbols in `standardize/__init__` means a
 # module behind them can move without touching a caller.
 #
 # `collect` is a source here on purpose. It imports this package throughout (a
@@ -695,11 +696,11 @@ source_modules = [
     "mirobody.server",
 ]
 forbidden_modules = [
-    "mirobody.translate.aggregate",
-    "mirobody.translate.derive",
-    "mirobody.translate.indicators_info",
-    "mirobody.translate.canonical_units",
-    "mirobody.translate.value_range_validator",
+    "mirobody.standardize.aggregate",
+    "mirobody.standardize.derive",
+    "mirobody.standardize.indicators_info",
+    "mirobody.standardize.canonical_units",
+    "mirobody.standardize.value_range_validator",
 ]
 ignore_imports = []
 

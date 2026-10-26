@@ -183,7 +183,7 @@ class OfflineResolver:
     and two CSVs: reading those allocates ~1.6 million `str` for tables that
     answer a few hundred lookups per call. Storage shape, not data volume
     (77 MB of text either way). They are byte blobs plus offset arrays
-    now, cut by `translate_build/build_bundle.py`, and nothing allocates per
+    now, cut by `standardize_build/build_bundle.py`, and nothing allocates per
     entry: `_posting` bisects the alias blob, `_pick` matches regexes against
     slices of the corpus-name blob, and only the winning row is decoded.
     """
@@ -246,7 +246,7 @@ class OfflineResolver:
                 f"{blob_member} / {index_member} not found in {_BUNDLE}. Run "
                 "`git lfs pull` for the data bundles; if the bundle predates "
                 "1.3.0, rebuild the runtime index with "
-                "`python -m translate_build.build_bundle --loinc <release>`."
+                "`python -m standardize_build.build_bundle --loinc <release>`."
             )
         with np.load(io.BytesIO(index)) as z:
             arrays = {k: z[k] for k in z.files}
@@ -280,7 +280,7 @@ class OfflineResolver:
     def axes_of(self, code: str) -> tuple[str, str, str, str, str, str, str] | None:
         """`(component, property, scale, system, method, time, long_common_name)`
         of a code in the bundle, or `None`. The public face of the axis
-        table, for `mirobody.translate` to build a series key from.
+        table, for `mirobody.standardize` to build a series key from.
 
         TIME_ASPCT arrived with the 1.5.0 cut. Without it a fasting glucose and
         a 2-hour post-load glucose share one key, which is the axis LOINC uses

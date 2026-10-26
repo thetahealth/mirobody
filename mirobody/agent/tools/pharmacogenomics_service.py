@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from mirobody.kernel import query, tools
-from mirobody.translate.pgx import load_cpic
+from mirobody.standardize.pgx import load_cpic
 
 from ._authz import refused
 from ._base import RecordTool

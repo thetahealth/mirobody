@@ -14,7 +14,7 @@ from typing import Any
 from collections.abc import Callable
 
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.translate import AggregateDatabaseService
+from mirobody.standardize import AggregateDatabaseService
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)

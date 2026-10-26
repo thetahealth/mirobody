@@ -2,7 +2,7 @@
 
 **English** · **[中文](repository-layout.zh-CN.md)**
 
-Where each of the three stages — ① Collect, ② Translate (standardize), ③ Agent — lives,
+Where each of the three stages — ① Collect, ② Standardize, ③ Agent — lives,
 and the two forms the code ships in. Moved here from the README in 1.4.1; the
 README keeps the one-line map.
 
@@ -20,7 +20,7 @@ mirobody/
 │                evidence · memory · decoders/                     ┘ 2 packages
 ├── documents/   a file becomes text, by kind — PDF text layer, OCR for scanned pages only, Office, text   [parse]
 ├── collect/       ① Collect     — providers, file parsing, store, read (Postgres)
-├── translate/   ② Translate   — the pure seam (fold · parse · local_day · series · code ·
+├── standardize/ ② Standardize — the pure seam (fold · parse · local_day · series · code ·
 │                devices), the catalogue, units, aggregate/ and derive/
 ├── agent/       ③ Agent               — the agent: models/ filesystem/ wire/ middleware/ tools/ chat/
 ├── mcp/         the MCP server
@@ -45,7 +45,7 @@ installs it is `requirements.txt`, because the Docker application is
 
 **Machine-enforced, not documented:** six import-linter contracts hold the
 lines — the library layer imports nothing but numpy, the engine never imports
-the agent layer, and `collect` and `translate` each have one front door — and
+the agent layer, and `collect` and `standardize` each have one front door — and
 `lint-imports` fails the build. A separate gate, `scripts/check_wheel_data.py`, keeps the bundle-build passes and the
 v2 semantic pipeline — 19,000 lines nobody who installs the package can run —
 out of the artifact.

@@ -24,7 +24,7 @@ details for contributors. The site renders only the files selected in its
 | ① | [provider-setup.md](provider-setup.md) ([中文](provider-setup.zh-CN.md)) | turning on Garmin, Oura and Whoop: credentials, callback URLs, and how to confirm a provider runs |
 | ① | [apple-health.md](apple-health.md) | Apple Health export and CDA import |
 | ① | [file-processing.md](file-processing.md) | how a file becomes text by kind, then readings |
-| ② | [standardization.md](standardization.md) ([中文](standardization.zh-CN.md)) | ② Translate in depth: alias tiers, the LOINC release, what the bundled cut covers |
+| ② | [standardization.md](standardization.md) ([中文](standardization.zh-CN.md)) | ② Standardize in depth: alias tiers, the LOINC release, what the bundled cut covers |
 | ② | [device-crosswalk.md](device-crosswalk.md) | wearable vendors' fields to LOINC, with a confidence and a source per row |
 | ③ | [answers.md](answers.md) | the health-data tools: the matrix, the envelope, the governance, the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar |
@@ -41,7 +41,7 @@ behind it.
 
 Each package also carries a short `README.md` about that package only, for
 example [`mirobody/collect/`](../mirobody/collect/README.md),
-[`mirobody/translate/`](../mirobody/translate/README.md),
+[`mirobody/standardize/`](../mirobody/standardize/README.md),
 [`mirobody/agent/`](../mirobody/agent/README.md) and
 [`mirobody/agent/tools/`](../mirobody/agent/tools/README.md).
 

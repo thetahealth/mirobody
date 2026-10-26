@@ -4,8 +4,8 @@ Mirobody collects health records, standardizes names and units, and makes the
 results available to the web client, agent and MCP clients.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../images/collect-translate-agent-dark.svg">
-  <img src="../images/collect-translate-agent.svg" alt="Collect, translate and query health records" width="920">
+  <source media="(prefers-color-scheme: dark)" srcset="../images/collect-standardize-agent-dark.svg">
+  <img src="../images/collect-standardize-agent.svg" alt="Collect, standardize and query health records" width="920">
 </picture>
 
 ## From source to answer
@@ -13,7 +13,7 @@ results available to the web client, agent and MCP clients.
 | Stage | Result |
 | --- | --- |
 | ① Collect | Accept files, device data and journal entries; retain their source. |
-| ② Translate | Resolve recognized indicators to standard codes and convert compatible units. |
+| ② Standardize | Resolve recognized indicators to standard codes and convert compatible units. |
 | ③ Agent | Query the selected record, compare results and cite the supporting data. |
 
 A file can finish uploading before its readings finish processing. Check the

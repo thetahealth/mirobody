@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Any
 
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.translate import build_apple_priority_case
+from mirobody.standardize import build_apple_priority_case
 from mirobody.utils import execute_query
 
 logger = logging.getLogger(__name__)

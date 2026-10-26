@@ -2,7 +2,7 @@
 #
 # WHY THIS FILE EXISTS, and why it is not aliases_src/{lang}_curated.tsv
 # ---------------------------------------------------------------------
-# The alias index in the bundle is cut from LOINC alone (translate_build/
+# The alias index in the bundle is cut from LOINC alone (standardize_build/
 # build_bundle.py): it knows LOINC's names, short codes and translations, not
 # every phrase a report prints. Both this file and aliases_src/ are read at
 # runtime, this one first. The right-hand sides in aliases_src/ are
@@ -435,7 +435,7 @@ Vitamins	!unresolved
 # score, or an observation about somebody else ("in Mother", "in Vomitus",
 # "History of"). 发烧 answered 103717-5 Crimean-Congo virus RNA, 高血压 a
 # diuretic (41218-9 Xipamid), and 乳腺癌 a gene test (BRCA1 mutations). The
-# complaint axis answers these: `mirobody.translate.resolve_symptom` /
+# complaint axis answers these: `mirobody.standardize.resolve_symptom` /
 # `resolve_condition`, or `mirobody resolve --symptom` / `--condition`.
 aids	!unresolved
 allergy	!unresolved

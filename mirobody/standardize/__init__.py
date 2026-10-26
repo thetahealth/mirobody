@@ -1,4 +1,4 @@
-"""② Translate: what a value MEANS.
+"""② Standardize: what a value MEANS.
 
     fold.py                  the identity of a printed name
     parse.py                 kind, number, comparator, unit
@@ -27,7 +27,7 @@
     derive/                  quantities nothing measured: sleep efficiency,
                              heart-rate range
 
-Stage two of Collect, Translate, Agent. The input is what a report or a device
+Stage two of Collect, Standardize, Agent. The input is what a report or a device
 printed, verbatim; the output is what an analyst can group and compare: a
 folded identity, a typed value, a UCUM unit, a local day, a LOINC code where
 the vocabulary supports one, and a series key either way.
@@ -80,7 +80,7 @@ from .code import NOTE_SERIES, code, code_note, decision_id, release, series_of
 from .icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 
 #: The pure seam, imported above. `code` is the function, not the module;
-#: `from mirobody.translate.code import code` still reaches the module.
+#: `from mirobody.standardize.code import code` still reaches the module.
 _SEAM = [
     "Alias",
     "Axes",
@@ -115,7 +115,7 @@ _SEAM = [
 ]
 
 # name -> submodule that defines it. Every symbol another package needs is
-# here. A caller outside this package imports `mirobody.translate`, so the
+# here. A caller outside this package imports `mirobody.standardize`, so the
 # modules behind these names can move without a call-site edit elsewhere.
 _EXPORTS = {
     # the catalogue

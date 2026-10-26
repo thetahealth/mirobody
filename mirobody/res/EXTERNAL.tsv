@@ -25,7 +25,7 @@ RELEASE	data-2026-09-10
 
 # 1.5.0 reads NONE of these. The semantic tier that opened the concept graph
 # was deleted with `mirobody/indicator/`, and the bundle is now cut straight
-# from a LOINC release by `translate_build/`, which reads `Loinc.csv` and the
+# from a LOINC release by `standardize_build/`, which reads `Loinc.csv` and the
 # LinguisticVariants files and nothing here. They stay listed, with `need =
 # archive`, so the checksums that name them survive and an older deployment
 # pinned to its own tag keeps working; `fetch_data.sh` no longer downloads

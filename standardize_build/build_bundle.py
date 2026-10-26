@@ -13,7 +13,7 @@ int32 offset array, nothing allocated per entry):
     loinc_units.tsv                      EXAMPLE_UCUM_UNITS per code
     NOTICE / VERSION                     the LOINC notice; loinc-<release>+<date>-<digest>
 
-The rows are the Tier-2 cut of ``translate_build.loinc_cut`` and nothing
+The rows are the Tier-2 cut of ``standardize_build.loinc_cut`` and nothing
 else: LOINC content only, one corpus row per code, so a posting names a code
 directly and the corpus name always has an axis row. Designations come from
 ``Loinc.csv`` (COMPONENT, SHORTNAME, LONG_COMMON_NAME, RELATEDNAMES2,
@@ -21,7 +21,7 @@ DisplayName, CONSUMER_NAME) and from every ``LinguisticVariants/*.csv`` the
 release ships. Field contents are copied unchanged; rows are only ever
 dropped (LOINC licence 5.8 section 3).
 
-    python -m translate_build.build_bundle --loinc /path/to/Loinc_2.83
+    python -m standardize_build.build_bundle --loinc /path/to/Loinc_2.83
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ import numpy as np
 
 from mirobody._bundle import AXIS_FIELDS, BUNDLE_PATH
 from mirobody.lexical import index_fold
-from translate_build.loinc_cut import gate, read_whitelist
+from standardize_build.loinc_cut import gate, read_whitelist
 
 RELEASE_RE = re.compile(r"Loinc_(\d+\.\d+)")
 
@@ -248,7 +248,7 @@ def notice(release: str, kept: int, skipped: int, reasons: Counter, alias_keys: 
         f"  loinc_skip.txt                      {skipped} ACTIVE codes the cut leaves out (see below).",
         "  loinc_units.tsv                     EXAMPLE_UCUM_UNITS per code.",
         "",
-        "The cut (translate_build/loinc_cut.py): STATUS ACTIVE; CLASSTYPE laboratory or",
+        "The cut (standardize_build/loinc_cut.py): STATUS ACTIVE; CLASSTYPE laboratory or",
         "clinical; CLASS families that never hold a reading dropped (surveys, documents,",
         "radiology, administrative, ...); SCALE_TYP Doc, Nar, -, Set and Multi dropped;",
         "H&P classes kept only at Qn or Ord; panels kept for the laboratory subclasses;",

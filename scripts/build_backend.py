@@ -69,7 +69,7 @@ _BUILD_ONLY_DATA = frozenset({
 
 #: The bundle members a `pip install` can actually use. Everything else in
 #: `fhir_loinc_bundle.tar.gz` is an INPUT to the build passes — the pickled
-#: alias index that `translate_build/build_bundle.py` writes as `alias_keys.bin`, the
+#: alias index that `standardize_build/build_bundle.py` writes as `alias_keys.bin`, the
 #: axis CSV it turns into `axis_fields.bin`, the dose/demote/analyte tables that
 #: only the pruned `embeddings/` and `resolve/` trees read.
 #:
@@ -122,7 +122,7 @@ def _slim_bundle(data: bytes) -> bytes:
 #: whole package is deleted, so there is nothing left to prune. The tuple and
 #: the gate in `scripts/check_wheel_data.py` stay, because the next tree that
 #: ships-but-cannot-run should be caught rather than argued about:
-#: `translate_build/` is the current one, and it is outside `mirobody/`.
+#: `standardize_build/` is the current one, and it is outside `mirobody/`.
 _BUILD_ONLY_CODE: tuple[str, ...] = ()
 
 

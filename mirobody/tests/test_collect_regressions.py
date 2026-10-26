@@ -15,7 +15,7 @@ import pytest
 @pytest.fixture
 def source_priority():
     pytest.importorskip("fastapi")
-    return import_module("mirobody.translate.aggregate.aggregators.source_id_priority")
+    return import_module("mirobody.standardize.aggregate.aggregators.source_id_priority")
 
 
 @pytest.mark.parametrize("source,source_id,expected", [

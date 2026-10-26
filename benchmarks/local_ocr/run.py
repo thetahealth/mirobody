@@ -65,7 +65,7 @@ from mirobody.collect.files.services.table_indicators import (
     table_indicators,
     without_rows,
 )
-from mirobody import translate
+from mirobody import standardize
 from mirobody.documents import extract, render
 from mirobody.units import normalize_unit
 
@@ -325,7 +325,7 @@ def resources_low(args) -> str | None:
 # --- whether a stored field is the printed one ------------------------------------------
 #
 # Compared as the product stores it, not as text: `observations.prepare` keeps
-# the value text but charts `translate.parse_value(value, unit)`, so "42.4 %"
+# the value text but charts `standardize.parse_value(value, unit)`, so "42.4 %"
 # is 42.4 with its unit and right, and "6.49↑" parses as narrative, holds no
 # number, and is wrong. A unit is right when it normalizes to the printed one
 # (in its own cell or after the number). A range is compared as printed, less
@@ -344,11 +344,11 @@ _GLUED_FLAG = re.compile(r"\s*(?:↑↑|↓↓|↑|↓|偏高|偏低|H|L)\s*$")
 def value_ok(pred: dict, ref: dict, loose: bool = False) -> bool:
     """`loose`: a flag glued after the number ("5.73↑") forgiven, which the
     product does not forgive (it stores that value as narrative, no number)."""
-    want = translate.parse_value(ref["item_value"], ref["item_unit"])
+    want = standardize.parse_value(ref["item_value"], ref["item_unit"])
     printed = pred.get("item_value") or ""
     if loose:
         printed = _GLUED_FLAG.sub("", printed)
-    got = translate.parse_value(printed, pred.get("item_unit") or "")
+    got = standardize.parse_value(printed, pred.get("item_unit") or "")
     if want.value_kind == "quantity":
         return (got.value_kind == "quantity" and got.value_num is not None
                 and abs(got.value_num - want.value_num) < 1e-9 and got.comparator == want.comparator)
@@ -356,7 +356,7 @@ def value_ok(pred: dict, ref: dict, loose: bool = False) -> bool:
 
 
 def unit_ok(pred: dict, ref: dict) -> bool:
-    printed = pred.get("item_unit") or translate.parse_value(pred.get("item_value") or "", "").unit_tail or ""
+    printed = pred.get("item_unit") or standardize.parse_value(pred.get("item_value") or "", "").unit_tail or ""
     for want in _alternatives(ref, "item_unit"):
         a, b = normalize_unit(printed), normalize_unit(want)
         if (a is not None and a == b) or fold(printed) == fold(want):

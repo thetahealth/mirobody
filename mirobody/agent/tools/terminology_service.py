@@ -1,4 +1,4 @@
-"""Terminology tools: ② Translate, exposed over MCP.
+"""Terminology tools: ② Standardize, exposed over MCP.
 
 This is the engine's differentiator on the tool surface. Every other health MCP
 server hands the model *vendor-shaped* data and leaves naming to chance:
@@ -15,7 +15,7 @@ Two properties worth stating plainly, because they are unusual for an MCP tool:
 
 Measured coverage of the resolver these tools call: see
 ``mirobody/tests/test_engine_coverage.py`` (94 everyday panel terms across English,
-中文 and 日本語). The bodies are `mirobody.translate.terminology`, which the stdio
+中文 and 日本語). The bodies are `mirobody.standardize.terminology`, which the stdio
 server (`mcp/stdio.py`) calls too, so both transports answer alike.
 """
 
@@ -57,7 +57,7 @@ class TerminologyService:
             - Same code from two names = same test. That, not string equality,
               decides whether two readings are comparable.
         """
-        from mirobody.translate.terminology import resolve_indicators
+        from mirobody.standardize.terminology import resolve_indicators
 
         return resolve_indicators(names)
 
@@ -91,7 +91,7 @@ class TerminologyService:
                 anything needing a molar mass this engine does not carry, land
                 here. `reason` says which case it was.
         """
-        from mirobody.translate.terminology import convert_unit
+        from mirobody.standardize.terminology import convert_unit
 
         return convert_unit(value, from_unit, to_unit, loinc_code)
 
@@ -113,6 +113,6 @@ class TerminologyService:
                 `U/L` and `[IU]/L` are in different families and are the same
                 unit. Call `convert_unit` for that question.
         """
-        from mirobody.translate.terminology import normalize_units
+        from mirobody.standardize.terminology import normalize_units
 
         return normalize_units(units)

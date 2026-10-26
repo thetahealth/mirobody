@@ -2,7 +2,7 @@
 
 The public surface of a `pip install mirobody`, in three imports::
 
-    from mirobody import resolve, resolve_reading   # ② Translate, offline
+    from mirobody import resolve, resolve_reading   # ② Standardize, offline
     from mirobody.units import normalize_unit, unit_family
     from mirobody.lexical import normalize, word_tokens
 
@@ -15,7 +15,7 @@ application, not a library surface: ``git clone && ./deploy.sh``.
 
 **What is stable.** The names in ``__all__`` here, plus ``__all__`` in
 :mod:`mirobody.units`, :mod:`mirobody.lexical`, :mod:`mirobody.engine` and
-:mod:`mirobody.bundle`. Everything else: ``mirobody.translate``,
+:mod:`mirobody.bundle`. Everything else: ``mirobody.standardize``,
 ``mirobody.collect``, ``mirobody.server``, ``mirobody.agent``, anything
 underscore-prefixed: is internal and moves without notice.
 

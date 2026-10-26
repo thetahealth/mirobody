@@ -27,7 +27,7 @@ added and what this catalogue now carries:
   visible here and in ``res/crosswalks/`` while the metric keeps its own
   namespace, ``("mirobody-device", name)``. A confident wrong code is worse
   than an honest namespace. The evidence per vendor field is in
-  ``mirobody.translate.devices``.
+  ``mirobody.standardize.devices``.
 - ``window``: the local-day boundary. ``"18:00"`` for the sleep family, so
   a night is one day; the old aggregator found sleep with ``LIKE '%sleep%'``.
 

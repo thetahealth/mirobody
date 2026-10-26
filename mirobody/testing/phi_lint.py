@@ -64,7 +64,7 @@ SAFE_EXACT = frozenset(
         "platform",
         # Closed vocabularies only. `type` and `reason` left SAFE_NAME because
         # `record_type` carried an indicator name and a range check's `reason`
-        # quotes the value it refused (`translate/value_range_validator.py`).
+        # quotes the value it refused (`standardize/value_range_validator.py`).
         # A name is listed here when every value it takes comes from a fixed
         # set: a type name, a MIME type, an enum, a configured family, a
         # vendor's stop code.
@@ -302,8 +302,8 @@ DEFAULT_TREES: tuple[str, ...] = (
     "mirobody/kernel",
     "mirobody/mcp",
     "mirobody/server",
+    "mirobody/standardize",
     "mirobody/task",
-    "mirobody/translate",
     "mirobody/user",
     "mirobody/utils",
 )

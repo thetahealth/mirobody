@@ -10,8 +10,8 @@ Two source shapes, one convergence point, then meaning:
                  a file's readings go to observations.py directly
          ↓
 
-What a value MEANS is ② Translate's, not this stage's: the indicator
-catalogue, units, ranges and fhir_id are `mirobody.translate`.
+What a value MEANS is ② Standardize's, not this stage's: the indicator
+catalogue, units, ranges and fhir_id are `mirobody.standardize`.
 
 `core/` is what those stand on, not a stage: the provider contract types and
 the push from a provider to its platform. Sub-package sizes and entry points
@@ -61,8 +61,8 @@ _EXPORTS = {
     "StandardPulseRecord": "ingest.models.requests",
     "DataFormatter": "providers._platform.normalize",
     "records_from_facts": "providers._platform.normalize",
-    "StandardIndicator": "mirobody.translate.indicators_info",
-    "UNIT_CONVERSIONS": "mirobody.translate.canonical_units",
+    "StandardIndicator": "mirobody.standardize.indicators_info",
+    "UNIT_CONVERSIONS": "mirobody.standardize.canonical_units",
     # Apple Health implementations
     "AppleHealthPlatform": "providers.apple",
     "AppleHealthProvider": "providers.apple",
@@ -130,8 +130,8 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
         StandardPulseRecord,
     )
     from .providers._platform.normalize import DataFormatter, records_from_facts
-    from mirobody.translate import StandardIndicator
-    from mirobody.translate import UNIT_CONVERSIONS
+    from mirobody.standardize import StandardIndicator
+    from mirobody.standardize import UNIT_CONVERSIONS
     from .providers import BasePullProvider, ProviderPlatform
     from .providers.apple.models import AppleHealthRequest, AppleHealthStatisticsRequest
     from .providers.apple.statistics_service import process_apple_health_statistics
@@ -164,11 +164,11 @@ def __getattr__(name: str):
     if name in _EXPORTS:
         where = _EXPORTS[name]
         # An absolute path means the symbol left this package. Two did, when
-        # `standardize/` became `mirobody.translate`: they keep resolving here
-        # because a provider plugin names its metrics with `StandardIndicator`
-        # and declares units with `UNIT_CONVERSIONS`, and the plugin contract
-        # is one import path, not two. The catalogue reads the server does went
-        # straight to `mirobody.translate` instead.
+        # `collect/standardize/` moved out to `mirobody.standardize`: they keep
+        # resolving here because a provider plugin names its metrics with
+        # `StandardIndicator` and declares units with `UNIT_CONVERSIONS`, and
+        # the plugin contract is one import path, not two. The catalogue reads
+        # the server does went straight to `mirobody.standardize` instead.
         module = importlib.import_module(where if "." in where and where.startswith("mirobody.")
                                          else f".{where}", __name__)
         return getattr(module, name)

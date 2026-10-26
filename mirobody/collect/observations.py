@@ -5,7 +5,7 @@ and the demo seed all arrive here as `Draft`s (what was printed, verbatim,
 plus when) with a `Provenance` (where from, how measured), and leave as rows
 of `th_observation` with their coding beside them. The schema and its
 invariants are `mirobody/schema/30_observations.sql`; the pure parts
-are `mirobody.translate`. What this module owns is the transaction.
+are `mirobody.standardize`. What this module owns is the transaction.
 
 What one `ingest()` call does, in ONE transaction:
 
@@ -41,7 +41,7 @@ from functools import lru_cache
 from datetime import date, datetime
 from typing import Any
 
-from mirobody import translate, units
+from mirobody import standardize, units
 from mirobody.kernel import metrics, quality, series
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import db
@@ -54,7 +54,7 @@ KIND_SYMPTOM = "symptom"
 #: The two code on different ICPC-3 components and must not share a kind.
 KIND_CONDITION = "condition"
 #: Anything else a person writes about their day (a meal, a mood), kept as
-#: written and never coded (`translate.code_note`).
+#: written and never coded (`standardize.code_note`).
 KIND_NOTE = "note"
 KIND_FINDING = "finding"
 KIND_ORGANIZER = "organizer"
@@ -151,7 +151,7 @@ class Draft:
     shows. `observed_start` is required; a naive datetime is wall clock in
     `tz` (a report's "2026-03-04 08:15"), an aware one is an instant. `tz`
     is what the SOURCE said about its zone, resolved against the person's
-    own by `translate.resolve_tz`; empty means "the source did not say".
+    own by `standardize.resolve_tz`; empty means "the source did not say".
     """
 
     name_text: str
@@ -245,8 +245,8 @@ def prepare(
     if draft.observed_start is None:
         raise Rejected(REJECT_NO_TIME)
 
-    tz, tz_source = translate.resolve_tz(draft.tz, user_tz)
-    zone = translate.zone_for(tz)
+    tz, tz_source = standardize.resolve_tz(draft.tz, user_tz)
+    zone = standardize.zone_for(tz)
     start = draft.observed_start if draft.observed_start.tzinfo else draft.observed_start.replace(tzinfo=zone)
     end = draft.observed_end if draft.observed_end is not None else start
     end = end if end.tzinfo else end.replace(tzinfo=zone)
@@ -256,7 +256,7 @@ def prepare(
 
     value_text = _clean(draft.value_text)
     unit_text = _clean(draft.unit_text)
-    parsed = translate.parse_value(value_text, unit_text)
+    parsed = standardize.parse_value(value_text, unit_text)
     # A unit printed inside the value cell is still the printed unit.
     unit_text = unit_text or parsed.unit_tail
     fact = series.Fact(
@@ -270,12 +270,12 @@ def prepare(
     if code:
         raise Rejected(code)
 
-    name_key = translate.name_key(name)
-    unit_part = parsed.unit_ucum or translate.unit_key(unit_text)
+    name_key = standardize.name_key(name)
+    unit_part = parsed.unit_ucum or standardize.unit_key(unit_text)
     local_key = f"{name_key}|{unit_part}"
     stream_key = f"{local_key}|{provenance.source_kind}:{provenance.vendor or ''}"
-    window = draft.window or translate.window_for(name)
-    ref_low, ref_high = translate.parse_range(_clean(draft.ref_text))
+    window = draft.window or standardize.window_for(name)
+    ref_low, ref_high = standardize.parse_range(_clean(draft.ref_text))
 
     row: dict[str, Any] = {
         "user_id": str(user_id),
@@ -294,7 +294,7 @@ def prepare(
         "observed_end": end,
         "tz": tz,
         "tz_source": tz_source,
-        "local_date": translate.local_day(start, tz, window),
+        "local_date": standardize.local_day(start, tz, window),
         "grain": grain,
         "stat": draft.stat or ("" if grain == GRAIN_INSTANT else STAT_AS_REPORTED),
         "name_text": name,
@@ -323,10 +323,10 @@ def prepare(
     return row
 
 
-def catalog_alias(name: str) -> translate.Alias | None:
+def catalog_alias(name: str) -> standardize.Alias | None:
     """The device catalogue's answer for a metric name, as an alias: the
     metric's confident LOINC when it has one, its own namespace otherwise.
-    An unverified code is evidence in `translate.devices`, not an identity.
+    An unverified code is evidence in `standardize.devices`, not an identity.
     `None` for a name the catalogue does not know."""
     head = name.split(".", 1)[0]
     metric = metrics.METRICS.get(head) or metrics.METRICS.get(name)
@@ -334,11 +334,11 @@ def catalog_alias(name: str) -> translate.Alias | None:
         return None
     system, code = metric.canonical
     if system == metrics.SYSTEM_LOINC:
-        return translate.Alias(_ALIAS_SCOPE_CATALOG, translate.LOINC_SYSTEM, code)
-    return translate.Alias(_ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, code)
+        return standardize.Alias(_ALIAS_SCOPE_CATALOG, standardize.LOINC_SYSTEM, code)
+    return standardize.Alias(_ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, code)
 
 
-def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], translate.Alias]) -> translate.Coding:
+def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.Alias]) -> standardize.Coding:
     """The coding of one prepared row. A person's alias first, then the
     device catalogue for a device batch, then the vocabulary.
 
@@ -356,16 +356,16 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], translate.Ali
         # abstain from one: 发烧 reached 153 LOINC candidates and coded to
         # 103717-5, Crimean-Congo hemorrhagic fever virus RNA. The ICPC-3
         # components answer on their own vocabulary, one per kind.
-        return translate.resolve_symptom(row["name_text"], alias=alias)
+        return standardize.resolve_symptom(row["name_text"], alias=alias)
     if row["kind"] == KIND_CONDITION:
-        return translate.resolve_condition(row["name_text"], alias=alias)
+        return standardize.resolve_condition(row["name_text"], alias=alias)
     if row["kind"] == KIND_NOTE:
-        return translate.code_note()
+        return standardize.code_note()
     if alias is None and row["source_kind"] == SOURCE_DEVICE:
-        alias = catalog_alias(row["name_text"]) or translate.Alias(
+        alias = catalog_alias(row["name_text"]) or standardize.Alias(
             _ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, row["name_text"].split(".", 1)[0]
         )
-    return translate.code(
+    return standardize.code(
         row["name_text"],
         name_key=row["name_key"],
         local_key=row["local_key"],
@@ -523,17 +523,17 @@ def _digest(source_ref: str, extractor: str, payload: str) -> str:
     return hashlib.sha256("\x1f".join((source_ref, extractor, payload)).encode("utf-8")).hexdigest()
 
 
-async def _load_aliases(tx: db.Transaction, user_id: str) -> dict[tuple[str, str], translate.Alias]:
+async def _load_aliases(tx: db.Transaction, user_id: str) -> dict[tuple[str, str], standardize.Alias]:
     rows = await tx.execute(_SELECT_ALIASES, {"user_scope": f"user:{user_id}", "global_scope": _ALIAS_SCOPE_GLOBAL})
-    out: dict[tuple[str, str], translate.Alias] = {}
+    out: dict[tuple[str, str], standardize.Alias] = {}
     for r in rows or []:
         key = (str(r["name_key"]), str(r["unit_ucum"] or ""))
         # The user's row sorts first and wins the key.
-        out.setdefault(key, translate.Alias(str(r["scope"]), r["code_system"], r["code"]))
+        out.setdefault(key, standardize.Alias(str(r["scope"]), r["code_system"], r["code"]))
     return out
 
 
-def _coding_params(observation_id: int, coding: translate.Coding) -> dict[str, Any]:
+def _coding_params(observation_id: int, coding: standardize.Coding) -> dict[str, Any]:
     return {
         "observation_id": observation_id,
         "release": coding.release,
@@ -549,7 +549,7 @@ def _coding_params(observation_id: int, coding: translate.Coding) -> dict[str, A
     }
 
 
-async def _write_coding(tx: db.Transaction, observation_id: int, row: dict[str, Any], coding: translate.Coding, cause: str) -> None:
+async def _write_coding(tx: db.Transaction, observation_id: int, row: dict[str, Any], coding: standardize.Coding, cause: str) -> None:
     await tx.execute(_INSERT_DECISION, {
         "decision_id": coding.decision_id,
         "name_key": row["name_key"],
@@ -565,7 +565,7 @@ async def _write_coding(tx: db.Transaction, observation_id: int, row: dict[str, 
     await _write_concept(tx, coding)
 
 
-async def _write_concept(tx: db.Transaction, coding: translate.Coding) -> None:
+async def _write_concept(tx: db.Transaction, coding: standardize.Coding) -> None:
     """Every code whose vocabulary gave it a NAME, not only the LOINC ones: an
     ICPC-3 coding has no axes, and the six `loinc_*` columns are nullable for
     that reason. Without a row here a symptom series has no standard name to
@@ -590,16 +590,16 @@ async def _write_concept(tx: db.Transaction, coding: translate.Coding) -> None:
     })
 
 
-_range_rules: translate.ValueRangeValidator | None = None
+_range_rules: standardize.ValueRangeValidator | None = None
 
 
-async def value_ranges() -> translate.ValueRangeValidator:
+async def value_ranges() -> standardize.ValueRangeValidator:
     """The ingestion ranges (`indicator_valid_rules`), loaded once per
     process and shared by every writer that checks them. A load that fails
     passes every value."""
     global _range_rules
     if _range_rules is None:
-        rules = translate.ValueRangeValidator()
+        rules = standardize.ValueRangeValidator()
         await rules.load()
         _range_rules = rules
     return _range_rules
@@ -614,13 +614,13 @@ def _metrics_by_code() -> dict[str, tuple[metrics.Metric, ...]]:
     return {code: tuple(ms) for code, ms in out.items()}
 
 
-def out_of_range(row: dict[str, Any], coding: translate.Coding, ranges: Any) -> bool:
+def out_of_range(row: dict[str, Any], coding: standardize.Coding, ranges: Any) -> bool:
     """Whether a coded reading breaks the range of a catalogue metric that
     carries its code, in that metric's unit. A typed reading was held to
     nothing: a sentence wrote a blood pressure of 400/300 that a device's
     reading of the same code would have been filtered for."""
     value = row.get("value_num")
-    if value is None or not coding.coded or coding.code_system != translate.LOINC_SYSTEM:
+    if value is None or not coding.coded or coding.code_system != standardize.LOINC_SYSTEM:
         return False
     for metric in _metrics_by_code().get(coding.code or "", ()):
         unit = row.get("unit_ucum") or metric.unit_ucum
@@ -701,7 +701,7 @@ async def ingest(
     else:
         sources = [provenance] * len(drafts)
         extraction_source = provenance
-    now = now or datetime.now(tz=translate.zone_for("UTC"))
+    now = now or datetime.now(tz=standardize.zone_for("UTC"))
 
     async with db.transaction() as tx:
         if extraction_source is not None and extraction_source.extractor:
@@ -871,7 +871,7 @@ async def amend(
             row_ix=old.get("row_ix"), member_of=old.get("member_of"),
             derived_from=tuple(old.get("derived_from") or ()),
         )
-        row = prepare(draft, provenance, str(user_id), user_tz, now=now or datetime.now(tz=translate.zone_for("UTC")))
+        row = prepare(draft, provenance, str(user_id), user_tz, now=now or datetime.now(tz=standardize.zone_for("UTC")))
         unchanged_note = note is None or note == (old.get("prior_note") or "")
         if row["fingerprint"] == old["fingerprint"] and unchanged_note:
             return int(observation_id)
@@ -896,7 +896,7 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
     rows = await _select_by_source(user_id, source_ref)
     moved = skipped = 0
     for r in rows:
-        target = when if when.tzinfo else when.replace(tzinfo=translate.zone_for(r["tz"]))
+        target = when if when.tzinfo else when.replace(tzinfo=standardize.zone_for(r["tz"]))
         if r["observed_start"] == target and r["observed_end"] == target:
             skipped += 1
             continue
@@ -1091,7 +1091,7 @@ class RecodeReport:
         self.outcomes[outcome] = self.outcomes.get(outcome, 0) + 1
 
 
-def _same_coding(row: dict[str, Any], coding: translate.Coding) -> bool:
+def _same_coding(row: dict[str, Any], coding: standardize.Coding) -> bool:
     return (
         str(row["outcome"]) == coding.outcome
         and (row["code"] or None) == coding.code
@@ -1109,7 +1109,7 @@ async def recode(
     name_key: str | None = None,
     batch: int = 500,
 ) -> RecodeReport:
-    """Replay `translate.code()` over one person's visible observations and
+    """Replay `standardize.code()` over one person's visible observations and
     replace the coding of every row whose answer changed.
 
     This is what `th_coding_history` is for: the observation never changes,
@@ -1121,7 +1121,7 @@ async def recode(
     so a long history is recoded without holding a lock over all of it.
     """
     report = RecodeReport()
-    current_release = translate.release()
+    current_release = standardize.release()
     name_filter = " AND o.name_key = :name_key" if name_key else ""
     after = 0
     while True:
@@ -1172,7 +1172,7 @@ async def confirm_alias(
     code: str | None,
     *,
     confirmed_by: str,
-    code_system: str | None = translate.LOINC_SYSTEM,
+    code_system: str | None = standardize.LOINC_SYSTEM,
     scope: str | None = None,
     note: str = "",
 ) -> RecodeReport:
@@ -1328,7 +1328,7 @@ async def legacy_present(rows: list[dict[str, Any]]) -> list[bool]:
     the new model would reject is not present."""
     present = [False] * len(rows)
     zones: dict[str, str] = {}
-    now = datetime.now(tz=translate.zone_for("UTC"))
+    now = datetime.now(tz=standardize.zone_for("UTC"))
     async with db.transaction() as tx:
         for ix, r in enumerate(rows):
             uid = str(r.get("user_id") or "")

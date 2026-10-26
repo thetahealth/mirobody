@@ -5,13 +5,13 @@ These skills run in your assistant, separately from the built-in chat agent.
 
 | Skill | Use |
 | --- | --- |
-| `translate-health-data` | Use the Python library to standardize readings and read health documents. |
+| `standardize-health-data` | Use the Python library to standardize readings and read health documents. |
 | `mirobody` | Run the application and connect an assistant through MCP. |
 
 ## Install
 
 ```bash
-npx skills add thetahealth/mirobody --skill translate-health-data
+npx skills add thetahealth/mirobody --skill standardize-health-data
 npx skills add thetahealth/mirobody --skill mirobody
 ```
 

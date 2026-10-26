@@ -214,7 +214,7 @@ def fetch_extract(version: str, directory: Path, source_url: str | None = None) 
         candidate = scratch / f"cpic-{version}.json.gz"
         write_extract(payload, candidate)
         # Run the runtime's semantic validation before exposing this version.
-        from mirobody.translate.pgx import CpicKnowledge
+        from mirobody.standardize.pgx import CpicKnowledge
 
         CpicKnowledge(json.loads(gzip.decompress(candidate.read_bytes())))
         installed = directory / candidate.name

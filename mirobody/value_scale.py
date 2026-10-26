@@ -24,7 +24,7 @@ It is the OPPOSITE constraint: a `阴性` reading must not be answered with a
 answered with an ``Ord`` presence code.
 
 One vocabulary for two readers: the resolver constrains a code's SCALE with
-it (`engine.resolver`) and `translate.parse` classifies a value's kind with it,
+it (`engine.resolver`) and `standardize.parse` classifies a value's kind with it,
 so the two cannot disagree about what `阴性` or `-2.5` is.
 """
 

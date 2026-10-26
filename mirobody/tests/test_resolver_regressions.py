@@ -6,14 +6,14 @@ the observation writer. These tests need only the library and its LFS bundle.
 
 import pytest
 
-from mirobody import translate
+from mirobody import standardize
 from mirobody.engine import get_resolver, resolve_reading
 
 
-def _coding(name: str, value: str, unit: str) -> translate.Coding:
-    parsed = translate.parse_value(value, unit)
-    name_key = translate.name_key(name)
-    return translate.code(
+def _coding(name: str, value: str, unit: str) -> standardize.Coding:
+    parsed = standardize.parse_value(value, unit)
+    name_key = standardize.name_key(name)
+    return standardize.code(
         name,
         name_key=name_key,
         local_key=f"{name_key}|{parsed.unit_ucum}",
@@ -49,7 +49,7 @@ def test_common_readings_keep_their_clinical_axes(name, value, unit, component, 
     assert (axes[0], axes[1], axes[3]) == (component, prop, system)
 
     coding = _coding(name, value, unit)
-    assert coding.outcome == translate.OUTCOME_CODED
+    assert coding.outcome == standardize.OUTCOME_CODED
     assert coding.code == hit.loinc
     assert coding.value_canonical is not None
     assert coding.axes is not None
@@ -75,7 +75,7 @@ def test_camelcase_qualifiers_are_not_dropped(name, value, unit):
     assert not hit.resolved
     assert not hit.loinc
     coding = _coding(name, value, unit)
-    assert coding.outcome == translate.OUTCOME_NEEDS_INPUT
+    assert coding.outcome == standardize.OUTCOME_NEEDS_INPUT
     assert coding.code is None
 
 

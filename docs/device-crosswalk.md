@@ -42,7 +42,7 @@ ship with `pip install mirobody`.
 Loading them:
 
 ```python
-from mirobody.translate import devices
+from mirobody.standardize import devices
 
 devices.lookup("apple", "HKQuantityTypeIdentifier", "stepCount")
 # VendorField(vendor='apple', type='HKQuantityTypeIdentifier', field='stepCount',
@@ -187,7 +187,7 @@ Each one silently produces a wrong value if ignored.
 12. **Glucose depends on the unit.** Honor's `BLOOD_GLUCOSE.measureValue` is
     in mmol/L and codes to 15074-8, not to the catalogue's 2339-0 (mg/dL).
     The catalogue alias names the analyte and the printed unit picks the
-    variant; `mirobody.translate.code` does this for every alias.
+    variant; `mirobody.standardize.code` does this for every alias.
 13. **Total is not active.** Oura's `total_calories` and Health Connect's
     `TotalCaloriesBurnedRecord` include basal metabolism; the catalogue's
     `activeCalories` does not. Only the active figure is coded confidently.
@@ -211,7 +211,7 @@ here, and all four are worth raising with Regenstrief.
   (`Metric.canonical`); otherwise it is `("mirobody-device", name)`, so an
   unverified code never becomes a series key.
 - The device catalogue's answer for a metric is handed to
-  `mirobody.translate.code` as a catalogue alias. The alias names the analyte;
+  `mirobody.standardize.code` as a catalogue alias. The alias names the analyte;
   when the printed unit fits a sibling of that code in the same specimen, the
   sibling is used (glucose in mmol/L), and when it fits none, the alias stands.
 - Apple's SDNN identifier is decoded to `hrvSDNN`; the Apple gait, perfusion
@@ -303,7 +303,7 @@ field names are in the TSV.
 ## Sources
 
 Every table names the document it was read from in its header comment; the
-same list is `mirobody.translate.devices.SOURCES`. All were read on
+same list is `mirobody.standardize.devices.SOURCES`. All were read on
 2026-09-09 against LOINC 2.83.
 
 | Vendor | Documents |
@@ -335,7 +335,7 @@ table does not have, a metric name the catalogue does not have, a confident
 vendor code that contradicts the metric's confident catalogue code (unless the
 two are unit variants of one analyte), and an Apple row that disagrees with
 the Apple decoder. A new vendor is a new `<vendor>.tsv`, a `Source` in
-`mirobody.translate.devices`, and a column in the base table. Rerun
+`mirobody.standardize.devices`, and a column in the base table. Rerun
 `scripts/device_crosswalk_report.py` and paste the tables here.
 
 Notes inside the tables are in the language they were written in; many are

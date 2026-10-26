@@ -1,4 +1,4 @@
-# `translate/aggregate`: daily summaries from the device point buffer
+# `standardize/aggregate`: daily summaries from the device point buffer
 
 A device sends points (`series_data`: one row per person, indicator, source
 and instant). This package turns a day of points into that day's figures

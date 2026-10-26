@@ -57,7 +57,7 @@ is not under `mirobody/res/`: that directory is licensed terminology data
 
 ## The observation model
 
-`30_observations.sql` is the data layer of ② Translate. One reading is one row
+`30_observations.sql` is the data layer of ② Standardize. One reading is one row
 of `th_observation`: the text as printed (`name_text`, `value_text`,
 `unit_text`, `ref_text`, never translated or edited), the typed layer derived
 from it (`value_kind`, `value_num`, `comparator`, `unit_ucum`), the time with

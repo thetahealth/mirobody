@@ -18,7 +18,7 @@ from __future__ import annotations
 import pytest
 
 import mirobody
-from mirobody.translate.code import axes_for
+from mirobody.standardize.code import axes_for
 
 #: The five differential cell lines, with the Chinese spelling a report prints
 #: and the analyzer abbreviations an English one prints.
@@ -294,7 +294,7 @@ UNIT_SIBLINGS = [
 
 @pytest.mark.parametrize("term,value,unit", UNIT_SIBLINGS, ids=[t for t, _v, _u in UNIT_SIBLINGS])
 def test_a_name_and_its_reading_in_the_other_unit_share_one_series(term, value, unit):
-    from mirobody.translate import series_of
+    from mirobody.standardize import series_of
 
     name, reading = _code(term), mirobody.resolve_reading(term, value, unit).code
     assert name != reading, f"{term} {unit}: the unit no longer moves the code, so this case pins nothing"

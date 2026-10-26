@@ -41,7 +41,7 @@ editing one.
 The tier split and the conventions below come from a design worked out and
 validated against real unit-conversion cases, not invented for this module.
 
-**Not to be confused with** :func:`mirobody.translate.canonical_units.convert_to_standard`.
+**Not to be confused with** :func:`mirobody.standardize.canonical_units.convert_to_standard`.
 That one takes a ``StandardIndicator`` and converts to the unit that indicator
 declares, one target per indicator, and it builds on this module: it normalizes
 both spellings and converts with :func:`convert_value`, rather than carrying
@@ -53,8 +53,8 @@ device sample; use this one to compare two readings.
 
 Both stay where they are. This one is the LIBRARY layer, named in four
 import-linter contracts, because `pip install mirobody` with nothing but numpy
-has to resolve a name and pick a code by unit. `mirobody.translate` is not that
-layer: `translate.aggregate.service` reaches aiohttp and a database.
+has to resolve a name and pick a code by unit. `mirobody.standardize` is not that
+layer: `standardize.aggregate.service` reaches aiohttp and a database.
 """
 
 from __future__ import annotations

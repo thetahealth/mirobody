@@ -5,13 +5,13 @@
 
 | 技能 | 用途 |
 | --- | --- |
-| `translate-health-data` | 使用 Python 库规范读数、读取健康文档。 |
+| `standardize-health-data` | 使用 Python 库规范读数、读取健康文档。 |
 | `mirobody` | 启动应用，并让助手通过 MCP 连接。 |
 
 ## 安装
 
 ```bash
-npx skills add thetahealth/mirobody --skill translate-health-data
+npx skills add thetahealth/mirobody --skill standardize-health-data
 npx skills add thetahealth/mirobody --skill mirobody
 ```
 

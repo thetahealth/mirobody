@@ -14,7 +14,7 @@ are copied unchanged (LOINC licence 5.8 sections 2 and 3). Outputs, all TSV:
     map_to.tsv     loinc, map_to, comment  (whole file; deprecations point out of Tier-2 too)
 
 Usage:
-    python -m translate_build.loinc_tables --loinc /path/to/Loinc_2.83 --out mirobody/translate/data/loinc
+    python -m standardize_build.loinc_tables --loinc /path/to/Loinc_2.83 --out mirobody/standardize/data/loinc
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ import re
 import sys
 from pathlib import Path
 
-from translate_build.loinc_cut import write_tsv
+from standardize_build.loinc_cut import write_tsv
 
 EN_SOURCES = ("LONG_COMMON_NAME", "SHORTNAME", "DisplayName")
 ZH_VARIANT = Path("AccessoryFiles/LinguisticVariants/zhCN5LinguisticVariant.csv")

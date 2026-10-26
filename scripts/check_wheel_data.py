@@ -94,7 +94,7 @@ FORBIDDEN = (
     "mirobody/res/loinc/aliases_src/ru.tsv",
     # 1.5.0: deleted, not merely unshipped. It was the manual overlay for
     # `mirobody indicator analyte-digit`, a build command that went with
-    # `indicator/`; nothing in translate_build or the resolver reads digits.
+    # `indicator/`; nothing in standardize_build or the resolver reads digits.
     "mirobody/res/loinc/analyte_digit_src/analyte_digit_curated.tsv",
     # fhir_id_map.npy is not listed because it no longer exists: it mapped
     # canonical ids to `fhir_indicators.id`, one database's PRIMARY KEYS, and was
@@ -276,7 +276,7 @@ def check(path: str) -> list[str]:
             if m not in members:
                 problems.append(
                     f"MISSING   {BUNDLE}:{m} — the resolver reads this on every "
-                    "call; rebuild with python -m translate_build.build_bundle"
+                    "call; rebuild with python -m standardize_build.build_bundle"
                 )
         for m in BUNDLE_FORBIDDEN:
             if m in members:

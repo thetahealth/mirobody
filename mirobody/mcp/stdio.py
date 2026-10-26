@@ -10,7 +10,7 @@ the package. No database, no network, no user record. The one exception is
 
 The HTTP server (`mcp/service.py`) serves a person's record and needs a
 database; this one serves the vocabularies to any client, and the three tools
-both offer have one body (`translate.terminology`).
+both offer have one body (`standardize.terminology`).
 """
 
 from __future__ import annotations
@@ -256,7 +256,7 @@ def _tool_standardize_reading(args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _tool_standardize_complaint(args: dict[str, Any]) -> dict[str, Any]:
-    from mirobody.translate.terminology import standardize_complaint
+    from mirobody.standardize.terminology import standardize_complaint
 
     out = standardize_complaint(str(args.get("text") or ""), str(args.get("kind") or "symptom"))
     if out.get("success") is False:
@@ -303,7 +303,7 @@ def _tool_standardize_report(args: dict[str, Any]) -> dict[str, Any]:
 
 def _terminology(fn_name: str):
     def call(args: dict[str, Any]) -> dict[str, Any]:
-        from mirobody.translate import terminology
+        from mirobody.standardize import terminology
 
         if fn_name == "convert_unit":
             out = terminology.convert_unit(args.get("value"), args.get("from_unit", ""), args.get("to_unit", ""),
@@ -369,7 +369,7 @@ def _resource_text(uri: str) -> tuple[str, str]:
         return "text/tab-separated-values", res.joinpath("catalog", "metrics.tsv").read_text(encoding="utf-8")
     if uri == "mirobody://bundle":
         import mirobody
-        from mirobody import translate
+        from mirobody import standardize
         from mirobody.kernel.metrics import TERMINOLOGY_VERSION
         from mirobody.units import essence
 
@@ -381,7 +381,7 @@ def _resource_text(uri: str) -> tuple[str, str]:
         body = {
             "mirobody": mirobody.__version__,
             "loinc": mirobody.BUNDLE_VERSION,
-            "icpc3": translate.icpc3.release(),
+            "icpc3": standardize.icpc3.release(),
             "ucum": essence.version(),
             "catalogue": TERMINOLOGY_VERSION,
             "notices": notices,

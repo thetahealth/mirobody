@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from mirobody import translate
+from mirobody import standardize
 from mirobody.user.auth.jwt import ACCESS_TOKEN_TYPE, validator_from_config
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import err, failed, ok
@@ -81,7 +81,7 @@ def _is_zone(tz: str) -> bool:
     """Whether `tz` is a zone the record's days can be cut in. An unknown one
     used to be stored and then read as UTC wherever a day was computed."""
     try:
-        translate.zone_for(tz)
+        standardize.zone_for(tz)
     except ValueError:
         return False
     return True

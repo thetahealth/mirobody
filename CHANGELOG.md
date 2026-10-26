@@ -28,6 +28,23 @@
 
 ### Changed
 
+- **Stage ② is Standardize (标准化), not Translate (转译).** The stage never
+  translates: it keeps the printed name verbatim and assigns a LOINC code, a
+  UCUM unit and a local day. The old name collided with real translation, which
+  the extraction prompts forbid ("do not translate") and `str.translate` does
+  in `zh_fold` and `lexical`, while the README tagline and
+  `docs/standardization.md` already called the stage "standardize". Renamed
+  with no shim: `mirobody.translate` → `mirobody.standardize` (same modules,
+  same exports), `translate_build/` → `standardize_build/`, the skill
+  `translate-health-data` → `standardize-health-data`, the import-linter
+  contract "standardize has one front door", and the diagrams
+  `docs/images/collect-standardize-agent*.svg`. `mirobody.collect` still
+  re-exports `StandardIndicator` and `UNIT_CONVERSIONS`, so provider plugins
+  need no edit. To tell: `python -c "import mirobody.standardize"` works and
+  `import mirobody.translate` raises `ModuleNotFoundError`; a skill installed
+  under the old name keeps working until you re-add it as
+  `npx skills add thetahealth/mirobody --skill standardize-health-data`.
+
 - **`normalize_unit` is faster, with the same answers.** Every call ran NFKC
   and folded symbols one character at a time, including an input that is
   already a key of the alias table, which is most of what lab reports send.

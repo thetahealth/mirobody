@@ -9,7 +9,7 @@
     task.py, startup.py the scheduled job
 
 Nothing is re-exported here: importing a submodule must not load the rest.
-The entry points other packages use are `mirobody.translate`'s
+The entry points other packages use are `mirobody.standardize`'s
 (`AggregateIndicatorService`, `start_aggregate_indicator_scheduler`, ...).
 See README.md.
 """

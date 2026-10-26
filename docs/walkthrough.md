@@ -79,7 +79,7 @@ what it means is another.
        alt="Dropping a lab-report PDF on the Data page; its analytes extracted, each linked to its source file" width="880">
 </p>
 
-**3 · ② Translate.** Its analytes come out as readings once the model has read
+**3 · ② Standardize.** Its analytes come out as readings once the model has read
 the page (seconds with a cloud model, minutes on a CPU alone), each one
 linking back to the file it was read off, and each one carrying a code:
 

@@ -7,8 +7,8 @@ import unittest
 from pathlib import Path
 
 from mirobody.engine import standardize_reading
-from mirobody.translate.icpc3 import resolve_condition, resolve_symptom
-from mirobody.translate.terminology import standardize_complaint
+from mirobody.standardize.icpc3 import resolve_condition, resolve_symptom
+from mirobody.standardize.terminology import standardize_complaint
 
 CASES = json.loads(Path(__file__).with_name("cases.json").read_text(encoding="utf-8"))
 

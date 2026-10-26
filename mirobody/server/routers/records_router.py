@@ -43,7 +43,7 @@ from mirobody.engine import resolve_reading as resolve_indicator_name
 from mirobody.units.normalize import normalize_unit, parse_value_unit
 from mirobody.kernel import series
 from mirobody.collect import PostgresHealthQuery, observations
-from mirobody.translate import devices
+from mirobody.standardize import devices
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 

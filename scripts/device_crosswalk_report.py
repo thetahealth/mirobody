@@ -13,7 +13,7 @@ from __future__ import annotations
 import sys
 from collections import Counter
 
-from mirobody.translate import devices
+from mirobody.standardize import devices
 
 
 def vendors() -> str:

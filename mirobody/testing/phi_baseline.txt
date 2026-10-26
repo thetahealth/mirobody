@@ -37,6 +37,23 @@ mirobody/server/bootstrap.py	interpolation	env_name
 mirobody/server/bootstrap.py	interpolation	filename
 mirobody/server/bootstrap.py	interpolation	schema
 mirobody/server/worker.py	interpolation	[c.__name__ for c in task_classes]
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	chunk_end.strftime('%Y-%m-%d')
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	current_start.strftime('%Y-%m-%d')
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	data_begin_utc
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	end_date
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	end_date.date()
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	since_timestamp
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	start_date
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	start_date.date()
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	user_id or 'all users'
+mirobody/standardize/aggregate/aggregators/sql_aggregator.py	interpolation	user_label
+mirobody/standardize/aggregate/service.py	interpolation	end_date.isoformat()
+mirobody/standardize/aggregate/service.py	interpolation	last_timestamp
+mirobody/standardize/aggregate/service.py	interpolation	start_date.isoformat()
+mirobody/standardize/aggregate/service.py	interpolation	user_id or 'all'
+mirobody/standardize/aggregate/task.py	interpolation	stats_dict['execution_time_ms']
+mirobody/standardize/aggregate/task.py	interpolation	stats_dict['summaries_created']
+mirobody/standardize/aggregate/task.py	interpolation	stats_dict['users_affected']
 mirobody/task/loader.py	interpolation	dir
 mirobody/task/loader.py	interpolation	module_name
 mirobody/task/loader.py	interpolation	target
@@ -44,23 +61,6 @@ mirobody/task/profile_refresh.py	interpolation	result.get('current_version')
 mirobody/task/profile_refresh.py	interpolation	result.get('last_execute_doc_id')
 mirobody/task/profile_refresh.py	interpolation	result.get('profile_id')
 mirobody/task/profile_refresh.py	interpolation	result.get('version')
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	chunk_end.strftime('%Y-%m-%d')
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	current_start.strftime('%Y-%m-%d')
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	data_begin_utc
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	end_date
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	end_date.date()
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	since_timestamp
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	start_date
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	start_date.date()
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	user_id or 'all users'
-mirobody/translate/aggregate/aggregators/sql_aggregator.py	interpolation	user_label
-mirobody/translate/aggregate/service.py	interpolation	end_date.isoformat()
-mirobody/translate/aggregate/service.py	interpolation	last_timestamp
-mirobody/translate/aggregate/service.py	interpolation	start_date.isoformat()
-mirobody/translate/aggregate/service.py	interpolation	user_id or 'all'
-mirobody/translate/aggregate/task.py	interpolation	stats_dict['execution_time_ms']
-mirobody/translate/aggregate/task.py	interpolation	stats_dict['summaries_created']
-mirobody/translate/aggregate/task.py	interpolation	stats_dict['users_affected']
 mirobody/user/auth/oauth_service.py	interpolation	err
 mirobody/utils/config/config.py	interpolation	file
 mirobody/utils/config/config.py	interpolation	upper_key
@@ -74,7 +74,5 @@ mirobody/utils/config/storage/aws.py	interpolation	self.region
 mirobody/utils/config/storage/local.py	interpolation	self.base_path
 mirobody/utils/config/storage/local.py	interpolation	self.proxy_url
 mirobody/utils/db.py	interpolation	logged_query
-mirobody/utils/http.py	interpolation	message
-mirobody/utils/http.py	interpolation	msg
 mirobody/utils/plugin_dirs.py	interpolation	ep.name
 mirobody/utils/plugin_dirs.py	interpolation	group

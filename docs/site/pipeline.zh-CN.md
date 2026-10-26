@@ -3,8 +3,8 @@
 Mirobody 将文件、设备数据和健康日记整理成统一记录，再供网页、agent 和 MCP 客户端查询。
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../images/collect-translate-agent-dark.zh-CN.svg">
-  <img src="../images/collect-translate-agent.zh-CN.svg" alt="收集、转译、智能体：从原始资料到回答" width="920">
+  <source media="(prefers-color-scheme: dark)" srcset="../images/collect-standardize-agent-dark.zh-CN.svg">
+  <img src="../images/collect-standardize-agent.zh-CN.svg" alt="收集、标准化、智能体：从原始资料到回答" width="920">
 </picture>
 
 ## 从原始资料到回答
@@ -12,7 +12,7 @@ Mirobody 将文件、设备数据和健康日记整理成统一记录，再供�
 | 阶段 | 处理内容 |
 | --- | --- |
 | ① 收集 | 接收文件、设备数据和日记，保留原始来源。 |
-| ② 转译 | 为能够识别的指标确定标准编码，并转换兼容的单位。 |
+| ② 标准化 | 为能够识别的指标确定标准编码，并转换兼容的单位。 |
 | ③ 智能体 | 查询选中用户的记录，进行比较，并引用答案依据。 |
 
 文件上传完成后，读数提取可能仍在进行，请以提取结果为准。

@@ -26,7 +26,7 @@ from mirobody.collect import observations
 from mirobody.collect.ingest.models.requests import StandardPulseData, StandardPulseRecord
 from mirobody.collect.ingest.repositories.health_data import HealthDataRepository, health_data_repository
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.translate import (
+from mirobody.standardize import (
     ValueRangeValidator,
     convert_to_standard,
     get_indicator_by_str,

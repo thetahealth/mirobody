@@ -1,7 +1,7 @@
 """Logging what a person reports, and reading the log back by day.
 
 The write side of the ICPC-3 axes. A person types what is wrong in their own
-words; the words are stored verbatim and `translate` says which code they
+words; the words are stored verbatim and `standardize` says which code they
 name, or abstains. `kind` picks the axis: a `symptom` is what they feel now
 and resolves on ICPC-3's S component, a `condition` is what they have been
 diagnosed with and resolves on its D component. No new table: both are one
@@ -31,7 +31,7 @@ from datetime import UTC, date, datetime, timedelta
 from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 
-from mirobody import translate
+from mirobody import standardize
 from mirobody.collect import PostgresMedicationStore, apply_medication_mentions, observations, sentence
 from mirobody.kernel import meds, series
 from mirobody.kernel.ops import is_driver_exception
@@ -50,7 +50,7 @@ router = APIRouter(prefix="/api/v1", tags=["journal"])
 SOURCE_REF = "journal"
 ON_CONFLICT = observations.ON_CONFLICT_REASSERT
 
-#: The axis a `kind` writes on. `translate` owns the resolving; this map is
+#: The axis a `kind` writes on. `standardize` owns the resolving; this map is
 #: only which observation kind the caller may ask for.
 KINDS = {
     "symptom": observations.KIND_SYMPTOM,
@@ -139,7 +139,7 @@ def _bad_zone(tz: str | None) -> bool:
     if not tz:
         return False
     try:
-        translate.zone_for(tz)
+        standardize.zone_for(tz)
     except ValueError:
         return True
     return False
@@ -154,10 +154,10 @@ def _writer_zone(record_tz: str, *said: str | None) -> tuple[str, datetime]:
         if not tz or len(tz) > 64:
             continue
         try:
-            return tz, datetime.now(tz=translate.zone_for(tz))
+            return tz, datetime.now(tz=standardize.zone_for(tz))
         except ValueError:
             continue
-    return "", datetime.now(tz=translate.zone_for(translate.resolve_tz("", record_tz)[0]))
+    return "", datetime.now(tz=standardize.zone_for(standardize.resolve_tz("", record_tz)[0]))
 
 
 async def _label(caller: str, owner: str) -> str:
@@ -408,7 +408,7 @@ async def _medications(owner: str, start: date, end: date, said: str) -> list[tu
     written in the reader's zone, as entries."""
     record_tz = await observations.user_tz(owner)
     zone_name, _ = _writer_zone(record_tz, said)
-    zone = translate.zone_for(zone_name or translate.resolve_tz("", record_tz)[0])
+    zone = standardize.zone_for(zone_name or standardize.resolve_tz("", record_tz)[0])
     since = datetime.combine(start, datetime.min.time(), tzinfo=zone)
     until = datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=zone)
     made = await PostgresMedicationStore().created_by(

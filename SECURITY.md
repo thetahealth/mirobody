@@ -151,7 +151,7 @@ There is no telemetry and no usage reporting.
 | Your SMTP server | when `EMAIL_SMTP_*` is configured, to send a sign-in code | the address and the code |
 | S3 or Aliyun OSS | only when configured in place of the local disk | uploaded files |
 
-`② Translate` (a name to a code, a unit to UCUM) calls nothing: the vocabulary
+`② Standardize` (a name to a code, a unit to UCUM) calls nothing: the vocabulary
 ships inside the package.
 
 ## Supported versions

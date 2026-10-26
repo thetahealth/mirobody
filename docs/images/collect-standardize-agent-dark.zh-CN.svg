@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="920" height="412" viewBox="0 0 920 412" role="img" aria-labelledby="title description" font-family="'Inter', 'Helvetica Neue', Arial, 'PingFang SC', 'Microsoft YaHei', 'Noto Sans CJK SC', sans-serif">
-<title id="title">收集、转译、智能体：三个阶段，从左到右</title>
-<desc id="description">收集汇总报告、设备数据、基因文件和健康日记；转译统一名称、换算单位、保留来源；智能体据此查看趋势、对比报告，并把每个答案追溯到原始读数。解析和问答使用所选模型，名称匹配与单位换算由本地引擎完成。</desc>
+<title id="title">收集、标准化、智能体：三个阶段，从左到右</title>
+<desc id="description">收集汇总报告、设备数据、基因文件和健康日记；标准化统一名称、换算单位、保留来源；智能体据此查看趋势、对比报告，并把每个答案追溯到原始读数。解析和问答使用所选模型，名称匹配与单位换算由本地引擎完成。</desc>
 <rect width="920" height="412" fill="#0D1117"/>
 <rect x="24" y="30" width="268" height="306" rx="20" fill="#151E29" stroke="#344355" stroke-width="1.3"/>
 <rect x="46" y="52" width="36" height="36" rx="11" fill="#1D3151"/>
@@ -16,7 +16,7 @@
 <rect x="326" y="30" width="268" height="306" rx="20" fill="#151E29" stroke="#344355" stroke-width="1.3"/>
 <rect x="348" y="52" width="36" height="36" rx="11" fill="#18382C"/>
 <g transform="translate(354 58) scale(1)" fill="none" stroke="#91D6B1" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13M13 4l4 4-4 4"/><path d="M20 16H7M11 12l-4 4 4 4"/></g>
-<text x="396" y="78" font-size="27" font-weight="700" fill="#EDF3F9" text-anchor="start">② 转译</text>
+<text x="396" y="78" font-size="27" font-weight="700" fill="#EDF3F9" text-anchor="start">② 标准化</text>
 <text x="348" y="116" font-size="21" font-weight="500" fill="#91D6B1" text-anchor="start">让不同来源可比较</text>
 <g transform="translate(348 165) scale(1)" fill="none" stroke="#B2C0CF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12 12 3h7v7l-9 9z"/><circle cx="15.5" cy="8.5" r="1.4" fill="#B2C0CF" stroke="none"/></g>
 <text x="380" y="182" font-size="22" font-weight="400" fill="#EDF3F9" text-anchor="start">统一名称</text>

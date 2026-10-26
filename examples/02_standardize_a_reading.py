@@ -12,10 +12,10 @@ The conversion is not a nicety. A trend line built from a mix of lb and kg, or
 mg/dL and mmol/L, is silently wrong rather than obviously wrong.
 """
 
-# The front door. `mirobody.translate` re-exports what its modules publish, and
+# The front door. `mirobody.standardize` re-exports what its modules publish, and
 # an import-linter contract forbids reaching past it — an example is the last
 # place that should teach the deep path.
-from mirobody.translate import (
+from mirobody.standardize import (
     StandardIndicator,
     convert_to_standard,
 )

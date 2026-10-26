@@ -56,7 +56,7 @@ The units match across the files on purpose. LOINC puts the unit IN the
 identity: cholesterol is 14647-2 in mmol/L and **2093-3** in mg/dL, two codes
 for one analyte, and a demo that mixed them would show the comparability key
 rather than the three-spellings point these files make. The DEVICE path
-converts before it stores: `translate.convert_to_standard` turns `154.5 lb`
+converts before it stores: `standardize.convert_to_standard` turns `154.5 lb`
 into `70.08 kg`, and `examples/02_standardize_a_reading.py` prints that offline.
 
 Every file carries ONE collection date, because `resolve_report_date` gives a

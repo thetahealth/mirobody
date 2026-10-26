@@ -13,8 +13,8 @@ from mirobody.kernel.ops import is_driver_exception
 from mirobody.collect.files.services.file_db_service import FileDbService
 from mirobody.collect.files.services import genotype_format
 from mirobody.collect.files.services.genetic_store import GenotypeStore
-from mirobody.translate.genotype import NORMALIZER_VERSION, infer_sex, normalize
-from mirobody.translate.genotype_sites import SiteCatalog
+from mirobody.standardize.genotype import NORMALIZER_VERSION, infer_sex, normalize
+from mirobody.standardize.genotype_sites import SiteCatalog
 
 logger = logging.getLogger(__name__)
 

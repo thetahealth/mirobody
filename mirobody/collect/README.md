@@ -4,7 +4,7 @@
 platforms (Garmin, Oura, WHOOP, Apple Health) arrive through a
 **Platform-Provider** plugin architecture; lab reports, photos and genetic
 files arrive as uploads. Everything converges on `StandardPulseData` and is
-written, verbatim, by one writer. What a value MEANS is ② Translate's.
+written, verbatim, by one writer. What a value MEANS is ② Standardize's.
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Vendor API → Provider.pull_from_vendor_api()
   → Provider.format_data()             (raw → StandardPulseData)
   → StandardHealthService.process_standard_data()
                                        (summaries → observations, points → series_data)
-  → translate/aggregate                (a day of points → one published number)
+  → standardize/aggregate                (a day of points → one published number)
 ```
 
 All platforms converge at `StandardPulseData` — the universal exchange format defined in `ingest/models/requests.py`.
@@ -57,10 +57,10 @@ providers are discovered at startup by `ProviderPlatform._load_providers_from_di
 | **Meds** | `meds/` | ~0.7k | A Postgres store for `kernel.meds`, not a collector | `meds/__init__.py` |
 
 What a value MEANS is not here. The indicator catalogue, units, value ranges
-and fhir_id are `mirobody/translate/` since 1.4.4, which is what makes "collect
+and fhir_id are `mirobody/standardize/` since 1.4.4, which is what makes "collect
 only collects" something the tree shows. The scheduler and the distributed lock
 left `core/` in the same release, to `mirobody/utils/`: both are generic
-infrastructure that `translate` needed too, and a package importing back into
+infrastructure that `standardize` needed too, and a package importing back into
 `collect` for a scheduler was a cycle.
 
 Read top to bottom and the table is the data flow: two source shapes, one
@@ -101,8 +101,8 @@ There is no `router/` here any more — the HTTP endpoints moved to
 
 ### Adding a new health indicator
 **Not in this package** since 1.4.4:
-- `mirobody/translate/indicators_info.py` — `StandardIndicator` + `IndicatorInfo`
-- `mirobody/translate/canonical_units.py` — unit conversion definitions
+- `mirobody/standardize/indicators_info.py` — `StandardIndicator` + `IndicatorInfo`
+- `mirobody/standardize/canonical_units.py` — unit conversion definitions
 - `mirobody/kernel/decoders/apple.py` — the HealthKit identifier, if it comes
   from Apple. One table serves both the push endpoint and `mirobody import apple`.
 
@@ -120,9 +120,9 @@ a web framework.
 
 ### Aggregate indicators
 **Not in this package** since 1.4.4: a daily total is the same quantity on a
-different time axis, which is a LOINC axis change, so it went to ② Translate.
-- `mirobody/translate/aggregate/service.py` — aggregation orchestrator
-- `mirobody/translate/derive/rules.py` — quantities nothing measured
+different time axis, which is a LOINC axis change, so it went to ② Standardize.
+- `mirobody/standardize/aggregate/service.py` — aggregation orchestrator
+- `mirobody/standardize/derive/rules.py` — quantities nothing measured
 
 ### Writing and reading a reading
 - `observations.py` — `ingest`, `amend`, `retract`, `retract_unconfirmed`, `redate`, `erase`, `recode`, `merge_accounts`
@@ -175,11 +175,11 @@ Always use top-level imports. Lazy imports (inside functions) hide import errors
 ```python
 # BAD: lazy import hides path errors
 def process():
-    from ..translate import get_standard_unit  # wrong path won't be caught at startup
+    from ..standardize import get_standard_unit  # wrong path won't be caught at startup
     return get_standard_unit(indicator)
 
 # GOOD: top-level import, fails fast at startup if path is wrong
-from mirobody.translate import get_standard_unit
+from mirobody.standardize import get_standard_unit
 
 def process():
     return get_standard_unit(indicator)
@@ -197,7 +197,7 @@ lesson is about lazy imports, not about that module.
 A metric's local day comes from the catalogue: `metrics.METRICS[name].window`
 is `00:00` for a calendar day and `18:00` for a night (the sleep stages,
 `napDuration`). Never test a name for "sleep"; see
-`mirobody/translate/aggregate/windows.py`.
+`mirobody/standardize/aggregate/windows.py`.
 
 ### Query timing — query BEFORE insert
 ```python
@@ -246,7 +246,7 @@ docker compose logs mirobody | grep "Loaded provider"
 ```python
 from mirobody.collect.base import ProviderInfo
 from mirobody.collect.core import LinkType, ProviderStatus
-from mirobody.translate.indicators_info import StandardIndicator
+from mirobody.standardize.indicators_info import StandardIndicator
 from mirobody.collect.ingest.models.requests import (
     StandardPulseData, StandardPulseMetaInfo, StandardPulseRecord,
 )

@@ -156,7 +156,7 @@ back into `mirobody.indicator` at 59 sites. The conclusion then was that the
 duplication had to go first.
 
 It did, by a different route. The 1.5.0 bundle is cut from one LOINC release in
-one pass by `translate_build/`, ~700 lines outside `mirobody/`, so the passes
+one pass by `standardize_build/`, ~700 lines outside `mirobody/`, so the passes
 that needed a UMLS licence, a concept graph across SNOMED CT and RxNorm, and a
 multi-GB embedding matrix have nothing left to build. 24,858 lines deleted, and
 with them the `[indicator-build]` extra, `scripts/vocabulary_build.py`,
@@ -241,8 +241,8 @@ measurement. The package is `collect/` now, which is the stage name, and the
 rejection reads better than it did: external-source integration is
 `providers/` (Apple included since 1.4.4) plus `files/`, the pipeline is
 `ingest/` + `aggregate/`, and `core/` is down from 41% to ~8%. Standardization
-left the package entirely in 1.4.4, to `mirobody/translate/`, which is ②
-Translate's own stage.
+left the package entirely in 1.4.4 and is now `mirobody/standardize/`, ②
+Standardize's own stage.
 
 What was actually wrong was legibility, not the names. The directory listing
 sorts `aggregate/` before `providers/`, so the tree shows the pipeline in an
@@ -666,7 +666,7 @@ that what it drops is never something a person would want back.
 
 ### The aggregation worker's statistics, against a live series
 
-`translate/aggregate` computes about twenty statistics in SQL — percentiles,
+`standardize/aggregate` computes about twenty statistics in SQL — percentiles,
 time-in-range, CGM event detection, the derived sleep-onset methods. 1.4.0 put
 the DAY BOUNDARY and the SOURCE ELECTION on the kernel and left those
 statistics where they were, deliberately: routing them through

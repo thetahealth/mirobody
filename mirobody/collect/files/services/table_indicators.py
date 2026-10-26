@@ -1,4 +1,4 @@
-"""Readings straight off a report's tables: no model between the OCR and ② Translate.
+"""Readings straight off a report's tables: no model between the OCR and ② Standardize.
 
 GLM-OCR's table mode returns HTML tables whose columns are already split; a
 spreadsheet arrives as a markdown table, a CSV as delimited lines. When a table
@@ -58,9 +58,9 @@ import unicodedata
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 
-from mirobody import translate
+from mirobody import standardize
 from mirobody.collect.sentence import blood_pressure
-from mirobody.translate.parse import KIND_ABSENT, RANGE_SEPARATOR
+from mirobody.standardize.parse import KIND_ABSENT, RANGE_SEPARATOR
 from mirobody.units import normalize_unit
 from mirobody.zh_fold import fold_to_hans
 
@@ -457,7 +457,7 @@ def _range_cell(cell: str) -> bool:
     an expected word (`阴性`). A result, a date or a flag is not one."""
     if _RANGE_IN.search(cell):
         return not re.search(r"\d", _RANGE_IN.sub("", cell))
-    return not printed_flag(cell) and translate.parse_value(cell, "").value_kind in ("nominal", "ordinal")
+    return not printed_flag(cell) and standardize.parse_value(cell, "").value_kind in ("nominal", "ordinal")
 
 
 def _unit_cells(cells: list[str]) -> bool:
@@ -466,7 +466,7 @@ def _unit_cells(cells: list[str]) -> bool:
     all: a coagulation panel's `mg/L FEU` is a unit the engine does not know,
     beside `s` and `g/L` that it does."""
     if any(printed_flag(c) or _NUMBER.match(c) or _RANGE_IN.search(c)
-           or translate.parse_value(c, "").value_kind in _RESULT_KINDS for c in cells):
+           or standardize.parse_value(c, "").value_kind in _RESULT_KINDS for c in cells):
         return False
     return 2 * sum(1 for c in cells if normalize_unit(c) is not None) > len(cells)
 
@@ -474,7 +474,7 @@ def _unit_cells(cells: list[str]) -> bool:
 def _results(cells: list[str]) -> int:
     """How many cells read as a result: a number, an ordinal or a nominal word,
     less a trailing flag."""
-    return sum(1 for c in cells if translate.parse_value(split_flag(c, "")[0], "").value_kind in _RESULT_KINDS
+    return sum(1 for c in cells if standardize.parse_value(split_flag(c, "")[0], "").value_kind in _RESULT_KINDS
                or _value_parts(c))
 
 
@@ -510,7 +510,7 @@ def _by_cells(row: list[str], groups: list[dict[str, int]], body: list[list[str]
         names, values = column(g["name"]), column(g["value"])
         if 2 * _results(values) < len(values):
             continue
-        if 2 * sum(1 for c in names if translate.parse_value(c, "").value_kind == "quantity"
+        if 2 * sum(1 for c in names if standardize.parse_value(c, "").value_kind == "quantity"
                    or _RANGE_IN.fullmatch(c.strip())) > len(names):
             continue
         for i, head in enumerate(row):
@@ -535,7 +535,7 @@ def is_unit(cell: str) -> bool:
     """A unit and nothing else: not `<5.18 mmol/L` or `10.0/L`, which the unit
     engine reads past their numbers, and not `1`, which it reads as unity."""
     return (normalize_unit(cell) is not None and not _NUMBER.match(cell)
-            and translate.parse_value(cell, "").value_kind != "quantity")
+            and standardize.parse_value(cell, "").value_kind != "quantity")
 
 
 def _unit_like(unit: str) -> bool:
@@ -546,7 +546,7 @@ def _ref_like(ref: str) -> bool:
     """A printed range, bound or expected word ("阴性"); not a name or a ward."""
     if not ref or re.search(r"\d", ref):
         return True
-    return translate.parse_value(ref, "").value_kind in _RESULT_KINDS
+    return standardize.parse_value(ref, "").value_kind in _RESULT_KINDS
 
 
 def printed_flag(flag: str) -> str:
@@ -594,7 +594,7 @@ def split_flag(value: str, ref: str) -> tuple[str, str]:
     lead = re.match(r"\s*[-+]?\d+(?:\.\d+)?", number)
     if flag in ("L", "LL") and status_of(lead.group(0) if lead else number, ref) != "low":
         return value, ""
-    if flag in ("H", "HH") and not lead and translate.parse_value(number, "").value_kind not in ("ordinal", "nominal"):
+    if flag in ("H", "HH") and not lead and standardize.parse_value(number, "").value_kind not in ("ordinal", "nominal"):
         return value, ""
     return number, flag
 
@@ -660,7 +660,7 @@ def _kinds(cell: str) -> frozenset[str]:
     else:
         if _range_cell(cell) or _ref_unit(cell):
             kinds.add("ref")
-        if translate.parse_value(split_flag(cell, "")[0], "").value_kind in _RESULT_KINDS or _value_parts(cell):
+        if standardize.parse_value(split_flag(cell, "")[0], "").value_kind in _RESULT_KINDS or _value_parts(cell):
             kinds.add("value")
     if re.fullmatch(_DATE_VALUE, cell):
         kinds = {"date"}
@@ -809,7 +809,7 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> list
         value, flag = split_flag(value, ref)
         if not unit and re.search(r"\d\s*L{1,2}$", value):
             return None  # low, or litres: the range does not say, so a model reads it
-    parsed = translate.parse_value(value, unit)
+    parsed = standardize.parse_value(value, unit)
     if parsed.value_kind == "quantity" and not unit and parsed.unit_ucum:
         # GLM-OCR puts a vital's unit in the value cell ("72.0kg") when the
         # table has no unit column; the number has to stand alone to be charted.
@@ -1008,7 +1008,7 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
     pairs = pairs | pressures
     results = [c for i, c in enumerate(cells) if c and i not in codes and not is_unit(c)
                and not (_RANGE_IN.search(c) and _range_cell(c))
-               and (translate.parse_value(split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c)
+               and (standardize.parse_value(split_flag(c, "")[0], "").value_kind == "quantity" or _value_parts(c)
                     or any(c == v for _, v in pressures))]
     if not results:
         # A row of word results (`Urine protein(PRO) | Negative | 阴性 | 02`) is
@@ -1019,7 +1019,7 @@ def _row_read(cells: list[str], pairs: set[tuple[str, str]], codes: frozenset[in
         named = {name for name, value in pairs if name in names and value in cells}
         others = {c for i, c in enumerate(cells) if c and i not in codes and not is_unit(c) and not _range_cell(c)
                   and not printed_flag(c)
-                  and translate.parse_value(split_flag(c, "")[0], "").value_kind not in _RESULT_KINDS}
+                  and standardize.parse_value(split_flag(c, "")[0], "").value_kind not in _RESULT_KINDS}
         return bool(named) and others <= named
 
     def printed(c: str) -> set[str]:
@@ -1255,7 +1255,7 @@ def value_key(value: str) -> tuple:
     less its flag, case set aside (`Positive H` / `positive`)."""
     v = value.strip()
     head = split_flag((_value_parts(v) or (v,))[0], "")[0].strip()
-    parsed = translate.parse_value(head, "")
+    parsed = standardize.parse_value(head, "")
     if parsed.value_kind == "quantity" and parsed.value_num is not None:
         return ("number", parsed.value_num, parsed.comparator)
     return ("text", head.casefold())
@@ -1264,11 +1264,11 @@ def value_key(value: str) -> tuple:
 @functools.lru_cache(maxsize=4096)
 def _series_of_name(name: str) -> str:
     """The series the vocabulary files a printed name under, by the name
-    alone (`translate.code`, the coder `observations.coding_for` stores every
+    alone (`standardize.code`, the coder `observations.coding_for` stores every
     reading through, with no value and no unit, so a model row that left the
     unit off still resolves), or "" when it codes to none."""
-    key = translate.name_key(name)
-    coding = translate.code(name, name_key=key, local_key=key, value_kind=KIND_ABSENT)
+    key = standardize.name_key(name)
+    coding = standardize.code(name, name_key=key, local_key=key, value_kind=KIND_ABSENT)
     return coding.series_id if coding.coded else ""
 
 

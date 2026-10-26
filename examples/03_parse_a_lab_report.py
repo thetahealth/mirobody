@@ -4,7 +4,7 @@
     export OPENROUTER_API_KEY=...      # or DASHSCOPE / GOOGLE / OPENAI / DEEPSEEK _API_KEY
     python examples/03_parse_a_lab_report.py path/to/report.pdf
 
-This is ① Collect + ② Translate in a single function. `parse_file()` sends the
+This is ① Collect + ② Standardize in a single function. `parse_file()` sends the
 document to one model to extract name/value/unit, then resolves every extracted
 name **offline** against the shipped bundles. No database, no `mirobody serve`,
 no agent framework.

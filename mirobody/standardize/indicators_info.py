@@ -67,7 +67,7 @@ class IndicatorInfo:
 
     The catalogue row behind this entry also carries the *shape*
     (``metrics.METRICS[name].state_class`` / ``aggregation_policy``); the
-    method list stays here because ``translate/aggregate/rule_generator`` is
+    method list stays here because ``standardize/aggregate/rule_generator`` is
     written against it.
     """
 

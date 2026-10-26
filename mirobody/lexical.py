@@ -12,7 +12,7 @@ surfaces that are then looked up with :func:`index_fold`.
 
 One function that the build and the runtime must agree on exactly has one
 home, and it is on the runtime side, because the build tooling does not ship:
-``translate_build/build_bundle.py`` imports :func:`index_fold` from here.
+``standardize_build/build_bundle.py`` imports :func:`index_fold` from here.
 
 What that thoroughness buys, measured on real report text:
 
@@ -74,7 +74,7 @@ def index_fold(s: str) -> str:
     **The bundle's own key fold: do not "improve" it.** Every key in
     ``alias_keys.bin`` was written through this exact function, so any change
     here stops those keys matching and the resolver silently loses recall. The
-    build pass that mints the index (``translate_build/build_bundle.py``)
+    build pass that mints the index (``standardize_build/build_bundle.py``)
     imports it from here rather than keeping a second copy, which is what makes
     "the build and the runtime fold identically" a fact instead of a convention.
 

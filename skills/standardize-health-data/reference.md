@@ -1,4 +1,4 @@
-# Reference: where translating health data goes wrong
+# Reference: where standardizing health data goes wrong
 
 Every row below was produced by running the shipped resolver against bundle
 `loinc-2.83+2026.09.17-aacb2c715b56`, not from memory. Reproduce any of it

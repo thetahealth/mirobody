@@ -12,7 +12,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.translate.genotype import PAR_RANGES
+from mirobody.standardize.genotype import PAR_RANGES
 from mirobody.utils.db import execute_query, transaction
 
 logger = logging.getLogger(__name__)
