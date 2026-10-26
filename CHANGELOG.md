@@ -26,6 +26,17 @@
   carry no user data, so the chat agent gets them too. `resolve_indicator`
   stays MCP-only.
 
+### Changed
+
+- **`normalize_unit` is faster, with the same answers.** Every call ran NFKC
+  and folded symbols one character at a time, including an input that is
+  already a key of the alias table, which is most of what lab reports send.
+  An exact alias key now returns before cleaning, ASCII input skips NFKC, and
+  the rest folds through one `str.translate` table built from `_SYMBOL_FOLD`.
+  To tell: over the 946 bundled alias and canonical spellings one pass takes
+  0.15 ms instead of 0.52 ms, and `normalize_unit`, `parse_value_unit` and
+  `scan_value_units` match the previous code on 4.5M inputs.
+
 ### Fixed
 
 - **Change citations preserve the metric and explicit sign.** Change/endpoint
