@@ -26,6 +26,19 @@
   carry no user data, so the chat agent gets them too. `resolve_indicator`
   stays MCP-only.
 
+- **The README has a Japanese edition again.** Japanese readers had English
+  and Chinese only: the 1.4.0 `README.ja.md` was archived and then deleted in
+  1.5.2, while the engine kept resolving Japanese report terms. `README.ja.md`
+  follows the current English page, with its own stage and care-circle
+  diagrams (`docs/images/*.ja.svg`), and every edition links the other two.
+  Its examples were run against the bundle, which is why the stage table says
+  `ヘモグロビンA1c`: `グリコヘモグロビン` does not resolve. The coverage figure is
+  now 345/345 in all three editions, the `standardize-health-data` skill,
+  `docs/standardization*.md` and `docs/testing.md`; af62f885 and 2725c66e grew
+  the suite to 345 cases and every quote kept saying 337. To tell: the
+  language line under the README title lists 日本語, and
+  `pytest -s mirobody/tests/test_engine_coverage.py` prints 345/345.
+
 ### Changed
 
 - **Stage ② is Standardize (标准化), not Translate (转译).** The stage never

@@ -112,7 +112,7 @@ def test_marketplace_names_every_skill() -> None:
 
 def test_every_skill_the_readmes_install_exists() -> None:
     """`npx skills add thetahealth/mirobody --skill X` only works for an X here."""
-    docs = [_SKILLS / "README.md", _ROOT / "README.md", _ROOT / "README.zh-CN.md"]
+    docs = [_SKILLS / "README.md", _ROOT / "README.md", _ROOT / "README.zh-CN.md", _ROOT / "README.ja.md"]
     named = set()
     for doc in docs:
         if doc.is_file():
