@@ -449,3 +449,96 @@ async def test_stats_sum_is_the_total_over_every_reading_of_an_unelected_day(dat
     assert (stats["count"], stats["unit"]) == (3, "ms")
     assert stats["sum"] == pytest.approx(2_700_000)
     assert stats["avg"] == pytest.approx(900_000)
+
+
+def test_trend_citation_definition_tracks_its_actual_daily_input_without_values():
+    from mirobody.collect.citations import aggregate_definition, aggregate_key
+
+    row = {"indicator": "Synthetic trend", "series": "synthetic:trend", "first_date": "2026-01-02",
+           "last_date": "2026-01-04", "first_third_mean": 12.0, "last_third_mean": 18.0, "direction": "up"}
+    detail = aggregate_definition("trend", "trend", row, "2026-01-01", "2026-12-31")
+    assert detail == {"view": "trend", "series": "synthetic:trend", "indicator": "Synthetic trend",
+                      "basis": "day_authority", "from": "2026-01-02", "to": "2026-01-04"}
+    stats = aggregate_definition("stats", "stats", row, "2026-01-02", "2026-01-04")
+    assert aggregate_key(detail) != aggregate_key(stats)
+
+
+@pytest.mark.parametrize("same_instant", [False, True], ids=["latest-time", "latest-id"])
+async def test_trend_citations_resolve_daily_contributors_live_and_keep_ownership(database, same_instant):
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import citations, observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    samples = [(1, 8, "10"), (1, 8 if same_instant else 20, "14"),
+               (2, 8, "20"), (2, 20, "99"), (3, 9, "30")]
+    drafts = [observations.Draft(name_text="ALT", value_text=value, unit_text="U/L",
+                               observed_start=datetime(2026, 1, day, hour, tzinfo=UTC),
+                               source_record_id=f"synthetic-{index}")
+              for index, (day, hour, value) in enumerate(samples)]
+    provenance = observations.Provenance("lab-report", "file", "th_files:synthetic-trend-citations")
+    report = await observations.ingest("1", drafts, provenance, user_tz="UTC")
+    assert report.inserted == len(samples)
+    await observations.ingest("2", [observations.Draft(name_text="ALT", value_text="77", unit_text="U/L",
+        observed_start=datetime(2026, 1, 2, 22, tzinfo=UTC))], provenance, user_tz="UTC")
+    [elected] = await database("SELECT series_id, local_date FROM v_observation WHERE id=:id",
+                               {"id": report.ids[2]}, log_sql=False)
+    await database("INSERT INTO th_day_authority(user_id,series_id,local_date,observation_id,rule,candidates) "
+                   "VALUES ('1',:series,:day,:id,'synthetic-election',2)",
+                   {"series": elected["series_id"], "day": elected["local_date"], "id": report.ids[2]}, log_sql=False)
+
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+    envelope = await service.envelope({"user_id": "1", "session_id": "synthetic-trend-thread"},
+                                      indicators=["ALT"], start="2026-01-01", end="2026-01-03", view="trend")
+    assert envelope.status == "ok"
+    [trend] = envelope.data
+    assert trend["n"] == 3
+    rid = trend["rid"]
+    [resolved] = await citations.resolve_rids("synthetic-trend-thread", "1", [rid])
+    assert (resolved["view"], resolved["basis"], resolved["total"]) == ("trend", "day_authority", 3)
+    assert [row["value"] for row in resolved["readings"]] == ["30", "20", "14"]
+    assert (resolved["first_day"], resolved["last_day"]) == ("2026-01-01", "2026-01-03")
+    assert await citations.resolve_rids("synthetic-trend-thread", "2", [rid]) == [{"rid": rid, "status": "unknown"}]
+    assert await citations.resolve_rids("another-synthetic-thread", "1", [rid]) == [{"rid": rid, "status": "unknown"}]
+    [stored] = await database("SELECT detail FROM th_chat_citation WHERE session_id=:session AND rid=:rid",
+                              {"session": "synthetic-trend-thread", "rid": rid}, log_sql=False)
+    assert set(stored["detail"]) == {"view", "series", "indicator", "basis", "from", "to"}
+
+    stats_detail = citations.aggregate_definition("stats", "stats", trend, "2026-01-01", "2026-01-03")
+    stats_key = citations.aggregate_key(stats_detail)
+    stats_rids = await citations.mint_rids("synthetic-trend-thread", "1", [(stats_key, stats_detail)])
+    assert stats_rids[stats_key] != rid
+    [stats] = await citations.resolve_rids("synthetic-trend-thread", "1", [stats_rids[stats_key]])
+    assert stats["total"] == len(samples)
+
+    corrected = await observations.amend("1", report.ids[1], value_text="16")
+    assert corrected and corrected != report.ids[1]
+    [resolved] = await citations.resolve_rids("synthetic-trend-thread", "1", [rid])
+    assert [row["value"] for row in resolved["readings"]] == ["30", "20", "16"]
+    assert await observations.erase("1", ids=[report.ids[4]]) == 1
+    [resolved] = await citations.resolve_rids("synthetic-trend-thread", "1", [rid])
+    assert resolved["total"] == 2
+    assert [row["value"] for row in resolved["readings"]] == ["20", "16"]
+
+
+async def test_trend_citation_members_use_the_actual_capped_input_span(database):
+    from datetime import timedelta
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import citations, observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    first = datetime(2024, 1, 1, tzinfo=UTC)
+    drafts = [observations.Draft(name_text="ALT", value_text=str(20 + i % 10), unit_text="U/L",
+                               observed_start=first + timedelta(days=i)) for i in range(401)]
+    report = await observations.ingest("1", drafts,
+        observations.Provenance("lab-report", "file", "th_files:synthetic-capped-trend"), user_tz="UTC")
+    assert report.inserted == len(drafts)
+    envelope = await HealthIndicatorsService(PostgresHealthQuery(), outside_note=False).envelope(
+        {"user_id": "1", "session_id": "synthetic-capped-thread"}, indicators=["ALT"], view="trend")
+    [trend] = envelope.data
+    assert trend["n"] == 400
+    [resolved] = await citations.resolve_rids("synthetic-capped-thread", "1", [trend["rid"]])
+    assert resolved["view"] == "trend"
+    assert resolved["total"] == 400
+    assert resolved["from"] == resolved["first_day"] == (first + timedelta(days=1)).date().isoformat()
+    assert resolved["to"] == resolved["last_day"] == (first + timedelta(days=400)).date().isoformat()
+    assert len(resolved["readings"]) == citations.MEMBERS_SHOWN

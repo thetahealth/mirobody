@@ -2,6 +2,17 @@
 
 ### Added
 
+- **`view="trend"` describes numeric direction and shape from daily source values.**
+  Single first/last readings can conceal a hump, dip or repeated swings. The new view
+  compares the first and last thirds of observed numeric days and returns their means,
+  delta, relative delta, an elapsed-calendar-day slope, direction and shape. Compatible
+  multiplicative units are normalized before comparison; unsafe conversions abstain.
+  The 2% threshold uses mean absolute magnitude and describes change, not clinical
+  significance. Both compact and REST results retain identity, units, source warnings
+  and coverage. More than 400 source days returns a partial result with the actual span;
+  insufficient, nonnumeric and reported series retain an explicit reason. Citations
+  identify the daily contributors, remain distinct from stats and resolve from live data.
+
 - **Answers can cite visible record values without guessing their source.**
   Automatic citations check the metric, recorded unit and any stated encounter
   date, retaining ambiguous claims as `auto_uncited`. Compact tables preserve
@@ -16,6 +27,20 @@
   stays MCP-only.
 
 ### Fixed
+
+- **Change citations preserve the metric and explicit sign.** Change/endpoint
+  grammar could bypass metric binding, and a stated negative delta could cite
+  an increase. Those checks now remain active for every arithmetic role.
+  Statistic words are parsed outside the metric name, retaining valid Vitamin D
+  and mean corpuscular volume citations. Low-scale trend shapes use a relative
+  tolerance, so expressing the same concentration in g/L or ng/L preserves its shape.
+
+- **Automatic aggregate citations retain the claim's identity.** A same-row
+  shortcut could cite a glucose average for calcium, the wrong unit or another
+  day. Aggregates now pass metric, unit and date/window checks before matching
+  fields are combined by citation id. Chinese units use the existing unit
+  normalizer, unknown explicit units stay uncited, and citations follow the
+  complete unit. Correct named stats and trend values remain citable.
 
 - **A summarized conversation can retain valid citations.** Rids are minted
   for the conversation and subject, and remain valid when messages are folded
@@ -59,6 +84,17 @@
   weekly chart, journal counts and absence, in all four locales (journal in
   its own language). Answers use the account's local days and the suite's
   tolerances; the README says how to run them beside the maintained set.
+
+- **Capability probes diagnose record-access failures on source-grounded windows.**
+  `benchmarks/local_models/probes.py` reads the generator's flat device records,
+  selects disjoint windows with answers separated beyond tolerance, and checks means,
+  day counts, maxima, citation traceability and proven absence. The default is at
+  most 19 questions per person. Source/account provenance is checked before calls;
+  ambiguous source data is omitted with reasons. Full questions and tool evidence
+  are saved, while incomplete runs and unattempted questions remain separate from
+  answer quality. `--dry-run` inspects the set without account or model calls.
+  Explicit units retain their meaning inside parentheses, brackets and quoted
+  formatting, so `70 (lb)` cannot pass a `70 kg` gold through an empty unit match.
 
 - **Personal-record evaluation could hide capability gaps behind easy retrieval.**
   `benchmarks/intent` adds 32 source-grounded tasks (24 capability, 8 regression),

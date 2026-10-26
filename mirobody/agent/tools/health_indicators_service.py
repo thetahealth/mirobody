@@ -148,9 +148,10 @@ class HealthIndicatorsService(RecordTool):
         With no `keywords`/`indicators` it returns the CATALOGUE of what this
         person actually has, reported entries first, which is the right first
         call when you do not know the names. Ask for the shape you need:
-        `view="stats"` for change, a baseline or how often, `view="day"` for a
-        trend line, `view="latest"` for "what is it now", never raw rows you
-        would reduce yourself.
+        `view="stats"` for totals, a baseline or how often, `view="day"` for
+        a chart or dated reported entries, `view="trend"` for numeric direction
+        and shape, `view="latest"` for "what is it now". A partial trend covers
+        only the displayed source days; narrow the window for a complete result.
 
         DO NOT use it for medications (`query_medications`) or for general
         medical knowledge or reference ranges. Do not call it twice with the same arguments:
@@ -162,7 +163,7 @@ class HealthIndicatorsService(RecordTool):
             whether they were cut. `truncated` means narrow the window or ask
             for `view="stats"` (or a coarser view). No dates means the whole
             record. Caps: 50 raw rows and 92 minute…month points per
-            indicator (the newest), 200 catalogue names.
+            indicator (the newest), 400 daily inputs per trend, 200 catalogue names.
 
         Notes for LLMs:
             - No data for an indicator means it was never recorded. It does NOT
@@ -234,6 +235,9 @@ class HealthIndicatorsService(RecordTool):
             return await awaited(hq.readings(subject_id, sel, window, limit=self._row_cap))
         if method == "buckets":
             return await awaited(hq.buckets(subject_id, sel, window, resolution=request.view, limit=self._bucket_cap))
+        if method == "trend":
+            daily = await awaited(hq.buckets(subject_id, sel, window, resolution="day", limit=400))
+            return query.trend_rows(daily)
         if method == "stats":
             return await awaited(hq.stats(subject_id, sel, window))
         if method == "latest":
@@ -272,6 +276,7 @@ async def _with_rids(session_id: str, subject_id: str, method: str, request: que
 # --- envelope and renderings (pure) -----------------------------------------
 
 
+
 def _envelope_for(
     method: str,
     request: query.QueryRequest,
@@ -288,13 +293,20 @@ def _envelope_for(
     total = max((int(r.get("total") or 0) for r in rows), default=0)
     # A catalogue row's `total` is the catalogue's size, not its series' row
     # count: read per indicator, every complete catalogue of two was "cut".
-    truncated = bool(total and total > len(rows)) or (method != "catalog" and bool(_cut_indicators(rows)))
+    truncated = (any(r.get("input_truncated") for r in rows) if method == "trend" else
+                 bool(total and total > len(rows)) or (method != "catalog" and bool(_cut_indicators(rows))))
+    unavailable = method == "trend" and any(
+        r.get("direction") in {"unsupported", "insufficient", "incomparable"} or r.get("missing_numeric_days")
+        for r in rows
+    )
     semantics = _semantics(rows)
     cut = ""
     if truncated and method == "buckets":
         cut = _cut_note(request.view, rows, bucket_cap)
     elif truncated and method == "readings":
         cut = _raw_cut_note(rows, row_cap)
+    elif truncated and method == "trend":
+        cut = _trend_cut_note(rows)
     meta = tools.Meta(
         window=(window.start, window.end) if dated else ("", ""),
         tz=window.tz,
@@ -312,6 +324,40 @@ def _envelope_for(
         assumptions.append(outside)
     if fell_back:
         assumptions.append("no indicator matched those terms; this is what this person has on file")
+        # A window outside the record answers nothing, and the model used today's date for a
+        # record that ended months ago: one note with the real span saves that round trip.
+        if dated:
+            spans = [(str(r.get("first_date") or ""), str(r.get("last_date") or "")) for r in rows]
+            firsts = [first for first, _ in spans if first]
+            lasts = [last for _, last in spans if last]
+            if firsts and lasts:
+                first, last = min(firsts), max(lasts)
+                if window.start and str(window.start)[:10] > last:
+                    assumptions.append(
+                        f"this person's records span {first} .. {last}; the window named starts after the last "
+                        f"record, so ask again ending at or before {last}")
+                elif window.end and str(window.end)[:10] < first:
+                    assumptions.append(
+                        f"this person's records span {first} .. {last}; the window named ends before the first "
+                        f"record, so ask again starting at or after {first}")
+                else:
+                    assumptions.append(f"this person's records span {first} .. {last}")
+    if method == "trend" and rows:
+        summaries = []
+        for row in rows[:4]:
+            description = f"{row.get('indicator')}: direction={row.get('direction')}, shape={row.get('shape')}"
+            if row.get("delta_pct") is not None:
+                description += f" ({row['delta_pct']}% normalized change, {row.get('n')} numeric days)"
+            else:
+                description += f" ({row.get('n')} numeric days; relative change unavailable)"
+            summaries.append(description)
+        assumptions.append("trend: " + "; ".join(summaries))
+        assumptions.append("trend compares the first and last thirds of numeric observed days; "
+                           "the 2% threshold uses mean absolute magnitude and is descriptive, not a clinical threshold")
+        assumptions.append(_DAY_VALUE_NOTE)
+        if unavailable:
+            assumptions.append("some series cannot supply a complete numeric trend; inspect each row's reason; "
+                               "view=day shows dated values or reported entries, and view=stats summarizes the record")
     if method == "catalog" and request.view_unapplied:
         assumptions.append(
             f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
@@ -348,8 +394,10 @@ def _envelope_for(
         next_steps.append(tools.NEXT_PICK_FROM_CATALOG)
     elif truncated:
         next_steps.extend((tools.NEXT_NARROW_WINDOW, tools.NEXT_VIEW_STATS))
+    if unavailable:
+        next_steps.append(tools.NEXT_VIEW_STATS)
 
-    status = tools.STATUS_PARTIAL if truncated else tools.STATUS_OK
+    status = tools.STATUS_PARTIAL if truncated or unavailable else tools.STATUS_OK
     return tools.Envelope(
         status,
         data=rows,
@@ -365,6 +413,13 @@ def _envelope_for(
 #: last, among the notes after the table, answered that March and April had
 #: no data (benchmarks/local_models small-v2, 2026-10-07).
 _NOT_MISSING = "exists and is not shown here; it is not missing"
+
+
+def _trend_cut_note(rows: Sequence[Mapping[str, Any]]) -> str:
+    spans = [f"{r.get('indicator')}: newest {r.get('source_days')} of {r.get('total_days')} recorded days, "
+             f"{r.get('first_date')} to {r.get('last_date')}" for r in rows if r.get("input_truncated")]
+    return ("Only part of the data was used for the trend: " + "; ".join(spans)
+            + f". Earlier data {_NOT_MISSING}. Narrow the window before describing its whole-period trend.")
 
 
 def _cut_note(view: str, rows: Sequence[Mapping[str, Any]], cap: int) -> str:

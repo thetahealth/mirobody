@@ -117,6 +117,8 @@ _PARSE_ONLY = [
 ]
 
 collect_ignore_glob: list[str] = []
+if not (_HAS_AGENTS and _HAS_SERVER and _HAS_PARSE):
+    collect_ignore_glob += ["mirobody/tests/test_trend_service.py"]
 if not _installed("deepagents", "docker"):
     collect_ignore_glob += ["tests/test_code_tool_capability.py", "tests/agent/test_code_tool_probe.py"]
 if not _HAS_AGENTS:

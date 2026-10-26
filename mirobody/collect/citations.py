@@ -23,7 +23,7 @@ from typing import Any
 
 from mirobody.utils import execute_query
 
-from .query import _FILE_JOIN, _FILE_KEY, _FILE_NAME, _LOCAL_TS, _shown
+from .query import REPORTED_KINDS, _DAY_AUTHORITY_CTE, _FILE_JOIN, _FILE_KEY, _FILE_NAME, _LOCAL_TS, _shown
 
 #: How many of an aggregate's readings `resolve_rids` lists, newest first.
 MEMBERS_SHOWN = 50
@@ -188,11 +188,17 @@ async def _members(subject_id: str, detail: Mapping[str, Any]) -> dict[str, Any]
             params["lo"], where = detail["from"], where + " AND o.local_date >= CAST(:lo AS date)"
         if detail.get("to"):
             params["hi"], where = detail["to"], where + " AND o.local_date <= CAST(:hi AS date)"
+    cte, members = "", ""
+    if detail.get("view") == "trend" and detail.get("basis") == "day_authority":
+        params.update(names=[series], reported=REPORTED_KINDS)
+        cte = _DAY_AUTHORITY_CTE.format(where=where)
+        members = " JOIN base ON base.id = o.id"
     rows = await execute_query(
-        f"""SELECT {_READING_COLUMNS}, COUNT(*) OVER () AS total,
+        f"""{cte}
+            SELECT {_READING_COLUMNS}, COUNT(*) OVER () AS total,
                    to_char(MIN(o.local_date) OVER (), 'YYYY-MM-DD') AS first_day,
                    to_char(MAX(o.local_date) OVER (), 'YYYY-MM-DD') AS last_day
-              FROM v_observation o {_FILE_JOIN}
+              FROM v_observation o {members} {_FILE_JOIN}
              WHERE o.user_id = :uid AND o.series_id = :series {where}
              ORDER BY o.observed_start DESC, o.id DESC LIMIT :limit""",
         params, log_sql=False) or []
@@ -214,6 +220,9 @@ def aggregate_definition(method: str, view: str, row: Mapping[str, Any], start: 
     query window's local dates, inclusive; a bucket narrows them to its period."""
     detail: dict[str, Any] = {"view": view if method == "buckets" else "stats", "series": row.get("series") or "",
                               "indicator": row.get("indicator") or ""}
+    if method == "trend":
+        return {**detail, "view": "trend", "basis": "day_authority",
+                "from": row.get("first_date") or "", "to": row.get("last_date") or ""}
     period = str(row.get("period") or "")
     if method != "buckets" or not period:
         return {**detail, "from": start, "to": end}

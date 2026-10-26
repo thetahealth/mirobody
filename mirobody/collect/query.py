@@ -107,8 +107,12 @@ _STAT_UNIT = (
 #: The mean, rounded to four places in a printed unit only. Canonical values
 #: are base units, where four places turned creatinine at 80 umol/L and
 #: 0.9 mg/dL into 0.0001 mol/L (100 umol/L) and bilirubin into 0.0.
+#: The average, kept at full precision. It used to be rounded to four decimals here, which for
+#: a concentration of 1e-5 g/L rounded every daily value to zero before the trend code ever saw
+#: it - a series that was rising became `flat` with zero delta. Display rounding belongs to the
+#: renderer, which knows how wide the answer is.
 _STAT_AVG = (
-    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN ROUND(AVG(value_num)::numeric, 4)"
+    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN AVG(value_num)"
     f" WHEN {_COMMON_CANONICAL} THEN AVG(value_canonical) END"
 )
 
@@ -786,7 +790,7 @@ _BUCKET_BUDGET = (
 _DAY_AUTHORITY_CTE = f"""
 WITH base AS (
     SELECT DISTINCT ON (o.series_id, o.local_date)
-           o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
+           o.id, o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
            o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
            {_UNVERIFIED_ROW}
       FROM v_observation o
