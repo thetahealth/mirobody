@@ -196,7 +196,8 @@ resolve("血脂").resolved                                     # False    1つ�
 | パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公開している健康エージェントのベンチマーク：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Theta Wellness](https://www.thetahealth.ai/) のエンジンでもあります。
+Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Theta](https://www.thetahealth.ai/) のエンジンでもあります。現在の利用者数：<br>
+[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
 
 ## コントリビューション
 

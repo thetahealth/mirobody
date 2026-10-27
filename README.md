@@ -197,7 +197,8 @@ resolve("血脂").resolved                                     # False    a cate
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody is the engine under [Theta Wellness](https://www.thetahealth.ai/), a live consumer health app on the web and mobile.
+Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), a live consumer health app on the web and mobile, with these users today:<br>
+[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
 
 ## Contributing
 

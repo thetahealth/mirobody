@@ -57,7 +57,10 @@
   Docker Hub copy now lead with that definition; tracing every number to its
   source and MCP access follow as what this open-source edition does. To
   tell: the bold line under `# Mirobody` reads "Mirror your body in data."
-  (中文「你的健康数字分身。」).
+  (中文「你的健康数字分身。」). The English and Japanese READMEs also name the
+  hosted app Theta, as mirobody.ai and thetahealth.ai do, instead of "Theta
+  Wellness", and show its registered and daily-active users live from Theta's
+  public stats, the same figures mirobody.ai's proof bar reads.
 
 - **Stage ② is Standardize (标准化), not Translate (转译).** The stage never
   translates: it keeps the printed name verbatim and assigns a LOINC code, a
