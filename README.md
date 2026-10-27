@@ -7,10 +7,11 @@
 
 # Mirobody
 
-**Turn scattered health data into answers you can trace.**
+**Mirror your body in data.**
 
-A self-hosted AI health data engine that brings lab reports, wearables and genetic files into one standardized record.<br>
-Standardize health data with one command. Try the full app in Codespaces with your own model key, or run the app, the data and the models 100% on your own machine.
+One standard, every source, one complete picture of you — building a lasting record to understand where your health is going.<br>
+This open-source edition builds that record on your own machine from lab reports, wearables and genetic files, traces every number to its source, and opens it to your AI agent over MCP.<br>
+Standardize health data with one command, try the full app in Codespaces with your own model key, or run the app, the data and the models 100% locally.
 
 **English** · **[中文](README.zh-CN.md)** · **[日本語](README.ja.md)**
 
