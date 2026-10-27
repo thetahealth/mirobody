@@ -331,3 +331,15 @@ jobs:
     secrets: inherit
     permissions:
       contents: read
+
+  # After the PyPI check for the same reason: the registry validates the entry
+  # against the PyPI release's README, so that release has to exist first.
+  mcp-registry:
+    needs: build-and-publish
+    if: (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') && github.event.inputs.test_mode != 'true'
+    uses: ./.github/workflows/mcp-registry.yml
+    with:
+      tag: ${{ needs.build-and-publish.outputs.version }}
+    secrets: inherit
+    permissions:
+      contents: read

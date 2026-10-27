@@ -221,4 +221,4 @@ Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 
 </div>
 
-<!-- mcp-name: ai.thetahealth/mirobody -->
+<!-- mcp-name: ai.mirobody/mirobody -->

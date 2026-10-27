@@ -1,8 +1,8 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "ai.thetahealth/mirobody",
+  "name": "ai.mirobody/mirobody",
   "title": "Mirobody",
-  "description": "Lab results and symptoms, in any language, as coded FHIR data. Offline, no API key.",
+  "description": "Tidy scattered lab results and symptoms in any language into coded FHIR data. Offline, no API key.",
   "version": "1.5.8",
   "websiteUrl": "https://mirobody.ai",
   "repository": {
