@@ -36,7 +36,7 @@
 | ブラウザでアプリ全体を試す | [GitHub Codespaces](#codespaces-でアプリ全体を試す) | GitHub アカウントと、自分のモデル API キー |
 | アプリ・モデル・記録をすべて手元に置く | [Docker で 100% ローカル](#すべてを-100-ローカルで動かす) | Compose 付きの Docker、メモリ 16 GB。API キー不要 |
 | Docker を使わずに、アプリと記録を手元に置く | [Docker なし](#docker-なしで動かす) | Debian または Ubuntu、PostgreSQL 16、Python 3.12、自分のモデル API キー |
-| 何も動かさずに、自分の記録で使う | Mirobody をベースにした [Theta](https://dr.thetahealth.ai/en/login?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme)（Web 版とモバイルアプリ） | アカウント |
+| 何も動かさずに、自分の記録で使う | [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme) で Mirobody を試す（Theta のモバイルアプリでも利用可） | アカウント |
 
 ## コマンド1つでエンジンを試す
 

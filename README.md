@@ -36,7 +36,7 @@ Standardize health data with one command, try the full app in Codespaces with yo
 | Try the full app in your browser | [GitHub Codespaces](#try-the-full-app-in-codespaces) | A GitHub account and your own model API key |
 | Keep the app, models and records on your machine | [100% local with Docker](#run-everything-100-locally) | Docker with Compose; 16 GB memory; no API key |
 | Keep the app and records on your machine, without Docker | [No Docker](#run-without-docker) | Debian or Ubuntu; PostgreSQL 16; Python 3.12; your own model API key |
-| Use it on your own records with nothing to run | [Theta](https://dr.thetahealth.ai/en/login?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme), built on Mirobody, on the web or as a mobile app | An account |
+| Use it on your own records with nothing to run | Try Mirobody in [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme), or in the Theta mobile app | An account |
 
 ## Try the engine with one command
 
