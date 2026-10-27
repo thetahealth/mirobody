@@ -19,7 +19,7 @@ name: MCP Registry
 # The `ai.thetahealth/` namespace is proven by a DNS TXT record on
 # thetahealth.ai. One-time setup, done by whoever holds the thetahealth.ai
 # zone (Route 53) and repository admin:
-#   openssl genpkey -algorithm Ed25519 -out key.pem      # OpenSSL 3
+#   openssl genpkey -algorithm Ed25519 -out key.pem      # OpenSSL 3 or later
 #   openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64
 #     -> TXT at the apex, beside the existing ones:
 #        thetahealth.ai. "v=MCPv1; k=ed25519; p=<that base64>"
