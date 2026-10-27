@@ -204,11 +204,11 @@ documentation belongs in.
 
 ### Translations
 
-The README ships in English and Chinese; the web client ships four languages.
-**English is the source of truth** — change it first, then Chinese, and if you
-only change English say so in the PR so the drift is visible instead of silent.
-The former 繁體中文 and 日本語 README editions are available in Git history;
-the engine's Traditional Chinese and Japanese support is unaffected and still
+The README ships in English, Chinese and Japanese; the web client ships four
+languages. **English is the source of truth** — change it first, then Chinese
+and Japanese, and if you only change English say so in the PR so the drift is
+visible instead of silent. The former 繁體中文 README edition is available in
+Git history; the engine's Traditional Chinese support is unaffected and still
 gated by `test_engine_coverage.py`.
 
 Two rules that are specific to this project:
@@ -243,13 +243,16 @@ the languages and vocabularies it covers.
 
 UI strings are **not** in this repo. `frontend/` holds the built web client, not
 its source, so there is no `i18n/` here to edit. What is translatable here is the
-two live READMEs — `README.md` and `README.zh-CN.md` — and they are checked as a
-set: links, figures, runnable examples and cross-edition parity all have to
-agree before a release goes out.
+three live READMEs — `README.md`, `README.zh-CN.md` and `README.ja.md` — and
+they are checked as a set: links, figures, runnable examples and cross-edition
+parity all have to agree before a release goes out. Each edition has its own
+diagrams (`docs/images/*.zh-CN.svg`, `*.ja.svg`), redrawn when the English one
+changes.
 Every in-package `README.md` stays English, and so does everything under
 `docs/` except the Chinese editions of the guides `README.zh-CN.md` links:
 `<guide>.zh-CN.md`, listed in [`docs/README.md`](docs/README.md) and edited
-together with the English page.
+together with the English page. `README.ja.md` links the English guides and
+says so.
 
 ### Commits
 

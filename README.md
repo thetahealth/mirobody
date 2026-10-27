@@ -12,7 +12,7 @@
 A self-hosted AI health data engine that brings lab reports, wearables and genetic files into one standardized record.<br>
 Standardize health data with one command. Try the full app in Codespaces with your own model key, or run the app, the data and the models 100% on your own machine.
 
-**English** · **[中文](README.zh-CN.md)**
+**English** · **[中文](README.zh-CN.md)** · **[日本語](README.ja.md)**
 
 [![PyPI](https://badgen.net/pypi/v/mirobody?label=PyPI&color=3775A9&icon=pypi)](https://pypi.org/project/mirobody/)
 [![License: Apache-2.0](https://badgen.net/badge/license/Apache-2.0/blue)](LICENSE)
@@ -191,7 +191,7 @@ resolve("血脂").resolved                                     # False    a cate
 
 | Claim | Check it |
 | --- | --- |
-| **337/337** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
+| **345/345** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
 | **330 UCUM units** with dimensional analysis, and **316 standard device indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |

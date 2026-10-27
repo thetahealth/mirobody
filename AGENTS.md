@@ -108,8 +108,8 @@ wheel in the same venv — otherwise they pass vacuously.
   StandardPulseData` and `_validate_credentials(self, credentials: dict)`.
   Guide: `docs/provider-guide.md`.
 - **Docs are code.** Rename a module → grep the `.md` files. The README ships
-  in English and Chinese; English first, then Chinese, and say so if you
-  only changed English. A gate checks the live editions as a set.
+  in English, Chinese and Japanese; English first, then the other two, and say
+  so if you only changed English. A gate checks the live editions as a set.
 
 ## Never commit
 
