@@ -134,7 +134,7 @@ PIP_INDEX_URL=https://<镜像站>/simple scripts/install_native.sh
 
 | 阶段 | 做什么 | 在哪 |
 | --- | --- | --- |
-| **① 收集 Collect** | 化验单、设备、照片和日记从各个来源汇入；每条读数都保留它来自的文件。 | [`collect/`](mirobody/collect/) |
+| **① 收集 Collect** | 化验单、设备、照片、基因文件和日记从各个来源汇入；每条读数都保留它来自的文件。 | [`collect/`](mirobody/collect/) |
 | **② 标准化 Standardize** | `A1c`、`HbA1c`、`糖化血红蛋白` 解析为同一个编码，单位统一到同一标准，全程离线：来源各异、写法杂乱的指标，清晰统一地落进同一张表。无法确定的名称保持未解析。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ 智能体 Agent** | 智能体调用工具查这张表来回答，而不是凭模型记忆：看趋势、跨医院和设备比较、画图。每个数字都能追溯到原始文件，可以核对，不必盲信。 | [`agent/`](mirobody/agent/) |
 
@@ -198,6 +198,7 @@ resolve("血脂").resolved                                     # False    一个
 | --- | --- |
 | **345/345**：常规体检会打印的项目，覆盖英文、中文、日文、俄文、爱沙尼亚文和土耳其文 | 运行 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 会打印分数 |
 | **330 个 UCUM 单位**，带量纲分析；**543 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md) |
+| 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA 的导出和 GRCh37/GRCh38 的 VCF，解析出**同样的 13 个位点（12 个基因）**；测试数据是随包附带的 1000 Genomes 公开样本 | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公开基因样本说明](mirobody/testing/genomics/README.md)（英文） |
 | 包会说明是哪份词表在回答：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 

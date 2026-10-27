@@ -130,7 +130,7 @@ The local models belong to the Docker path, so this one answers through a model 
 
 | Stage | What it does | Where |
 | --- | --- | --- |
-| **① Collect** | Reports, devices, photos and journal entries come in from every source; each reading keeps the file it came from. | [`collect/`](mirobody/collect/) |
+| **① Collect** | Lab reports, devices, photos, genetic files and journal entries come in from every source; each reading keeps the file it came from. | [`collect/`](mirobody/collect/) |
 | **② Standardize** | `A1c`, `HbA1c` and `Glycated Hemoglobin` resolve to one code, units to one standard, offline: readings from scattered sources land as clean rows in one table. A name it cannot place stays unresolved. | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ Agent** | Answers come from tools that query that table, not from the model's memory: trends, comparisons across labs and devices, a chart. Every number traces to its file, so you can check it instead of taking it on trust. | [`agent/`](mirobody/agent/) |
 
@@ -194,6 +194,7 @@ resolve("血脂").resolved                                     # False    a cate
 | --- | --- |
 | **345/345** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
 | **330 UCUM units** with dimensional analysis, and **543 catalogue members for device and laboratory indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
+| 23andMe, AncestryDNA, WeGene, MyHeritage and FamilyTreeDNA exports and VCF on GRCh37 and GRCh38 decode to **the same 13 calls across 12 genes**, tested on public 1000 Genomes samples shipped in the package | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [Public genotype examples](mirobody/testing/genomics/README.md) |
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 

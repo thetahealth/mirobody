@@ -71,9 +71,11 @@
   Wellness", and show its registered and daily-active users live from Theta's
   public stats, the same figures mirobody.ai's proof bar reads. The stage
   table now says what each stage is for: Collect and Standardize turn readings
-  from scattered sources into rows of one table, and the agent answers by
-  querying that table with tools rather than from the model's memory, so every
-  number traces to its file.
+  from scattered sources, genetic files included, into rows of one table, and
+  the agent answers by querying that table with tools rather than from the
+  model's memory, so every number traces to its file. "Numbers you can check"
+  adds the genotype benchmark: five consumer exports and VCF on both reference
+  builds decode to the same 13 calls, tested on public 1000 Genomes samples.
 
 - **Stage ② is Standardize (标准化), not Translate (转译).** The stage never
   translates: it keeps the printed name verbatim and assigns a LOINC code, a
