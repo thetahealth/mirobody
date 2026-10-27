@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "ai.mirobody/mirobody",
   "title": "Mirobody",
-  "description": "Tidy scattered lab results and symptoms in any language into coded FHIR data. Offline, no API key.",
+  "description": "Lab results to LOINC codes and UCUM units, symptoms and diagnoses to ICPC-3. Offline, no API key.",
   "version": "1.5.8",
   "websiteUrl": "https://mirobody.ai",
   "repository": {
