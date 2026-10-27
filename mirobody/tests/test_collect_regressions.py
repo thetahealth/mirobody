@@ -274,3 +274,22 @@ async def test_a_character_cut_does_not_suggest_an_invalid_medication_view():
     # A display cut must not discard the complete original result used by Python.
     assert "truncated" in result["result"]
     assert (result["status"], result["row_count"], result["truncated"]) == (tools.STATUS_OK, meds.MAX_ROWS, False)
+
+
+@pytest.fixture
+def health_query():
+    return import_module("mirobody.collect.query").PostgresHealthQuery()
+
+
+async def test_a_keyword_reaches_every_series_sharing_a_name(health_query, monkeypatch):
+    """A lab's fasting glucose and a CGM's share the printed name. Keeping one
+    series per name hid the device series: asked for the CGM value of a day,
+    the model answered that there was none (ESL-Bench same-day questions)."""
+    lab, cgm = "loinc:glucose^post cfst|Ser/Plas|Pt|Qn|QCnc", "mirobody-device:FastingBloodGlucose-FBG"
+    labels = [("FastingBloodGlucose-FBG", lab), ("Fasting glucose [Moles/volume] in Serum or Plasma", lab),
+              ("FastingBloodGlucose-FBG", cgm), ("BodyWeight", "mirobody-device:BodyWeight")]
+    monkeypatch.setattr(health_query, "_labels", AsyncMock(return_value=labels))
+    monkeypatch.setattr(health_query, "_series_for", lambda keyword: set())
+    found = await health_query._by_keywords("1", ("fasting glucose",), None)
+    assert found == [lab, cgm]
+    assert await health_query._by_keywords("1", ("FastingBloodGlucose-FBG",), None) == [lab, cgm]

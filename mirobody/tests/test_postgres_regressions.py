@@ -487,6 +487,24 @@ async def test_stats_sum_is_the_total_over_every_reading_of_an_unelected_day(dat
     assert stats["avg"] == pytest.approx(900_000)
 
 
+async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(database):
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    at = datetime(2026, 1, 1, 8, tzinfo=UTC)
+    await observations.ingest("1", [observations.Draft(name_text="Glucose", value_text="7.4", unit_text="mmol/L",
+                                                       observed_start=at)],
+                              observations.Provenance("lab-report", "file", "th_files:synthetic-lab"), user_tz="UTC")
+    await observations.ingest("1", [observations.Draft(name_text="Glucose", value_text="6.9", unit_text="mmol/L",
+                                                       observed_start=at)],
+                              observations.Provenance("device-sensed", "device", "device:synthetic-cgm",
+                                                      vendor="synthetic-cgm"), user_tz="UTC")
+    series = {r["series_id"] for r in await database("SELECT series_id FROM v_observation", log_sql=False)}
+    assert len(series) == 2  # a device reading keeps its own namespace, not the lab's LOINC
+    found = await PostgresHealthQuery()._by_keywords("1", ("glucose",), None)
+    assert set(found) == series
+
+
 def test_trend_citation_definition_tracks_its_actual_daily_input_without_values():
     from mirobody.collect.citations import aggregate_definition, aggregate_key
 

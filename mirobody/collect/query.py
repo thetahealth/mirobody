@@ -645,17 +645,26 @@ class PostgresHealthQuery:
 
         The tiers are per keyword: in ["血压", "头痛"] a lexical hit on the
         first must not stop the second from reaching an entry written 头疼,
-        which only the code (NS01) connects."""
+        which only the code (NS01) connects.
+
+        A name can belong to several series: a lab's fasting glucose and a
+        CGM's, a clinic's weight and a scale's. A name that matches brings
+        every series printed or displayed under it, so the model sees them all
+        and tells them apart by their rows (series, file, modality)."""
         kws = [k.strip() for k in keywords if k and k.strip()]
         if not kws:
             return []
         labels = await self._labels(subject_id, window)
-        by_label: dict[str, str] = {}
+        by_label: dict[str, list[str]] = {}
         for label, sid in labels:
-            by_label.setdefault(label, sid)
+            by_label.setdefault(label, []).append(sid)
         found: list[str] = []
         for kw in kws:
-            ranked = [by_label[label] for label in query.rank_catalog(kw, list(by_label), limit=MAX_KEYWORD_NAMES)]
+            ranked = [
+                sid
+                for label in query.rank_catalog(kw, list(by_label), limit=MAX_KEYWORD_NAMES)
+                for sid in by_label[label]
+            ]
             if not ranked:
                 named = self._series_for(kw)
                 ranked = [sid for _label, sid in labels if sid in named]

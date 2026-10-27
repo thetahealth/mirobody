@@ -1,5 +1,18 @@
 ## Unreleased
 
+### Fixed
+
+- **A keyword search reaches every series that shares a name.** `_by_keywords`
+  kept one series per printed or display name (`dict.setdefault`), so when a
+  lab and a device filed the same analyte under the same name, the second
+  series could not be found by keyword: asked for a CGM's fasting glucose on a
+  day, the agent answered that there was none, though 1,007 readings were
+  stored. A matching name now brings all its series; their rows already carry
+  the series, file and modality that tell them apart. On a local deployment of
+  `main` with the 20 ESL-Bench synthetic users (lab results and devices seeded
+  as structured data), 86 questions comparing a lab value with the same day's
+  device value went from 22 to 86 answered correctly.
+
 ## 1.5.9
 
 ### Added
