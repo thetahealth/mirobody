@@ -196,7 +196,7 @@ resolve("血脂").resolved                                     # False    一个
 | 说法 | 怎么验证 |
 | --- | --- |
 | **345/345**：常规体检会打印的项目，覆盖英文、中文、日文、俄文、爱沙尼亚文和土耳其文 | 运行 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 会打印分数 |
-| **330 个 UCUM 单位**，带量纲分析；**316 项标准设备指标** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md) |
+| **330 个 UCUM 单位**，带量纲分析；**543 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md) |
 | 包会说明是哪份词表在回答：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 

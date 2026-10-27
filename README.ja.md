@@ -191,7 +191,7 @@ resolve("血脂").resolved                                     # False    1つ�
 | 主張 | 確かめ方 |
 | --- | --- |
 | 一般的な健康診断に載る検査名で **345/345**（英語、中国語、日本語、ロシア語、エストニア語、トルコ語） | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) がスコアを表示します |
-| 次元解析つきの **UCUM 単位 330 個**と、**標準デバイス指標 316 項目** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
+| 次元解析つきの **UCUM 単位 330 個**と、デバイス・臨床検査指標の**カタログ項目 543 件** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
 | パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公開している健康エージェントのベンチマーク：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 

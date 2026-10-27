@@ -22,6 +22,42 @@ DSN = os.environ.get("MIROBODY_TEST_POSTGRES_DSN", "")
 pytestmark = [pytest.mark.needs_db, pytest.mark.skipif(not DSN, reason="MIROBODY_TEST_POSTGRES_DSN is not set")]
 
 
+async def test_catalogue_keeps_serum_sodium_dietary_sodium_and_walking_identities(database):
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    report = await observations.ingest("1", [
+        observations.Draft(name_text="serumSodium", value_text="140", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="sodium", value_text="500", unit_text="mg", observed_start=at),
+        observations.Draft(name_text="walkingSpeeds", value_text="1.2", unit_text="m/s", observed_start=at),
+    ], observations.Provenance("device-sensed", "device", "synthetic-catalogue"), user_tz="UTC")
+    assert report.inserted == 3
+    rows = await database("SELECT name_text, code, series_id, unit_ucum FROM v_observation", log_sql=False)
+    by_name = {r["name_text"]: r for r in rows}
+    assert by_name["serumSodium"]["code"] == "2951-2"
+    assert by_name["serumSodium"]["unit_ucum"] == "mmol/L"
+    assert by_name["sodium"]["code"] == "sodium"
+    assert by_name["sodium"]["unit_ucum"] == "mg"
+    assert by_name["walkingSpeeds"]["code"] == "walkingSpeeds"
+    assert len({r["series_id"] for r in rows}) == 3
+    latest = await PostgresHealthQuery().latest("1", query.Selection(indicators=("2951-2",)), query.Window(0, 0, "UTC"))
+    assert len(latest) == 1 and latest[0]["code"] == "2951-2"
+
+
+async def test_competing_printed_units_do_not_create_a_canonical_glucose_value(database):
+    from mirobody.collect import observations
+
+    await observations.ingest("1", [observations.Draft(
+        name_text="Glucose", value_text="90", unit_text="mg/dL, mmol/L",
+        observed_start=datetime(2026, 1, 1, tzinfo=UTC),
+    )], observations.Provenance("lab-report", "file", "th_files:synthetic-units"), user_tz="UTC")
+    [row] = await database("SELECT outcome, value_canonical FROM v_observation", log_sql=False)
+    assert row["outcome"] == "needs-input"
+    assert row["value_canonical"] is None
+
+
 @pytest.fixture
 async def database(monkeypatch):
     import psycopg

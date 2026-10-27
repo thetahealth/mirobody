@@ -1,0 +1,210 @@
+member	loinc	unit_ucum	component	property	scale	system	method	time
+LIPOPROTEIN_LITTLE_A_SER_PLAS	10835-7	mg/dL	lipoprotein (little a)	MCnc	Qn	Ser/Plas		Pt
+TROPONIN_I_CARDIAC_SER_PLAS	10839-9	ng/mL	troponin i.cardiac	MCnc	Qn	Ser/Plas		Pt
+PROSTATE_SPECIFIC_AG_FREE_SER_PLAS	10886-0	ng/mL	prostate specific ag.free	MCnc	Qn	Ser/Plas		Pt
+CORTISOL_FREE_URINE	11040-3	ug/dL	cortisol.free	MCnc	Qn	Urine		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_KAPPA_SER_PLAS	11050-2	mg/dL	immunoglobulin light chains.kappa	MCnc	Qn	Ser/Plas		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_LAMBDA_SER_PLAS	11051-0	mg/dL	immunoglobulin light chains.lambda	MCnc	Qn	Ser/Plas		Pt
+UREA_NITROGEN_POST_DIALYSIS_SER_PLAS	11064-3	mg/dL	urea nitrogen^post dialysis	MCnc	Qn	Ser/Plas		Pt
+UREA_NITROGEN_PRE_DIALYSIS_SER_PLAS	11065-0	mg/dL	urea nitrogen^pre dialysis	MCnc	Qn	Ser/Plas		Pt
+CREATININE_BODY_FLD	12190-5	mg/dL	creatinine	MCnc	Qn	Body fld		Pt
+ANGIOTENSIN_CONVERTING_ENZYME_CSF	12480-0	U/L	angiotensin converting enzyme	CCnc	Qn	CSF		Pt
+HOMOCYSTEINE_SER_PLAS	13965-9	umol/L	homocysteine	SCnc	Qn	Ser/Plas		Pt
+SEX_HORMONE_BINDING_GLOBULIN_SER_PLAS	13967-5	nmol/L	sex hormone binding globulin	SCnc	Qn	Ser/Plas		Pt
+CREATINE_KINASE_MB_SER_PLAS	13969-1	ng/mL	creatine kinase.mb	MCnc	Qn	Ser/Plas		Pt
+LACTATE_SER_PLAS	14118-4	mg/dL	lactate	MCnc	Qn	Ser/Plas		Pt
+PYRUVATE_BLD	14121-8	mmol/L	pyruvate	SCnc	Qn	Bld		Pt
+ASCORBATE_SER_PLAS	14622-5	umol/L	ascorbate	SCnc	Qn	Ser/Plas		Pt
+BILE_ACID_SER_PLAS	14628-2	umol/L	bile acid	SCnc	Qn	Ser/Plas		Pt
+LACTATE_DEHYDROGENASE_BODY_FLD	14803-1	U/L	lactate dehydrogenase	CCnc	Qn	Body fld	Reaction: lactate to pyruvate	Pt
+LACTATE_DEHYDROGENASE_SER_PLAS	14805-6	U/L	lactate dehydrogenase	CCnc	Qn	Ser/Plas	Reaction: pyruvate to lactate	Pt
+PHENYLALANINE_SER_PLAS	14875-9	umol/L	phenylalanine	SCnc	Qn	Ser/Plas		Pt
+ENOLASE_NEURON_SPECIFIC_SER_PLAS	15060-7	ug/L	enolase.neuron specific	MCnc	Qn	Ser/Plas		Pt
+FRUCTOSAMINE_SER_PLAS	15069-8	umol/L	fructosamine	SCnc	Qn	Ser/Plas		Pt
+AMMONIA_PLAS	16362-6	umol/L	ammonia	SCnc	Qn	Plas		Pt
+CALCITRIOL_SER_PLAS	1649-3	pg/mL	calcitriol	MCnc	Qn	Ser/Plas		Pt
+17_HYDROXYPROGESTERONE_SER_PLAS	1668-3	ng/dL	17-hydroxyprogesterone	MCnc	Qn	Ser/Plas		Pt
+COBALAMINS_BLD	16695-9	pg/mL	cobalamins	MCnc	Qn	Bld		Pt
+5_NUCLEOTIDASE_SER_PLAS	1690-7	U/L	5'-nucleotidase	CCnc	Qn	Ser/Plas		Pt
+ADENOSINE_TRIPHOSPHATE_BLD	1721-0	ng/mL	adenosine triphosphate	MCnc	Qn	Bld		Pt
+ALBUMIN_CSF	1746-7	mg/dL	albumin	MCnc	Qn	CSF		Pt
+ALBUMIN_BODY_FLD	1747-5	g/dL	albumin	MCnc	Qn	Body fld		Pt
+PROSTAGLANDIN_F2_ALPHA_URINE	17494-6	ng/mL	prostaglandin f2 alpha	MCnc	Qn	Urine		Pt
+ALDOSTERONE_SER_PLAS	1763-2	ng/dL	aldosterone	MCnc	Qn	Ser/Plas		Pt
+ALKALINE_PHOSPHATASE_BONE_SER_PLAS	1777-2	U/L	alkaline phosphatase.bone	CCnc	Qn	Ser/Plas		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_URINE	17793-1	g/L	immunoglobulin light chains	MCnc	Qn	Urine		24H
+HEMOGLOBIN_A1C_HEMOGLOBIN_TOTAL_BLD	17856-6	%	hemoglobin a1c/hemoglobin.total	MFr	Qn	Bld	HPLC	Pt
+CALCIUM_URINE	17862-4	mg/dL	calcium	MCnc	Qn	Urine		Pt
+CALCIUM_IONIZED_SER_PLAS	17863-2	mg/dL	calcium.ionized	MCnc	Qn	Ser/Plas		Pt
+AMYLASE_BODY_FLD	1795-4	U/L	amylase	CCnc	Qn	Body fld		Pt
+AMYLASE_SER_PLAS	1798-8	U/L	amylase	CCnc	Qn	Ser/Plas		Pt
+NIACIN_SER_PLAS	18244-4	ng/mL	niacin	MCnc	Qn	Ser/Plas		Pt
+ALPHA_1_ANTITRYPSIN_SER_PLAS	1825-9	mg/dL	alpha 1 antitrypsin	MCnc	Qn	Ser/Plas		Pt
+CHOLESTEROL_IN_LDL_SER_PLAS	18262-6	mg/dL	cholesterol.in ldl	MCnc	Qn	Ser/Plas	Direct assay	Pt
+ALPHA_1_FETOPROTEIN_SER_PLAS	1834-1	ng/mL	alpha-1-fetoprotein	MCnc	Qn	Ser/Plas		Pt
+ANDROSTANOLONE_SER_PLAS	1848-1	pg/mL	androstanolone	MCnc	Qn	Ser/Plas		Pt
+ANDROSTENEDIONE_SER_PLAS	1854-9	ng/mL	androstenedione	MCnc	Qn	Ser/Plas		Pt
+ANGIOTENSIN_CONVERTING_ENZYME_BLD	1857-2	U/L	angiotensin converting enzyme	CCnc	Qn	Bld		Pt
+APOLIPOPROTEIN_B_100_SER_PLAS	1871-3	mg/dL	apolipoprotein b-100	MCnc	Qn	Ser/Plas		Pt
+APOLIPOPROTEIN_B_SER_PLAS	1884-6	mg/dL	apolipoprotein b	MCnc	Qn	Ser/Plas		Pt
+IGE_SER_PLAS	19113-0	[IU]/L	ige	ACnc	Qn	Ser/Plas		Pt
+MAGNESIUM_SER_PLAS	19123-9	mg/dL	magnesium	MCnc	Qn	Ser/Plas		Pt
+MAGNESIUM_URINE	19124-7	mg/dL	magnesium	MCnc	Qn	Urine		Pt
+ALPHA_1_FETOPROTEIN_AMNIO_FLD	19171-8	[IU]/mL	alpha-1-fetoprotein	ACnc	Qn	Amnio fld		Pt
+BILIRUBIN_GLUCURONIDATED_BILIRUBIN_ALBUMIN_BOUND_SER_PLAS	1968-7	mg/dL	bilirubin.glucuronidated+bilirubin.albumin bound	MCnc	Qn	Ser/Plas		Pt
+BILIRUBIN_BODY_FLD	1974-5	mg/dL	bilirubin	MCnc	Qn	Body fld		Pt
+BILIRUBIN_URINE	1978-6	mg/dL	bilirubin	MCnc	Qn	Urine		Pt
+C_PEPTIDE_SER_PLAS	1986-9	ng/mL	c peptide	MCnc	Qn	Ser/Plas		Pt
+C_REACTIVE_PROTEIN_SER_PLAS	1988-5	mg/L	c reactive protein	MCnc	Qn	Ser/Plas		Pt
+CALCIDIOL_SER_PLAS	1989-3	ng/mL	calcidiol	MCnc	Qn	Ser/Plas		Pt
+CHOLECALCIFEROL_SER_PLAS	1990-1	ng/mL	cholecalciferol	MCnc	Qn	Ser/Plas		Pt
+CALCIUM_IONIZED_BLD	1994-3	mmol/L	calcium.ionized	SCnc	Qn	Bld		Pt
+CARBON_DIOXIDE_SER_PLAS	2028-9	mmol/L	carbon dioxide	SCnc	Qn	Ser/Plas		Pt
+CARCINOEMBRYONIC_AG_SER_PLAS	2039-6	ng/mL	carcinoembryonic ag	MCnc	Qn	Ser/Plas		Pt
+ACID_PHOSPHATASE_PROSTATIC_SER	20420-6	ng/mL	acid phosphatase.prostatic	MCnc	Qn	Ser		Pt
+THIAMINE_SER_PLAS	20468-5	nmol/L	thiamine	SCnc	Qn	Ser/Plas		Pt
+CAROTENE_SER_PLAS	2053-7	ug/dL	carotene	MCnc	Qn	Ser/Plas		Pt
+CARBOXYHEMOGLOBIN_HEMOGLOBIN_TOTAL_BLD	20563-3	%	carboxyhemoglobin/hemoglobin.total	MFr	Qn	Bld		Pt
+PROLACTIN_SER_PLAS	20568-2	ng/mL	prolactin	MCnc	Qn	Ser/Plas	IA	Pt
+CREATININE_URINE	20624-3	mg/dL	creatinine	MCnc	Qn	Urine		24H
+CITRULLINE_SER_PLAS	20640-9	umol/L	citrulline	SCnc	Qn	Ser/Plas		Pt
+CERULOPLASMIN_SER_PLAS	2064-4	mg/dL	ceruloplasmin	MCnc	Qn	Ser/Plas		Pt
+TYROSINE_SER_PLAS	20660-7	umol/L	tyrosine	SCnc	Qn	Ser/Plas		Pt
+CHLORIDE_BLD	2069-3	mmol/L	chloride	SCnc	Qn	Bld		Pt
+CHLORIDE_SWEAT	2077-6	mmol/L	chloride	SCnc	Qn	Sweat		Pt
+CHLORIDE_URINE	2078-4	mmol/L	chloride	SCnc	Qn	Urine		Pt
+CHOLESTEROL_IN_HDL_SER_PLAS	2085-9	mg/dL	cholesterol.in hdl	MCnc	Qn	Ser/Plas		Pt
+CHOLESTEROL_SER_PLAS	2093-3	mg/dL	cholesterol	MCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_BETA_SUBUNIT_SER_PLAS	2111-3	mmol/L	choriogonadotropin.beta subunit	SCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_BETA_SUBUNIT_URINE	2114-7	mmol/L	choriogonadotropin.beta subunit	SCnc	Qn	Urine		Pt
+CHORIOGONADOTROPIN_BETA_SUBUNIT_FREE_SER_PLAS	2115-4	mmol/L	choriogonadotropin.beta subunit.free	SCnc	Qn	Ser/Plas		Pt
+COLLAGEN_CROSSLINKED_N_TELOPEPTIDE_SER	21215-9	umol/L	collagen crosslinked n-telopeptide	SCnc	Qn	Ser		Pt
+COBALAMINS_SER_PLAS	2132-9	pg/mL	cobalamins	MCnc	Qn	Ser/Plas		Pt
+LEPTIN_SER_PLAS	21365-2	ng/mL	leptin	MCnc	Qn	Ser/Plas		Pt
+CORTICOTROPIN_PLAS	2141-0	pg/mL	corticotropin	MCnc	Qn	Plas		Pt
+CORTISOL_SALIVA	2142-8	ug/dL	cortisol	MCnc	Qn	Saliva		Pt
+CORTISOL_SER_PLAS	2143-6	ug/dL	cortisol	MCnc	Qn	Ser/Plas		Pt
+CORTISOL_FREE_SER_PLAS	2145-1	ug/dL	cortisol.free	MCnc	Qn	Ser/Plas		Pt
+PROTEIN_URINE	21482-5	g/dL	protein	MCnc	Qn	Urine		24H
+SODIUM_URINE	21525-1	mol/L	sodium	SCnc	Qn	Urine		24H
+THIOPURINE_METHYLTRANSFERASE_RBC	21563-2	U/mL	thiopurine methyltransferase	CCnc	Qn	RBC		Pt
+CREATINE_KINASE_SER_PLAS	2157-6	U/L	creatine kinase	CCnc	Qn	Ser/Plas		Pt
+TRYPTASE_SER_PLAS	21582-2	ng/mL	tryptase	MCnc	Qn	Ser/Plas		Pt
+CREATININE_AMNIO_FLD	2159-2	mg/dL	creatinine	MCnc	Qn	Amnio fld		Pt
+DEHYDROEPIANDROSTERONE_SULFATE_SER_PLAS	2191-5	ug/dL	dehydroepiandrosterone sulfate	MCnc	Qn	Ser/Plas		Pt
+DEHYDROEPIANDROSTERONE_UNCONJUGATED_SER_PLAS	2196-4	mg/L	dehydroepiandrosterone.unconjugated	MCnc	Qn	Ser/Plas		Pt
+DOPAMINE_SER_PLAS	2216-0	pg/mL	dopamine	MCnc	Qn	Ser/Plas		Pt
+DOPAMINE_URINE	2217-8	ug/L	dopamine	MCnc	Qn	Urine		Pt
+CALCIFEROL_SER_PLAS	2236-8	pg/mL	calciferol	MCnc	Qn	Ser/Plas		Pt
+ESTRADIOL_SER_PLAS	2243-4	pg/mL	estradiol	MCnc	Qn	Ser/Plas		Pt
+ESTRIOL_UNCONJUGATED_SER_PLAS	2250-9	ng/mL	estriol.unconjugated	MCnc	Qn	Ser/Plas		Pt
+ESTRIOL_SER_PLAS	2251-7	ng/mL	estriol	MCnc	Qn	Ser/Plas		Pt
+ESTROGEN_SER_PLAS	2254-1	pg/mL	estrogen	MCnc	Qn	Ser/Plas		Pt
+ESTRONE_SER_PLAS	2258-2	pg/mL	estrone	MCnc	Qn	Ser/Plas		Pt
+FERRITIN_SER_PLAS	2276-4	ng/mL	ferritin	MCnc	Qn	Ser/Plas		Pt
+FOLATE_BLD	2282-2	ng/mL	folate	MCnc	Qn	Bld		Pt
+FOLATE_RBC	2283-0	ng/mL	folate	MCnc	Qn	RBC		Pt
+FOLATE_SER_PLAS	2284-8	ng/mL	folate	MCnc	Qn	Ser/Plas		Pt
+GASTRIN_SER_PLAS	2333-3	pg/mL	gastrin	MCnc	Qn	Ser/Plas		Pt
+GLUCOSE_CSF	2342-4	mg/dL	glucose	MCnc	Qn	CSF		Pt
+GLUCOSE_BODY_FLD	2344-0	mg/dL	glucose	MCnc	Qn	Body fld		Pt
+GLUCOSE_SER_PLAS	2345-7	mg/dL	glucose	MCnc	Qn	Ser/Plas		Pt
+GLUCOSE_URINE	2350-7	mg/dL	glucose	MCnc	Qn	Urine		Pt
+GLUCOSE_6_PHOSPHATE_DEHYDROGENASE_RBC	2357-2	U/mL	glucose-6-phosphate dehydrogenase	CCnc	Qn	RBC		Pt
+IGA_SER_PLAS	2458-8	mg/dL	iga	MCnc	Qn	Ser/Plas		Pt
+IGD_SER	2460-4	mg/dL	igd	MCnc	Qn	Ser		Pt
+IGE_SER	2462-0	ug/L	ige	MCnc	Qn	Ser		Pt
+IGG_CSF	2464-6	mg/dL	igg	MCnc	Qn	CSF		Pt
+IGG_SER_PLAS	2465-3	mg/dL	igg	MCnc	Qn	Ser/Plas		Pt
+IGM_SER_PLAS	2472-9	mg/dL	igm	MCnc	Qn	Ser/Plas		Pt
+INSULIN_LIKE_GROWTH_FACTOR_BINDING_PROTEIN_3_SER_PLAS	2483-6	ng/mL	insulin-like growth factor binding protein 3	MCnc	Qn	Ser/Plas		Pt
+INSULIN_LIKE_GROWTH_FACTOR_I_SER_PLAS	2484-4	ng/mL	insulin-like growth factor-i	MCnc	Qn	Ser/Plas		Pt
+IODINE_SER_PLAS	2494-3	ug/mL	iodine	MCnc	Qn	Ser/Plas		Pt
+IRON_SER_PLAS	2498-4	ug/dL	iron	MCnc	Qn	Ser/Plas		Pt
+IRON_BINDING_CAPACITY_SER_PLAS	2500-7	ug/dL	iron binding capacity	MCnc	Qn	Ser/Plas		Pt
+IRON_BINDING_CAPACITY_UNSATURATED_SER_PLAS	2501-5	ug/dL	iron binding capacity.unsaturated	MCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_URINE	25372-4	[IU]/L	choriogonadotropin	ACnc	Qn	Urine		Pt
+CHROMOGRANIN_A_SER_PLAS	25587-7	nmol/L	chromogranin a	SCnc	Qn	Ser/Plas		Pt
+TRIGLYCERIDE_SER_PLAS	2571-8	mg/dL	triglyceride	MCnc	Qn	Ser/Plas		Pt
+MAGNESIUM_RBC	2597-3	mmol/L	magnesium	SCnc	Qn	RBC		Pt
+TESTOSTERONE_FREE_SER_PLAS	25987-9	mmol/L	testosterone.free	SCnc	Qn	Ser/Plas	RIA	Pt
+METHEMOGLOBIN_HEMOGLOBIN_TOTAL_BLD	2614-6	%	methemoglobin/hemoglobin.total	MFr	Qn	Bld		Pt
+MYELIN_BASIC_PROTEIN_CSF	2638-5	ng/mL	myelin basic protein	MCnc	Qn	CSF		Pt
+MYOGLOBIN_SER_PLAS	2639-3	ng/mL	myoglobin	MCnc	Qn	Ser/Plas		Pt
+MYOGLOBIN_URINE	2641-9	ug/L	myoglobin	MCnc	Qn	Urine		Pt
+OSTEOCALCIN_SER_PLAS	2697-1	ug/L	osteocalcin	MCnc	Qn	Ser/Plas		Pt
+OXALATE_URINE	2700-3	ug/mL	oxalate	MCnc	Qn	Urine		Pt
+SEROTONIN_SER	27057-9	ng/mL	serotonin	MCnc	Qn	Ser		Pt
+PARATHYRIN_INTACT_SER_PLAS	2731-8	pg/mL	parathyrin.intact	MCnc	Qn	Ser/Plas		Pt
+ANGIOTENSIN_CONVERTING_ENZYME_SER_PLAS	2742-5	U/L	angiotensin converting enzyme	CCnc	Qn	Ser/Plas		Pt
+PHOSPHATE_URINE	2778-9	mg/dL	phosphate	MCnc	Qn	Urine		Pt
+PROINSULIN_SER_PLAS	27882-0	pmol/L	proinsulin	SCnc	Qn	Ser/Plas		Pt
+UBIQUINONE_10_SER_PLAS	27923-2	ug/mL	ubiquinone 10	MCnc	Qn	Ser/Plas		Pt
+POTASSIUM_URINE	2828-2	mmol/L	potassium	SCnc	Qn	Urine		Pt
+PREGNENOLONE_SER_PLAS	2837-3	ng/dL	pregnenolone	MCnc	Qn	Ser/Plas		Pt
+PROGESTERONE_SER_PLAS	2839-9	ng/mL	progesterone	MCnc	Qn	Ser/Plas		Pt
+PROSTATE_SPECIFIC_AG_SER_PLAS	2857-1	ng/mL	prostate specific ag	MCnc	Qn	Ser/Plas		Pt
+PROTEIN_CSF	2880-3	mg/dL	protein	MCnc	Qn	CSF		Pt
+PROTEIN_BODY_FLD	2881-1	g/dL	protein	MCnc	Qn	Body fld		Pt
+PROTOPORPHYRIN_ZINC_RBC	2895-1	ug/dL	protoporphyrin.zinc	MCnc	Qn	RBC		Pt
+PYRIDOXINE_SER_PLAS	2900-9	ng/mL	pyridoxine	MCnc	Qn	Ser/Plas		Pt
+RETINOL_SER_PLAS	2923-1	ug/mL	retinol	MCnc	Qn	Ser/Plas		Pt
+SEROTONIN_BLD	2939-7	ng/mL	serotonin	MCnc	Qn	Bld		Pt
+SODIUM_BLD	2947-0	mmol/L	sodium	SCnc	Qn	Bld		Pt
+BETA_HYDROXYBUTYRATE_SER_PLAS	29512-1	mg/dL	beta hydroxybutyrate	MCnc	Qn	Ser/Plas		Pt
+PHENYLALANINE_BLD_DOT	29573-3	umol/L	phenylalanine	SCnc	Qn	Bld.dot		Pt
+SOMATOTROPIN_SER_PLAS	2963-7	ng/mL	somatotropin	MCnc	Qn	Ser/Plas		Pt
+TESTOSTERONE_SER_PLAS	2986-8	ng/dL	testosterone	MCnc	Qn	Ser/Plas		Pt
+THIAMINE_BLD	2998-3	ug/dL	thiamine	MCnc	Qn	Bld		Pt
+THYROGLOBULIN_SER_PLAS	3013-0	ng/dL	thyroglobulin	MCnc	Qn	Ser/Plas		Pt
+THYROXINE_BINDING_GLOBULIN_SER_PLAS	3021-3	mg/L	thyroxine binding globulin	MCnc	Qn	Ser/Plas		Pt
+THYROXINE_FREE_SER_PLAS	3024-7	ng/dL	thyroxine.free	MCnc	Qn	Ser/Plas		Pt
+TRANSFERRIN_RECEPTOR_SOLUBLE_SER_PLAS	30248-9	mg/L	transferrin receptor.soluble	MCnc	Qn	Ser/Plas		Pt
+THYROXINE_SER_PLAS	3026-2	ug/dL	thyroxine	MCnc	Qn	Ser/Plas		Pt
+TRANSFERRIN_SER_PLAS	3034-6	mg/dL	transferrin	MCnc	Qn	Ser/Plas		Pt
+TRIACYLGLYCEROL_LIPASE_SER_PLAS	3040-3	U/L	triacylglycerol lipase	CCnc	Qn	Ser/Plas		Pt
+TRIGLYCERIDE_BLD	3043-7	mg/dL	triglyceride	MCnc	Qn	Bld		Pt
+TRIIODOTHYRONINE_FREE_SER_PLAS	3051-0	pg/mL	triiodothyronine.free	MCnc	Qn	Ser/Plas		Pt
+TRIIODOTHYRONINE_REVERSE_SER_PLAS	3052-8	pg/mL	triiodothyronine.reverse	MCnc	Qn	Ser/Plas		Pt
+TRIIODOTHYRONINE_SER_PLAS	3053-6	ng/dL	triiodothyronine	MCnc	Qn	Ser/Plas		Pt
+TRIIODOTHYRONINE_TRUE_SER_PLAS	3054-4	pg/mL	triiodothyronine.true	MCnc	Qn	Ser/Plas		Pt
+URATE_URINE	3086-6	mg/dL	urate	MCnc	Qn	Urine		Pt
+UREA_URINE	3092-4	mg/dL	urea	MCnc	Qn	Urine		Pt
+UREA_NITROGEN_BODY_FLD	3093-2	mg/dL	urea nitrogen	MCnc	Qn	Body fld		Pt
+NATRIURETIC_PEPTIDE_B_SER_PLAS	30934-4	pg/mL	natriuretic peptide.b	MCnc	Qn	Ser/Plas		Pt
+UREA_NITROGEN_URINE	3095-7	mg/dL	urea nitrogen	MCnc	Qn	Urine		Pt
+UROBILINOGEN_URINE	3107-0	mg/dL	urobilinogen	MCnc	Qn	Urine		Pt
+THYROXINE_BLD_DOT	31144-9	ug/dL	thyroxine	MCnc	Qn	Bld.dot		Pt
+GLUCOSE_BLDC	32016-8	mg/dL	glucose	MCnc	Qn	BldC		Pt
+LACTATE_BLD	32693-4	mmol/L	lactate	SCnc	Qn	Bld		Pt
+KETONES_SER_PLAS	33058-9	mg/dL	ketones	MCnc	Qn	Ser/Plas		Pt
+NATRIURETIC_PEPTIDE_B_PROHORMONE_N_TERMINAL_SER_PLAS	33762-6	pg/mL	natriuretic peptide.b prohormone n-terminal	MCnc	Qn	Ser/Plas		Pt
+CYSTATIN_C_SER_PLAS	33863-2	mg/L	cystatin c	MCnc	Qn	Ser/Plas		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_LAMBDA_FREE_SER_PLAS	33944-0	mg/L	immunoglobulin light chains.lambda.free	MCnc	Qn	Ser/Plas		Pt
+INHIBIN_B_SER_PLAS	34319-4	pg/mL	inhibin b	MCnc	Qn	Ser/Plas		Pt
+VITAMIN_D_METABOLITES_SER_PLAS	35365-6	ng/mL	vitamin d+metabolites	MCnc	Qn	Ser/Plas		Pt
+TYROSINE_BLD_DOT	35571-9	umol/L	tyrosine	SCnc	Qn	Bld.dot		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_KAPPA_FREE_SER	36916-5	mg/L	immunoglobulin light chains.kappa.free	MCnc	Qn	Ser		Pt
+MULLERIAN_INHIBITING_SUBSTANCE_SER_PLAS	38476-8	ng/mL	mullerian inhibiting substance	MCnc	Qn	Ser/Plas		Pt
+CREATININE_BLD	38483-4	mg/dL	creatinine	MCnc	Qn	Bld		Pt
+RETINYL_PALMITATE_SER_PLAS	38496-6	ug/mL	retinyl palmitate	MCnc	Qn	Ser/Plas		Pt
+THYROGLOBULIN_RECOVERY_SER_PLAS	38505-4	%	thyroglobulin recovery	MFr	Qn	Ser/Plas		Pt
+COLLAGEN_CROSSLINKED_C_TELOPEPTIDE_SER_PLAS	41171-0	pg/mL	collagen crosslinked c-telopeptide	MCnc	Qn	Ser/Plas		Pt
+NATRIURETIC_PEPTIDE_B_BLD	42637-9	pg/mL	natriuretic peptide.b	MCnc	Qn	Bld		Pt
+TROPONIN_I_CARDIAC_BLD	42757-5	ng/mL	troponin i.cardiac	MCnc	Qn	Bld		Pt
+ERCALCIDIOL_SER_PLAS	49054-0	ng/mL	ercalcidiol	MCnc	Qn	Ser/Plas		Pt
+CREATINE_KINASE_MB_BLD	49551-5	ng/mL	creatine kinase.mb	MCnc	Qn	Bld		Pt
+CALCIUM_BLD	49765-1	mg/dL	calcium	MCnc	Qn	Bld		Pt
+MYOGLOBIN_BLD	53833-0	ng/mL	myoglobin	MCnc	Qn	Bld		Pt
+1_5_ANHYDROGLUCITOL_SER_PLAS	53835-5	ug/mL	1,5-anhydroglucitol	MCnc	Qn	Ser/Plas		Pt
+ALPHA_1_FETOPROTEIN_TUMOR_MARKER_SER_PLAS	53962-7	ng/mL	alpha-1-fetoprotein.tumor marker	MCnc	Qn	Ser/Plas		Pt
+HUMAN_EPIDIDYMIS_PROTEIN_4_SER_PLAS	55180-4	pmol/L	human epididymis protein 4	SCnc	Qn	Ser/Plas		Pt
+CALCIDIOL_ERCALCIDIOL_SER_PLAS	62292-8	ng/mL	calcidiol+ercalcidiol	MCnc	Qn	Ser/Plas		Pt
+GALECTIN_3_SER_PLAS	62419-7	ng/mL	galectin 3	MCnc	Qn	Ser/Plas		Pt
+POTASSIUM_BLD	6298-4	mmol/L	potassium	SCnc	Qn	Bld		Pt
+UREA_NITROGEN_BLD	6299-2	mg/dL	urea nitrogen	MCnc	Qn	Bld		Pt
+RIBOFLAVIN_BLD	6695-1	ug/mL	riboflavin	MCnc	Qn	Bld		Pt
+17_HYDROXYPREGNENOLONE_SER_PLAS	6765-2	ng/dL	17-hydroxypregnenolone	MCnc	Qn	Ser/Plas		Pt
+VANILLYLMANDELATE_URINE	9624-8	mg/dL	vanillylmandelate	MCnc	Qn	Urine		Pt
+CORTISOL_PM_TROUGH_SPECIMEN_SER_PLAS	9812-9	ug/dL	cortisol^pm trough specimen	MCnc	Qn	Ser/Plas		Pt
+CORTISOL_AM_PEAK_SPECIMEN_SER_PLAS	9813-7	ug/dL	cortisol^am peak specimen	MCnc	Qn	Ser/Plas		Pt

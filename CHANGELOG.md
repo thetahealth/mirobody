@@ -2,6 +2,14 @@
 
 ### Added
 
+- **Queryable chemistry coverage comes from LOINC's Universal Lab Orders.**
+  The catalogue now carries 209 additional indicators after reusing the serum
+  chemistry rows added alongside them. Every generated row has a recognized
+  unit, a distinct internal name, a display that resolves to its code and all
+  six axes checked against LOINC 2.83. The combined catalogue covers 226 of the
+  1,519 universal orders. A source-axis manifest and synthetic generation tests
+  make the coverage and specimen distinctions reproducible.
+
 - **`view="trend"` describes numeric direction and shape from daily source values.**
   Single first/last readings can conceal a hump, dip or repeated swings. The new view
   compares the first and last thirds of observed numeric days and returns their means,
@@ -82,6 +90,32 @@
   its PyPI README already carries the name. To tell:
   `curl https://registry.modelcontextprotocol.io/v0.1/servers?search=mirobody`
   returns the entry.
+
+- **Catalogue generation refuses empty units and preserves specimen siblings.**
+  Missing or unrecognized example units previously produced unitless rows;
+  an existing serum member also suppressed different-specimen candidates.
+  Unit checks now fail closed and collisions are checked after specimen naming.
+  Twenty-four-hour results are summaries with no unsupported aggregation task.
+  Regenerating the combined catalogue emits zero additional rows.
+
+- **LOINC-derived aliases preserve ambiguity and explicit refusals.** The
+  generator counted repeated fields as different code owners, compared names
+  before folding and could emit targets requiring a second override hop.
+  It now counts distinct codes per folded key and emits only directly reachable
+  targets; synthetic release tests cover these cases and empty reruns.
+
+- **Catalogue names retain their measurement identity.** Serum chemistry and
+  device names previously missed the catalogue or resolved to another concept.
+  Display-name aliases and 18 chemistry rows now bridge that gap; serum sodium
+  uses `serumSodium` separately from dietary `sodium`. Instantaneous walking
+  speed keeps its device identity because LOINC's code describes a 24-hour
+  maximum. Conflicting duplicate catalogue names now fail at load time.
+
+- **Printed unit spellings normalize without guessing between competing units.**
+  BMI exponents, cell-count spellings and preparation-prefixed units now
+  normalize to UCUM. A field such as `mg/dL, mmol/L` is refused rather than
+  silently choosing its last unit. Regression tests pin both the accepted
+  spellings and refused conversions.
 
 - **Change citations preserve the metric and explicit sign.** Change/endpoint
   grammar could bypass metric binding, and a stated negative delta could cite

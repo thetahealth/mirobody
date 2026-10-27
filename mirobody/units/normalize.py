@@ -94,9 +94,12 @@ def _clean(s: str) -> str:
     """Unicode-normalize and symbol-fold without case changes."""
     # NFKC is the identity on ASCII, and space and tab are the only ASCII
     # keys in _SYMBOL_FOLD, so most lab-report units skip the normalizer.
+    # ASCII exponent notation: a report prints the BMI unit as `kg/m**2`, which
+    # is the same unit as `kg/m^2`. Two characters, so it cannot live in the
+    # per-character fold table.
     if s.isascii():
-        return s.strip().replace(" ", "").replace("\t", "")
-    return unicodedata.normalize("NFKC", s).strip().translate(_FOLD_TABLE)
+        return s.strip().replace(" ", "").replace("\t", "").replace("**", "^")
+    return unicodedata.normalize("NFKC", s).strip().translate(_FOLD_TABLE).replace("**", "^")
 
 
 def _strip_annotations(s: str) -> str:
@@ -289,7 +292,20 @@ def normalize_unit(text: str | None) -> str | None:
         return None   # a count unit we do not know, never a value to strip
     no_value = _VALUE_PREFIX.sub("", cleaned)
     if no_value and no_value != cleaned:
-        return _resolve_strict(no_value)
+        hit = _resolve_strict(no_value)
+        if hit is not None:
+            return hit
+    # A preparation printed beside its unit: `Novolin R, IU`, `胰岛素, IU`.
+    # A second recognized unit makes this ambiguous: picking the last of
+    # `mg/dL, mmol/L` silently changes a glucose conversion by a factor of 18.
+    if "," in cleaned or "，" in cleaned:
+        parts = re.split(r"[,，]", cleaned)
+        tail = _resolve_strict(parts[-1])
+        if tail is not None:
+            if any((other := _resolve_strict(part)) is not None and other != tail
+                   for part in parts[:-1]):
+                return None
+            return tail
     return None
 
 

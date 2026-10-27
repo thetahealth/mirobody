@@ -40,7 +40,7 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   beats a fold.
 - **Units** normalized against 330 UCUM units over 59 PROPERTY families,
   with dimensional analysis, a molar-mass bridge keyed by LOINC code, and an
-  explicit refusal for `%` vs `10*9/L`. 316 standard device indicators. The
+  explicit refusal for `%` vs `10*9/L`. 543 catalogue members cover device and laboratory indicators. The
   UCUM specification ships beside the tables (`res/ucum/ucum-essence.xml`,
   2.2, unmodified), and a gate requires every unit they name to be one UCUM
   defines and every conversion factor to equal UCUM's.

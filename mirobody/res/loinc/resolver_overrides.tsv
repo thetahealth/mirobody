@@ -1352,3 +1352,78 @@ MTHFR 基因型	!unresolved
 APOE 基因检测	!unresolved
 HLA-B 基因型	!unresolved
 HLA-B*5801 基因型	!unresolved
+
+# --- catalogue self-consistency bridge (2026-10-26) ---
+# The product catalogue lists a LOINC per indicator; these rows make each
+# catalogue display name reach that code through the index's own long name.
+Active Time	Duration of physical activity
+Altitude Gain	Elevation climbed
+Body Water Percentage	Percentage of body water
+Bone Mass	Body bone mass
+Daily Activity Intensity High	Duration of vigorous activity
+Daily Activity Intensity Low	Duration of light activity
+Daily Activity Intensity Medium	Duration of moderate activity
+Daily Awake Time	Awakening duration
+Daily Calories Active	Calories burned in 24 hour Calculated
+Daily Deep Sleep	Deep sleep duration
+Daily Distance	Distance traveled
+Daily Heart Rate Avg	Mean heart rate
+Daily Heart Rate Max	Maximum heart rate
+Daily Heart Rate Min	Heart rate.minimum
+Daily Heart Rate Resting	Heart rate --resting
+Daily Light Sleep	Light sleep duration
+Daily Max Respiratory Rates	Maximum respiratory rate
+Daily Min Respiratory Rates	Minimum respiratory rate
+Daily REM Sleep	REM sleep duration
+Daily Respiratory Rates	Mean respiratory rate
+Daily Sleep Duration	Duration in bed
+Daily Sleep Latency	Duration of falling asleep
+Daily Total Sleep Time	Sleep duration
+Distance	Distance walking or running
+Six Minute Walk Distance	Six minute walk test
+Sleep Analysis Asleep Core	Light sleep duration
+Sleep Analysis Asleep Deep	Deep sleep duration
+Sleep Analysis Asleep REM	REM sleep duration
+Sleep Analysis Asleep Unspecified	Sleep duration
+Sleep Analysis Awake	Awakening duration
+Sleep Asleep Core	Light sleep duration
+Sleep Asleep Deep	Deep sleep duration
+Sleep Asleep REM	REM sleep duration
+Sleep Awake	Awakening duration
+Sleep Disturbances	Number of awakenings
+Sleep In Bed	Duration in bed
+Sleep Unspecified	Sleep duration
+Training Load	Workout intensity
+Waist Circumference	Waist Circumference at umbilicus by Tape measure
+# --- NHANES 2017-2018 printed forms (2026-10-26) ---
+# NHANES writes the specimen into the label and numbers each BP reading;
+# these rows map those printed forms onto names the index already knows.
+Systolic: Blood pres (1st rdg) mm Hg	Systolic blood pressure
+Diastolic: Blood pres (1st rdg) mm Hg	Diastolic blood pressure
+Systolic: Blood pres (2nd rdg) mm Hg	Systolic blood pressure
+Diastolic: Blood pres (2nd rdg) mm Hg	Diastolic blood pressure
+Systolic: Blood pres (3rd rdg) mm Hg	Systolic blood pressure
+Diastolic: Blood pres (3rd rdg) mm Hg	Diastolic blood pressure
+Systolic: Blood pres (4th rdg) mm Hg	Systolic blood pressure
+Diastolic: Blood pres (4th rdg) mm Hg	Diastolic blood pressure
+Standing Height	Height
+60 sec. pulse	Heart rate
+60 sec HR	Heart rate
+Albumin, refrigerated serum	Albumin
+Creatinine, refrigerated serum	Creatinine
+Glucose, refrigerated serum	Glucose
+Iron, refrigerated serum	Iron
+Cholesterol, refrigerated serum	Cholesterol
+Triglycerides, refrig serum	Triglycerides
+Calcium, total	Calcium
+
+# --- LOINC-derived names (2026-10-27, standardize_build/loinc_aliases.py) ---
+# Official designations of catalogue codes that the index did not answer yet.
+Oxygen consumption (VO2)/Body weight [Volume Rate Content] --peak during exercise	VO2/BW max dur exercise
+Oxygen consumption/Body weight^peak during exercise	VO2/BW max dur exercise
+Oxygen saturation in Arterial blood by Pulse oximetry	SaO2 % BldA PulseOx
+Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma	Alanine aminotransferase
+Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma	Alkaline phosphatase
+Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma	Aspartate aminotransferase
+Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma	Gamma glutamyl transferase
+Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction	Lactate dehydrogenase

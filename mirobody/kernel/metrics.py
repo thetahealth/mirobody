@@ -195,7 +195,11 @@ def _load() -> tuple[list[Metric], dict[str, Metric], dict[str, Metric]]:
         # A name may be declared under several members (five sleep stages are:
         # the same Apple stage arrived under three historical spellings). The
         # first declaration is the identity; the others stay reachable by member.
-        by_name.setdefault(m.name, m)
+        previous = by_name.setdefault(m.name, m)
+        decisive = ("standard_unit", "unit_ucum", "data_type", "state_class",
+                    "aggregation_policy", "loinc", "confidence", "window")
+        if previous is not m and any(getattr(previous, field) != getattr(m, field) for field in decisive):
+            raise ValueError(f"metrics.tsv: conflicting identity for name {m.name!r}")
     return rows, by_member, by_name
 
 
