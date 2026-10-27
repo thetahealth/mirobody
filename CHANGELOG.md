@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 1.5.9
+
 ### Added
 
 - **Queryable chemistry coverage comes from LOINC's Universal Lab Orders.**
@@ -48,6 +50,13 @@
   `pytest -s mirobody/tests/test_engine_coverage.py` prints 345/345.
 
 ### Changed
+
+- **The bundled web client no longer carries the hosted app's consent copy.**
+  `frontend/` is rebuilt from thetahealth/mirobody-web `4babe74`, which drops
+  19 strings nothing rendered, among them "Your data is securely stored with
+  Theta Health" and the CLEAR identity-verification text: a self-hosted
+  server's bundle said its data lived with Theta. To tell: `grep -c "Theta
+  Health" frontend/assets/*.js` finds nothing.
 
 - **The README, PyPI and Docker Hub open with what Mirobody is, in mirobody.ai's
   words.** They opened with "Turn scattered health data into answers you can
