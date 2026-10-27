@@ -134,9 +134,9 @@ PIP_INDEX_URL=https://<镜像站>/simple scripts/install_native.sh
 
 | 阶段 | 做什么 | 在哪 |
 | --- | --- | --- |
-| **① 收集 Collect** | 文件、设备和日记汇入系统；原始来源保留下来，每条读数都能指回它。 | [`collect/`](mirobody/collect/) |
-| **② 标准化 Standardize** | `A1c`、`HbA1c`、`糖化血红蛋白` 解析为同一个编码，单位统一到同一标准，全程离线。无法确定的名称保持未解析。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
-| **③ 智能体 Agent** | 在编码后的记录上提问：看趋势、跨医院和设备比较、画图，并标出每个数字来自哪份文件。 | [`agent/`](mirobody/agent/) |
+| **① 收集 Collect** | 化验单、设备、照片和日记从各个来源汇入；每条读数都保留它来自的文件。 | [`collect/`](mirobody/collect/) |
+| **② 标准化 Standardize** | `A1c`、`HbA1c`、`糖化血红蛋白` 解析为同一个编码，单位统一到同一标准，全程离线：来源各异、写法杂乱的指标，清晰统一地落进同一张表。无法确定的名称保持未解析。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
+| **③ 智能体 Agent** | 智能体调用工具查这张表来回答，而不是凭模型记忆：看趋势、跨医院和设备比较、画图。每个数字都能追溯到原始文件，可以核对，不必盲信。 | [`agent/`](mirobody/agent/) |
 
 模型负责读取文档和推理；编码和单位来自随包发布的词表，不由模型生成。[一条读数如何走完整个流程](docs/pipeline.md)。
 

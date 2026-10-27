@@ -69,7 +69,11 @@
   (中文「你的健康数字分身。」). The English and Japanese READMEs also name the
   hosted app Theta, as mirobody.ai and thetahealth.ai do, instead of "Theta
   Wellness", and show its registered and daily-active users live from Theta's
-  public stats, the same figures mirobody.ai's proof bar reads.
+  public stats, the same figures mirobody.ai's proof bar reads. The stage
+  table now says what each stage is for: Collect and Standardize turn readings
+  from scattered sources into rows of one table, and the agent answers by
+  querying that table with tools rather than from the model's memory, so every
+  number traces to its file.
 
 - **Stage ② is Standardize (标准化), not Translate (转译).** The stage never
   translates: it keeps the printed name verbatim and assigns a LOINC code, a
