@@ -69,15 +69,17 @@
 
 ### Fixed
 
-- **The MCP server is published to the MCP Registry, as `ai.mirobody/mirobody`.**
+- **The MCP server is published to the MCP Registry, as `ai.thetahealth/mirobody`.**
   `server.json` was written in 1.5.1 but never published, so the official
   registry, and the GitHub and VS Code lists that read it, had no Mirobody
   entry, while third-party directories still showed a retired Theta Health MCP
   whose repository is gone. Each release now publishes the entry after PyPI
-  (`.github/workflows/mcp-registry.yml`) and checks that the registry lists the
-  version; every PR runs the registry's own validator on `server.json`. The name moves from `ai.thetahealth/` to `ai.mirobody/`, proven by a
-  TXT record on mirobody.ai; the README's `mcp-name` marker follows, so the
-  first release that carries it is the first that can be published. To tell:
+  (`.github/workflows/mcp-registry.yml`, signed in by a TXT record on
+  thetahealth.ai) and checks that the registry lists the version; every PR runs
+  the registry's own validator on `server.json`. The entry's description now
+  names what the tools code to: LOINC codes and UCUM units for lab results,
+  ICPC-3 for symptoms and diagnoses. 1.5.8 can be published from `main`, since
+  its PyPI README already carries the name. To tell:
   `curl https://registry.modelcontextprotocol.io/v0.1/servers?search=mirobody`
   returns the entry.
 

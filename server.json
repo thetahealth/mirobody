@@ -1,6 +1,6 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
-  "name": "ai.mirobody/mirobody",
+  "name": "ai.thetahealth/mirobody",
   "title": "Mirobody",
   "description": "Lab results to LOINC codes and UCUM units, symptoms and diagnoses to ICPC-3. Offline, no API key.",
   "version": "1.5.8",

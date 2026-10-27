@@ -7,29 +7,33 @@ name: MCP Registry
 # directories still listed a retired Theta Health MCP whose repository is gone.
 #
 # Two triggers: workflow_call from pypi-release.yml after the PyPI upload is
-# verified, and a manual dispatch for a tag from 1.5.9 on that is already on
-# PyPI (older tags lack the install action this checks out). Order matters:
-# the registry accepts the entry only if the PyPI release of that version
-# carries `mcp-name: ai.mirobody/mirobody` in its README. A dispatch with
-# check_only and tag `main` validates and logs in without publishing: the
-# proof that the TXT record and the key match, before the first release.
+# verified, and a manual dispatch. Either way server.json comes from the ref
+# the run is on (the release tag, or the branch picked for the dispatch), and
+# `tag` must equal its version. Order matters: the registry accepts the entry
+# only if the PyPI release of that version carries
+# `mcp-name: ai.thetahealth/mirobody` in its README, which 1.5.8 already does,
+# so a dispatch on main with tag 1.5.8 publishes main's entry for it. With
+# check_only the run validates and logs in without publishing: the proof that
+# the TXT record and the key match.
 #
-# The `ai.mirobody/` namespace is proven by a DNS TXT record on mirobody.ai.
-# One-time setup, done by whoever holds the mirobody.ai zone (Route 53) and
-# repository admin:
+# The `ai.thetahealth/` namespace is proven by a DNS TXT record on
+# thetahealth.ai. One-time setup, done by whoever holds the thetahealth.ai
+# zone (Route 53) and repository admin:
 #   openssl genpkey -algorithm Ed25519 -out key.pem      # OpenSSL 3
 #   openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64
-#     -> TXT at the apex: mirobody.ai. "v=MCPv1; k=ed25519; p=<that base64>"
+#     -> TXT at the apex, beside the existing ones:
+#        thetahealth.ai. "v=MCPv1; k=ed25519; p=<that base64>"
 #   openssl pkey -in key.pem -noout -text | grep -A3 priv: | tail -n +2 | tr -d ' :\n'
 #     -> secret MCP_REGISTRY_KEY on the `mcp-registry` environment, restricted
 #        to `main` and release tags; then delete key.pem.
-# The key can publish anything under ai.mirobody/, hence the environment.
+# The key can publish anything under ai.thetahealth/, the company's whole
+# namespace, hence the environment.
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Version tag already on PyPI, for example 1.5.9 (or main with check_only)
+        description: The version server.json on the selected branch names, already on PyPI, for example 1.5.8
         required: true
         type: string
       check_only:
@@ -40,7 +44,7 @@ on:
   workflow_call:
     inputs:
       tag:
-        description: Version tag already on PyPI, for example 1.5.9
+        description: The released version, already on PyPI
         required: true
         type: string
 
@@ -55,8 +59,6 @@ jobs:
       TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag }}
 
       # Fail by name, not skip: a skipped publish leaves the registry on the
       # previous version while the release run stays green, the way the docs
@@ -84,10 +86,10 @@ jobs:
       - name: Validate server.json
         run: ./mcp-publisher validate server.json
 
-      - name: Log in as mirobody.ai
+      - name: Log in as thetahealth.ai
         env:
           MCP_REGISTRY_KEY: ${{ secrets.MCP_REGISTRY_KEY }}
-        run: ./mcp-publisher login dns --domain mirobody.ai --private-key "$MCP_REGISTRY_KEY"
+        run: ./mcp-publisher login dns --domain thetahealth.ai --private-key "$MCP_REGISTRY_KEY"
 
       - name: Publish
         if: ${{ !inputs.check_only }}
