@@ -23,9 +23,11 @@ name: MCP Registry
 #   openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64
 #     -> TXT at the apex, beside the existing ones:
 #        thetahealth.ai. "v=MCPv1; k=ed25519; p=<that base64>"
-#   openssl pkey -in key.pem -noout -text | grep -A3 priv: | tail -n +2 | tr -d ' :\n'
-#     -> secret MCP_REGISTRY_KEY on the `mcp-registry` environment, restricted
-#        to `main` and release tags; then delete key.pem.
+#   openssl pkey -in key.pem -outform DER | tail -c 32 | xxd -p -c 32
+#     -> 64 hex characters: secret MCP_REGISTRY_KEY on the `mcp-registry`
+#        environment, restricted to `main` and release tags; then delete
+#        key.pem. (The registry docs' `-text | grep -A3 priv:` form appends
+#        "pub" on OpenSSL 4, which prints the key on two lines, not three.)
 # The key can publish anything under ai.thetahealth/, the company's whole
 # namespace, hence the environment.
 
