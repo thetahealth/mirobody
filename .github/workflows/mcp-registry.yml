@@ -7,9 +7,12 @@ name: MCP Registry
 # directories still listed a retired Theta Health MCP whose repository is gone.
 #
 # Two triggers: workflow_call from pypi-release.yml after the PyPI upload is
-# verified, and a manual dispatch for a version already on PyPI. Order matters:
+# verified, and a manual dispatch for a tag from 1.5.9 on that is already on
+# PyPI (older tags lack the install action this checks out). Order matters:
 # the registry accepts the entry only if the PyPI release of that version
-# carries `mcp-name: ai.mirobody/mirobody` in its README.
+# carries `mcp-name: ai.mirobody/mirobody` in its README. A dispatch with
+# check_only and tag `main` validates and logs in without publishing: the
+# proof that the TXT record and the key match, before the first release.
 #
 # The `ai.mirobody/` namespace is proven by a DNS TXT record on mirobody.ai.
 # One-time setup, done by whoever holds the mirobody.ai zone (Route 53) and
@@ -19,16 +22,21 @@ name: MCP Registry
 #     -> TXT at the apex: mirobody.ai. "v=MCPv1; k=ed25519; p=<that base64>"
 #   openssl pkey -in key.pem -noout -text | grep -A3 priv: | tail -n +2 | tr -d ' :\n'
 #     -> secret MCP_REGISTRY_KEY on the `mcp-registry` environment, restricted
-#        to release tags; then delete key.pem.
+#        to `main` and release tags; then delete key.pem.
 # The key can publish anything under ai.mirobody/, hence the environment.
 
 on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Version tag already on PyPI, for example 1.5.9
+        description: Version tag already on PyPI, for example 1.5.9 (or main with check_only)
         required: true
         type: string
+      check_only:
+        description: Validate and log in, but do not publish
+        required: false
+        default: false
+        type: boolean
   workflow_call:
     inputs:
       tag:
@@ -44,7 +52,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: mcp-registry
     env:
-      MCP_PUBLISHER_VERSION: v1.8.1
       TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +71,7 @@ jobs:
           fi
 
       - name: Check server.json names this version
+        if: ${{ !inputs.check_only }}
         run: |
           version="$(jq -r .version server.json)"
           if [ "$version" != "$TAG" ]; then
@@ -71,23 +79,10 @@ jobs:
             exit 1
           fi
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - uses: ./.github/actions/install-mcp-publisher
 
-      - name: Download and verify mcp-publisher
-        run: |
-          set -euo pipefail
-          archive="mcp-publisher_linux_amd64.tar.gz"
-          base_url="https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}"
-          curl --fail --location --silent --show-error --output "$archive" "$base_url/$archive"
-          curl --fail --location --silent --show-error --output "$archive.sigstore.json" "$base_url/$archive.sigstore.json"
-          cosign verify-blob \
-            --bundle "$archive.sigstore.json" \
-            --certificate-identity "https://github.com/modelcontextprotocol/registry/.github/workflows/release.yml@refs/tags/${MCP_PUBLISHER_VERSION}" \
-            --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
-            "$archive"
-          tar xzf "$archive" mcp-publisher
-          rm -f "$archive" "$archive.sigstore.json"
+      - name: Validate server.json
+        run: ./mcp-publisher validate server.json
 
       - name: Log in as mirobody.ai
         env:
@@ -95,10 +90,12 @@ jobs:
         run: ./mcp-publisher login dns --domain mirobody.ai --private-key "$MCP_REGISTRY_KEY"
 
       - name: Publish
+        if: ${{ !inputs.check_only }}
         run: ./mcp-publisher publish
 
       # "publish exited 0" is the publisher's opinion; this asks the registry.
       - name: Verify the registry lists this version
+        if: ${{ !inputs.check_only }}
         run: |
           name="$(jq -r .name server.json)"
           url="https://registry.modelcontextprotocol.io/v0.1/servers/$(jq -rn --arg n "$name" '$n|@uri')/versions/$TAG"
