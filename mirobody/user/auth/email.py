@@ -541,14 +541,17 @@ def create_email_validator(
     3. Mandrill configuration (if mandrill_api_key is provided)
     4. DummyEmailCodeValidator (fallback)
     """
-    
+    # The open-source server is whoever runs it, not Theta: an unset
+    # EMAIL_FROM_NAME used to send sign-in codes as "Theta Wellness".
+    from_name = from_name or "Mirobody"
+
     # A substring also matched attacker-controlled lookalike hostnames.
     if smtp_host.rstrip(".").lower() == "smtp.mandrillapp.com" and smtp_pass and from_email and template:
         return MandrillEmailValidator(
             apiKey          = smtp_pass,  # Use smtp_pass as Mandrill API key
             template        = template,
             from_email      = from_email,
-            from_name       = from_name if from_name else "Theta Wellness",
+            from_name       = from_name,
             predefined_codes= predefined_codes,
             ephemeral           = ephemeral
         )
@@ -561,7 +564,7 @@ def create_email_validator(
             smtp_user       = smtp_user,
             smtp_pass       = smtp_pass,
             from_email      = from_email,
-            from_name       = from_name if from_name else "Theta Wellness",
+            from_name       = from_name,
             predefined_codes= predefined_codes,
             ephemeral           = ephemeral
         )
@@ -572,7 +575,7 @@ def create_email_validator(
             apiKey          = mandrill_api_key,
             template        = template,
             from_email      = from_email,
-            from_name       = from_name if from_name else "Theta Wellness",
+            from_name       = from_name,
             predefined_codes= predefined_codes,
             ephemeral           = ephemeral
         )

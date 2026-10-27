@@ -51,6 +51,8 @@ HTTP_ROOT: frontend
 
 # Passkeys and MFA: your domain. Without it there is no WebAuthn service.
 # WEBAUTHN_RP_ID: example.com
+# The name a browser shows when it offers to save a passkey; Mirobody when unset.
+# WEBAUTHN_RP_NAME: Mirobody
 
 # HTTP_HEADERS:
 #   Access-Control-Allow-Origin: 'http://localhost:18080'  # CHANGE FOR PRODUCTION
@@ -117,6 +119,7 @@ PG_MAX_CONNECTION: 20
 # Login.
 
 # EMAIL_FROM: ''
+# The sender name on sign-in codes; Mirobody when unset.
 # EMAIL_FROM_NAME: ''
 # EMAIL_TEMPLATE: ''
 # EMAIL_SMTP_PASS: ''
