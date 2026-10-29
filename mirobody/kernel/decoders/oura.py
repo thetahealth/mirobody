@@ -125,6 +125,13 @@ NIGHTLY: frozenset[str] = frozenset({
     "rem_sleep_duration", "latency", "average_heart_rate", "lowest_heart_rate", "average_breath",
 })
 
+#: One sleep's scores, filed with the bedtime span and only from the main
+#: sleep. Oura scores a nap under the same fields and a nap falls in the
+#: night's 18:00 day, so its efficiency was averaged into
+#: ``dailyAvgSleepEfficiency`` and was the day's last score; the catalogue has
+#: no nap score to file it under (``napDuration`` is a duration).
+SCORES: frozenset[str] = frozenset({"efficiency", "restless_periods"})
+
 #: Oura's ``PublicSleepType``: "long_sleep" is the sleep "long enough (>3h) to
 #: automatically contribute to daily scores"; "deleted" is a sleep the user
 #: deleted and "rest" one the user rejected as falsely detected, so neither
@@ -191,10 +198,11 @@ def decode(
     out: list[Fact] = []
     for path, (metric, conv) in mapping.items():
         span = (start, end)
-        if data_type == "sleep" and path in NIGHTLY:
+        if data_type == "sleep" and (path in NIGHTLY or path in SCORES):
             if night is None:
                 continue
-            span = night
+            if path in NIGHTLY:
+                span = night
         v = number(dig(item, path))
         if v is None:
             continue

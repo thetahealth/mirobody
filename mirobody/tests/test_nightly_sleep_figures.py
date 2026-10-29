@@ -5,7 +5,7 @@ sleeping heart and breathing rates as totals over a whole sleep. Filed under
 the interval metrics with the sleep's start..end, a duration union read every
 stage as the whole night: Oura's 90 minutes of deep sleep became 480. These
 pin where each total goes, on which day, and that a nap or a deleted sleep
-does not replace the night.
+does not replace the night's totals or its scores.
 """
 
 from __future__ import annotations
@@ -83,6 +83,40 @@ def test_a_whoop_night_is_filed_on_the_day_it_ends_and_a_nap_is_not():
         assert _local_day(facts[name].effective_start_ms) == date(2026, 1, 2), name
     nap = {f.metric_key for f in whoop.decode("sleep", dict(WHOOP_NIGHT, nap=True), TZ)}
     assert nap.isdisjoint(whoop.MAPPING["sleep"][path][0] for path in whoop.NIGHTLY)
+
+
+def _scores(facts) -> dict[str, list[float]]:
+    out: dict[str, list[float]] = {}
+    for f in facts:
+        if f.metric_key in ("sleepEfficiency", "sleepPerformance", "sleepConsistency", "sleepDisturbances"):
+            out.setdefault(f.metric_key, []).append(f.value_num)
+    return out
+
+
+def test_a_nap_does_not_replace_the_nights_scores():
+    """Both vendors score a nap under the night's fields, and an afternoon nap
+    falls in the night's 18:00 day: night 91 % and nap 80 % read 80 as the
+    day's last and 85.5 as its average, and 12 disturbances became 13."""
+    stages = dict(WHOOP_NIGHT["score"]["stage_summary"], disturbance_count=12)
+    night = dict(WHOOP_NIGHT, score=dict(WHOOP_NIGHT["score"], stage_summary=stages, sleep_efficiency_percentage=91,
+                                          sleep_performance_percentage=88, sleep_consistency_percentage=76))
+    nap = dict(night, nap=True, start="2026-01-02T06:00:00.000Z", end="2026-01-02T06:40:00.000Z",
+               score=dict(night["score"], stage_summary=dict(stages, disturbance_count=1),
+                          sleep_efficiency_percentage=80, sleep_performance_percentage=70,
+                          sleep_consistency_percentage=60))
+    filed = _scores(whoop.decode("sleep", night, TZ) + whoop.decode("sleep", nap, TZ))
+    assert filed == {"sleepEfficiency": [91], "sleepPerformance": [88], "sleepConsistency": [76],
+                     "sleepDisturbances": [12]}
+
+    oura_night = dict(OURA_NIGHT, efficiency=93, restless_periods=3)
+    naps = [dict(oura_night, type=kind, bedtime_start="2026-01-02T14:00:00+08:00",
+                 bedtime_end="2026-01-02T14:40:00+08:00", efficiency=85, restless_periods=1)
+            for kind in ("sleep", "late_nap")]
+    facts = [f for doc in (oura_night, *naps) for f in oura.decode("sleep", doc, TZ)]
+    assert _scores(facts) == {"sleepEfficiency": [93], "sleepDisturbances": [3]}
+    # The night's score keeps its bedtime span; only the totals move to `day`.
+    spans = {f.metric_key: (f.effective_start_ms, f.effective_end_ms) for f in oura.decode("sleep", oura_night, TZ)}
+    assert spans["sleepEfficiency"] == spans["sleepAnalysis_InBed"]
 
 
 def test_a_whoop_cycle_heart_rate_is_the_days_figure():

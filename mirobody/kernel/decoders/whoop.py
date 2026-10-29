@@ -87,7 +87,10 @@ MAPPING: dict[str, dict[str, Entry]] = {
 }
 
 #: Heart-rate zones are summed in pairs into the catalogue's three workout
-#: intensity durations; per-zone facts would double-count the workout.
+#: intensity durations. Each is minutes counted inside the workout, so it
+#: keeps the workout's span as the workout's calories and distance do, and the
+#: catalogue sums it: a union of that span read every zone as the whole
+#: workout (20, 10 and 1 minutes of a 60 minute workout each became 60).
 ZONES = (
     ("workoutDurationLow", ("zone_zero_milli", "zone_one_milli")),
     ("workoutDurationMedium", ("zone_two_milli", "zone_three_milli")),
@@ -106,6 +109,16 @@ NIGHTLY: frozenset[str] = frozenset({
     "score.stage_summary.total_awake_time_milli", "score.stage_summary.total_light_sleep_time_milli",
     "score.stage_summary.total_slow_wave_sleep_time_milli", "score.stage_summary.total_rem_sleep_time_milli",
     "score.respiratory_rate",
+})
+
+#: One sleep's scores, filed with the sleep's own span and never from a nap.
+#: WHOOP scores a nap under the same four fields and a nap falls in the
+#: night's 18:00 day, so a night of 91 % and a nap of 80 % averaged to 85.5 in
+#: ``dailyAvgSleepEfficiency`` and the nap's 80 was the day's last score. The
+#: catalogue has no nap score to file it under; ``napDuration`` is a duration.
+SCORES: frozenset[str] = frozenset({
+    "score.sleep_efficiency_percentage", "score.sleep_performance_percentage",
+    "score.sleep_consistency_percentage", "score.stage_summary.disturbance_count",
 })
 
 
@@ -162,11 +175,10 @@ def decode(
                 if total > 0:
                     emit(metric, ms_to_min(total))
     for path, (metric, conv) in mapping.items():
-        nightly = data_type == "sleep" and path in NIGHTLY
-        if nightly and night is None:
+        if data_type == "sleep" and night is None and (path in NIGHTLY or path in SCORES):
             continue
         v = number(dig(item, path))
         if v is None:
             continue
-        emit(metric, float(conv(v)), night if nightly else None)
+        emit(metric, float(conv(v)), night if data_type == "sleep" and path in NIGHTLY else None)
     return out

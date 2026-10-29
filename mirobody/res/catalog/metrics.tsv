@@ -199,9 +199,9 @@ DAILY_WALKING_HEART_RATE	dailyWalkingHeartRates	Daily Walking Heart Rate	Vital S
 WEIGHT	bodyMasss	Weight	Body Composition	kg	kg	series	instant	last	29463-7	confident	00:00	body_composition	last		Total body weight	1.4.0
 WHEELCHAIR_USE	wheelchairUse	Wheelchair Use	Lifestyle	boolean	boolean	series	instant	last			00:00				Whether wheelchair is used	1.4.0
 WORKOUT_DURATION	workoutDuration	Workout Duration	Performance Metrics	min	min	mix	session	duration_union			00:00				Total workout duration	1.4.0
-WORKOUT_DURATION_HIGH	workoutDurationHigh	Workout Duration High	Performance Metrics	min	min	series	session	duration_union			00:00				High-intensity workout duration	1.4.0
-WORKOUT_DURATION_LOW	workoutDurationLow	Workout Duration Low	Performance Metrics	min	min	series	session	duration_union			00:00				Low-intensity workout duration	1.4.0
-WORKOUT_DURATION_MEDIUM	workoutDurationMedium	Workout Duration Medium	Performance Metrics	min	min	series	session	duration_union			00:00				Medium-intensity workout duration	1.4.0
+WORKOUT_DURATION_HIGH	workoutDurationHigh	Workout Duration High	Performance Metrics	min	min	series	cumulative	sum_delta			00:00				High-intensity workout duration	1.4.0
+WORKOUT_DURATION_LOW	workoutDurationLow	Workout Duration Low	Performance Metrics	min	min	series	cumulative	sum_delta			00:00				Low-intensity workout duration	1.4.0
+WORKOUT_DURATION_MEDIUM	workoutDurationMedium	Workout Duration Medium	Performance Metrics	min	min	series	cumulative	sum_delta			00:00				Medium-intensity workout duration	1.4.0
 WORKOUT_STRAIN	workoutStrain	Workout Strain	Performance Metrics	score	{score}	summary	provider_daily	provider_value			00:00				Body stress score for single workout	1.4.0
 WRIST_TEMPERATURE	wristTemperatures	Wrist Temperature	Vital Signs	°C	Cel	series	instant	last	61008-9	unverified	00:00				Wrist skin temperature	1.4.0
 DAILY_DEEP_SLEEP_PERCENTAGE	dailyDeepSleepPercentage	Daily Deep Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value			00:00				Deep sleep percentage of total sleep	1.4.0

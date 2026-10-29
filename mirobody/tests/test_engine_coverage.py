@@ -1341,6 +1341,24 @@ def test_the_apple_crosswalk_says_what_the_apple_decoder_does():
     assert apple.QUANTITY["HKQuantityTypeIdentifierHeartRateVariabilitySDNN"] == "hrvSDNN"
 
 
+def test_open_wearables_declines_the_apple_quantity_apple_declines():
+    """open-wearables' `sleeping_breathing_disturbances` is Apple's
+    appleSleepingBreathingDisturbances relayed, and its table filed it under
+    sleepDisturbances, 103211-9 Number of awakenings: a count of interrupted
+    breaths read as a count of times the person woke. The Apple table
+    declines that quantity, so the relay must too."""
+    from mirobody.kernel.decoders import open_wearables
+    from mirobody.standardize import devices
+
+    direct = devices.lookup("apple", "HKQuantityTypeIdentifier", "appleSleepingBreathingDisturbances")
+    assert direct is not None and not direct.metric
+    assert open_wearables.CROSSWALK["sleeping_breathing_disturbances"].declined
+    sample = {"type": "sleeping_breathing_disturbances", "value": 4, "unit": "count",
+              "timestamp": "2026-01-02T07:00:00+08:00"}
+    assert open_wearables.decode("timeseries", sample, "Asia/Shanghai") == []
+    assert "sleepDisturbances" not in open_wearables.METRICS
+
+
 @pytest.mark.parametrize("vendor", ["oura", "whoop"])
 def test_a_decoded_vendor_crosswalk_says_what_its_decoder_does(vendor):
     """The table and the decoder name the same metric wherever both name one.

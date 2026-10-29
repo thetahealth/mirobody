@@ -17,7 +17,7 @@ daylight saving, quality gates, medications and the query tools here.
 ## The four things that need care
 
 * **`type` is a name, not a code.** `res/crosswalks/open_wearables.tsv` is the
-  93-row table; 49 rows map, 44 decline WITH A REASON. An unmapped type is
+  93-row table; 48 rows map, 45 decline WITH A REASON. An unmapped type is
   quarantined, never guessed into a neighbouring metric.
 * **`unit` is a label, not a unit.** The engine knows seventeen of their
   twenty-six spellings; the crosswalk carries the rest. The one that bites is
