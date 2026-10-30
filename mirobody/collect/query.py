@@ -128,6 +128,19 @@ _STAT_STDDEV = (
     f" WHEN {_COMMON_CANONICAL} THEN STDDEV_SAMP(value_canonical) END"
 )
 
+#: A reading inside `:vmin`..`:vmax`, either end open, compared on the basis
+#: the row's min/max/avg use, so the band is in the unit the row reports.
+#: Compared on printed values, 80 umol/L counted and 0.9 mg/dL did not, the
+#: same creatinine, in a row that reported both in mol/L. NULL when no band
+#: was asked for, or when the readings share no unit to compare in.
+_IN_BAND = ("(CAST(:vmin AS DOUBLE PRECISION) IS NULL OR {v} >= CAST(:vmin AS DOUBLE PRECISION))"
+            " AND (CAST(:vmax AS DOUBLE PRECISION) IS NULL OR {v} <= CAST(:vmax AS DOUBLE PRECISION))")
+_STAT_BAND = (
+    "CASE WHEN CAST(:vmin AS DOUBLE PRECISION) IS NULL AND CAST(:vmax AS DOUBLE PRECISION) IS NULL THEN NULL"
+    " WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN {agg} FILTER (WHERE " + _IN_BAND.format(v="value_num") + ")"
+    " WHEN " + _COMMON_CANONICAL + " THEN {agg} FILTER (WHERE " + _IN_BAND.format(v="value_canonical") + ") END"
+)
+
 # Propagate the evidence status of the rows actually used by each result:
 # an out-of-window or unelected reading must not taint an unrelated answer.
 _UNVERIFIED_ROW = f"o.modality = '{MODALITY_UNVERIFIED}' AS unverified"
@@ -509,7 +522,8 @@ class PostgresHealthQuery:
             rows = await self._day_buckets(subject_id, names, window, resolution, limit)
         return [_bucket_row(r) for r in rows]
 
-    async def stats(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
+    async def stats(self, subject_id: str, sel: query.Selection, window: query.Window, *,
+                    value_min: float | None = None, value_max: float | None = None) -> list[dict]:
         """count/min/max/avg/median/stddev/sum/first/last/change over the WHOLE
         window, in SQL, over `_STATS_CTE`: a day with an elected authority
         counts once, as that value; any other day counts every reading.
@@ -534,7 +548,8 @@ class PostgresHealthQuery:
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS,
+                                  "vmin": value_min, "vmax": value_max}
         where = _window_clause(params, window)
         source = _STATS_CTE.format(where=where)
         rows = await execute_query(
@@ -544,6 +559,9 @@ class PostgresHealthQuery:
                    {_LATEST_IDENTITY},
                    COUNT(*) AS count,
                    COUNT(value_num) AS numeric_count,
+                   {_STAT_BAND.format(agg="COUNT(*)")} AS count_in_range,
+                   COUNT(DISTINCT local_date) AS days,
+                   {_STAT_BAND.format(agg="COUNT(DISTINCT local_date)")} AS days_in_range,
                    {_STAT_VALUE.format(agg="MIN")} AS min,
                    {_STAT_VALUE.format(agg="MAX")} AS max,
                    {_STAT_AVG} AS avg,
@@ -928,11 +946,23 @@ def _bucket_row(r: dict) -> dict:
     }
 
 
+def _count(value: Any) -> int | None:
+    return None if value is None else int(value)
+
+
 def _stats_row(r: dict) -> dict:
     out = {
         **_identity(r),
         "count": int(r.get("count") or 0),
         "numeric_count": int(r.get("numeric_count") or 0),
+        # A day count answers "how many days" exactly, which `count` does not:
+        # a heart-rate series has many readings a day, and 392 of PHIA's 4,000
+        # objective questions ask how many days something happened.
+        "days": int(r.get("days") or 0),
+        # None without a band, so a table without one does not carry a band
+        # count that is only the whole count again.
+        "count_in_range": _count(r.get("count_in_range")),
+        "days_in_range": _count(r.get("days_in_range")),
         "min": _number(r.get("min")),
         "max": _number(r.get("max")),
         "avg": _number(r.get("avg")),

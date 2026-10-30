@@ -629,6 +629,60 @@ async def test_trend_citation_members_use_the_actual_capped_input_span(database)
     assert len(resolved["readings"]) == citations.MEMBERS_SHOWN
 
 
+async def test_a_value_band_counts_readings_and_days_on_the_rows_own_basis(database):
+    """The band is compared as min/max/avg are: printed values for one unit,
+    canonical values for a shared canonical unit, nothing otherwise.
+    Compared on printed values, 80 umol/L counted and 0.9 mg/dL (79.56
+    umol/L, the same creatinine) did not, in a row reported in mol/L."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    def at(day, hour=8):
+        return datetime(2026, 1, day, hour, tzinfo=UTC)
+
+    drafts = [observations.Draft(name_text=name, value_text=value, unit_text=unit, observed_start=when)
+              for name, value, unit, when in (
+                  ("ALT", "20", "U/L", at(1)), ("ALT", "45", "U/L", at(1, 20)), ("ALT", "50", "U/L", at(2)),
+                  ("ALT", "10", "U/L", at(3)),
+                  ("Creatinine", "80", "umol/L", at(1)), ("Creatinine", "0.9", "mg/dL", at(2)),
+                  ("Albumin", "40", "g/L", at(1)), ("Albumin", "600", "umol/L", at(2)))]
+    await observations.ingest("1", drafts, observations.Provenance("lab-report", "file", "th_files:synthetic-band"),
+                              user_tz="UTC")
+    store, window = PostgresHealthQuery(), query.Window(0, 0, "UTC")
+
+    [alt] = await store.stats("1", query.Selection(indicators=("ALT",)), window, value_min=40)
+    assert (alt["count"], alt["days"], alt["count_in_range"], alt["days_in_range"]) == (4, 3, 2, 2)
+    [plain] = await store.stats("1", query.Selection(indicators=("ALT",)), window)
+    assert plain["count_in_range"] is None and plain["days_in_range"] is None
+
+    creatinine = query.Selection(indicators=("2160-0",))
+    [both] = await store.stats("1", creatinine, window, value_min=79e-6)
+    assert both["unit"] == "mol/L" and both["count_in_range"] == 2
+    [neither] = await store.stats("1", creatinine, window, value_min=50)
+    assert neither["count_in_range"] == 0
+
+    [albumin] = await store.stats("1", query.Selection(indicators=("1751-7",)), window, value_min=1)
+    assert albumin["mixed_units"] and albumin["count_in_range"] is None
+
+
+async def test_a_value_band_is_not_counted_over_steps_stored_as_increments(database):
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    drafts = [observations.Draft(name_text="steps", value_text="4000", unit_text="{#}",
+                                 observed_start=datetime(2026, 1, 1, hour, tzinfo=UTC)) for hour in (8, 12, 18)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-steps",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    envelope = await HealthIndicatorsService(PostgresHealthQuery(), outside_note=False).envelope(
+        {"user_id": "1"}, indicators=["steps"], view="stats", value_min=10000)
+    [row] = envelope.data
+    assert row["code"] == "55423-8"
+    assert row["count_in_range"] is None and row["days_in_range"] is None
+    assert any(a.startswith("no band was counted for") for a in envelope.assumptions)
+
+
 async def test_an_empty_window_names_the_readings_the_record_holds_elsewhere(database):
     """A window holding none of a series' readings is zero there, not a
     record without the series; the whole-record stats say where it is."""

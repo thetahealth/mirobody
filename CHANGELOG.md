@@ -2,6 +2,23 @@
 
 ### Fixed
 
+- **A counting question can be asked of `view="stats"`, and its count is
+  right.** "How many days last week did I get under an hour of deep sleep"
+  is a band plus a count, and the tool returned the whole series; a local 2B
+  answered `30.75`, a duration. `query_health_indicators` takes `value_min` /
+  `value_max`, and stats rows now carry `days` (distinct local days) and,
+  when a band is given, `count_in_range` (readings in it) and
+  `days_in_range` (days with at least one). The band is compared on the
+  basis the row's min/max/avg use, so it is in the unit the row reports, and
+  a series whose readings share no unit gets no count. A series stored in
+  pieces (steps as increments, sleep as segments) gets no count either: a
+  piece is not a day's value, and three 4,000-step readings counted no day
+  above 10,000. A bound that is not a finite number, or a `value_min` above
+  `value_max`, is refused; a band on a view that does not count is said, not
+  silently dropped. `HealthQuery.stats` takes the band as optional keyword
+  arguments, passed only when given. How to tell:
+  `pytest mirobody/tests/test_value_range_filter.py`.
+
 - **An empty window says it is empty, not that the record lacks the
   indicator.** When a named window held none of the readings a selection
   matched, `query_health_indicators` fell back to the catalogue under "no

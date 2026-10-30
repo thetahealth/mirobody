@@ -50,7 +50,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from mirobody.kernel import query, series, tools
+from mirobody.kernel import metrics, query, series, tools
 from mirobody.kernel.ops import is_driver_exception
 from ._authz import refused
 from ._base import CITATION_SESSION, RecordTool
@@ -250,7 +250,11 @@ class HealthIndicatorsService(RecordTool):
             daily = await awaited(hq.buckets(subject_id, sel, window, resolution="day", limit=400))
             return query.trend_rows(daily)
         if method == "stats":
-            return await awaited(hq.stats(subject_id, sel, window))
+            if not request.banded:
+                return await awaited(hq.stats(subject_id, sel, window))
+            rows = await awaited(hq.stats(subject_id, sel, window, value_min=request.value_min,
+                                          value_max=request.value_max))
+            return [_unbanded(r) if _in_pieces(r) else r for r in rows]
         if method == "latest":
             return await awaited(hq.latest(subject_id, sel, window))
         raise ValueError(f"no leaf for method {method!r}")
@@ -377,6 +381,12 @@ def _envelope_for(
             f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
             f"call again with indicators copied from it and view={request.view}"
         )
+    if method == "stats" and request.banded:
+        assumptions.extend(_band_notes(request, rows))
+    elif request.band_unapplied and method != "catalog":
+        assumptions.append(
+            f"value_min/value_max were not applied: view={request.view} returns readings as they are; "
+            "view=stats counts them (count_in_range, days_in_range)")
     if method == "buckets" and request.view in ("day", "week", "month"):
         assumptions.append(_DAY_VALUE_NOTE)
     if semantics == query.SEMANTICS_DATE_PADDED:
@@ -467,6 +477,53 @@ def _raw_cut_note(rows: Sequence[Mapping[str, Any]], cap: int) -> str:
     span = f", {times[0][:16]} to {times[-1][:16]}" if times else ""
     return (f"Only part of the data is shown: the latest {cap} readings per indicator{span}. "
             f"Older data {_NOT_MISSING}. For it, call again with {' or with '.join(ways)}.")
+
+
+def _pieces_codes() -> frozenset[str]:
+    """The catalogue identities whose every row stores a day in pieces:
+    increments (steps), segments (sleep stages) or entries (a meal's
+    protein). A code also carried by a daily figure (93831-6 is both a
+    night's deep-sleep total and its segments) is not one of them."""
+    shapes: dict[str, set[str]] = {}
+    for m in metrics.ROWS:
+        key = m.loinc if m.loinc and m.confidence == metrics.CONFIDENT else m.name
+        shapes.setdefault(key, set()).add(m.state_class)
+    pieces = {metrics.STATE_CUMULATIVE, metrics.STATE_INTERVAL, metrics.STATE_SESSION}
+    return frozenset(key for key, found in shapes.items() if found <= pieces)
+
+
+_PIECES = _pieces_codes()
+
+
+def _in_pieces(row: Mapping[str, Any]) -> bool:
+    return str(row.get("code") or "") in _PIECES
+
+
+def _unbanded(row: Mapping[str, Any]) -> dict[str, Any]:
+    """A band compares each stored reading, and a piece is not a day's
+    value: 12,000 steps stored as three 4,000-step increments counted no day
+    above 10,000. No count is given rather than a wrong one."""
+    return {**row, "count_in_range": None, "days_in_range": None}
+
+
+def _band_notes(request: query.QueryRequest, rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    """What a band counted, in which unit, and which rows it could not count."""
+    lo, hi = request.value_min, request.value_max
+    band = (f"between {lo:.15g} and {hi:.15g}" if lo is not None and hi is not None
+            else f"at or above {lo:.15g}" if lo is not None else f"at or below {hi:.15g}")
+    notes = [(f"count_in_range is the readings and days_in_range the days with at least one reading {band}, "
+              "in each row's unit; count and days are the whole window")]
+    pieces = sorted({str(r.get("indicator") or "") for r in rows if _in_pieces(r)} - {""})
+    if pieces:
+        notes.append("no band was counted for " + ", ".join(pieces) + ": each reading is a piece of a day "
+                     "(an increment or a segment), not the day's value; ask the daily series instead, "
+                     "such as dailySteps for steps")
+    unitless = sorted({str(r.get("indicator") or "") for r in rows
+                       if r.get("mixed_units") and r.get("count_in_range") is None and not _in_pieces(r)} - {""})
+    if unitless:
+        notes.append("no band was counted for " + ", ".join(unitless) + ": its readings share no unit to "
+                     "compare the band in")
+    return notes
 
 
 def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str, Any]],

@@ -47,8 +47,9 @@ _COLUMNS: dict[str, tuple[str, ...]] = {
     "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
               "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
-    "stats": ("indicator", "count", "min", "max", "avg", "median", "stddev", "sum", "first", "first_date",
-              "last", "last_date", "change", "unit", "mixed_units", "system", "code"),
+    "stats": ("indicator", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
+              "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "mixed_units",
+              "system", "code"),
     "latest": ("indicator", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
