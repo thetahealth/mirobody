@@ -2,6 +2,22 @@
 
 ### Fixed
 
+- **Citations in an answer are drawn on the values, not as numbered chips,
+  and the web client's tables, charts and indicator pages read on a phone.**
+  Every cited id was a numbered chip: one sentence carried 19, a table row 7,
+  the same row twice in one cell (`114.5 ⁹ ⁹`), and in a narrow cell the chip
+  wrapped onto a line of its own; the numbers matched nothing on screen. The
+  bundled client (`frontend/`) now underlines the cited values with a dotted
+  line and opens all of a group's sources on click, grouped by indicator; a
+  shared page draws no marks. Also: a table's label column no longer shrinks
+  to one character per line, a line chart's two series are two colours (the
+  palette failed four of five checks) drawn straight with each reading
+  marked, the Indicators page fits a 375px screen as cards, and its drawer
+  charts the readings against the report's range and shows each reading's
+  range and flag. The model pill beside a long conversation title no longer
+  breaks over two lines. How to tell: open any cited answer; on a phone, open
+  Indicators.
+
 - **A misspelt citation tag no longer reaches the reader, and a value is not
   cited twice.** DeepSeek closed a statement with `<xcite>[r4]</cite>`, which
   every client showed as text, and in English wrote each cite after its
