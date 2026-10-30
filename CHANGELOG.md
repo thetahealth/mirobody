@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 1.5.10
+
 ### Fixed
 
 - **Citations in an answer are drawn on the values, not as numbered chips,
