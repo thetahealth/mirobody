@@ -15,8 +15,10 @@
   marked, the Indicators page fits a 375px screen as cards, and its drawer
   charts the readings against the report's range and shows each reading's
   range and flag. The model pill beside a long conversation title no longer
-  breaks over two lines. How to tell: open any cited answer; on a phone, open
-  Indicators.
+  breaks over two lines. The README and walkthrough demos are re-recorded on
+  this client, and the Japanese README shows its own Ask and resolve demos
+  instead of the English ones. How to tell: open any cited answer; on a
+  phone, open Indicators.
 
 - **A misspelt citation tag no longer reaches the reader, and a value is not
   cited twice.** DeepSeek closed a statement with `<xcite>[r4]</cite>`, which

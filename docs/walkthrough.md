@@ -117,14 +117,14 @@ Total Cholesterol   4.60 mmol/L   2025-11-12   you_lab_2025-11.md
                     4.38 mmol/L   2026-08-04   you_lipid_panel_2026-08.csv
 ```
 
-Three files, three vocabularies, one line. Every number carries a numbered
-source: click it and the reading, its date and range, and the file it came off
-open beside it. Ask the same question about the shared record and the answer is
+Three files, three vocabularies, one line. Every cited number is underlined
+with a dotted line: click it and the reading, its date and range, and the file
+it came off open beside it. Ask the same question about the shared record and the answer is
 a different person's.
 
 <p align="center">
   <img src="images/ask-own-demo.gif"
-       alt="Asking how your cholesterol has changed: the steps show as the agent works, the three reports become one trend, and a numbered source on a number opens the reading and its file" width="880">
+       alt="Asking how your cholesterol has changed: the steps show as the agent works, the three reports become one trend, and an underlined number opens the reading and its file" width="880">
 </p>
 
 <p align="center">

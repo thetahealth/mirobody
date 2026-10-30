@@ -24,7 +24,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.gif" alt="コレステロールの変化を尋ねる様子：エージェントが作業の各ステップを表示しながら、同じ検査を別々の名前で記した3つの報告を1本の推移グラフにまとめ、数値に付いた番号付きの出典を開くと測定値とその元ファイルが表示される" width="880">
+  <img src="docs/images/ask-own-demo.ja.gif" alt="日本語でコレステロールの変化を尋ねる様子：エージェントが作業の各ステップを表示しながら、同じ検査を別々の名前で記した3つの報告を1本の推移グラフにまとめ、点線の付いた数値を開くと測定値とその元ファイルが表示される" width="880">
 </p>
 <p align="center"><em>3つの報告、同じ検査に3つの名前。それを1本の推移に。どの数値にも元のファイルが付いています。</em></p>
 
@@ -51,7 +51,7 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 中国語の `血红蛋白` と日本語の `ヘモグロビン` は、どちらも `718-7` になります。`血脂`（中国語で「血中脂質」）は未解決のままです。特定の1つの検査ではなく、カテゴリを指す名前だからです。アプリ全体でも、同じエンジンが名称と単位を標準化します。
 
 <p align="center">
-  <img src="docs/images/resolve-demo.gif" alt="mirobody resolve：ヘモグロビンの中国語名と日本語名が同じ LOINC コードに解決され、広すぎるカテゴリは未解決のまま残る" width="880">
+  <img src="docs/images/resolve-demo.ja.gif" alt="mirobody resolve：ヘモグロビンの中国語名と日本語名が同じ LOINC コードに解決され、広すぎるカテゴリは未解決のまま残る" width="880">
 </p>
 
 → [Python や MCP からエンジンを使う](docs/quickstart.md#a--the-library)（英語）
