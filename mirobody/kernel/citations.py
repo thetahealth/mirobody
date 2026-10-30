@@ -13,11 +13,13 @@ A cite is one of three kinds: a row a tool showed in this conversation
 (`r3`), a reference passage (`ref:<source>:<id>`), or lines of a document
 (`<path>#L12-L14`). Text outside a statement carries no number.
 
-`parse` reads an answer into segments, `strip` removes the markup for a reader
-that does not render it, and `check` returns every number that is not traced:
-outside a statement, cited to nothing, or found neither in its cited rows nor
-as a difference, ratio, percentage change, sum or mean of their values.
-stdlib only: the agent, the benchmark and the training judge use one copy.
+`normalize` spells a misspelt tag right, `parse` reads an answer into segments,
+`strip` removes the markup for a reader that does not render it, and `check`
+returns every number that is not traced: outside a statement, cited to
+nothing, or found neither in its cited rows nor as a difference, ratio,
+percentage change, sum or mean of their values. The last three normalize
+first. stdlib only: the agent, the benchmark and the training judge use one
+copy.
 """
 
 from __future__ import annotations
@@ -41,6 +43,14 @@ _CLAIM_BOUNDARY = re.compile(r"[\n|。！？；]|[.!?;](?=\s)")
 #: A fenced block (a chart's data) is drawn from the rows the prose cites.
 _FENCE = re.compile(r"```.*?(?:```|\Z)", re.S)
 _MARKUP = re.compile(r"</?statement>|<cite>.*?</cite>", re.S)
+#: The tags as models actually write them. Only a cite's opening tag has been
+#: seen misspelt (DeepSeek, 2026-10-30: `<xcite>[r4]</cite>`), so one or two
+#: stray letters read as `<cite>` only where ids follow: `<excite>`, `<recite>`
+#: and a `<cite>` around a journal's title are prose and stay as written.
+_TAG = re.compile(r"<\s*(/?)\s*(statement|[a-z]{0,2}cite)\s*>", re.I)
+_IDS_NEXT = re.compile(r"\s*\[")
+#: What a cite holds: its ids. Anything else after them is the answer again.
+_CITE_IDS = re.compile(r"\s*(?:\[[^\[\]\n]*\]\s*)*")
 
 #: English month names, capitalised as a date writes them ("may" is a verb).
 _MONTH = ("Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sept?(?:ember)?"
@@ -96,11 +106,90 @@ class _Reader:
     out: list[Segment] = field(default_factory=list)
 
 
+def normalize(answer: str) -> str:
+    """The answer's citation markup as the format spells it: a misspelt cite
+    corrected, a `</cite>` that closes nothing dropped, a cite left open
+    closed after its ids (so it cannot swallow the prose that follows), and a
+    cite written just after `</statement>` moved inside it. Fenced blocks (a
+    chart's JSON) are not markup and are left alone, as is text without a tag."""
+    text = answer or ""
+    if "<" not in text:
+        return text
+    out: list[str] = []
+    pos = 0
+    for fence in _FENCE.finditer(text):
+        out.append(_normalize_prose(text[pos:fence.start()]))
+        out.append(fence.group())
+        pos = fence.end()
+    out.append(_normalize_prose(text[pos:]))
+    return "".join(out)
+
+
+def _normalize_prose(text: str) -> str:
+    out: list[str] = []
+    pos = 0
+    # Cite-like tags left as written (no ids followed), by their spelling, so
+    # their own closing tags stay too.
+    kept: dict[str, int] = {}
+    while (match := _TAG.search(text, pos)) is not None:
+        out.append(text[pos:match.start()])
+        pos = match.end()
+        closing, name = match.group(1) == "/", match.group(2).lower()
+        if name == "statement":
+            if not closing:
+                out.append(STATEMENT_OPEN)
+                continue
+            # `<statement>…</statement><cite>[r2]</cite>`: the cite is the
+            # statement's (DeepSeek wrote every statement of an English answer
+            # this way, 2026-10-30), and outside it `check` saw a statement
+            # with no cite.
+            while (after := _cite_opening(text, pos)) is not None:
+                cite, pos = _read_cite(text, after)
+                out.append(cite)
+            out.append(STATEMENT_CLOSE)
+        elif not closing and _IDS_NEXT.match(text, pos):
+            cite, pos = _read_cite(text, pos)
+            out.append(cite)
+        elif not closing:
+            kept[name] = kept.get(name, 0) + 1
+            out.append(match.group())
+        elif kept.get(name):
+            kept[name] -= 1
+            out.append(match.group())
+        elif name != "cite":
+            out.append(match.group())
+        # Otherwise a `</cite>` that closes nothing: dropped.
+    out.append(text[pos:])
+    return "".join(out)
+
+
+def _cite_opening(text: str, pos: int) -> int | None:
+    """Where the ids start, if a cite with ids opens at `pos` past spaces."""
+    while pos < len(text) and text[pos] in " \t":
+        pos += 1
+    match = _TAG.match(text, pos)
+    if match and match.group(1) != "/" and match.group(2).lower().endswith("cite") and _IDS_NEXT.match(text, match.end()):
+        return match.end()
+    return None
+
+
+def _read_cite(text: str, pos: int) -> tuple[str, int]:
+    """The cite whose opening tag ends at `pos`, spelt right, and where the
+    answer resumes: after its closing tag, or after its last id when it has
+    none (the whitespace after the ids is the answer's)."""
+    ids = _CITE_IDS.match(text, pos)
+    body = text[pos:ids.end()].rstrip()
+    close = _TAG.match(text, ids.end())
+    if close and close.group(1) == "/" and close.group(2).lower().endswith("cite"):
+        return CITE_OPEN + body + CITE_CLOSE, close.end()
+    return CITE_OPEN + body + CITE_CLOSE, pos + len(body)
+
+
 def parse(answer: str) -> list[Segment]:
     """The answer as segments, in order. Tolerant: an unclosed statement runs
     to the next one or to the end, and a `<cite>` outside a statement cites
     the plain text since the previous segment, as LongCite's citations do."""
-    reader = _Reader(answer or "")
+    reader = _Reader(normalize(answer))
     plain: list[str] = []
     while reader.pos < len(reader.text):
         start = reader.text.find(STATEMENT_OPEN, reader.pos)
@@ -168,7 +257,7 @@ def _flush(out: list[Segment], text: str, cites: tuple[str, ...] = (), *, statem
 
 def strip(answer: str) -> str:
     """The answer without its markup, for a reader that does not render it."""
-    return _MARKUP.sub("", answer or "")
+    return _MARKUP.sub("", normalize(answer))
 
 
 def cite_kind(cite: str) -> str:
@@ -206,7 +295,7 @@ def check(answer: str, support: Mapping[str, Collection[float]], *,
     cite not in it is unknown only when `known` is given. Fenced blocks (a
     chart's data) are not read.
     """
-    text = _FENCE.sub("\n", answer or "")
+    text = _FENCE.sub("\n", normalize(answer))
     problems = [Problem("unclosed_statement", text[start:start + 60].strip()) for start in _unclosed(text)]
     for segment in parse(text):
         values = numbers(segment.text)
@@ -289,6 +378,7 @@ __all__ = [
     "Segment",
     "check",
     "cite_kind",
+    "normalize",
     "numbers",
     "parse",
     "strip",

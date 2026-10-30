@@ -2,6 +2,22 @@
 
 ### Fixed
 
+- **A misspelt citation tag no longer reaches the reader, and a value is not
+  cited twice.** DeepSeek closed a statement with `<xcite>[r4]</cite>`, which
+  every client showed as text, and in English wrote each cite after its
+  statement's close (`<statement>…</statement><cite>[r2]</cite>`), which
+  `check` reported as a statement with no cite. `kernel.citations.normalize`
+  now corrects the first and moves the second inside before the answer is
+  kept, and `parse`, `strip` and `check` read the same way. Stray letters
+  count as a cite only where ids follow, so `<excite>`, a `<cite>` around a
+  journal's title and a chart's JSON are left as written. The automatic cite
+  looked only at the character after a value, so `114.5 <cite>[r32]</cite>`
+  gained a second `[r32]`; it now also skips a value whose cite follows a
+  space, or whose row the claim cites later. The prompt tells the model to
+  write a claim once, inside its statement: it wrote one sentence in prose
+  and again in a `<statement>` beside it. How to tell: `pytest
+  mirobody/tests/test_citations.py mirobody/tests/test_chat_auto_citations.py`.
+
 - **A counting question can be asked of `view="stats"`, and its count is
   right.** "How many days last week did I get under an hour of deep sleep"
   is a band plus a count, and the tool returned the whole series; a local 2B

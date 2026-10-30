@@ -77,6 +77,28 @@ def test_an_existing_citation_is_not_duplicated() -> None:
     assert cited == 0
 
 
+def test_a_citation_after_a_space_is_not_duplicated() -> None:
+    rows = rows_from_result(TABLE)
+    text, cited, _ = attach_citations("| 体重 | 69.5 kg <cite>[r3]</cite> |", rows)
+    assert text.count("<cite>") == 1
+    assert cited == 0
+
+
+def test_a_row_the_claim_already_cites_is_not_cited_again() -> None:
+    rows = rows_from_result(TABLE)
+    text, cited, _ = attach_citations("体重 69.5 kg，和上周持平 <cite>[r3]</cite>。", rows)
+    assert text.count("[r3]") == 1
+    assert cited == 0
+
+
+def test_another_rows_cite_later_in_the_claim_does_not_stop_one() -> None:
+    rows = rows_from_result(TABLE)
+    text, cited, _ = attach_citations("体重 69.5 kg，上次 69.7 kg<cite>[r4]</cite>。", rows)
+    assert "69.5 kg<cite>[r3]</cite>" in text
+    assert text.count("[r4]") == 1
+    assert cited == 1
+
+
 def test_a_compact_constant_row_is_a_source() -> None:
     rows = rows_from_result(COMPACT)
     assert len(rows) == 1 and rows[0]["rid"] == "r1"
@@ -178,3 +200,14 @@ def test_a_specific_metric_name_wins_over_its_shared_suffix():
                                      {"rid": "r2", "indicator": "Fasting glucose", "value": 5.5, "unit": "mmol/L"}]))
     result, cited, _ = attach_citations("Fasting glucose is 5.5 mmol/L.", rows)
     assert "[r2]" in result and cited == 1
+
+
+def test_the_models_misspelt_markup_is_mended_before_the_answer_is_kept(monkeypatch) -> None:
+    # The turn needs the agent's dependencies; a minimal install has none.
+    turn = pytest.importorskip("mirobody.agent.chat.turn")
+
+    monkeypatch.setenv("AUTO_CITE", "off")
+    block = {"type": "text", "text": "<statement>均值 74.4 次/分<xcite>[r4]</cite></statement>"}
+    assert turn._attach_citations(block, [])["text"] == "<statement>均值 74.4 次/分<cite>[r4]</cite></statement>"
+    untouched = {"type": "text", "text": "没有标记"}
+    assert turn._attach_citations(untouched, []) is untouched
