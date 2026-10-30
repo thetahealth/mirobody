@@ -21,8 +21,6 @@ Mirobody 不填任何 API key 也能跑：一个模型回答问题，一个模�
   同一台机器上的小号 229 分，云端模型 237–247 分；140 个印刷行存对 139 个，31 条日记条目写出 29 条
   （[实测](../benchmarks/local_models/HISTORY.md#small-and-large-on-one-machine-2026-10-08)，英文）。
   在 48 GB 的 Apple 芯片主机的 GPU 上每次回答约 2 分钟，要约 20 GB 内存：32 GB 内存的 Mac，或 24 GB 显存的显卡。
-- **1.6.0 交付目标**：把这两个小模型针对 Mirobody 做后训练，作为 Mirobody 自己的模型发布（[再训练](#再训练)），
-  合计约 3 GB，和今天的小号一样，16 GB 内存、没有显卡就能跑。是两个模型，不合并成一个。只有通过了和被替换的模型同样的评测，才替换默认。
 - **看图**：GLM-OCR 只读印刷的文字和表格，别的一概不会。看懂一张照片拍的是什么，比如一盘菜的热量、一块皮疹，
   需要能看图的模型：大号，或云端模型。这对小模型做不到，Mirobody 会直说，而不是去猜。
 - **和云端模型比**：[model-choice.zh-CN.md](model-choice.zh-CN.md) 把小号和五个云端模型（DeepSeek V4.1 Flash、Claude Sonnet 5.5、
@@ -117,7 +115,6 @@ GLM-OCR 官方只有四种提示：`Text Recognition:`、`Table Recognition:`、
 
 ### 再训练
 
-这就是 1.6.0 要交付的，作为 Mirobody 自己的模型发布（[model-choice.zh-CN.md](model-choice.zh-CN.md)）。
 1.5.4 把 P0 做到了这里：上面的 harness 改动；评测发布在 [`benchmarks/local_models/`](../benchmarks/local_models/README.md) 和
 [`benchmarks/local_ocr/`](../benchmarks/local_ocr/README.md)，MiniCPM5-2B 的基线已记下（2026-10-06），云端参照也一起跑了。
 当前回归目标是从固定版本语料重新导出真值的 100 道多样化问题。训练样本与独立留出的测试来源另行准备；
