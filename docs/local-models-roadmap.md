@@ -32,12 +32,6 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
   ([measured](../benchmarks/local_models/HISTORY.md#small-and-large-on-one-machine-2026-10-08)).
   It takes about 2 minutes an answer on a 48 GB Apple-silicon machine's GPU and about
   20 GB of memory: a Mac with 32 GB, or a GPU with 24 GB.
-- **1.6.0 ships the goal**: the same two small models post-trained for
-  Mirobody, as Mirobody's own model ([Then, training](#then-training)), about
-  3 GB together, in 16 GB of memory and without a GPU, like the small size
-  today. Two models, not
-  one merged model. It replaces the default only when it passes the same
-  evaluation as the model it replaces.
 - **Photos**: GLM-OCR reads printed text and tables, nothing else.
   Understanding what a photo shows, such as the calories on a plate or a
   rash, needs a model that sees: the large size, or a hosted one. The small
@@ -173,9 +167,7 @@ Also in 1.5.4, and not on the list (each in the [CHANGELOG](../CHANGELOG.md)):
 
 ### Then, training
 
-This is what 1.6.0 ships, as Mirobody's own model
-([model-choice.md](model-choice.md)). P0 is
-where 1.5.4 leaves it: the harness changes above; the evaluation published in
+P0 is where 1.5.4 leaves it: the harness changes above; the evaluation published in
 [`benchmarks/local_models/`](../benchmarks/local_models/README.md) and
 [`benchmarks/local_ocr/`](../benchmarks/local_ocr/README.md), with
 MiniCPM5-2B's baseline recorded (2026-10-06) and the cloud references beside

@@ -125,6 +125,14 @@
   as structured data), 86 questions comparing a lab value with the same day's
   device value went from 22 to 86 answered correctly.
 
+### Changed
+
+- **The local-model roadmap no longer promises a model in 1.6.0.**
+  `docs/local-models-roadmap.md` and its Chinese edition said 1.6.0 would
+  ship the two small local models post-trained as Mirobody's own model; no
+  release is committed to that. Both editions drop the claim; the training
+  plan and its pass bar stay, with no version attached.
+
 ## 1.5.9
 
 ### Added
