@@ -168,14 +168,22 @@ async def async_get_structured_output(
         return None
 
 
+def text_was_cut(spec: RouteSpec, max_tokens: Any, completion_tokens: Any, duration_ms: int) -> None:
+    """Log a reply cut at `max_tokens`, which used to pass as a whole answer.
+    Both backends report a cut through here, so the two cannot disagree."""
+    logger.warning("text completion hit max_tokens: model=%s max_tokens=%s completion_tokens=%s duration_ms=%d",
+                   spec.model, max_tokens, completion_tokens, duration_ms)
+
+
 async def async_get_text_completion(
     messages: list[dict],
     model_name: str | None = None,
     provider: str | None = None,
     **kwargs: Any,
 ) -> str | None:
-    """Plain text (titles, summaries, profile prose) from the `UTILS_TEXT_MODEL`
-    route, or the named `provider`. None when no model answered."""
+    """Plain text (titles, summaries, the profile's scenario) from the
+    `UTILS_TEXT_MODEL` route, or the named `provider`. None when no model
+    answered; a reply cut at `max_tokens` is logged and returned as far as it got."""
     from .clients import client_manager
 
     start = time.monotonic()
@@ -189,16 +197,22 @@ async def async_get_text_completion(
     logger.info("text completion: model=%s", spec.model)
     try:
         client = client_manager.for_spec(spec)
+        params = _request_kwargs(spec, kwargs)
         response = await client.chat.completions.create(
             model=spec.model,
             messages=messages,
-            **_request_kwargs(spec, kwargs),
+            **params,
         )
-        duration_ms = _ms(start)
-        logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
-        return response.choices[0].message.content
+        choice = response.choices[0]
+        content, cut = choice.message.content, choice.finish_reason == "length"
     except Exception as e:
         duration_ms = _ms(start)
         logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
                      type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
+    duration_ms = _ms(start)
+    if cut:
+        usage = getattr(response, "usage", None)
+        text_was_cut(spec, params.get(_max_tokens_param(spec)), getattr(usage, "completion_tokens", None), duration_ms)
+    logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
+    return content

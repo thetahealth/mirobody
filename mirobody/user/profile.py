@@ -1,13 +1,26 @@
 import asyncio
 import logging
 import re
+from datetime import date, timedelta
 from typing import Any
 
 
+from mirobody.collect.observations import (
+    KIND_CONDITION,
+    KIND_FINDING,
+    KIND_MEASUREMENT,
+    KIND_NOTE,
+    KIND_SYMPTOM,
+    MODALITY_LAB,
+    MODALITY_MANUAL,
+    MODALITY_SELF,
+    MODALITY_UNVERIFIED,
+)
+from mirobody.collect.query import PostgresHealthQuery
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.standardize.parse import parse_range
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
-from mirobody.utils.llm_output import strip_code_fence
 from mirobody.utils.config import safe_read_cfg
 
 from .user import age_from_birth
@@ -19,7 +32,7 @@ def _extract_core_section(common_part: str, maxlen: int) -> str:
     """Pull the curated, durable '核心摘要 / Core Summary' section out of a profile.
 
     The profile generator emits this as the FIRST section (see
-    GENERATE_USER_PROFILE_PROMPT). We inject ONLY this section so the system
+    `_core_summary`). We inject ONLY this section so the system
     prompt stays short and stable between profile refreshes (prompt-cache
     friendly): the volatile lab time-series lives in the detail, which the
     agent reads on demand from ``/memories/health_profile.md``.
@@ -95,9 +108,19 @@ async def get_health_profile_core(user_id: str, maxlen: int = 2000) -> str | Non
     return core or None
 
 
-MAX_TOKENS = 10000
-MAX_OUTPUT_TOKENS = 32000  # No limit on profile output length to avoid truncation
-MAX_PREVIOUS_PROFILE_LENGTH = 15000  # Maximum character limit for previous profile version
+#: Estimated tokens of the digest the scenario is picked from.
+DIGEST_TOKENS = 10000
+#: What the scenario answer may write: one line, "场景：<name>", which
+#: MiniCPM5-2B wrote in 4-12 tokens for each of 17 refreshes (2026-10-31). The
+#: rest is room for the entries that reason at `low`; a cut answer names no
+#: scenario, and the previous one stays.
+SCENARIO_MAX_TOKENS = 1024
+#: How far back the profile looks: the "past 3 years" the model was told to keep.
+HISTORY_DAYS = 3 * 365
+#: Values listed per indicator in the document, newest first; the rest are counted.
+VALUES_SHOWN = 10
+#: Items on one line of the core summary; the rest are counted.
+CORE_ITEMS = 6
 
 
 def _estimated_tokens(text: str) -> int:
@@ -114,23 +137,6 @@ def _estimated_tokens(text: str) -> int:
     return max(1, len(text) // divisor)
 
 
-def _chunk_by_budget(lines: list[str], budget: int) -> list[str]:
-    """Greedily join lines into newline-separated chunks of at most `budget`
-    estimated tokens. A single line over budget gets a chunk of its own; the
-    previous packer silently dropped it."""
-    chunks: list[list[str]] = []
-    current: list[str] = []
-    used = 0
-    for line in lines:
-        cost = _estimated_tokens(line) + 1
-        if current and used + cost > budget:
-            chunks.append(current)
-            current, used = [], 0
-        current.append(line)
-        used += cost
-    if current:
-        chunks.append(current)
-    return ["\n".join(chunk) for chunk in chunks]
 PROFILE_LOCK_TIMEOUT_SECONDS = 600  # 10 minutes lock timeout for profile generation
 PROFILE_LOCK_WAIT_TIMEOUT_SECONDS = 120  # Maximum wait time to acquire lock (2 minutes)
 PROFILE_LOCK_RETRY_INTERVAL_SECONDS = 2  # Retry interval when waiting for lock
@@ -219,97 +225,28 @@ SCENARIO_SELECTION_RULES_BASE = """
 
 #-----------------------------------------------------------------------------
 
-GENERATE_USER_PROFILE_PROMPT = f"""
-You are a professional health profile analyst. Generate a concise user health profile in Markdown format based on the provided data.
+#: The model picks the scenario and writes nothing else that is stored. Asked
+#: to rewrite the whole profile, MiniCPM5-2B on 2026-10-30 carried every
+#: reading of three years through its own output: it filed a urine glucose
+#: under 血糖, wrote "无记录" for panels the person never had and looped on them
+#: to the output cap, and opened two profiles with the prompt's instructions.
+#: Asked for the summary alone, it still filed symptoms as conditions and left
+#: out sex and age (2026-10-31). What a record says, code writes.
+SCENARIO_PROMPT = f"""
+Pick the one health-management scenario from the table below that the person's data clearly supports, by the rules below it.
 
-## Critical Instructions
-1. **Output Format**: Generate the profile strictly in Markdown format. Output the Markdown content DIRECTLY without wrapping it in code blocks (no ```markdown``` or ``` wrappers)
-2. **Language Consistency**: Use the same language as the user's preferred language throughout the output
-3. **Incremental Update**: If a previous profile is provided, ADD new information to it. DO NOT modify or delete existing information
-4. **Data Integrity**: Only include information that can be verified from the provided data
-5. **No Diagnosis**: Do not make medical diagnoses or provide medical advice
-6. **Concise Output**: Keep the output concise and to the point. Summarize and condense information where appropriate
-7. **Skip Empty Sections**: If a section or subsection has no data, do NOT output it at all (no placeholder text like "暂无数据")
-8. **No Code Blocks**: Do NOT wrap the output in ```markdown``` or any other code block format. Output plain Markdown text directly
-9. **Time-Based Indicator Management** (CRITICAL):
-   - For the SAME health indicator with multiple time points, keep ALL values from the **past 3 years**
-   - Sort multiple values by date in **descending order** (most recent first)
-   - Do NOT let older data overwrite newer data - if existing profile has a 2025 value, uploading a 2023 report should ADD the 2023 value, NOT replace the 2025 value
-   - Remove data older than 3 years from today
-   - Use the multi-time-point format shown below for indicators with multiple dates
+Answer with one line and nothing else: "场景：" followed by the scenario exactly as the table writes it, or "场景：无" when none fits.
 
-## Output Structure (Markdown)
-Only output sections that have actual data. Skip sections entirely if no data is available.
-
-### 0. 核心摘要 / Core Summary
-**ALWAYS output this section FIRST.** A short, durable, high-signal snapshot of the user —
-this is the only part injected into the assistant's standing context, so keep it **tight and
-stable** (it should change only when major facts change, not on every routine lab update).
-Include ONLY: basic demographics (sex/age/language), chronic conditions & key past history,
-current medications & allergies, and the **3–6 most clinically significant** current findings
-(notably abnormal values). **Hard limit: ≤ 1500 characters.** Do NOT dump full lab panels or
-time-series here — those belong in the detailed sections below.
-
-### 1. 用户基础信息 / Basic Information
-Include: gender, age, race/ethnicity, language, blood type, and other basic demographics
-
-### 2. 生活方式 / Lifestyle
-Include: exercise habits, sleep patterns, diet, smoking status, alcohol consumption, and other lifestyle factors
-
-### 3. 健康情况 / Health Status
-Include the following subsections (only output subsections with actual data):
-- 用药史 / Medication History: current and past medications, adverse drug reactions
-- 既往史 / Past Medical History: previous diseases, surgeries, hospitalizations, allergies, trauma history
-- 家族史 / Family History: hereditary diseases, immediate family health status
-- 免疫接种 / Immunization History: vaccination records
-- 月经周期 / Menstrual Cycle: (only for females, skip for males)
-- 检验指标 / Lab Test Results: use multi-time-point format for indicators with multiple dates:
-  ```
-  - 指标名称 / Indicator Name:
-    - 2025-01-15: 值 单位
-    - 2024-03-20: 值 单位
-    - 2023-06-10: 值 单位
-  ```
-  For indicators with only one time point, use simple format: `- 指标名称: 值 单位 (日期)`
-
-### 4. 近一周设备数据 / Recent Device Data (Past 7 Days)
-Include: heart rate, steps, sleep data, and other wearable device metrics from the past week
-
-## 场景 (Health Management Scenario)
-
-Based on user health data, select the most appropriate health management scenario according to the **Scenario Criteria Table** below.
-
-### Scenario Criteria Table
+## Scenario Criteria Table
 {SCENARIO_CRITERIA_TABLE}
-### Scenario Selection Rules
+## Scenario Selection Rules
 {SCENARIO_SELECTION_RULES_BASE}
-4. **Previous Scenario Continuity** (IMPORTANT):
-   - If a Previous Scenario is provided, prioritize maintaining scenario continuity
-   - Only change the scenario if:
-     - User's health status has significantly changed (e.g., new disease diagnosis, major improvement/deterioration)
-     - A more urgent health risk has emerged (e.g., acute cardiovascular risk)
-     - Current health data no longer matches the previous scenario criteria
-   - If user health data still matches the previous scenario criteria, KEEP the previous scenario
-   - Scenario continuity helps maintain consistent health management tracking
-5. **No Match Handling**: If user data is insufficient or does not match any scenario criteria, do NOT output the scenario section at all (including the heading)
-
-## Important Notes
-- **Skip Empty Sections**: Do NOT output any section or subsection that has no data. Do NOT write "暂无数据" or "No data available"
-- **Concise**: Summarize and condense information. Avoid verbose descriptions
-- **Data Completeness**: Ensure all available data is included in the appropriate sections
-- **Scenario Selection**:
-  - Only select a scenario when user health data clearly shows relevant risk factors or health conditions
-  - Select only ONE most appropriate scenario, not multiple
-  - If user does not match any scenario, do NOT output the scenario section at all (including the heading)
-  - Do not force-match scenarios; only select when there is clear evidence in health data
-  - **Scenario output format (MUST use Chinese scenario name only)**:
-
-## 场景
-
-隐匿性高血压人群早筛
-
-  - **IMPORTANT**: Output the scenario name in Chinese ONLY. Do NOT include English translation or any additional description
+4. **Previous Scenario Continuity**: if the data names a previous scenario and still meets its criteria, keep it. Change it only for a new diagnosis, a major improvement or deterioration, or a more urgent risk.
+5. **No Match**: if the data is insufficient or matches no scenario, answer "场景：无".
 """
+
+def _is_chinese(lang: str | None) -> bool:
+    return bool(lang) and ("zh" in lang.lower() or "cn" in lang.lower() or lang.lower() == "chinese")
 
 #-----------------------------------------------------------------------------
 # Scenario Mapping Table
@@ -428,72 +365,6 @@ def _get_default_scenario_info() -> dict[str, str]:
 
 #-----------------------------------------------------------------------------
 
-GENERATE_USER_PROFILE_USER_PROMPT = """
-## User Basic Information
-{basic_info}
-
-## Health Indicator Data
-{health_data}
-
-## Device Data (Past 7 Days)
-{device_data}
-
-## Previous Profile (for incremental update)
-{previous_profile}
-
-## Previous Scenario (if exists)
-{previous_scenario}
-
-Please generate a comprehensive health profile in Markdown format following the required structure. Remember to only ADD new information to the previous profile, not modify or delete existing content. If a Previous Scenario exists, consider maintaining scenario continuity unless there are significant health changes.
-"""
-
-MERGE_USER_PROFILE_PROMPT = """
-You are a professional health profile analyst. Merge the following profile chunks into a single concise Markdown profile.
-
-## Merging Instructions
-1. **Consolidate Information**: Combine related entries from different chunks
-2. **Preserve All Data**: Ensure no important information is lost during merging
-3. **Remove Duplicates**: Eliminate redundant information while preserving unique details (same indicator + same date + same value = duplicate)
-4. **Concise Output**: Keep the output concise and summarized
-5. **Skip Empty Sections**: Do NOT output any section or subsection that has no data
-6. **Language Consistency**: Use consistent language throughout the merged profile
-7. **Time-Based Indicator Merging** (CRITICAL):
-   - For the SAME health indicator appearing in multiple chunks, merge ALL time points together
-   - Sort by date in **descending order** (most recent first)
-   - Only keep data from the **past 3 years**
-   - Use multi-time-point format for indicators with multiple dates:
-     ```
-     - 指标名称:
-       - 2025-01-15: 值 单位
-       - 2024-03-20: 值 单位
-     ```
-
-## Required Output Structure
-Only output sections that have actual data:
-0. **### 0. 核心摘要 / Core Summary** — ALWAYS first. A tight, durable snapshot (≤ 1500 chars):
-   demographics, chronic conditions & key history, current meds & allergies, and the 3–6 most
-   clinically significant current findings. Do NOT put full lab panels/time-series here.
-1. 用户基础信息 / Basic Information
-2. 生活方式 / Lifestyle
-3. 健康情况 / Health Status (subsections: 用药史, 既往史, 家族史, 免疫接种, 月经周期, 检验指标 - only include subsections with data)
-4. 近一周设备数据 / Recent Device Data
-5. ## 场景 (仅当有适用场景时输出，使用二级标题格式，直接列出中文场景名称。格式: ## 场景\n\n场景名称。场景名称必须使用中文，不要包含英文翻译)
-
-Output ONLY the merged Markdown profile, no additional explanations. Skip sections with no data.
-Do NOT wrap the output in ```markdown``` or any other code block format. Output plain Markdown text directly.
-"""
-
-MERGE_USER_PROFILE_USER_PROMPT = """
-Here are the profile chunks to merge:
-
-{profile_chunks}
-
-Please merge all chunks into a single comprehensive Markdown profile following the required structure.
-"""
-
-#-----------------------------------------------------------------------------
-
-
 def _generate_scenario_image_name(name: str) -> str:
     """
     Generate image filename from English scenario name
@@ -587,6 +458,21 @@ def _extract_scenario_from_profile(profile_markdown: str) -> tuple[str, str]:
     return profile_markdown.strip(), ""
 
 
+def _scenario_in(answer: str) -> str | None:
+    """The scenario a "场景：<name>" line names, "" when it names none, and
+    None when the answer has no such line (the call failed or was cut).
+
+    A line of its own, not the document's "## 场景" heading: asked for the
+    heading, an empty line and the name, MiniCPM5-2B wrote the heading and
+    stopped, for each of five people on 2026-10-31."""
+    marks = list(re.finditer(r"^[#*\s]*场景\s*[:：]?", answer or "", re.M))
+    if not marks:
+        return None
+    rest = answer[marks[-1].end():]
+    name = next((line.strip(" *：:") for line in rest.splitlines() if line.strip()), "")
+    return "" if name in ("", "无", "None", "none") else name
+
+
 def _get_scenario_info(scenario_zh: str) -> dict[str, str] | None:
     """
     Look up mapping table by Chinese scenario name to get English scenario and image URL
@@ -644,14 +530,12 @@ class BasicInfoService:
         if gender is None:
             return None
         
-        is_chinese = lang and ('zh' in lang.lower() or 'cn' in lang.lower() or lang.lower() == 'chinese')
-        
-        if is_chinese:
+        if _is_chinese(lang):
             gender_map = {0: '未知', 1: '男', 2: '女'}
         else:
             gender_map = {0: 'Unknown', 1: 'Male', 2: 'Female'}
         
-        return gender_map.get(gender, 'Unknown' if not is_chinese else '未知')
+        return gender_map.get(gender, '未知' if _is_chinese(lang) else 'Unknown')
     
     @staticmethod
     async def get_user_basic_info(user_id: str) -> dict[str, Any]:
@@ -699,6 +583,9 @@ class BasicInfoService:
         return {}
 
 
+NO_DEVICE_DATA = "No device data available"
+
+
 class DeviceDataService:
     """Device data service"""
     
@@ -728,7 +615,7 @@ class DeviceDataService:
         )
         
         if not results:
-            return "No device data available"
+            return NO_DEVICE_DATA
         
         device_lines = []
         for result in results:
@@ -740,217 +627,256 @@ class DeviceDataService:
         return "\n".join(device_lines)
 
 
+#-----------------------------------------------------------------------------
+# What the record says, rendered by code, newest first.
+
+_FINDINGS = frozenset({KIND_CONDITION, KIND_FINDING})
+_REPORTED = frozenset({KIND_SYMPTOM, KIND_NOTE})
+
+
+def _grouped(records: list[dict], kinds: frozenset[str]) -> list[list[dict]]:
+    """Rows of `kinds` per series, newest first, in the order of each
+    series' newest row (`records` is newest first)."""
+    groups: dict[str, list[dict]] = {}
+    for row in records:
+        if row.get("kind") in kinds:
+            groups.setdefault(row.get("series") or row.get("name") or "", []).append(row)
+    return list(groups.values())
+
+
+def _reading(row: dict, *, flag: bool = True) -> str:
+    """A value as stored, with the flag the report printed beside it."""
+    text = " ".join(part for part in (row.get("value"), row.get("unit")) if part) or row.get("text") or ""
+    if flag and row.get("flag"):
+        text += f" ({row['flag']})"
+    if row.get("modality") == MODALITY_UNVERIFIED:
+        text += " (unverified)"
+    return text
+
+
+def _out_of_range(row: dict) -> str:
+    """`high` or `low` as printed, else as the printed range reads the value, else empty."""
+    if row.get("flag"):
+        return row["flag"]
+    low, high = parse_range(row.get("ref") or "")
+    value = row.get("value_num")
+    if value is None:
+        return ""
+    if high is not None and float(value) > high:
+        return "high"
+    if low is not None and float(value) < low:
+        return "low"
+    return ""
+
+
+def _finding(row: dict) -> str:
+    """A finding's name and what was found, once when the name already says it."""
+    name, text = row.get("name") or "", _reading(row, flag=False)
+    return name if text.casefold() in name.casefold() else f"{name}: {text}"
+
+
+def _notable_findings(records: list[dict]) -> list[dict]:
+    """The newest row of each condition, and of each finding the report marked
+    abnormal. One marked normal says nothing a summary needs: of 21 findings
+    on one 2026 check-up, two were not ("Mild fatty liver", "Renal cyst")."""
+    return [rows[0] for rows in _grouped(records, _FINDINGS)
+            if rows[0].get("kind") == KIND_CONDITION or rows[0].get("flag")]
+
+
+def _finding_line(row: dict) -> str:
+    flag = f" ({row['flag']})" if row.get("flag") else ""
+    return f"- {_finding(row)}{flag} ({row.get('date')})"
+
+
+def _series_lines(rows: list[dict]) -> list[str]:
+    name, ref = rows[0].get("name") or "", rows[0].get("ref")
+    head = f"- {name} (ref {ref})" if ref else f"- {name}"
+    if len(rows) == 1:
+        return [f"{head}: {_reading(rows[0])} ({rows[0].get('date')})"]
+    lines = [f"{head}:"] + [f"  - {row.get('date')}: {_reading(row)}" for row in rows[:VALUES_SHOWN]]
+    if len(rows) > VALUES_SHOWN:
+        lines.append(f"  - {len(rows) - VALUES_SHOWN} earlier")
+    return lines
+
+
+def _reported_line(rows: list[dict]) -> str:
+    dates = ", ".join(str(row.get("date")) for row in rows[:VALUES_SHOWN])
+    more = f" and {len(rows) - VALUES_SHOWN} earlier" if len(rows) > VALUES_SHOWN else ""
+    return f"- {rows[0].get('name')}: {dates}{more}"
+
+
+def _render_records(basic_info: dict[str, Any], records: list[dict], device_data: str) -> str:
+    """Every section of the profile after the core summary. The headings are
+    the ones the model used to be told to write."""
+    sections = []
+    basics = [f"- {k}: {v}" for k, v in basic_info.items() if v]
+    if basics:
+        sections.append("### 1. 用户基础信息 / Basic Information\n" + "\n".join(basics))
+    readings = [line for rows in _grouped(records, frozenset({KIND_MEASUREMENT})) for line in _series_lines(rows)]
+    if readings:
+        sections.append("### 2. 检验指标 / Lab Test Results\n" + "\n".join(readings))
+    findings = [line for rows in _grouped(records, _FINDINGS)
+                for line in (_series_lines(rows) if len(rows) > 1 else [_finding_line(rows[0])])]
+    if findings:
+        sections.append("### 3. 既往史与检查所见 / Conditions and Findings\n" + "\n".join(findings))
+    reported = [_reported_line(rows) for rows in _grouped(records, _REPORTED)]
+    if reported:
+        sections.append("### 4. 自述症状 / Reported Symptoms and Notes\n" + "\n".join(reported))
+    if device_data and device_data != NO_DEVICE_DATA:
+        sections.append("### 5. 近一周设备数据 / Recent Device Data (Past 7 Days)\n" + device_data)
+    return "\n\n".join(sections)
+
+
+#: The core summary's words, in the person's language when it is Chinese.
+_CORE_WORDS = {
+    "zh": {"years": "{}岁", "blood": "血型{}", "findings": "疾病与异常检查所见", "range": "超出参考范围",
+           "symptoms": "反复出现的症状", "high": "偏高", "low": "偏低", "more": "另有 {} 项见下文",
+           "times": "{}次，最近{}", "sep": "；", "comma": "，"},
+    "en": {"years": "{} years", "blood": "blood type {}", "findings": "Conditions and abnormal findings",
+           "range": "Outside reference range", "symptoms": "Recurring symptoms", "high": "high", "low": "low",
+           "more": "{} more below", "times": "{} times, last {}", "sep": "; ", "comma": ", "},
+}
+
+
+def _core_line(label: str, items: list[str], words: dict[str, str]) -> str:
+    shown = items[:CORE_ITEMS]
+    if len(items) > CORE_ITEMS:
+        shown.append(words["more"].format(len(items) - CORE_ITEMS))
+    return f"- {label}: " + words["sep"].join(shown)
+
+
+def _core_summary(basic_info: dict[str, Any], records: list[dict], language: str) -> str:
+    """The section `get_health_profile_core` puts in every system prompt: who
+    the person is, then what is abnormal or recurring, newest first, each
+    line cut at CORE_ITEMS. Written by code, so it changes only when the
+    record does and never says a value is high that the report did not."""
+    words = _CORE_WORDS["zh" if _is_chinese(language) else "en"]
+    who = [str(basic_info["gender"])] if basic_info.get("gender") else []
+    if basic_info.get("age") is not None:
+        who.append(words["years"].format(basic_info["age"]))
+    if basic_info.get("blood_type"):
+        who.append(words["blood"].format(basic_info["blood_type"]))
+    lines = [f"- {words['comma'].join(who)}"] if who else []
+    findings = [f"{_finding(row)} ({row.get('date')})" for row in _notable_findings(records)]
+    if findings:
+        lines.append(_core_line(words["findings"], findings, words))
+    out = []
+    for rows in _grouped(records, frozenset({KIND_MEASUREMENT})):
+        side = _out_of_range(rows[0])
+        if side:
+            out.append(f"{rows[0].get('name')} {_reading(rows[0], flag=False)} {words.get(side, side)}"
+                       f" ({rows[0].get('date')})")
+    if out:
+        lines.append(_core_line(words["range"], out, words))
+    recurring = sorted((rows for rows in _grouped(records, frozenset({KIND_SYMPTOM})) if len(rows) > 1),
+                       key=len, reverse=True)
+    if recurring:
+        items = [f"{rows[0].get('name')} ({words['times'].format(len(rows), rows[0].get('date'))})"
+                 for rows in recurring]
+        lines.append(_core_line(words["symptoms"], items, words))
+    return "\n".join(lines)
+
+
+def _digest(basic_info: dict[str, Any], records: list[dict], device_data: str,
+            previous_scenario: str | None) -> tuple[str, int]:
+    """What the scenario is picked from: each series' newest value, those
+    outside their range first, within DIGEST_TOKENS. Returns the digest and
+    how many in-range readings it left out, which it also says."""
+    basics = [f"- {k}: {v}" for k, v in basic_info.items() if v] or ["- none on record"]
+    flagged, other = [], []
+    for rows in _grouped(records, frozenset({KIND_MEASUREMENT})):
+        row = rows[0]
+        line = f"- {row.get('name')}: {_reading(row, flag=False)} ({row.get('date')})"
+        side = _out_of_range(row)
+        if side:
+            flagged.append(f"{line}: {side}" + (f", range {row['ref']}" if row.get("ref") else ""))
+        else:
+            other.append(line)
+    findings = [f"- {_finding(row)} ({row.get('date')})" for row in _notable_findings(records)]
+    reported = [f"- {rows[0].get('name')}: {len(rows)} time(s), last {rows[0].get('date')}"
+                for rows in _grouped(records, _REPORTED)]
+    parts = [("Person", basics), ("Readings outside their reference range (newest value)", flagged),
+             ("Conditions, and findings the report marked abnormal", findings),
+             ("Symptoms and notes the person reported", reported),
+             ("Device data, past 7 days", [device_data] if device_data and device_data != NO_DEVICE_DATA else []),
+             ("Previous scenario", [previous_scenario] if previous_scenario else [])]
+    head = "\n\n".join(f"## {title}\n" + "\n".join(lines) for title, lines in parts if lines)
+    budget = DIGEST_TOKENS - _estimated_tokens(head)
+    kept = []
+    for line in other:
+        budget -= _estimated_tokens(line) + 1
+        if budget < 0:
+            break
+        kept.append(line)
+    left_out = len(other) - len(kept)
+    if kept:
+        tail = "\n".join(kept) + (f"\n- and {left_out} more" if left_out else "")
+        head += "\n\n## Readings within their reference range, or with none printed (newest value)\n" + tail
+    return head, left_out
+
+
 class UserProfileGenerator:
     """User profile generation service"""
-    
+
     @staticmethod
-    async def _get_existing_profile(user_id: str) -> tuple[str | None, str | None]:
-        """
-        Get user's existing health profile and scenario
-        
-        Args:
-            user_id: User ID
-            
-        Returns:
-            Tuple of (profile, scenario_zh): Existing health profile in Markdown format and previous scenario, or (None, None) if not found
-        """
-        sql = """
-        select decrypt_content(common_part_encrypted) as common_part, scenario_zh
-        from health_user_profile_by_system
-        where user_id = :user_id
-        and is_deleted = false
-        order by version desc
-        limit 1
-        """
-        
-        results = await execute_query(
-            sql,
+    async def _get_previous_scenario(user_id: str) -> str | None:
+        """The scenario of the current profile, so a refresh keeps it while the
+        data still meets its criteria. The previous document itself is not read:
+        a rewrite that reads its own output keeps its own errors
+        (`kernel.memory`), and the 2026-10-30 echoes were carried that way."""
+        rows = await execute_query(
+            """
+            select scenario_zh from health_user_profile_by_system
+            where user_id = :user_id and is_deleted = false
+            order by version desc limit 1
+            """,
             params={"user_id": user_id},
         )
-        
-        if results:
-            profile = results[0].get('common_part')
-            scenario_zh = results[0].get('scenario_zh')
-            
-            # Limit previous_profile length to prevent unlimited growth
-            if profile and len(profile) > MAX_PREVIOUS_PROFILE_LENGTH:
-                profile = profile[:MAX_PREVIOUS_PROFILE_LENGTH] + "\n\n... (truncated due to length limit)"
-            
-            return profile, scenario_zh
-        
-        return None, None
-    
+        return (rows[0].get("scenario_zh") or None) if rows else None
+
     @staticmethod
-    async def _generate_profile_chunk(
-        basic_info: str,
-        health_data: str,
-        device_data: str,
-        previous_profile: str,
-        previous_scenario: str | None = None,
-        language: str = "English"
-    ) -> str:
-        """
-        Generate a single chunk of user profile using LLM
-        
-        自动选择提供商：按 mirobody/utils/config/llm.py 注册表的 text 面顺序，取第一个有 key 的 provider。
-        
-        Args:
-            basic_info: User basic information
-            health_data: Health indicator data
-            device_data: Device data
-            previous_profile: Previous version profile
-            previous_scenario: Previous scenario (if exists)
-            language: Generation language
-            
-        Returns:
-            Generated profile in Markdown format
-        """
-        language_instruction = f"\n\nPlease generate the profile in {language}." if language != "English" else ""
-        
-        system_prompt = GENERATE_USER_PROFILE_PROMPT + language_instruction
-        
-        user_prompt = GENERATE_USER_PROFILE_USER_PROMPT.format(
-            basic_info=basic_info,
-            health_data=health_data,
-            device_data=device_data,
-            previous_profile=previous_profile or "No previous profile available",
-            previous_scenario=previous_scenario or "No previous scenario"
-        )
-        
-        # Use unified text generation interface (auto-select provider)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        result = await async_get_text_completion(
-            messages=messages,
+    async def _pick_scenario(digest: str) -> str | None:
+        """The model's scenario for `digest`, as `_scenario_in` reads its answer."""
+        answer = await async_get_text_completion(
+            messages=[{"role": "system", "content": SCENARIO_PROMPT}, {"role": "user", "content": digest}],
             temperature=0,
-            max_tokens=MAX_OUTPUT_TOKENS,
+            max_tokens=SCENARIO_MAX_TOKENS,
         )
-        
-        if not result:
-            logger.error("Profile generation failed: empty response")
-            return ""
-        
-        return strip_code_fence(result)
-    
-    @staticmethod
-    async def _merge_profile_results(results: list[str], language: str = "English") -> str:
-        """
-        Merge multiple profile chunk results
-        
-        自动选择提供商：按 mirobody/utils/config/llm.py 注册表的 text 面顺序，取第一个有 key 的 provider。
-        
-        Args:
-            results: List of multiple profile results
-            language: Generation language
-            
-        Returns:
-            Merged profile in Markdown format
-        """
-        if len(results) == 1:
-            return results[0]
-        
-        language_instruction = f"\n\nPlease merge the profile in {language}." if language != "English" else ""
-        
-        profile_chunks = "\n\n---\n\n".join([f"### Chunk {i+1}\n{r}" for i, r in enumerate(results)])
-        
-        system_prompt = MERGE_USER_PROFILE_PROMPT + language_instruction
-        user_prompt = MERGE_USER_PROFILE_USER_PROMPT.format(profile_chunks=profile_chunks)
-        
-        # Use unified text generation interface (auto-select provider)
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        result = await async_get_text_completion(
-            messages=messages,
-            temperature=0,
-            max_tokens=MAX_OUTPUT_TOKENS,
-        )
-        
-        if not result:
-            logger.error("Profile merge failed: empty response")
-            return ""
-        
-        return strip_code_fence(result)
-    
+        return _scenario_in(answer or "")
+
     @classmethod
     async def generate_user_profile(
         cls,
         user_id: str,
         basic_info: dict[str, Any],
-        doc_list: list[dict],
+        records: list[dict],
         device_data: str,
-        language: str = "English"
+        language: str = "English",
     ) -> str:
-        """
-        Generate complete user profile (Markdown format)
-        
-        Args:
-            user_id: User ID
-            basic_info: User basic information
-            doc_list: List of health indicator data
-            device_data: Device data string
-            language: Generation language
-            
-        Returns:
-            User profile in Markdown format
-        """
-        if not doc_list and not basic_info:
+        """The profile document: the core summary and the record, written by
+        code, and the scenario the model picks. When the model answers with
+        no scenario, the previous one stays: the record is stored either way."""
+        if not records and not basic_info:
             logger.info("No data provided for profile generation")
             return ""
-        
+        previous_scenario = scenario_zh = None
         try:
-            # Get existing profile and scenario
-            previous_profile, previous_scenario = await cls._get_existing_profile(user_id)
-            
-            # Log previous scenario info
-            logger.info("profile generation: user_id=%s previous_scenario=%s", user_id,
-                        "found" if previous_scenario else "none")
-            
-            # Format basic information
-            basic_info_str = "\n".join([f"- {k}: {v}" for k, v in basic_info.items() if v])
-            if not basic_info_str:
-                basic_info_str = "No basic information available"
-            
-            # Build health data text
-            if doc_list:
-                indicator_text_list = [
-                    f"{r['original_indicator']}: {r['start_time']} {r['value']} {r['unit'] or ''}" 
-                    for r in doc_list
-                ]
-                
-                # Process in chunks
-                context_list = _chunk_by_budget(indicator_text_list, MAX_TOKENS)
-                logger.info(f"context chunks length: {len(context_list)}")
-            else:
-                context_list = ["No health indicator data available"]
-            
-            # Process each chunk in parallel, max 50 chunks
-            results = await asyncio.gather(*[
-                cls._generate_profile_chunk(
-                    basic_info=basic_info_str,
-                    health_data=context,
-                    device_data=device_data,
-                    previous_profile=previous_profile,
-                    previous_scenario=previous_scenario,
-                    language=language
-                )
-                for context in context_list[:50]
-            ])
-            
-            # Merge results
-            merged_result = await cls._merge_profile_results(list(results), language)
-            
-            return merged_result
-            
+            previous_scenario = await cls._get_previous_scenario(user_id)
+            digest, left_out_count = _digest(basic_info, records, device_data, previous_scenario)
+            if left_out_count:
+                logger.warning("profile digest over budget: user_id=%s readings_left_out=%d", user_id, left_out_count)
+            scenario_zh = await cls._pick_scenario(digest)
         except Exception as e:
-            logger.error("profile generation failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+            logger.error("profile scenario failed: user_id=%s error_type=%s", user_id, type(e).__name__,
                          exc_info=not is_driver_exception(e))
-            return ""
+        if scenario_zh is None:
+            logger.warning("profile scenario not picked, previous kept: user_id=%s", user_id)
+            scenario_zh = previous_scenario
+        parts = ["### 0. 核心摘要 / Core Summary\n" + _core_summary(basic_info, records, language),
+                 _render_records(basic_info, records, device_data)]
+        if scenario_zh:
+            parts.append(f"## 场景\n\n{scenario_zh}")
+        return "\n\n".join(part for part in parts if part)
 
 
 class UserProfileService:
@@ -989,9 +915,12 @@ class UserProfileService:
             async with asyncio.timeout(PROFILE_LOCK_TIMEOUT_SECONDS):
                 return await cls._create_user_profile_locked(user_id)
         except TimeoutError:
+            # Not "error": the model server writes on after the call is
+            # dropped (on 2026-10-30, up to 11 minutes past this timeout), so
+            # a retry would run beside the rewrite it replaces.
             seconds = PROFILE_LOCK_TIMEOUT_SECONDS
             logger.error("profile creation timed out: user_id=%s seconds=%d", user_id, seconds)
-            return {"status": "error", "message": "Profile generation took too long."}
+            return {"status": "timed_out", "message": "Profile generation took too long."}
         finally:
             # Always release lock
             await user_profile_lock_manager.release_lock(user_id, lock_id)
@@ -1020,14 +949,15 @@ class UserProfileService:
                 "last_execute_doc_id": last_execute_doc_id
             }
 
-        # 4. Get device data
+        # 4. Get device data and everything on record, not only what is new
         device_data = await DeviceDataService.get_device_data(user_id)
+        records = await cls._get_records(user_id)
 
         # 5. Generate user profile (Markdown format)
         profile_markdown = await UserProfileGenerator.generate_user_profile(
             user_id=user_id,
             basic_info=basic_info,
-            doc_list=doc_list,
+            records=records,
             device_data=device_data,
             language=language
         )
@@ -1110,6 +1040,20 @@ class UserProfileService:
             "last_execute_doc_id": -1
         }
     
+    @staticmethod
+    async def _get_records(user_id: str) -> list[dict]:
+        """Every visible entry a report, the person or an API wrote, newest
+        first, through the read authority the tools and the Data page use. A
+        device's stream is the device section."""
+        page = await PostgresHealthQuery(reported=True).records(
+            user_id, kind="all", modalities=[MODALITY_LAB, MODALITY_SELF, MODALITY_MANUAL, MODALITY_UNVERIFIED],
+            limit=None,
+        )
+        # A diagnosis is history however old; a reading, a finding or a
+        # symptom is kept for the window.
+        since = (date.today() - timedelta(days=HISTORY_DAYS)).isoformat()
+        return [row for row in page["rows"] if row.get("kind") == KIND_CONDITION or str(row.get("date")) >= since]
+
     @staticmethod
     async def _get_incremental_data(user_id: str, last_execute_doc_id: int) -> list[dict]:
         """Get incremental data"""
