@@ -91,7 +91,7 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 聊天计算直接接收查询工具返回的原始数据。
 云端模型的代码在应用内以 JavaScript 执行，无需配置；
 本地模型在应用能连接 Docker 服务时，在本地容器中用 Python 计算。
-[配置与数据流程](docs/python-analysis.md)说明了这两种方式。
+[配置与数据流程](docs/python-analysis.zh-CN.md)说明了这两种方式。
 查询工具已有的统计视图不依赖计算工具。
 
 → [自部署指南](https://docs.mirobody.ai/zh/self-host) · [完整演示](docs/walkthrough.zh-CN.md) · [部署到服务器](https://docs.mirobody.ai/zh/deployment/production)
@@ -140,7 +140,7 @@ PIP_INDEX_URL=https://<镜像站>/simple scripts/install_native.sh
 | **② 标准化 Standardize** | `A1c`、`HbA1c`、`糖化血红蛋白` 解析为同一个编码，单位统一到同一标准，全程离线：来源各异、写法杂乱的指标，清晰统一地落进同一张表。无法确定的名称保持未解析。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ 智能体 Agent** | 智能体调用工具查这张表来回答，而不是凭模型记忆：看趋势、跨医院和设备比较、画图。每个数字都能追溯到原始文件，可以核对，不必盲信。 | [`agent/`](mirobody/agent/) |
 
-模型负责读取文档和推理；编码和单位来自随包发布的词表，不由模型生成。[一条读数如何走完整个流程](docs/pipeline.md)。
+模型负责读取文档和推理；编码和单位来自随包发布的词表，不由模型生成。[一条读数怎样一步步被标准化](docs/site/standardization.zh-CN.md) · [一条读数如何走完整个流程](docs/pipeline.md)（英文）。
 
 ## 照顾家人
 
@@ -168,19 +168,19 @@ PIP_INDEX_URL=https://<镜像站>/simple scripts/install_native.sh
 
 命令行解析器也在自己的机器上运行，首次下载完成后不需要模型或网络连接。
 
-只有在你连接设备厂商之后，厂商才会收到相应数据。部署到你无法控制的网络之前，请先阅读 [SECURITY.md](SECURITY.md)，其中列出了服务端会访问的所有地址。
+只有在你连接设备厂商之后，厂商才会收到相应数据。部署到你无法控制的网络之前，请先阅读 [SECURITY.md](SECURITY.md)（英文），其中列出了服务端会访问的所有地址。
 
 ## 接入你自己的应用和 agent
 
 | 你想要 | 从这里开始 |
 | --- | --- |
-| 在 Claude Code、Codex、Cursor 或 Gemini CLI 里查询你的记录 | **设置 → MCP 链接**，再按[各客户端的一行配置](https://docs.mirobody.ai/zh/tools/mcp-integration) |
+| 在 Claude Code、Codex、Cursor 或 Gemini CLI 里查询你的记录 | **设置 → MCP 链接**（默认 10 天有效），再按[各客户端的一行配置](https://docs.mirobody.ai/zh/tools/mcp-integration) |
 | 在自己的代码里解析名称和单位 | `pip install mirobody`：离线、无需 Key，只依赖 numpy（[库的用法](docs/quickstart.zh-CN.md#a--the-library)） |
 | 让你的编码 agent 学会这套流程 | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | 新增设备 provider 或工具 | 把文件放进 `mirobody/collect/providers/` 或 `mirobody/agent/tools/`（[CONTRIBUTING](CONTRIBUTING.md)） |
 | 不部署，先体验应用 | [Mirobody 网页演示](https://chat.mirobody.cn/demo?ref=github-readme&lang=zh-cn)，使用同一套[合成演示文件](demo/README.md) |
 
-通过 MCP，整套服务提供七个工具，都限定在当前登录者的范围内：四个读取你的记录（读数、用药、基因型、药物基因组），三个解析名称和单位。
+通过 MCP，整套服务提供的工具都限定在当前登录者的范围内：四个读取你的记录（读数、用药、基因型、药物基因组），三个解析名称和单位；部署配置了医学资料来源时，另有两个查医学资料的工具。
 
 运行 `pip install mirobody` 后，在 Python 中调用同一个引擎：
 
@@ -199,16 +199,18 @@ resolve("血脂").resolved                                     # False    一个
 | 说法 | 怎么验证 |
 | --- | --- |
 | **345/345**：常规体检会打印的项目，覆盖英文、中文、日文、俄文、爱沙尼亚文和土耳其文 | 运行 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 会打印分数 |
-| **330 个 UCUM 单位**，带量纲分析；**543 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md) |
+| 按规则从 LOINC 2.83 切出 **63,416 个编码**，指向它们的名称共 **1,023,273 条**，含 LOINC 自带的 21 种语言；索引认不出的报告写法，经审核一行行补充 | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE)（英文） · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [一条读数怎样被标准化](docs/site/standardization.zh-CN.md) |
+| **330 个 UCUM 单位**，带量纲分析；**902 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md)（英文） |
 | 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA 的导出和 GRCh37/GRCh38 的 VCF，解析出**同样的 13 个位点（12 个基因）**；测试数据是随包附带的 1000 Genomes 公开样本 | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公开基因样本说明](mirobody/testing/genomics/README.md)（英文） |
 | 包会说明是哪份词表在回答：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
-| 公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
+| 公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md)（英文） |
 
-Mirobody 也是 [Theta Wellness](https://www.thetahealth.ai/) 这款已上线的个人健康产品所用的引擎，它有网页版和移动 App。
+Mirobody 也是 [Theta](https://www.thetahealth.ai/) 背后的健康数据引擎。Theta 是一款已上线的个人健康应用，有网页版和移动 App，当前用户数：<br>
+[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
 
 ## 参与贡献
 
-最有价值的贡献，是找出解析器答错的术语。运行 `mirobody resolve "<术语>"`，结果错误或为空时，[提交 issue](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)，或附上测试用例直接提交修复。词表就是这样扩展到新语言的：俄文的检验项目和爱沙尼亚文的维生素写法来自 [#88](https://github.com/thetahealth/mirobody/pull/88)，土耳其文化验单的写法来自 [#140](https://github.com/thetahealth/mirobody/pull/140)，每个术语都只是 [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) 里的一行，加一个测试用例。环境搭建和检查命令见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+最有价值的贡献，是找出解析器答错的术语。运行 `mirobody resolve "<术语>"`，结果错误或为空时，[提交 issue](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)，或附上测试用例直接提交修复。词表就是这样扩展到新语言的：俄文的检验项目和爱沙尼亚文的维生素写法来自 [#88](https://github.com/thetahealth/mirobody/pull/88)，土耳其文化验单的写法来自 [#140](https://github.com/thetahealth/mirobody/pull/140)，每个术语都只是 [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) 里的一行，加一个测试用例。环境搭建和检查命令见 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。
 
 本项目基于 [HL7 FHIR](https://hl7.org/fhir/)、[Regenstrief Institute](https://www.regenstrief.org/) 的 [LOINC](https://loinc.org/)、[UCUM](https://ucum.org/)、[ICPC-3](https://icpc-3.info/)（WONCA）、[CPIC](https://cpicpgx.org/)、[llama.cpp](https://github.com/ggml-org/llama.cpp) 与 [deepagents](https://github.com/langchain-ai/deepagents)，在此致谢。术语许可见 [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY)。
 
@@ -224,7 +226,7 @@ Mirobody 也是 [Theta Wellness](https://www.thetahealth.ai/) 这款已上线的
   </picture>
 </a>
 
-[文档目录](docs/README.md) · [路线图](docs/roadmap.md) · [更新日志](CHANGELOG.md) · [安全](SECURITY.md) · [AGENTS.md](AGENTS.md)
+[文档目录](docs/README.md) · [路线图](docs/roadmap.md) · [更新日志](CHANGELOG.md) · [安全](SECURITY.md) · [AGENTS.md](AGENTS.md)（均为英文）
 
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 

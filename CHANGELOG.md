@@ -1,5 +1,48 @@
 ## Unreleased
 
+### Added
+
+- **The docs say how a printed reading becomes a comparable one.** The public
+  standardization page (`docs/site/standardization.md`, the site's
+  Standardization page) was three bullets and a `resolve("hemoglobin")`
+  example, and the reference page opened on vocabulary statistics: nowhere
+  said, in order, what happens to `LDL-C 2.48 mmol/L` between the report and a
+  trend line, or what a reading that is not coded becomes. The public page now
+  walks one test printed three ways (`LDL-C 2.48 mmol/L`,
+  `低密度脂蛋白胆固醇 96 mg/dL`, `LDL Cholesterol 101 mg/dL`) through seven
+  steps to one series, says where a model takes part and where it does not,
+  lists the needs-input and refused outcomes with what a person can do about
+  each, and ends with commands to try and the limits. `docs/standardization.md`
+  gains the same flow module by module: the source routes, `name_key`,
+  `parse_value`, the quality gates, the order of authority in `code()`, the
+  resolver's candidate keys, `variant_for_reading`'s four outcomes, every
+  reason code, the FHIR Observation `standardize_reading` returns, the series
+  key and the canonical value pair, the read side, and confirm and recode.
+  Both pages have Chinese editions written for Chinese readers. Every example
+  was run against the 1.5.10 bundle. To tell: open the Standardization page;
+  its first table is "The steps one reading goes through".
+
+### Fixed
+
+- **Stale figures and links in the READMEs and docs.** The READMEs said 543
+  catalogue members (`res/catalog/metrics.tsv` holds 902; the figure was
+  written when it held 543), `docs/standardization*.md` said 692,577 folded
+  designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
+  from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental
+  code (it resolves to nothing, as the English said), and both described a
+  "downloadable-corpus" semantic index that 1.5.0 deleted. The READMEs said
+  MCP serves seven tools; a deployment with a knowledge source also lists the
+  two medical-reference tools, and none of them said a personal MCP link
+  expires after 10 days. The walkthrough still lettered the stages C · T · A,
+  the Chinese README linked the English `python-analysis.md` and called the
+  hosted app Theta Wellness without the live user badges the other two
+  editions carry, and the docs index had no row for `python-analysis.md` or
+  `local-models-roadmap.md`. All corrected in every edition; the READMEs'
+  "Numbers you can check" table gains a row for the LOINC cut and its names,
+  checked against `fhir_loinc_bundle.NOTICE`. To tell:
+  `python -c "from mirobody.kernel import metrics; print(len(metrics.MEMBERS))"`
+  prints 902, the figure the READMEs now quote.
+
 ## 1.5.10
 
 ### Fixed

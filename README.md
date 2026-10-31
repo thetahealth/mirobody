@@ -134,7 +134,7 @@ The local models belong to the Docker path, so this one answers through a model 
 | **② Standardize** | `A1c`, `HbA1c` and `Glycated Hemoglobin` resolve to one code, units to one standard, offline: readings from scattered sources land as clean rows in one table. A name it cannot place stays unresolved. | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ Agent** | Answers come from tools that query that table, not from the model's memory: trends, comparisons across labs and devices, a chart. Every number traces to its file, so you can check it instead of taking it on trust. | [`agent/`](mirobody/agent/) |
 
-The model reads documents and reasons; the codes and units come from vocabularies bundled with the package, never from the model. [How a reading moves through the pipeline](docs/pipeline.md).
+The model reads documents and reasons; the codes and units come from vocabularies bundled with the package, never from the model. [How a reading is standardized, step by step](docs/site/standardization.md) · [How a reading moves through the pipeline](docs/pipeline.md).
 
 ## Care for your family
 
@@ -168,13 +168,13 @@ Device vendors see data only after you link one. Before this reaches a network y
 
 | You want | Start here |
 | --- | --- |
-| Your record in Claude Code, Codex, Cursor or Gemini CLI | **Settings → MCP link**, then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
+| Your record in Claude Code, Codex, Cursor or Gemini CLI | **Settings → MCP link** (valid for 10 days by default), then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
 | Names and units resolved in your own code | `pip install mirobody`: offline, no key, numpy the only dependency ([library guide](docs/quickstart.md#a--the-library)) |
 | Your coding agent taught the workflow | `npx skills add thetahealth/mirobody --skill standardize-health-data` ([skills](skills/README.md)) |
 | A new device provider or tool | Drop a file into `mirobody/collect/providers/` or `mirobody/agent/tools/` ([CONTRIBUTING](CONTRIBUTING.md)) |
 | Try the app without deploying | [Mirobody Web demo](https://chat.mirobody.ai/demo?ref=github-readme&lang=en), using the same [synthetic demo files](demo/README.md) |
 
-Over MCP the stack serves seven tools, each scoped to the signed-in person: four read your record (readings, medications, genotypes, pharmacogenomics) and three resolve names and units.
+Over MCP the stack serves tools scoped to the signed-in person: four read your record (readings, medications, genotypes, pharmacogenomics), three resolve names and units, and two search medical reference material when the deployment has a knowledge source.
 
 After `pip install mirobody`, use the same engine from Python:
 
@@ -193,7 +193,8 @@ resolve("血脂").resolved                                     # False    a cate
 | Claim | Check it |
 | --- | --- |
 | **345/345** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
-| **330 UCUM units** with dimensional analysis, and **543 catalogue members for device and laboratory indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
+| **63,416 LOINC 2.83 codes** cut by rule and **1,023,273 names** pointing at them, including LOINC's own 21 languages; report spellings the index misses are added one reviewed row at a time | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE) · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [How a reading is standardized](docs/site/standardization.md) |
+| **330 UCUM units** with dimensional analysis, and **902 catalogue members for device and laboratory indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
 | 23andMe, AncestryDNA, WeGene, MyHeritage and FamilyTreeDNA exports and VCF on GRCh37 and GRCh38 decode to **the same 13 calls across 12 genes**, tested on public 1000 Genomes samples shipped in the package | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [Public genotype examples](mirobody/testing/genomics/README.md) |
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |

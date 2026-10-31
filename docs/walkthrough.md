@@ -145,7 +145,7 @@ than logged as a fever.
 </p>
 
 That is the whole chain in one sitting: a file goes in, a coded reading comes
-out, and an agent answers over it — **C · T · A**, each stage visible on its own
+out, and an agent answers over it — **C · S · A**, each stage visible on its own
 rather than asserted.
 
 Every value is generated; no file here describes a person, and the seed needs no

@@ -134,7 +134,7 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 | **② 標準化 Standardize** | `A1c`、`HbA1c`、`ヘモグロビンA1c` を同じコードに、単位を1つの標準にそろえます。すべてオフラインです。出どころも書き方もばらばらな指標が、1つの表に整った行として並びます。特定できない名前は未解決のまま残します。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ エージェント Agent** | モデルの記憶ではなく、この表を検索するツールを呼んで答えます。推移、検査機関やデバイスをまたいだ比較、グラフ。どの数値も元のファイルまでたどれるので、うのみにせず確かめられます。 | [`agent/`](mirobody/agent/) |
 
-モデルは文書を読み、推論します。コードと単位はパッケージに同梱された語彙から来るもので、モデルが生成することはありません。[測定値がパイプラインをどう通るか](docs/pipeline.md)（英語）。
+モデルは文書を読み、推論します。コードと単位はパッケージに同梱された語彙から来るもので、モデルが生成することはありません。[測定値が1ステップずつ標準化される流れ](docs/site/standardization.md) · [測定値がパイプラインをどう通るか](docs/pipeline.md)（いずれも英語）。
 
 ## 家族を見守る
 
@@ -168,13 +168,13 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 
 | やりたいこと | ここから |
 | --- | --- |
-| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | **設定 → MCP リンク** のあと、[クライアントごとの1行設定](https://docs.mirobody.ai/en/tools/mcp-integration)（英語） |
+| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | **設定 → MCP リンク**（既定で10日間有効）のあと、[クライアントごとの1行設定](https://docs.mirobody.ai/en/tools/mcp-integration)（英語） |
 | 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.md#a--the-library)、英語） |
 | コーディングエージェントにこの手順を教える | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | デバイスのプロバイダーやツールを追加する | `mirobody/collect/providers/` か `mirobody/agent/tools/` にファイルを置く（[CONTRIBUTING](CONTRIBUTING.md)） |
 | デプロイせずにアプリを試す | [Mirobody Web デモ](https://chat.mirobody.ai/demo?ref=github-readme&lang=ja)。同じ[合成デモファイル](demo/README.md)を使っています |
 
-MCP では7つのツールが使え、どれもログイン中の本人の範囲に限られます。4つは記録を読み（測定値、服薬、遺伝子型、ファーマコゲノミクス）、3つは名称と単位を解決します。
+MCP で使えるツールは、どれもログイン中の本人の範囲に限られます。4つは記録を読み（測定値、服薬、遺伝子型、ファーマコゲノミクス）、3つは名称と単位を解決します。医学資料の情報源が設定されたデプロイでは、さらに2つのツールで医学資料を検索できます。
 
 `pip install mirobody` のあと、同じエンジンを Python から使えます：
 
@@ -193,7 +193,8 @@ resolve("血脂").resolved                                     # False    1つ�
 | 主張 | 確かめ方 |
 | --- | --- |
 | 一般的な健康診断に載る検査名で **345/345**（英語、中国語、日本語、ロシア語、エストニア語、トルコ語） | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) がスコアを表示します |
-| 次元解析つきの **UCUM 単位 330 個**と、デバイス・臨床検査指標の**カタログ項目 543 件** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
+| ルールに従って LOINC 2.83 から切り出した **63,416 個のコード**と、それを指す **1,023,273 個の名称**（LOINC 自身の21言語を含む）。索引が拾えないレポートの書き方は、レビューを経て1行ずつ追加しています | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE) · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [測定値が標準化される流れ](docs/site/standardization.md)（いずれも英語） |
+| 次元解析つきの **UCUM 単位 330 個**と、デバイス・臨床検査指標の**カタログ項目 902 件** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
 | 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA のエクスポートと GRCh37/GRCh38 の VCF から、**同じ 13 サイト（12 遺伝子）**の判定が得られます。テストデータはパッケージ同梱の 1000 Genomes 公開サンプルです | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公開遺伝子サンプル](mirobody/testing/genomics/README.md)（英語） |
 | パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公開している健康エージェントのベンチマーク：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
