@@ -89,7 +89,7 @@ The local suite asserts both lists exactly.
 ## The record query schemas
 
 ```
-query_health_indicators(keywords | indicators, start, end, view)
+query_health_indicators(keywords | indicators, start | days, end, view, value_min, value_max)
 query_medications      (view=plan|log|history, keywords, start, end)
 query_genetic_data     (rsids | gene | chromosome+start+end+build)
 query_pharmacogenomics (drugs | genes)
@@ -246,10 +246,15 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 
 ## Windows
 
-* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive,
-  so "the last N days" starts N-1 days before today. The schema says so
-  with a worked example: given "inclusive" alone, a model wrote the last
-  60 days as today minus 60 and read 61 (2026-10-31).
+* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive.
+* "The last N days" is `days=N`: the N local dates ending today in the
+  SUBJECT's zone, today included, or ending on `end` when one is given. The
+  server turns it into `start`/`end` before anything else reads them, so the
+  answer names the dates like any other window. Left to the model, the
+  subtraction went wrong both ways (2026-10-31): DeepSeek V4.1 Flash wrote
+  today minus 60 and read 61 days, and the local MiniCPM5-2B read about a
+  month. `days` with `start` is refused. The `start` description keeps a
+  worked example for a model that writes the dates itself.
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.

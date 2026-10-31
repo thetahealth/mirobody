@@ -188,13 +188,15 @@ class HealthIndicatorsService(RecordTool):
         subject_id = caller_id
         tz = await awaited(hq.tz(subject_id)) or "UTC"
         await awaited(hq.on_read(subject_id))
+        now = self._clock()
+        request = query.resolve_days(request, tz, now)
 
         # No dates named means the whole record, not "the last ninety days":
         # "how has my LDL moved" is a question about a life, and a default
         # window would answer it about a season while REPORTING the season as
         # if the rows had come from it.
         window = query.resolve_window(
-            tz, start=request.start, end=request.end, hours=DEFAULT_HOURS, now=self._clock(), max_hours=MAX_HOURS
+            tz, start=request.start, end=request.end, hours=DEFAULT_HOURS, now=now, max_hours=MAX_HOURS
         )
         method = request.method
         rows = await self._dispatch(hq, method, subject_id, request, window)

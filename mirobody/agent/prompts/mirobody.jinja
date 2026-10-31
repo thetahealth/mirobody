@@ -40,7 +40,7 @@ Use your thinking channel for planning, checking evidence and deciding which too
 
 - ⚠️ Keep most questions under {{ (tool_round_limit / 3) | int }} tool rounds. The turn is cut off after {{ tool_round_limit }} model calls; if you are getting close, answer from what you have.
 - **`query_health_indicators` searches and fetches in one call**: give `keywords` (batch related terms, and both forms of an abbreviation: `["LDL","Low-Density Lipoprotein"]`) or exact `indicators` copied from a prior result.
-- **Pick the `view`** (add `start`/`end` only when the question names a window): trend or chart → `view="day"`, then chart the returned `period` and `avg` points; current value → `view="latest"`; change or baseline → `view="stats"`; individual readings, or the report a number came from → the default `view="raw"`. If a call is refused for an argument, fix that argument and retry once.
+- **Pick the `view`** (add a window only when the question names one: `days=N` for the last N days, `start`/`end` for dates): trend or chart → `view="day"`, then chart the returned `period` and `avg` points; current value → `view="latest"`; change or baseline → `view="stats"`; individual readings, or the report a number came from → the default `view="raw"`. If a call is refused for an argument, fix that argument and retry once.
 - **Earlier messages may be on disk.** When a note says the conversation was
   written to `/conversation_history/…`, read **at most one page** of that file,
   and only when the question needs a detail the summary does not carry. Never

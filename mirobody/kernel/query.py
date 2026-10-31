@@ -11,8 +11,8 @@ of LOINC. Medications are a different data class with a different grammar and
 their own tool: :mod:`mirobody.kernel.meds`.
 
 Five parameters, each one a decision only the question can make: what to
-read (``keywords`` or ``indicators``), when (``start``/``end``), and in what
-shape (``view``). The rest is decided by the system, not the model. Whose
+read (``keywords`` or ``indicators``), when (``start``/``end``, or ``days``
+counted back from today), and in what shape (``view``). The rest is decided by the system, not the model. Whose
 record is the call's authentication, one person per call. How many rows is
 this tool's budget (:data:`ROW_CAP`). Which values a statistic counts is the
 write side's election (see ``collect/query.py::stats``). A baseline is
@@ -38,7 +38,7 @@ import math
 import re
 import statistics
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, timedelta
 from importlib import resources
 from typing import Protocol
@@ -119,6 +119,19 @@ def resolve_window(
         start_dt = end_dt - timedelta(hours=max_hours)
         notes.append(f"window clamped to {max_hours}h")
     return Window(int(start_dt.timestamp() * 1000), int(end_dt.timestamp() * 1000), tz, start, end, "; ".join(notes))
+
+
+def resolve_days(request: QueryRequest, tz: str, now: datetime) -> QueryRequest:
+    """``days`` → the ``start``/``end`` it means: that many local dates, both
+    counted, ending on ``end`` or on today in ``tz``. Everything after this
+    reads dates only, so a window the server counted is reported, cited and
+    noted exactly like one the model wrote, and ``resolve_window`` stays the
+    one answer to which instants a date means."""
+    if request.days is None:
+        return request
+    last = date.fromisoformat(request.end) if request.end else now.astimezone(zone(tz)).date()
+    first = last - timedelta(days=request.days - 1)
+    return replace(request, start=first.isoformat(), end=last.isoformat(), days=None)
 
 
 # --- selection ------------------------------------------------------------------------
@@ -547,6 +560,11 @@ ROW_CAP = 50
 #: evaluation asked for is never cut, and a year is.
 BUCKET_CAP = 92
 
+#: The longest ``days`` accepted. A century is longer than any record; the bound
+#: only keeps the date subtraction in range, and a window past the service's
+#: own limit is clamped and says so.
+DAYS_MAX = 36_600
+
 TOOL_NAME = "query_health_indicators"
 
 #: The one schema both the chat tool and the MCP tool publish. Flat, five
@@ -579,10 +597,22 @@ TOOL_SCHEMA: dict[str, object] = {
             "pattern": r"^\d{4}-\d{2}-\d{2}$",
             "description": "First local date, inclusive (YYYY-MM-DD, the person's time zone). Both dates are "
                            "counted, so 'the last N days' starts N-1 days before today: on 2026-03-10 the last 7 "
-                           "days are start=2026-03-04 (2026-03-03 would read 8 days). Omit both dates for the "
-                           "whole record.",
+                           "days are start=2026-03-04 (2026-03-03 would read 8 days). For the last N days, pass "
+                           "days instead. Omit start, end and days for the whole record.",
         },
         "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},
+        # The server does this subtraction because a small model cannot: asked
+        # about the last 60 days, the local MiniCPM5-2B read about a month
+        # ("December 14, 2021 – January 13, 2022", 2026-10-31). An example in
+        # `start` fixes a convention, not arithmetic.
+        "days": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": DAYS_MAX,
+            "description": "The last N days, today included, in place of start: 'the last 7 days' is days=7, "
+                           "'the past two weeks' days=14. The server turns it into dates in the person's time "
+                           "zone, and the result names them. With end: the N days ending on end.",
+        },
         "value_min": {
             "type": "number",
             "description": "With view=stats: count the readings at or above this value. The reply "
@@ -634,6 +664,9 @@ class QueryRequest:
     #: does not do (PHIA's objective set, 2026-10-28).
     value_min: float | None = None
     value_max: float | None = None
+    #: The last ``days`` local dates in place of ``start``; ``resolve_days``
+    #: turns it into dates once the person's time zone is known.
+    days: int | None = None
 
     @property
     def method(self) -> str:
@@ -705,6 +738,33 @@ def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
     return out
 
 
+def reject_days(args: Mapping[str, object]) -> list[Rejection]:
+    """``days`` that is not a whole number from 1 to :data:`DAYS_MAX`, or
+    that comes with a ``start`` it would contradict."""
+    v = args.get("days")
+    if v in (None, ""):
+        return []
+    if _as_days(v) is None:
+        return [Rejection("days", f"must be a whole number of days, 1 to {DAYS_MAX}")]
+    if args.get("start") not in (None, ""):
+        return [Rejection("days+start", "give days or start — not both")]
+    return []
+
+
+def _as_days(value: object) -> int | None:
+    """``days`` as an int, or None when it is not a whole number in range.
+    A model may send 7, 7.0 or "7"; true is not a number of days."""
+    if isinstance(value, bool):
+        return None
+    try:
+        number = float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    if not number.is_integer() or not 1 <= number <= DAYS_MAX:
+        return None
+    return int(number)
+
+
 def reject_bounds(args: Mapping[str, object]) -> list[Rejection]:
     """``value_min``/``value_max`` that are not a finite number. Ignored, a
     bad bound counted every reading as in the band, a confident wrong answer;
@@ -730,7 +790,7 @@ def reject_bounds(args: Mapping[str, object]) -> list[Rejection]:
 def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     """Everything wrong with the raw arguments, in a stable order. Empty
     means :func:`parse_request` will succeed. Checks the enums, the selection
-    rule, the dates and the value band.
+    rule, the dates, ``days`` and the value band.
 
     A view with no selection is not refused: it is a catalogue call
     (:attr:`QueryRequest.view_unapplied`). Refused, MiniCPM5-2B opened with
@@ -744,6 +804,7 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
     out.extend(reject_dates(args))
+    out.extend(reject_days(args))
     out.extend(reject_bounds(args))
     return tuple(out)
 
@@ -765,6 +826,7 @@ def parse_request(args: Mapping[str, object]) -> QueryRequest:
         view=str(args.get("view") or "raw"),
         value_min=_as_float(args.get("value_min")),
         value_max=_as_float(args.get("value_max")),
+        days=_as_days(args.get("days")),
     )
 
 
@@ -796,6 +858,7 @@ class HealthQuery(Protocol):
 __all__ = [
     "BUCKETS",
     "BUCKET_CAP",
+    "DAYS_MAX",
     "DISPATCH",
     "HealthQuery",
     "QueryRequest",
@@ -817,7 +880,9 @@ __all__ = [
     "rank_catalog",
     "reject_bounds",
     "reject_dates",
+    "reject_days",
     "reject_unknown",
+    "resolve_days",
     "resolve_window",
     "trend_rows",
     "validate_request",

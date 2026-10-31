@@ -2,17 +2,20 @@
 
 ### Fixed
 
-- **"The last N days" reads N days, not N+1.** `query_health_indicators`
-  takes `start` and `end` as inclusive local dates, and the model wrote "the
-  last N days" as today minus N: asked about the last 60 days, DeepSeek V4.1
-  Flash read 61 and answered "61 of the last 61 days" (found by a local
-  evaluation). The `start` description,
-  which the chat agent and MCP clients both read, now says the window counts
-  both ends and gives a worked example: on 2026-03-10 the last 7 days start
-  2026-03-04, not 2026-03-03. How to tell: ask about "the last 7 days" and
-  check that the answer's window starts six days before today; `pytest
-  mirobody/tests/test_last_n_days_window.py` holds the example to the window
-  the server builds.
+- **"The last N days" reads N days, and the server counts them.**
+  `query_health_indicators` takes `start` and `end` as inclusive local
+  dates, and the model did the subtraction: asked about the last 60 days,
+  DeepSeek V4.1 Flash wrote today minus 60, read 61 days and answered "61 of
+  the last 61 days", and the local MiniCPM5-2B read about a month ("December
+  14, 2021 – January 13, 2022"). Found by a local evaluation. The tool now
+  takes `days=N`: the N local dates ending today in the person's time zone,
+  today included (or ending on `end`). The server turns it into dates before
+  the query, so the answer names them. The prompt asks for `days` for "the
+  last N days", and the `start` description carries a worked example for a
+  model that still writes dates itself. `days` with `start` is refused.
+  How to tell: ask about "the last 7 days" and check that the window in the
+  answer starts six days before today; `pytest
+  mirobody/tests/test_last_n_days_window.py`.
 
 ## 1.5.10
 
