@@ -180,9 +180,9 @@ async def structured_output(spec: RouteSpec, messages: list[dict], schema: dict 
         return None
 
 
-async def text_completion(spec: RouteSpec, messages: list[dict], *, whole: bool = False, **kwargs) -> str | None:
-    """Plain text (titles, summaries, profile prose). None when the call
-    failed; a cut reply as `utils.async_get_text_completion` says."""
+async def text_completion(spec: RouteSpec, messages: list[dict], **kwargs) -> str | None:
+    """Plain text (titles, summaries, the profile's scenario). None when the
+    call failed; a cut reply as `utils.async_get_text_completion` says."""
     from mirobody.utils.llm.utils import text_was_cut
 
     start = time.monotonic()
@@ -199,7 +199,7 @@ async def text_completion(spec: RouteSpec, messages: list[dict], *, whole: bool 
         return None
     duration_ms = _ms(start)
     if cut:
-        text_was_cut(spec, params["max_tokens"], getattr(response.usage, "output_tokens", None), duration_ms, whole)
+        text_was_cut(spec, params["max_tokens"], getattr(response.usage, "output_tokens", None), duration_ms)
     logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
     return text
 

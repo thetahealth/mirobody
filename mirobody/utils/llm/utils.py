@@ -168,33 +168,22 @@ async def async_get_structured_output(
         return None
 
 
-class CutAtMaxTokens(Exception):
-    """A text completion stopped at `max_tokens`. Raised only to a caller that
-    passed `whole=True`, for which the part written so far is not an answer."""
-
-
-def text_was_cut(spec: RouteSpec, max_tokens: Any, completion_tokens: Any, duration_ms: int, whole: bool) -> None:
-    """Log a reply cut at `max_tokens`, and raise for a `whole=True` caller.
+def text_was_cut(spec: RouteSpec, max_tokens: Any, completion_tokens: Any, duration_ms: int) -> None:
+    """Log a reply cut at `max_tokens`, which used to pass as a whole answer.
     Both backends report a cut through here, so the two cannot disagree."""
     logger.warning("text completion hit max_tokens: model=%s max_tokens=%s completion_tokens=%s duration_ms=%d",
                    spec.model, max_tokens, completion_tokens, duration_ms)
-    if whole:
-        raise CutAtMaxTokens(spec.model)
 
 
 async def async_get_text_completion(
     messages: list[dict],
     model_name: str | None = None,
     provider: str | None = None,
-    *,
-    whole: bool = False,
     **kwargs: Any,
 ) -> str | None:
-    """Plain text (titles, summaries, profile prose) from the `UTILS_TEXT_MODEL`
-    route, or the named `provider`. None when no model answered.
-
-    A reply cut at `max_tokens` is returned as far as it got, which a title
-    can use; with `whole=True` it raises `CutAtMaxTokens` instead."""
+    """Plain text (titles, summaries, the profile's scenario) from the
+    `UTILS_TEXT_MODEL` route, or the named `provider`. None when no model
+    answered; a reply cut at `max_tokens` is logged and returned as far as it got."""
     from .clients import client_manager
 
     start = time.monotonic()
@@ -204,7 +193,7 @@ async def async_get_text_completion(
     if spec.llm_type == "anthropic":
         from . import backends_anthropic
 
-        return await backends_anthropic.text_completion(spec, messages, whole=whole, **kwargs)
+        return await backends_anthropic.text_completion(spec, messages, **kwargs)
     logger.info("text completion: model=%s", spec.model)
     try:
         client = client_manager.for_spec(spec)
@@ -224,7 +213,6 @@ async def async_get_text_completion(
     duration_ms = _ms(start)
     if cut:
         usage = getattr(response, "usage", None)
-        text_was_cut(spec, params.get(_max_tokens_param(spec)), getattr(usage, "completion_tokens", None),
-                     duration_ms, whole)
+        text_was_cut(spec, params.get(_max_tokens_param(spec)), getattr(usage, "completion_tokens", None), duration_ms)
     logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
     return content
