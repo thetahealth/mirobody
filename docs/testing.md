@@ -12,16 +12,18 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 20 | 714 passed, 192 skipped, 12 xfailed |
-| `'.[test,parse]'` | 78 | 771 passed, 185 skipped, 12 xfailed |
-| `'.[test,app]'` | 145 | 1011 passed, 121 skipped, 12 xfailed |
+| `'.[test]'` | 20 | 723 passed, 196 skipped, 12 xfailed |
+| `'.[test,parse]'` | 78 | 805 passed, 185 skipped, 12 xfailed |
+| `'.[test,app]'` | 147 | 1045 passed, 121 skipped, 12 xfailed |
 
 The extras change less of what a clone can run than the package counts
-suggest. Thirty-four public modules are kept in `mirobody/tests`, described
+suggest. Thirty-six public modules are kept in `mirobody/tests`, described
 below, and most need no extra, so every install runs them in a clone.
-`[parse]` adds 57 tests, most of them the capability probes (48), which
-import the parser's dependencies; the value-range filter (4), the absence
-semantics (4) and one collection case make up the rest. `[app]` adds 240 more,
+`[parse]` adds 82 tests, most of them the capability probes (48), which
+import the parser's dependencies, and the profile refresh (22), which
+imports the model client's; the value-range filter (4), the absence
+semantics (4), the last-N-days window (3) and one collection case make up
+the rest. `[app]` adds 240 more,
 the ones that need FastAPI or the MCP SDK and skip without them
 (`pytest.importorskip`): the security gates (81), the extraction (70),
 collection (55) and plugin-directory (22) regressions, the trend service (6),
@@ -36,8 +38,8 @@ is what the package counts are for.
 
 <sub>Measured 2026-10-31 for 1.5.10 on a clone-shaped tree, each install in a
 fresh venv: packages are `uv pip freeze` lines, tests `pytest -q mirobody/tests`
-(1144 collected with `[app]`; plain `pytest -q`, which also collects the
-published modules under `tests/`, finds 1383). The table counts
+(1178 collected with `[app]`; plain `pytest -q`, which also collects the
+published modules under `tests/`, finds 1448). The table counts
 `mirobody/tests` only; the published Python-analysis checks below live in
 `tests/`. `pytest` in a checkout with the remaining maintainers' local
 suite collects additional tests.</sub>
@@ -78,7 +80,8 @@ enough.
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 two trees, and a third that is neither:
 
-- `mirobody/tests/` — thirteen public modules, described below.
+- `mirobody/tests/` — thirty-six public modules, the gates among them
+  described below.
   It ships in the repository and is what `pytest mirobody` runs in a clone;
   only `test_skills.py` is carried into the wheel, and
   `scripts/check_wheel_data.py` fails if another test member turns up there.
