@@ -59,6 +59,12 @@ class ProfileRefreshTask(BaseTask):
                     f"current_version={result.get('current_version')}, "
                     f"last_execute_doc_id={result.get('last_execute_doc_id')}"
                 )
+            elif status == "timed_out":
+                # Not a failure to retry: the model server writes on after the
+                # call is dropped, so a retry would run beside it in a second
+                # slot. The readings stay unprocessed, so the next ingest's
+                # refresh includes them.
+                logger.warning("profile_refresh not stored: user_id=%s status=%s", uid, status)
             elif status == "error":
                 logger.error("profile_refresh error: user_id=%s", uid)
                 failures += 1

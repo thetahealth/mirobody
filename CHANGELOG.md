@@ -2,6 +2,36 @@
 
 ### Fixed
 
+- **The health profile is written from the record by code; the model only
+  picks its scenario.** After every ingest `user/profile.py` asked a model to
+  rewrite the whole profile: the previous one plus every new reading, every
+  value of three years, in up to 32,000 tokens. MiniCPM5-2B on the llama.cpp
+  router wrote all 32,000 three times in one 100%-local load, 18 to 21
+  minutes each on a GPU. Replayed, it filed readings under headings it made
+  up (a urine glucose under 血糖, NEUT% under 电解质), then wrote "无记录"
+  lines for panels the person never had and looped on them to the cap. The
+  600 s timeout freed the lock while the server kept writing, so the next
+  refresh took the router's other slot. Two of the seven profiles it stored
+  opened with the prompt's Core Summary instructions, which the agent's
+  system prompt carries, and each rewrite read the last, so what one got
+  wrong the next kept. None of its scenarios reached the store: every
+  profile in that load's database carries the default one.
+  Now code writes every section from the record, read through
+  `PostgresHealthQuery.records` as the tools and the Data page read it: the
+  core summary (sex and age; conditions and the findings the report marked
+  abnormal; readings outside their printed range; symptoms reported more than
+  once), then each reading with its range and flag, the findings, the
+  symptoms and the device week. A refresh renders the past three years (a
+  diagnosis however old) and no longer reads the previous profile. The model
+  is asked for the scenario alone, one line `场景：<name>` in at most 1,024
+  tokens; a name not in the table is not stored, and no answer keeps the
+  previous scenario, so the profile is stored without any model. A refresh
+  past the 600 s timeout is `timed_out`, not `error`, and is not retried.
+  `async_get_text_completion` now logs every reply cut at `max_tokens`.
+  How to tell: on the same replayed refreshes MiniCPM5-2B answers in 4 to 12
+  tokens where it wrote up to 3,266, or 32,000; the lab section quotes each
+  reading as stored; the worker logs `profile scenario not picked, previous
+  kept` when the model named none.
 - **The local evaluation no longer stalls on a large streamed event.**
   `benchmarks/local_models/run.py` read the chat stream one byte at a time,
   and `requests` rebuilds the unfinished line on every read, so a line cost
