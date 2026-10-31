@@ -19,6 +19,17 @@
   sends a 300 KB event both ways and breaks a stream two ways; the old reader
   was still on the large event after 280 s, and a 1.5 MB event now takes
   0.02 s.
+- **`query_medications` reads the last 30 days as 30, and says how to count
+  a window.** With no dates, `view="log"` promised "the last 30 days" but
+  read from today minus 30 to today, 31 days; with only `end`, the window was
+  31 days ending there. Both now start 29 days back. The tool's `start`
+  description was "inclusive" with no example, the wording that made the
+  readings tool read N+1 days; it now quotes the same worked example, from
+  one constant (`query.LAST_N_DAYS_EXAMPLE`) both schemas publish. How to
+  tell: on 2026-06-10, `query_medications(view="log")` reports the window
+  2026-05-12 to 2026-06-10, not 2026-05-11; `pytest
+  mirobody/tests/test_last_n_days_window.py` checks the default, the
+  `end`-only window and that both schemas carry the example.
 
 ## 1.5.10
 

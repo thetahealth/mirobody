@@ -120,9 +120,9 @@ query_health_indicators(kind="medications", view="day")
 `query_medications` reads the window per view: `plan` and `history` mean "in
 effect at some point in the window" (so "what was I taking in March" is a
 window on the plan view), `log` means "recorded in the window" and defaults to
-the last 30 days. Every `plan` answer carries the note that a plan is intent,
-not an intake record; every `log` answer, that a missing dose is not evidence
-it was not taken.
+the last 30 days, today and the 29 before it. Every `plan` answer carries the
+note that a plan is intent, not an intake record; every `log` answer, that a
+missing dose is not evidence it was not taken.
 
 And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 
