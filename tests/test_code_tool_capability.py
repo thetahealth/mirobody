@@ -363,8 +363,9 @@ async def test_the_prompt_names_the_calculator_and_its_language_only_when_offere
         assert f"`code_exec` with {engine.metadata['language']}\ncode only" in prompt
         assert write in prompt
     # The direction rule once sat inside the computation section, so it went
-    # missing with the calculator.
-    assert "上升/下降/持平" in prompt
+    # missing with the calculator; spelled in Chinese, it leaked into English
+    # answers.
+    assert "rose, fell or unchanged" in prompt and "下降" not in prompt
 
 
 @pytest.fixture
