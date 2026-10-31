@@ -88,11 +88,11 @@ Open the app link the script prints. The local models are already selected; sign
 
 **Prefer Docker with a cloud model?** Run `./deploy.sh` without a local model profile, then paste your own model key into the printed setup link. The app and records stay on your host; the model service processes your documents and questions.
 
-Chat calculations use local Python for every model, taking original queried
-data directly. The optional calculator needs a local Docker image and daemon
-connection; [setup and data flow](docs/python-analysis.md) cover native and
-containerized applications. Query views provide their built-in statistics
-without that executor.
+Chat calculations take the original queried data directly. A cloud model's
+code runs as JavaScript inside the app, with nothing to set up; a model on your
+own hardware computes in Python in a local Docker container when the app can
+reach a Docker daemon. [Setup and data flow](docs/python-analysis.md) cover
+both. Query views provide their built-in statistics without either.
 
 → [Self-host guide](https://docs.mirobody.ai/en/self-host) · [Walkthrough](docs/walkthrough.md) · [Deploy on a server](https://docs.mirobody.ai/en/deployment/production)
 

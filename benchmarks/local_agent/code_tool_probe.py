@@ -1,8 +1,9 @@
 """Compare code languages on synthetic records through the production harness.
 
 Cloud models infer remotely; Python and JavaScript execute only in local
-networkless Docker containers. The Python arm uses the production python_exec
-tool. Both arms read original Envelope artifacts through ToolRuntime.
+networkless Docker containers. The Python arm uses the production `code_exec`
+Python engine (`code_tool.python_code`), under the arm name its recorded runs
+use. Both arms read original Envelope artifacts through ToolRuntime.
 """
 
 from __future__ import annotations
@@ -32,12 +33,16 @@ from deepagents.backends import StateBackend
 from mirobody.agent import harness
 from mirobody.agent.models.clients import build_chat_model
 from mirobody.agent.python_sandbox import LocalPythonSandbox
-from mirobody.agent.python_tool import COMPUTATION_NOTE, python_exec, source_results
+from mirobody.agent.code_tool import COMPUTATION_NOTE, python_code, source_results
 from mirobody.agent.tool_loader import _envelope_wrapper
 from mirobody.agent.tools._base import RecordTool
 from mirobody.kernel import tools
 from mirobody.utils.config import Config
 from mirobody.utils.config.llm import chat_entries
+
+#: The production Python engine under this study's name for its arm: the
+#: recorded runs in code_tool_language_runs.json, and their replay, key on it.
+python_exec = python_code.model_copy(update={"name": "python_exec"})
 
 SYSTEM = """You analyze synthetic health readings, using only the supplied tools.
 Query the readings first, then use the code tool for every requested calculation.

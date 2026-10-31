@@ -2,6 +2,32 @@
 
 ### Fixed
 
+- **Every deployment has a calculator: `code_exec`, in JavaScript for a cloud
+  model and in Python for a local one.** A stack started from `compose.yaml`
+  alone mounts no Docker socket into the app, yet every chat model was given
+  `python_exec` and told to use it, so every call answered "local Python
+  execution is unavailable", and a model that then did the arithmetic itself
+  could get it wrong and carry the error into the next turn. The calculator is
+  now one tool, `code_exec`, with two engines. A model at a cloud service
+  writes JavaScript, run in process by QuickJS on WebAssembly (the engine
+  under deepagents' `eval` interpreter, new dependency `quickjs-rs`), with no
+  container, network or files. A model on this machine or the person's own
+  network writes Python in the local container, when a Docker daemon answered
+  the one check at startup; without one it writes JavaScript too, and the log
+  says why once. Both read the original rows as `data` and `results`, as
+  before; the old interpreter's tool bridge, which had models rebuild rows from
+  tables, does not come back. The prompt names the language it got. The
+  prompt's rule to name a change's direction in words (rise, fall, unchanged)
+  sat inside the computation section and now stands with the citing rules.
+  `DISALLOWED_TOOLS` still turns it off; `python_exec` and `eval` there are read
+  as `code_exec`, with a warning, so an existing setting keeps hiding it.
+  `compose.yaml` now says where the Python overlay is; the default deploy is
+  unchanged. The web client labels the step by the old names, so a
+  `code_exec` step shows as a generic tool until it learns the new one. How
+  to tell: on a stack without `compose-python.yaml`, a cloud model's
+  calculation question gets a `code_exec` call that returns the result;
+  `pytest tests/test_code_tool_capability.py`.
+
 - **"The last N days" reads N days, not N+1.** `query_health_indicators`
   takes `start` and `end` as inclusive local dates, and the model wrote "the
   last N days" as today minus N: asked about the last 60 days, DeepSeek V4.1

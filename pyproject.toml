@@ -175,9 +175,14 @@ parse = [
 # deepagents agent installs this and nothing else — no HTTP server, no object
 # stores, no mail. `mirobody.mcp.service` (serving those tools over HTTP) is [app].
 agent = [
-    # Local calculation containers, through the maintained Docker SDK. Code
-    # never runs in the app process or uses a remote sandbox provider.
+    # Calculation for a model on the person's own hardware: local containers,
+    # through the maintained Docker SDK. Code never uses a remote sandbox provider.
     "docker>=7.1.0",
+    # Calculation for every other model: QuickJS compiled to WebAssembly, run
+    # in process on wasmtime, with no network, files or Docker (the engine
+    # under deepagents' `eval` interpreter). A pure-Python wheel; 0.x, so the
+    # next minor version is held back until it is tried.
+    "quickjs-rs>=0.2.6,<0.3",
     # The checkpointer (langgraph-checkpoint-postgres) and the file-system
     # projections talk to Postgres directly.
     "psycopg[binary]",
@@ -453,6 +458,7 @@ forbidden_modules = [
     "langchain_google_genai",
     "langgraph",
     "deepagents",
+    "quickjs_rs",
 ]
 # (The former router seam is gone: pulse/router moved to server/routers, where
 # importing the agent layer is legal. The engine list needs no exemptions here.)
@@ -581,6 +587,7 @@ forbidden_modules = [
     "pytest",
     "pytest_asyncio",
     "pytest_sugar",
+    "quickjs_rs",
     "redis",
     "requests",
     "requests_oauthlib",
