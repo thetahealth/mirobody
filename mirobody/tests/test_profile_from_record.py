@@ -20,6 +20,7 @@ pytest.importorskip("ruamel.yaml")
 pytest.importorskip("cryptography")
 pytest.importorskip("openai")
 
+from mirobody.standardize import NOTE_SERIES
 from mirobody.task.profile_refresh import ProfileRefreshTask
 from mirobody.user import profile
 from mirobody.utils.config.llm import RouteSpec
@@ -183,6 +184,39 @@ async def test_no_model_at_all_still_stores_the_profile(monkeypatch, store):
 
     assert result["status"] == "success"
     assert _stored(store)["scenario_zh"] == "糖尿病早期预防与筛查"
+
+
+async def test_a_model_that_never_answers_keeps_the_scenario_and_still_stores_the_profile(monkeypatch, store):
+    """Inside the refresh's own timeout, a request queued behind busy router
+    slots cost the whole refresh, and the record needs no model."""
+    async def queued(*_, **__):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr(profile, "SCENARIO_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(profile, "async_get_text_completion", queued)
+
+    result = await profile.UserProfileService._create_user_profile_locked("5")
+
+    assert result["status"] == "success"
+    stored = _stored(store)
+    assert "- FPG (ref 3.90-6.10): 5.06 mmol/L (" in stored["profile_markdown"]
+    assert stored["scenario_zh"] == "糖尿病早期预防与筛查"
+
+
+def test_each_note_keeps_its_own_words_and_dates():
+    """Every note is filed in `NOTE_SERIES`; grouped by series, three notes
+    rendered as one line, the newest one's words with all three dates."""
+    notes = [_row("吃了火锅", kind="note", day="2026-10-30", series=NOTE_SERIES),
+             _row("心情不好", kind="note", day="2026-10-29", series=NOTE_SERIES),
+             _row("吃了火锅", kind="note", day="2026-10-28", series=NOTE_SERIES)]
+
+    document = profile._render_records({}, notes, profile.NO_DEVICE_DATA)
+    digest, _ = profile._digest({}, notes, profile.NO_DEVICE_DATA, None)
+
+    assert "- 吃了火锅: 2026-10-30, 2026-10-28" in document
+    assert "- 心情不好: 2026-10-29" in document
+    assert "- 吃了火锅: 2 time(s), last 2026-10-30" in digest
+    assert "- 心情不好: 1 time(s), last 2026-10-29" in digest
 
 
 async def test_the_previous_document_is_never_read(monkeypatch, store):

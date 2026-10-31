@@ -115,6 +115,14 @@ DIGEST_TOKENS = 10000
 #: rest is room for the entries that reason at `low`; a cut answer names no
 #: scenario, and the previous one stays.
 SCENARIO_MAX_TOKENS = 1024
+#: How long the scenario answer may take before the previous scenario stays.
+#: Inside the refresh's 600 s, a router whose slots were busy with chat turns
+#: could hold the request until the refresh timed out and the record, which
+#: needs no model, was not stored. MiniCPM5-2B answered in 15 s with the model
+#: load on a fresh GPU router (2026-10-31), and the CPU preset runs 4.2 times
+#: slower (2026-10-30); half the refresh leaves the rest a margin it needs
+#: about a second of.
+SCENARIO_TIMEOUT_SECONDS = 300
 #: How far back the profile looks: the "past 3 years" the model was told to keep.
 HISTORY_DAYS = 3 * 365
 #: Values listed per indicator in the document, newest first; the rest are counted.
@@ -125,9 +133,9 @@ CORE_ITEMS = 6
 
 def _estimated_tokens(text: str) -> int:
     """A deliberate over-estimate: ~4 chars/token for Latin text, ~2 once the
-    text contains CJK. It only packs indicator lines into chunk budgets, where
-    an over-count costs one more LLM call and an under-count overruns the
-    context. This was tiktoken behind a lazy import (`utils/truncate.py`); its
+    text contains CJK. It sizes the scenario digest against DIGEST_TOKENS,
+    where an over-count leaves an in-range reading out and an under-count
+    overruns a small local model's context. This was tiktoken behind a lazy import (`utils/truncate.py`); its
     BPE file downloads from an OpenAI CDN that is unreachable from exactly the
     networks a gateway deployment exists for, and the estimate does the same job.
     """
@@ -636,11 +644,16 @@ _REPORTED = frozenset({KIND_SYMPTOM, KIND_NOTE})
 
 def _grouped(records: list[dict], kinds: frozenset[str]) -> list[list[dict]]:
     """Rows of `kinds` per series, newest first, in the order of each
-    series' newest row (`records` is newest first)."""
-    groups: dict[str, list[dict]] = {}
+    series' newest row (`records` is newest first). A note is grouped by its
+    words: every note is filed in one series (`standardize.code_note`), and
+    grouped by series a person's notes became one line, the newest note's
+    words with every other note's dates."""
+    groups: dict[tuple[str, str], list[dict]] = {}
     for row in records:
         if row.get("kind") in kinds:
-            groups.setdefault(row.get("series") or row.get("name") or "", []).append(row)
+            key = (("note", row.get("name") or "") if row.get("kind") == KIND_NOTE
+                   else ("series", row.get("series") or row.get("name") or ""))
+            groups.setdefault(key, []).append(row)
     return list(groups.values())
 
 
@@ -836,12 +849,20 @@ class UserProfileGenerator:
 
     @staticmethod
     async def _pick_scenario(digest: str) -> str | None:
-        """The model's scenario for `digest`, as `_scenario_in` reads its answer."""
-        answer = await async_get_text_completion(
-            messages=[{"role": "system", "content": SCENARIO_PROMPT}, {"role": "user", "content": digest}],
-            temperature=0,
-            max_tokens=SCENARIO_MAX_TOKENS,
-        )
+        """The model's scenario for `digest`, as `_scenario_in` reads its answer,
+        or None when none came within SCENARIO_TIMEOUT_SECONDS. A server that
+        keeps writing after the call is dropped stops at SCENARIO_MAX_TOKENS."""
+        try:
+            async with asyncio.timeout(SCENARIO_TIMEOUT_SECONDS):
+                answer = await async_get_text_completion(
+                    messages=[{"role": "system", "content": SCENARIO_PROMPT}, {"role": "user", "content": digest}],
+                    temperature=0,
+                    max_tokens=SCENARIO_MAX_TOKENS,
+                )
+        except TimeoutError:
+            seconds = SCENARIO_TIMEOUT_SECONDS
+            logger.warning("profile scenario timed out: seconds=%d", seconds)
+            return None
         return _scenario_in(answer or "")
 
     @classmethod
@@ -915,9 +936,11 @@ class UserProfileService:
             async with asyncio.timeout(PROFILE_LOCK_TIMEOUT_SECONDS):
                 return await cls._create_user_profile_locked(user_id)
         except TimeoutError:
-            # Not "error": the model server writes on after the call is
-            # dropped (on 2026-10-30, up to 11 minutes past this timeout), so
-            # a retry would run beside the rewrite it replaces.
+            # Not "error", so not retried: the model's part stops at
+            # SCENARIO_TIMEOUT_SECONDS, so what ran past this is the rest of
+            # the refresh, and an immediate retry would hold the person's lock
+            # for another 600 s on the same work. The readings stay
+            # unprocessed, and the next ingest's refresh includes them.
             seconds = PROFILE_LOCK_TIMEOUT_SECONDS
             logger.error("profile creation timed out: user_id=%s seconds=%d", user_id, seconds)
             return {"status": "timed_out", "message": "Profile generation took too long."}
@@ -1000,10 +1023,6 @@ class UserProfileService:
         )
 
         logger.info(f"Successfully created profile {profile_id} version {new_version} for user: {user_id}, last_execute_doc_id: {new_last_execute_doc_id}, action_type: add")
-
-        # Mirror the FULL detailed profile into the agent's encrypted /memories/
-        # so it can read specifics on demand; the bounded Core Summary is what
-        # gets injected into the system prompt. Best-effort, never blocks save.
 
         return {
             "status": "success",
