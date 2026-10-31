@@ -1,7 +1,9 @@
 """A profile rewrite is bounded, and what it writes is stored only when it is a profile.
 
 On 2026-10-30 MiniCPM5-2B wrote 32,000 tokens per rewrite (19 minutes on a
-GPU) and opened two profiles with the prompt's own instructions.
+GPU) and opened two profiles with the prompt's own instructions. The rewrite
+and its LLM client are the application layer; the library-only test
+installation skips this module.
 """
 
 import asyncio
@@ -11,6 +13,11 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+
+pytest.importorskip("dotenv")
+pytest.importorskip("ruamel.yaml")
+pytest.importorskip("cryptography")
+pytest.importorskip("openai")
 
 from mirobody.task.profile_refresh import ProfileRefreshTask
 from mirobody.user import profile
