@@ -549,6 +549,18 @@ BUCKET_CAP = 92
 
 TOOL_NAME = "query_health_indicators"
 
+#: How "the last N days" maps onto an inclusive `start`, quoted in the `start`
+#: description of this tool and of `query_medications` (`meds.TOOL_SCHEMA`),
+#: whose dates are inclusive too. "Inclusive" alone did not stop a model
+#: writing the last N days as today minus N: asked about the last 60 days,
+#: DeepSeek V4.1 Flash read 61 and answered "61 of the last 61 days"
+#: (2026-10-31). The worked example names both the right start and the one a
+#: day early.
+LAST_N_DAYS_EXAMPLE = (
+    "Both dates are counted, so 'the last N days' starts N-1 days before today: on 2026-03-10 the last 7 "
+    "days are start=2026-03-04 (2026-03-03 would read 8 days)."
+)
+
 #: The one schema both the chat tool and the MCP tool publish. Flat, five
 #: parameters, every one applicable to every call. `view` is one enum rather
 #: than `resolution` × `aggregate`: two of those eighteen cells were refused,
@@ -570,17 +582,11 @@ TOOL_SCHEMA: dict[str, object] = {
             "maxItems": 50,
             "description": "Exact indicator names copied from a previous result. Preferred once known; several in one call.",
         },
-        # "Inclusive" alone did not stop a model writing "the last N days" as
-        # today minus N: asked about the last 60 days, DeepSeek V4.1 Flash read
-        # 61 and answered "61 of the last 61 days" (2026-10-31). The worked
-        # example names both the right start and the one a day early.
         "start": {
             "type": "string",
             "pattern": r"^\d{4}-\d{2}-\d{2}$",
-            "description": "First local date, inclusive (YYYY-MM-DD, the person's time zone). Both dates are "
-                           "counted, so 'the last N days' starts N-1 days before today: on 2026-03-10 the last 7 "
-                           "days are start=2026-03-04 (2026-03-03 would read 8 days). Omit both dates for the "
-                           "whole record.",
+            "description": "First local date, inclusive (YYYY-MM-DD, the person's time zone). "
+                           f"{LAST_N_DAYS_EXAMPLE} Omit both dates for the whole record.",
         },
         "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},
         "value_min": {
@@ -798,6 +804,7 @@ __all__ = [
     "BUCKET_CAP",
     "DISPATCH",
     "HealthQuery",
+    "LAST_N_DAYS_EXAMPLE",
     "QueryRequest",
     "ROW_CAP",
     "Rejection",
