@@ -1,5 +1,21 @@
 ## Unreleased
 
+### Fixed
+
+- **The local evaluation no longer stalls on a large streamed event.**
+  `benchmarks/local_models/run.py` read the chat stream one byte at a time,
+  and `requests` rebuilds the unfinished line on every read, so a line cost
+  time in the square of its length. With a model that reads photos itself, a
+  `read_file` result carries the photo as base64, up to 1.5 MB: it took
+  minutes to arrive, the question's deadline (checked once per line) never
+  fired, and the recorded time was the reader's, not the answer's. The runner
+  now reads whatever has arrived (`read1`) and splits the lines itself, so
+  each event is still timed when it arrives, chunked stream or not;
+  `iter_lines(chunk_size=None)` would have waited for the end of a stream
+  that is not chunked. How to tell: `pytest tests/agent/test_local_eval_contract.py
+  -k large_event` sends a 300 KB event both ways; the old reader was still on
+  it after 280 s, and a 1.5 MB event now takes 0.02 s.
+
 ## 1.5.10
 
 ### Fixed

@@ -219,6 +219,16 @@ def test_failed_prerequisite_remains_in_denominator(monkeypatch, manifest):
     assert not any(run["score"]["pass"] for run in runs)
 
 
+class _Raw:
+    """`Response.raw` as the runner reads it: one part per read, then b''."""
+
+    def __init__(self, *parts: bytes):
+        self.parts = list(parts)
+
+    def read1(self, amt, decode_content):
+        return self.parts.pop(0) if self.parts else b""
+
+
 def test_http_sse_first_visible_token_is_reasoning(monkeypatch):
     clock = iter(n / 100 for n in range(100))
     monkeypatch.setattr(runner.time, "monotonic", lambda: next(clock))
@@ -241,9 +251,7 @@ def test_http_sse_first_visible_token_is_reasoning(monkeypatch):
         def raise_for_status(self):
             pass
 
-        def iter_lines(self, *, decode_unicode, chunk_size):
-            assert decode_unicode and chunk_size == 1
-            return iter("data: " + json.dumps(e) for e in events)
+        raw = _Raw(*(f"data: {json.dumps(e)}\n\n".encode() for e in events))
 
     def send(*args, **kwargs):
         assert kwargs["json"]["as_of"] == provenance.AS_OF
@@ -383,6 +391,62 @@ def test_real_sse_delivers_thinking_before_server_finishes(monkeypatch):
     assert result["first_token_s"] <= result["first_text_s"]
 
 
+@pytest.mark.parametrize("framing", ["close", "chunked"])
+def test_real_sse_large_event_arrives_before_the_deadline(monkeypatch, framing):
+    """A photo in a `read_file` result is one SSE line of up to 1.5 MB. Read a
+    byte at a time it took minutes, and the per-line deadline never ran."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    import requests
+
+    parts = [b'data: {"type":"tool_result","content":"' + b"A" * 300_000 + b'"}\n\n',
+             b'data: {"type":"text","text":"Done"}\n\ndata: {"type":"end","finish_reason":"stop"}\n\n']
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1" if framing == "chunked" else "HTTP/1.0"
+
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            if framing == "chunked":
+                self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            for part in parts:
+                self.wfile.write(b"%x\r\n%s\r\n" % (len(part), part) if framing == "chunked" else part)
+            if framing == "chunked":
+                self.wfile.write(b"0\r\n\r\n")
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setattr(runner, "APP", f"http://127.0.0.1:{server.server_port}")
+    done: dict = {}
+    with requests.Session() as session:
+        account = SimpleNamespace(user_id="synthetic", headers=dict, session=session,
+                                  post=lambda *args: {"data": {"session_id": "loopback"}})
+        # In a thread, so the stall this guards against fails the test instead
+        # of hanging it: the old reader was still on this event after 280 s.
+        asking = threading.Thread(target=lambda: done.update(
+            result=runner.ask(account, "Synthetic large event test", 5)), daemon=True)
+        try:
+            asking.start()
+            asking.join(timeout=10)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+    assert "result" in done, "the runner was still reading one 300 KB event after 10 s"
+    result = done["result"]
+    assert result["finish_reason"] == "stop"
+    assert [len(b["content"]) for b in result["blocks"] if b["type"] == "tool_result"] == [300_000]
+    assert result["seconds"] < 2
+
+
 @pytest.mark.parametrize("payload", ["not-json", "[]", '{"type":"reasoning","reasoning":42}'])
 def test_malformed_sse_is_a_recorded_case_failure(monkeypatch, payload):
     class Malformed:
@@ -398,8 +462,7 @@ def test_malformed_sse_is_a_recorded_case_failure(monkeypatch, payload):
         def raise_for_status(self):
             pass
 
-        def iter_lines(self, **kwargs):
-            return iter(["data: " + payload])
+        raw = _Raw(("data: " + payload).encode())
 
     account = SimpleNamespace(user_id="synthetic", headers=dict,
                               post=lambda *args: {"data": {"session_id": "malformed"}},

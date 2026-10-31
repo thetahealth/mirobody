@@ -32,6 +32,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -217,7 +218,7 @@ def ask(account: Account, question: str, timeout: float, *, session_id: str | No
                 envelope = r.json()
                 out["configuration_error"] = envelope.get("code") == -5
                 raise ApiError(f"chat rejected the request: code={envelope.get('code')}; {envelope.get('msg')}")
-            for line in r.iter_lines(decode_unicode=True, chunk_size=1):
+            for line in _sse_lines(r):
                 if time.monotonic() - t0 > timeout:
                     out["timeout"] = True
                     break
@@ -245,6 +246,26 @@ def ask(account: Account, question: str, timeout: float, *, session_id: str | No
     if out.get("timeout") or (finish is None and not out.get("error")):
         out["late_s"] = _wait_answer(account, session_id, previous_assistants=previous_assistants)
     return out
+
+
+def _sse_lines(r: requests.Response) -> Iterator[str]:
+    """The stream's lines, each as soon as its last byte has arrived.
+
+    `read1` returns whatever has arrived, chunked or not. requests'
+    `iter_lines` cannot do both: at a fixed size it rebuilds the unfinished
+    line on every read (at 1 byte, a 1.5 MB `read_file` result carrying a
+    photo took minutes, and the deadline, checked per line, never ran), and
+    at `chunk_size=None` it waits for the end of a stream that is not chunked.
+    """
+    head: list[bytes] = []
+    while chunk := r.raw.read1(1 << 16, decode_content=True):
+        *ends, rest = chunk.split(b"\n")
+        for end in ends:
+            yield (b"".join(head) + end).rstrip(b"\r").decode("utf-8")
+            head = []
+        head.append(rest)
+    if any(head):
+        yield b"".join(head).rstrip(b"\r").decode("utf-8")
 
 
 def _merge(blocks: list[dict], block: dict) -> None:
