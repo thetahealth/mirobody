@@ -12,9 +12,13 @@
   now reads whatever has arrived (`read1`) and splits the lines itself, so
   each event is still timed when it arrives, chunked stream or not;
   `iter_lines(chunk_size=None)` would have waited for the end of a stream
-  that is not chunked. How to tell: `pytest tests/agent/test_local_eval_contract.py
-  -k large_event` sends a 300 KB event both ways; the old reader was still on
-  it after 280 s, and a 1.5 MB event now takes 0.02 s.
+  that is not chunked. A connection dropped mid-event or a read timeout
+  still fails only its question: the reader raises urllib3's errors as
+  requests' own, as `iter_lines` did. How to tell: `pytest
+  tests/agent/test_local_eval_contract.py -k "large_event or broken_stream"`
+  sends a 300 KB event both ways and breaks a stream two ways; the old reader
+  was still on the large event after 280 s, and a 1.5 MB event now takes
+  0.02 s.
 
 ## 1.5.10
 

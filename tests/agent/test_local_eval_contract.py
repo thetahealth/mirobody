@@ -447,6 +447,68 @@ def test_real_sse_large_event_arrives_before_the_deadline(monkeypatch, framing):
     assert result["seconds"] < 2
 
 
+@pytest.mark.parametrize("failure", ["dropped", "silent"])
+def test_real_sse_broken_stream_is_a_recorded_case_failure(monkeypatch, failure):
+    """A stream that breaks mid-event, or goes quiet past the read timeout,
+    fails its question and the run goes on. The runner reads `Response.raw`
+    itself, past requests, which had raised urllib3's errors as its own:
+    uncaught, the first broken stream ended the whole run."""
+    import socket
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    import requests
+
+    release = threading.Event()
+
+    class Handler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.1"
+
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Transfer-Encoding", "chunked")
+            self.end_headers()
+            first = b'data: {"type":"text","text":"Hi"}\n\n'
+            self.wfile.write(b"%x\r\n%s\r\n" % (len(first), first))
+            self.wfile.flush()
+            if failure == "dropped":
+                # A 1000-byte chunk announced, 20 bytes of it sent, then gone.
+                self.wfile.write(b'3e8\r\ndata: {"type":"tool_')
+                self.wfile.flush()
+                self.connection.shutdown(socket.SHUT_RDWR)
+            else:
+                release.wait(5)
+            self.close_connection = True
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setattr(runner, "APP", f"http://127.0.0.1:{server.server_port}")
+    monkeypatch.setattr(runner, "_wait_answer", lambda *args, **kwargs: pytest.fail("a broken stream fails at once"))
+    with requests.Session() as session:
+        post = session.post
+        # The runner waits 120 s for a byte; one second keeps "silent" short.
+        session.post = lambda *args, **kwargs: post(*args, **{**kwargs, "timeout": (5, 1)})
+        account = SimpleNamespace(user_id="synthetic", headers=dict, session=session,
+                                  post=lambda *args: {"data": {"session_id": "loopback"}})
+        try:
+            result = runner.ask(account, "Synthetic broken stream test", 30)
+        finally:
+            release.set()
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+    expected = {"dropped": "ChunkedEncodingError", "silent": "ConnectionError"}[failure]
+    assert result["error"].startswith(expected + ":"), result["error"]
+    assert result["finish_reason"] is None
+    assert [b.get("text") for b in result["blocks"] if b["type"] == "text"] == ["Hi"]
+
+
 @pytest.mark.parametrize("payload", ["not-json", "[]", '{"type":"reasoning","reasoning":42}'])
 def test_malformed_sse_is_a_recorded_case_failure(monkeypatch, payload):
     class Malformed:
