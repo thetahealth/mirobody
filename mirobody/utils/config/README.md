@@ -230,18 +230,22 @@ entry point is looked at first, then these, and the first class with
 agent with its own — see `mirobody/agent/README.md`. There is no second agent
 and no switching.
 
-## Code execution: local Python
+## Code execution: `code_exec`
 
-Every chat model uses `python_exec`, with original record artifacts injected
-as data. [Local Python analysis](../../../docs/python-analysis.md) describes
-the local Docker image, daemon connection, data access and limits. The
-original QuickJS/`eval` interpreter and PTC bridge were removed.
+Every chat model gets `code_exec`, with original record artifacts injected as
+data: JavaScript in an in-process QuickJS engine for a cloud model, Python in
+a local Docker container for a model on this machine or your network when a
+daemon answered at startup. [Calculation in chat](../../../docs/python-analysis.md)
+describes both engines, the daemon connection and the limits. The earlier
+`eval` interpreter's tool bridge (PTC) is not part of it: code reads only the
+injected rows.
 
-To hide the calculator:
+To hide the calculator (`python_exec` and `eval`, its earlier names, are read
+as `code_exec` with a warning):
 
 ```yaml
 DISALLOWED_TOOLS:
-  - python_exec
+  - code_exec
 ```
 
 ## 📚 Medical knowledge (`KNOWLEDGE_INDEX` / `KNOWLEDGE_ONLINE`)

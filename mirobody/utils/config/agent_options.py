@@ -1,10 +1,11 @@
-"""Parsing for the agent's config keys: ``PROMPTS`` and ``MODELS``.
+"""Parsing for the agent's config keys: ``PROMPTS``, ``MODELS`` and the tool lists.
 
-These two are the only parts of `Config` that know anything about the agent,
-and the only parts that do real work rather than read a key: one resolves
+These are the only parts of `Config` that know anything about the agent, and
+the only parts that do real work rather than read a key: one resolves
 prompt-template *references* into template *text* (from the working directory
-or from the installed package), the other normalises a provider table that YAML
-may legitimately express three different ways.
+or from the installed package), one normalises a provider table that YAML may
+legitimately express three different ways, and one reads a renamed tool under
+its current name.
 
 They are plain functions, taking the reader they need (`get`, i.e. any
 `Config`) rather than the whole object, so a test can pass a dict-backed stub.
@@ -62,6 +63,25 @@ def _as_list(raw: Any) -> list:
             return [raw]
         return parsed if isinstance(parsed, list) else [raw]
     return raw if isinstance(raw, list) else []
+
+
+#: Earlier names of the calculator. `DISALLOWED_TOOLS: [python_exec]` written
+#: for 1.5.8-1.5.10, or `[eval]` for an earlier release, would otherwise stop
+#: matching anything and the calculator would come back with no error.
+_RENAMED_TOOLS = {"python_exec": "code_exec", "eval": "code_exec"}
+
+
+def tool_names(names: list) -> list:
+    """`ALLOWED_TOOLS` / `DISALLOWED_TOOLS` with a renamed tool under its
+    current name, and a warning that names the old one."""
+    current = []
+    for name in names:
+        if name in _RENAMED_TOOLS:
+            logger.warning("tool %s is now %s; reading it as that", name, _RENAMED_TOOLS[name])  # phi: ok tool names
+            name = _RENAMED_TOOLS[name]
+        if name not in current:
+            current.append(name)
+    return current
 
 
 def load_prompt_templates(cfg: _Reader, key: str = "PROMPTS") -> dict[str, str]:
