@@ -97,7 +97,7 @@ runtime rather than in a comment that can drift:
 
 ```python
 >>> import mirobody; mirobody.BUNDLE_VERSION
-'loinc-2.83+2026.09.17-aacb2c715b56'
+'loinc-2.83+2026.10.27-126ecba69782'
 ```
 
 The release, the cut date, and a digest over the bundle's own members — so a

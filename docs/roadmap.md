@@ -466,8 +466,9 @@ them only after `consume()` succeeds, and retries an interrupted claim after
 its lease expires. A repeatedly failing batch remains visible in the table
 with `failed_at` after five attempts. `ProfileRefreshTask.consume` reports
 per-user failures to the queue instead of acknowledging them as successes. A
-refresh that ran past its 600 s timeout is acknowledged: a retry would run
-beside a model server possibly still writing the first.
+refresh that ran past its 600 s timeout is acknowledged, not retried: the
+model's scenario answer has its own 300 s limit, so what ran over was the
+rest of the refresh, and the readings stay for the next ingest's refresh.
 The isolated Postgres check exercised competing claims, retry, acknowledgement
 and retained failure rows.
 

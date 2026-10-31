@@ -104,7 +104,7 @@ from it cannot promise data the code does not produce.
 | `garmin` | 46 | `activities`, `allDayRespiration`, `bloodPressures`, `bodyComps`, `dailies`, `hrv`, `pulseox`, `skinTemp`, `sleeps`, `stressDetails`, `userMetrics` |
 | `open_wearables` | 52 | `sleep`, `timeseries`, `workouts` |
 | `oura` | 36 | `daily_activity`, `daily_cardiovascular_age`, `daily_readiness`, `daily_sleep`, `daily_spo2`, `daily_stress`, `heartrate`, `personal_info`, `sleep`, `vo2_max`, `workout` |
-| `whoop` | 26 | `body`, `cycle`, `recovery`, `sleep`, `workout` |
+| `whoop` | 28 | `body`, `cycle`, `recovery`, `sleep`, `workout` |
 <!-- coverage:end -->
 
 Regenerate with `mirobody.testing.coverage.gen_coverage(decoders.coverage_matrix())`

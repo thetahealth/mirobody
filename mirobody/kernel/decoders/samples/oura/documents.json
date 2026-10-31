@@ -1,6 +1,6 @@
 {
   "test_id": "oura_v2_documents",
-  "description": "Oura API v2 document shapes (public docs), synthetic values. Daily documents span the whole local day; a sleep document spans bedtime_start..bedtime_end; personal_info is filed at the pull instant's local midnight.",
+  "description": "Oura API v2 document shapes (public docs), synthetic values. Daily documents span the whole local day; a sleep's own readings span bedtime_start..bedtime_end, and the main sleep's totals (stages, latency, sleeping heart and breathing rate) are the night's daily figures, filed on its day; personal_info is filed at the pull instant's local midnight.",
   "vendor": "oura",
   "cases": [
     {
@@ -28,8 +28,18 @@
       },
       "expected": {
         "count": 14,
-        "values": {"dailyTotalSleepTime": 25200000, "sleepAnalysis_InBed": 27000000, "sleepAnalysis_Awake": 1800000, "sleepAnalysis_Asleep(Deep)": 6000000, "sleepAnalysis_Asleep(Core)": 14400000, "sleepAnalysis_Asleep(REM)": 4800000, "sleepEfficiency": 93, "sleepLatency": 600, "dailyHeartRateAvg": 56.5, "dailyHeartRateMin": 49, "hrvRMSSD": 42, "respiratoryRates": 14.2, "sleepDisturbances": 3, "temperatureDelta": -0.1},
-        "window": [1780237800000, 1780264800000]
+        "values": {"dailyTotalSleepTime": 25200000, "sleepAnalysis_InBed": 27000000, "dailyAwakeTime": 1800000, "dailyDeepSleep": 6000000, "dailyLightSleep": 14400000, "dailyRemSleep": 4800000, "sleepEfficiency": 93, "dailySleepLatency": 600000, "dailySleepAvgHeartRate": 56.5, "dailySleepLowestHeartRate": 49, "hrvRMSSD": 42, "dailySleepRespiratoryRate": 14.2, "sleepDisturbances": 3, "temperatureDelta": -0.1},
+        "absent": ["sleepAnalysis_Awake", "sleepAnalysis_Asleep(Deep)", "sleepAnalysis_Asleep(Core)", "sleepAnalysis_Asleep(REM)", "sleepLatency", "dailyHeartRateAvg", "dailyHeartRateMin", "respiratoryRates"],
+        "intervals": {
+          "dailyTotalSleepTime": [[1780239600000, 1780325999999]], "dailyAwakeTime": [[1780239600000, 1780325999999]],
+          "dailyDeepSleep": [[1780239600000, 1780325999999]], "dailyLightSleep": [[1780239600000, 1780325999999]],
+          "dailyRemSleep": [[1780239600000, 1780325999999]], "dailySleepLatency": [[1780239600000, 1780325999999]],
+          "dailySleepAvgHeartRate": [[1780239600000, 1780325999999]], "dailySleepLowestHeartRate": [[1780239600000, 1780325999999]],
+          "dailySleepRespiratoryRate": [[1780239600000, 1780325999999]],
+          "sleepAnalysis_InBed": [[1780237800000, 1780264800000]], "sleepEfficiency": [[1780237800000, 1780264800000]],
+          "sleepDisturbances": [[1780237800000, 1780264800000]], "hrvRMSSD": [[1780237800000, 1780264800000]],
+          "temperatureDelta": [[1780237800000, 1780264800000]]
+        }
       }
     },
     {
