@@ -342,8 +342,23 @@ operators are recognized outside the matched metric name, so `Mean corpuscular
 volume` is a metric and `Vitamin D` does not request a minimum. Trend threshold
 comparisons use relative tolerance rather than an absolute decimal cutoff.
 
-The web client draws each cite as a numbered chip; clicking it shows the
-reading, its date and range, and the file it came from.
+Before an answer is kept, `citations.normalize` spells its markup the way
+the format does: a misspelt cite (`<xcite>[r4]`) is corrected, a `</cite>`
+that closes nothing is dropped, a cite left open ends after its ids, and a
+cite written just after `</statement>` moves inside it. Stray letters count
+as a cite only where ids follow, so prose (`<excite>`, a `<cite>` around a
+title) and fenced blocks stay as written. An automatic cite is not added
+where the model already cited the value, after a space or later in the same
+claim.
+
+The web client draws no numbers. Adjacent cites are one group, drawn as a
+dotted underline under the values of the claim they close (its statement,
+else its clause, else its sentence when the clause holds fewer values than
+the readings cited); a claim with no value (a guideline, a line of a note)
+is underlined itself, and a cite in a table's flag, verdict or
+reference-range cell moves to the row's result. Clicking opens every source of the group, readings of one
+indicator listed together, with date, range, flag and file. A shared page
+draws no marks at all: a visitor has no source to open.
 
 ## What the person sees while it works
 

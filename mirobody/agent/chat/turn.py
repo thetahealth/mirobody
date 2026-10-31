@@ -33,6 +33,7 @@ from mirobody.agent.clock import as_of, parse_as_of
 from mirobody.agent.registry import agent_name, new_agent
 from mirobody.agent.chat.file import process_files_from_storage
 from mirobody.agent.errors import client_safe_error
+from mirobody.kernel.citations import normalize as normalize_citations
 
 from mirobody.agent.chat.message import save_message
 from mirobody.agent.chat.model import ChatStreamRequest, has_attachment
@@ -357,13 +358,17 @@ def _attach_citations(block: dict[str, Any], transcript: list[dict[str, Any]]) -
     they are the unsupported numbers a reviewer is meant to see.
 
     ``AUTO_CITE=off`` keeps the previous behaviour for a deployment that would
-    rather cite nothing than cite mechanically.
+    rather cite nothing than cite mechanically. The model's own markup is
+    normalized either way (`citations.normalize`): a misspelt `<xcite>` would
+    otherwise reach every client, and the saved conversation, as text.
     """
+    text = normalize_citations(str(block.get("text") or ""))
+    if text != str(block.get("text") or ""):
+        block = {**block, "text": text}
     if os.environ.get("AUTO_CITE", "on").lower() == "off":
         return block
     from .citations_auto import attach_citations, collect_rows
 
-    text = str(block.get("text") or "")
     cited_text, cited, uncited = attach_citations(text, collect_rows(transcript))
     if not cited and not uncited:
         return block

@@ -24,7 +24,7 @@ Standardize health data with one command, try the full app in Codespaces with yo
 </div>
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent shows each step as it works, charts three reports that name the test differently as one trend, and a numbered source on a number opens the reading and its file" width="880">
+  <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent shows each step as it works, charts three reports that name the test differently as one trend, and clicking an underlined number opens the reading and the file it came from" width="880">
 </p>
 <p align="center"><em>Three reports, three names for the same test. One trend, with the file behind every number.</em></p>
 

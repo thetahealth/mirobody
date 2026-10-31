@@ -379,6 +379,27 @@ def _choose(before: str, context: str, unit: str, candidates: list[dict[str, Any
     return candidates[0] if len({r["rid"] for r in candidates}) == 1 else None
 
 
+_CITE_NEXT = re.compile(r"[ \t]*<cite>")
+_CLAIM_END = re.compile(r"[\n|。！？；]|[.!?;](?=\s)")
+_CITE_ID = re.compile(r"\[([^\[\]]+)\]")
+
+
+def _already_cited(text: str, end: int, rid: str) -> bool:
+    """Whether the model cited this value itself: a cite after it, spaces
+    allowed, or this row cited later in the same claim.
+
+    Only an adjacent cite used to count, so `均值 114.5 <cite>[r32]</cite>`
+    gained a second `[r32]` before the space, and `−0.67 kg）<cite>[r29]`
+    one after the number: two marks for one row in one table cell (measured
+    2026-10-30, DeepSeek, a year's weight and blood pressure).
+    """
+    if _CITE_NEXT.match(text, end):
+        return True
+    stop = _CLAIM_END.search(text, end)
+    claim = text[end:stop.start() if stop else len(text)]
+    return any(rid in _CITE_ID.findall(cite) for cite in _CITE.findall(claim))
+
+
 def attach_citations(text: str, rows: list[dict[str, Any]]) -> tuple[str, int, list[str]]:
     """Return rewritten text, inserted citation count and figures left unattributed."""
     if not text:
@@ -405,7 +426,7 @@ def attach_citations(text: str, rows: list[dict[str, Any]]) -> tuple[str, int, l
         chosen = _choose(before, context, unit, _candidates(rows, value, claim, signed=signed), names, claim)
         out.append(text[cursor:end])
         if chosen is not None:
-            if not text[end:end + 6].startswith("<cite>"):
+            if not _already_cited(text, end, chosen["rid"]):
                 out.append(f"<cite>[{chosen['rid']}]</cite>")
                 cited += 1
         else:
