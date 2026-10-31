@@ -249,7 +249,10 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 
 ## Windows
 
-* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive.
+* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive,
+  so "the last N days" starts N-1 days before today. The schema says so
+  with a worked example: given "inclusive" alone, a model wrote the last
+  60 days as today minus 60 and read 61 (2026-10-31).
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.

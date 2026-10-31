@@ -37,7 +37,8 @@ query_health_indicators(indicators=["<name from the result>"], view="latest")
 
 Without `keywords` or `indicators`, the result is a catalogue, even if a view
 was requested. `start` and `end` are inclusive dates in the record owner's
-timezone; omitted measurement dates mean the whole recorded history.
+timezone, so the last 7 days start six days before today; omitted
+measurement dates mean the whole recorded history.
 
 ## Interpret results
 

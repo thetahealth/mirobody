@@ -28,6 +28,18 @@
   calculation question gets a `code_exec` call that returns the result;
   `pytest tests/test_code_tool_capability.py`.
 
+- **"The last N days" reads N days, not N+1.** `query_health_indicators`
+  takes `start` and `end` as inclusive local dates, and the model wrote "the
+  last N days" as today minus N: asked about the last 60 days, DeepSeek V4.1
+  Flash read 61 and answered "61 of the last 61 days" (found by a local
+  evaluation). The `start` description,
+  which the chat agent and MCP clients both read, now says the window counts
+  both ends and gives a worked example: on 2026-03-10 the last 7 days start
+  2026-03-04, not 2026-03-03. How to tell: ask about "the last 7 days" and
+  check that the answer's window starts six days before today; `pytest
+  mirobody/tests/test_last_n_days_window.py` holds the example to the window
+  the server builds.
+
 ## 1.5.10
 
 ### Fixed
