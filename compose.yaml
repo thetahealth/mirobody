@@ -42,6 +42,11 @@ services:
     volumes:
       - mirobody_upload:/app/.theta/mcp/upload
 
+  # Chat calculation (`code_exec`) needs nothing here for a cloud model: its
+  # code runs as JavaScript inside the app. A local model computes in Python
+  # only when the app reaches a Docker daemon; compose-python.yaml mounts the
+  # socket for that, which gives the app control of the host's Docker, so it is
+  # opt-in (docs/python-analysis.md).
   mirobody: &mirobody
     image: ${MIROBODY_IMAGE:-${DOCKER_MIRROR:-}thetahealth4mirobody/mirobody:1.5.10}
     restart: unless-stopped

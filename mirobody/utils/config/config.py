@@ -523,11 +523,11 @@ class Config:
         if self._agent_options:
             return self._agent_options
 
-        from .agent_options import load_prompt_templates, parse_providers
+        from .agent_options import load_prompt_templates, parse_providers, tool_names
 
         options = {
-            "allowed_tools"     : self.get_list("ALLOWED_TOOLS", []),
-            "disallowed_tools"  : self.get_list("DISALLOWED_TOOLS", []),
+            "allowed_tools"     : tool_names(self.get_list("ALLOWED_TOOLS", [])),
+            "disallowed_tools"  : tool_names(self.get_list("DISALLOWED_TOOLS", [])),
             "prompt_templates"  : load_prompt_templates(self),
             "providers"         : parse_providers(self),
         }

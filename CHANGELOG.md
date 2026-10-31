@@ -27,6 +27,34 @@
   `profile rewrite repeats its instructions, not stored`, then
   `profile_refresh not stored: ... status=rejected`, where it used to spend
   19 minutes.
+- **The local evaluation no longer stalls on a large streamed event.**
+  `benchmarks/local_models/run.py` read the chat stream one byte at a time,
+  and `requests` rebuilds the unfinished line on every read, so a line cost
+  time in the square of its length. With a model that reads photos itself, a
+  `read_file` result carries the photo as base64, up to 1.5 MB: it took
+  minutes to arrive, the question's deadline (checked once per line) never
+  fired, and the recorded time was the reader's, not the answer's. The runner
+  now reads whatever has arrived (`read1`) and splits the lines itself, so
+  each event is still timed when it arrives, chunked stream or not;
+  `iter_lines(chunk_size=None)` would have waited for the end of a stream
+  that is not chunked. A connection dropped mid-event or a read timeout
+  still fails only its question: the reader raises urllib3's errors as
+  requests' own, as `iter_lines` did. How to tell: `pytest
+  tests/agent/test_local_eval_contract.py -k "large_event or broken_stream"`
+  sends a 300 KB event both ways and breaks a stream two ways; the old reader
+  was still on the large event after 280 s, and a 1.5 MB event now takes
+  0.02 s.
+- **`query_medications` reads the last 30 days as 30, and says how to count
+  a window.** With no dates, `view="log"` promised "the last 30 days" but
+  read from today minus 30 to today, 31 days; with only `end`, the window was
+  31 days ending there. Both now start 29 days back. The tool's `start`
+  description was "inclusive" with no example, the wording that made the
+  readings tool read N+1 days; it now quotes the same worked example, from
+  one constant (`query.LAST_N_DAYS_EXAMPLE`) both schemas publish. How to
+  tell: on 2026-06-10, `query_medications(view="log")` reports the window
+  2026-05-12 to 2026-06-10, not 2026-05-11; `pytest
+  mirobody/tests/test_last_n_days_window.py` checks the default, the
+  `end`-only window and that both schemas carry the example.
 
 ## 1.5.10
 
@@ -65,6 +93,34 @@
   write a claim once, inside its statement: it wrote one sentence in prose
   and again in a `<statement>` beside it. How to tell: `pytest
   mirobody/tests/test_citations.py mirobody/tests/test_chat_auto_citations.py`.
+
+- **A Chinese question's thinking is Chinese, a Japanese question is
+  answered in Japanese, and an English answer has no Chinese words.** The
+  web client streams the model's thinking while it works. With DeepSeek V4
+  Flash every Chinese and Japanese run thought in English, and a Japanese
+  question about cholesterol was answered in Chinese on two runs of four,
+  once right after its thinking said "Now answer in Japanese". The note sent
+  with a non-English question now asks for the thinking in that language
+  too, and the Japanese note and the prompt say kana mark Japanese, not
+  Chinese: ten Chinese runs of thirteen then thought in Chinese
+  throughout, and nine Japanese runs of nine answered in Japanese (their
+  thinking stays English). A prompt rule spelled a change's direction in Chinese
+  (`上升/下降/持平`), and English answers copied it ("total cholesterol
+  **下降** slightly", four runs of four); it now asks for the words in the
+  answer's language, and four English runs had none. How to tell: ask in
+  Chinese and watch the thinking; ask in Japanese.
+
+- **The thinking panel's labels stay on one line, and the first-run page
+  shows the local models loaded once they are.** A step's label could shrink
+  to one character wide beside a long summary ("Loo/ked/up/you/r/heal/th").
+  After "use the models on this machine", each model's badge, the size cards
+  and the notice kept the lookup made before the save and said "waiting to
+  load" beside the page's own "both models have loaded". A one-line source
+  read "Lines 13–13". All three are fixed in the bundled client, and the
+  README's Ask demos are recorded again on it: the Chinese ones think in
+  Chinese, the Japanese one folds DeepSeek's English thinking, and the
+  Japanese README gets its own first-run demo (`setup-demo.ja.gif`). How to
+  tell: open README.ja.md.
 
 - **A counting question can be asked of `view="stats"`, and its count is
   right.** "How many days last week did I get under an hour of deep sleep"

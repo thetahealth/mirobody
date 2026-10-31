@@ -75,12 +75,15 @@ or `query_pharmacogenomics`. A chat turn gets the four record tools, not the
 three terminology tools: the readings tool already resolves names and units, so
 those serve only a client holding readings of its own
 (`agent/tool_loader.py::_MCP_ONLY_TOOLS`). Beside them: the harness's `ls`,
-`read_file`, `glob`, `grep`, the local `python_exec` calculator, and `ask_user`.
+`read_file`, `glob`, `grep`, `ask_user` and the `code_exec` calculator
+([python-analysis.md](python-analysis.md)).
 `ask_user` is never an MCP tool — an MCP client has no widget to answer a
 question with.
 
-The calculator consumes original artifacts rather than display tables;
-[Local Python analysis](python-analysis.md) describes data access and setup.
+The calculator consumes original artifacts rather than display tables: in
+JavaScript in the app for a cloud model, in Python in a local container for a
+model on this machine. [Calculation in chat](python-analysis.md) describes
+data access and setup.
 
 The local suite asserts both lists exactly.
 
@@ -117,9 +120,9 @@ query_health_indicators(kind="medications", view="day")
 `query_medications` reads the window per view: `plan` and `history` mean "in
 effect at some point in the window" (so "what was I taking in March" is a
 window on the plan view), `log` means "recorded in the window" and defaults to
-the last 30 days. Every `plan` answer carries the note that a plan is intent,
-not an intake record; every `log` answer, that a missing dose is not evidence
-it was not taken.
+the last 30 days, today and the 29 before it. Every `plan` answer carries the
+note that a plan is intent, not an intake record; every `log` answer, that a
+missing dose is not evidence it was not taken.
 
 And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 
@@ -246,7 +249,10 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 
 ## Windows
 
-* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive.
+* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive,
+  so "the last N days" starts N-1 days before today. The schema says so
+  with a worked example: given "inclusive" alone, a model wrote the last
+  60 days as today minus 60 and read 61 (2026-10-31).
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.

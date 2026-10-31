@@ -2,12 +2,13 @@
 
 `MirobodyAgent.generate_response` runs a turn: the chat model of the
 requested `MODELS` entry, the four record tools an external MCP client also
-sees (plus the harness's own filesystem tools, `python_exec` and
-`ask_user`), a Postgres-backed virtual filesystem that projects the person's uploads, library and
-health profile read-only, a LangGraph checkpointer that holds the conversation
-per session, and the middleware that keeps a turn bounded (model-call budget,
-tool-call cap, fault containment, retry governance). Every moving part is
-inspectable and self-hostable; this is what mirobody.ai runs.
+sees (plus the harness's own filesystem tools, `ask_user` and the
+`code_exec` calculator), a Postgres-backed virtual filesystem
+that projects the person's uploads, library and health profile read-only, a
+LangGraph checkpointer that holds the conversation per session, and the
+middleware that keeps a turn bounded (model-call budget, tool-call cap, fault
+containment, retry governance). Every moving part is inspectable and
+self-hostable; this is what mirobody.ai runs.
 
 There is deliberately ONE agent. A deployment that wants a different harness
 replaces this class (see `registry.py`); it does not add a second one to
@@ -30,7 +31,7 @@ from mirobody.kernel.series import offset_name, zone
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import get_req_ctx
-from mirobody.utils.config import safe_read_cfg
+from mirobody.utils.config import global_config, safe_read_cfg
 from mirobody.utils.config.llm import chat_entries, default_model
 
 from . import harness
@@ -96,6 +97,20 @@ def _latest_question(messages: list) -> str:
             return content if isinstance(content, str) else " ".join(
                 b.get("text", "") for b in content or [] if isinstance(b, dict))
     return ""
+
+
+def _calculator(disallowed_tools: list[str] | None, model: str) -> BaseTool | None:
+    """The `code_exec` a turn with chat entry `model` gets, or None when
+    `DISALLOWED_TOOLS` names it. Its engine follows where the model runs
+    (`code_tool.calculator`); the prompt's computation section and the record
+    tools' note follow the tool list, so neither names a calculator the model
+    was not given, nor the wrong language."""
+    from .code_tool import TOOL_NAME, calculator
+    from .prompt import runs_locally
+
+    if TOOL_NAME in (disallowed_tools or ()):
+        return None
+    return calculator(runs_locally(model))
 
 
 def with_turn_note(messages: list, note: str) -> list:
@@ -171,22 +186,22 @@ class MirobodyAgent:
             raise ConfigError(f"Model '{name}' cannot be used: {reason}")
         return client, name, notice
 
-    async def _load_tools(self, user_id: str, session_id: str = "") -> list[BaseTool]:
+    async def _load_tools(self, user_id: str, session_id: str = "", model: str = "") -> list[BaseTool]:
         """The MCP tools as LangChain tools, bound to `user_id` and, so their
         rows carry citable rids, to the conversation. A tool that cannot be
         built is logged and left out by `load_global_tools`."""
         from .tool_loader import load_global_tools
-        from .python_tool import COMPUTATION_NOTE, python_exec
+        from .code_tool import COMPUTATION_NOTE
 
-        python_enabled = "python_exec" not in (self.disallowed_tools or ())
+        code = _calculator(self.disallowed_tools, model)
         tools = await load_global_tools(
             user_id=user_id,
             allowed_tools=self.allowed_tools,
             disallowed_tools=self.disallowed_tools,
             session_id=session_id,
-            result_note=COMPUTATION_NOTE if python_enabled else "",
+            result_note=COMPUTATION_NOTE if code else "",
         )
-        return [*tools, python_exec] if python_enabled else tools
+        return [*tools, code] if code else tools
 
     def _get_base_prompt(self, prompt_name: str) -> str:
         """The agent's own system prompt: the `PROMPTS` template named by the
@@ -546,8 +561,8 @@ class MirobodyAgent:
                 **{t.name: medical_knowledge.CALL_LIMITS[t.name]
                    for t in tools if t.name in medical_knowledge.CALL_LIMITS},
             }
-            if any(t.name == "python_exec" for t in tools):
-                tool_call_limits["python_exec"] = 8
+            if any(t.name == "code_exec" for t in tools):
+                tool_call_limits["code_exec"] = 8
             middleware = harness.standard_middleware(
                 retry_limit=self._RETRY_LIMIT,
                 model_call_limit=self.model_call_limit,
@@ -697,7 +712,7 @@ class MirobodyAgent:
             # `_build_backend` projects them into /uploads/ by file_key
             # (ThFilesBackend over th_files, no byte copy) and the prompt tells
             # the model to read_file them on demand.
-            loaded_tools = await self._load_tools(user_id, session_id)
+            loaded_tools = await self._load_tools(user_id, session_id, model)
             scopes = medical_knowledge.scopes() if any(t.name == medical_knowledge.SEARCH for t in loaded_tools) else []
             system_prompt = await self._build_system_prompt(
                 self._get_base_prompt(prompt_name), user_id, loaded_tools, _latest_question(messages), model,
@@ -759,4 +774,17 @@ class MirobodyAgent:
         """The registry's hook: one chat model per `MODELS` entry, each thinking
         at `AGENT_THINKING` (medium unless configured) between its tool calls."""
         thinking = safe_read_cfg("AGENT_THINKING") or DEFAULT_THINKING
-        return build_llm_clients(llm_client_config, owner=cls.__name__, thinking=thinking, require_thinking=True)
+        clients = build_llm_clients(llm_client_config, owner=cls.__name__, thinking=thinking, require_thinking=True)
+        # The registry calls this at startup, the one hook this class gets
+        # there: probing now puts the reason a local model computes in
+        # JavaScript in the boot log, and no turn waits on the probe (it can
+        # take a `docker` CLI call). Cached, so a key changed on the setup page
+        # does not repeat it; a local model added there is probed then.
+        from .code_tool import TOOL_NAME, executor_ready
+        from .prompt import runs_locally
+
+        cfg = global_config()
+        disallowed = (cfg.get_agent_settings() if cfg else {}).get("disallowed_tools") or ()
+        if TOOL_NAME not in disallowed and any(runs_locally(name) for name in llm_client_config):
+            executor_ready()
+        return clients

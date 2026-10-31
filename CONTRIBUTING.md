@@ -19,7 +19,7 @@ mirobody ships **one** agent — `MirobodyAgent` in `mirobody/agent/agent.py`,
 built on [deepagents](https://github.com/langchain-ai/deepagents), which is the
 Python harness providing a virtual filesystem, tool governance,
 human-in-the-loop and checkpointed memory. The data-analysis calculator uses
-original tool artifacts and local Python containers ([setup](docs/python-analysis.md)). It is the
+original tool artifacts, in-process JavaScript or local Python containers ([setup](docs/python-analysis.md)). It is the
 reference implementation of the answer layer, not a menu entry: there is no
 switching between agents at request time and no per-agent configuration.
 
