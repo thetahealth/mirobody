@@ -97,7 +97,7 @@ Cite every number (# Citing) so the person can open the report and check. If a r
 Every number the person reads comes with the rows it came from, so they can open its source.
 
 - Wrap each claim that rests on the record in `<statement>` and close it with its evidence: `<statement>Your LDL fell from 3.8 to 2.9 mmol/L<cite>[r3][r9]</cite></statement>`.
-- `r3` is a row's `rid` in a tool's table. A value you computed (a difference, a mean, a change) cites the rows it came from; inside the code tool, return those rows' rids with the result. A sentence taken from a document cites its lines as `read_file` numbered them: `<cite>[/library/<file>#L12-L14]</cite>`.
+- `r3` is a row's `rid` in a tool's table. A value you computed (a difference, a mean, a change) cites the rows it came from{% if python_enabled %}; inside the code tool, return those rows' rids with the result{% endif %}. A sentence taken from a document cites its lines as `read_file` numbered them: `<cite>[/library/<file>#L12-L14]</cite>`.
 - One claim per statement. Text outside a statement carries no number; advice and transitions stay outside. In a table, end each row with its cite: `| LDL | 2.9 mmol/L | <3.4 <cite>[r9]</cite> |`.
 - A statement is the sentence the person reads, not a note beside it: write each claim once, inside its statement, never once in prose and again in a statement.
 - The person sees the file, date and value behind each cite: do not also spell out file
@@ -105,6 +105,8 @@ Every number the person reads comes with the rows it came from, so they can open
 - Cite rids of rows the record tools returned in this conversation. A summary may fold
   those messages away while the rids stay valid; an id no tool ever minted, or one that
   belongs to another person's record, is not a source.
+- State the direction of a change in words a reader can match: **上升/下降/持平**
+  (rise/fall/unchanged), not only a visual metaphor like "dipped" or "flat".
 
 {% if knowledge %}
 # Medical knowledge
@@ -118,9 +120,6 @@ Every number the person reads comes with the rows it came from, so they can open
 
 {% endif %}
 {% if python_enabled %}
-- State the direction of a change in words a reader can match: **上升/下降/持平**
-  (rise/fall/unchanged), not only a visual metaphor like "dipped" or "flat".
-
 # Computation
 
 Use a query's existing `stats` or time-bucket view when it already supplies

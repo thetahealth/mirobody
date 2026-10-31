@@ -8,6 +8,7 @@ tools; the calculator gets only results those tools already returned.
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 from dataclasses import asdict
 
@@ -18,7 +19,7 @@ from deepagents.backends.protocol import ExecuteResponse
 
 from mirobody.kernel import tools
 from .models.messages import user_turn_start
-from .python_sandbox import LocalPythonSandbox
+from .python_sandbox import LocalPythonSandbox, ping
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,25 @@ COMPUTATION_NOTE = (
     "Inside the computation, /workspace/data.json also contains the original JSON object "
     "with data and results. Earlier lookups are available in results as full original envelopes."
 )
+
+
+@functools.cache
+def executor_ready() -> bool:
+    """Whether a local Docker daemon answered, decided once per process.
+
+    `MirobodyAgent` offers `python_exec` only when one did. The default
+    compose stack mounts no Docker socket into the app; offering the tool
+    there made every call answer "unavailable" (2026-10-30), and a model that
+    then did the arithmetic itself got a division wrong and carried it into
+    the next turn. A daemon that comes up after the app needs a restart.
+    """
+    try:
+        ping()
+    except Exception as exc:
+        logger.warning("python_exec left out: no local Docker daemon answered: error_type=%s "
+                       "(docs/python-analysis.md)", type(exc).__name__)
+        return False
+    return True
 
 
 def source_results(messages: list, *, computation_tool: str = "python_exec") -> list[dict]:

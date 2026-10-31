@@ -186,4 +186,4 @@ GLM-OCR 用于识别文字和表格，无法判断餐食、皮疹等场景。默
 
 本地与云端模型使用相同的文档处理流程：长报告按页处理，可识别的表格优先按规则抽取，其余内容交给文本模型。处理流程见 [处理流程参考](pipeline.md)（英文），其他 OCR 模型及其配置见 [文档识别](model-choice.zh-CN.md#the-document-reader-glm-ocr-09b)。
 
-所有聊天模型均通过 `python_exec` 对查询记录进行计算。该工具需要单独启用本地 Docker 执行环境，配置方法见[本地 Python 分析](python-analysis.zh-CN.md)。
+所有聊天模型均通过 `python_exec` 对查询记录进行计算。该工具需要单独启用本地 Docker 执行环境，未启用时不会提供给模型，配置方法见[本地 Python 分析](python-analysis.zh-CN.md)。

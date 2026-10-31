@@ -2,12 +2,13 @@
 
 `MirobodyAgent.generate_response` runs a turn: the chat model of the
 requested `MODELS` entry, the four record tools an external MCP client also
-sees (plus the harness's own filesystem tools, `python_exec` and
-`ask_user`), a Postgres-backed virtual filesystem that projects the person's uploads, library and
-health profile read-only, a LangGraph checkpointer that holds the conversation
-per session, and the middleware that keeps a turn bounded (model-call budget,
-tool-call cap, fault containment, retry governance). Every moving part is
-inspectable and self-hostable; this is what mirobody.ai runs.
+sees (plus the harness's own filesystem tools, `ask_user` and, when a local
+Docker daemon answers, `python_exec`), a Postgres-backed virtual filesystem
+that projects the person's uploads, library and health profile read-only, a
+LangGraph checkpointer that holds the conversation per session, and the
+middleware that keeps a turn bounded (model-call budget, tool-call cap, fault
+containment, retry governance). Every moving part is inspectable and
+self-hostable; this is what mirobody.ai runs.
 
 There is deliberately ONE agent. A deployment that wants a different harness
 replaces this class (see `registry.py`); it does not add a second one to
@@ -30,7 +31,7 @@ from mirobody.kernel.series import offset_name, zone
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import get_req_ctx
-from mirobody.utils.config import safe_read_cfg
+from mirobody.utils.config import global_config, safe_read_cfg
 from mirobody.utils.config.llm import chat_entries, default_model
 
 from . import harness
@@ -96,6 +97,17 @@ def _latest_question(messages: list) -> str:
             return content if isinstance(content, str) else " ".join(
                 b.get("text", "") for b in content or [] if isinstance(b, dict))
     return ""
+
+
+def _offers_python(disallowed_tools: list[str] | None) -> bool:
+    """Whether a turn gets `python_exec`: `DISALLOWED_TOOLS` does not name it
+    and a local Docker daemon answered (`python_tool.executor_ready`). The
+    prompt's computation section and the record tools' note follow the tool
+    list, so neither names a calculator the model was not given."""
+    if "python_exec" in (disallowed_tools or ()):
+        return False
+    from .python_tool import executor_ready
+    return executor_ready()
 
 
 def with_turn_note(messages: list, note: str) -> list:
@@ -178,7 +190,7 @@ class MirobodyAgent:
         from .tool_loader import load_global_tools
         from .python_tool import COMPUTATION_NOTE, python_exec
 
-        python_enabled = "python_exec" not in (self.disallowed_tools or ())
+        python_enabled = _offers_python(self.disallowed_tools)
         tools = await load_global_tools(
             user_id=user_id,
             allowed_tools=self.allowed_tools,
@@ -759,4 +771,11 @@ class MirobodyAgent:
         """The registry's hook: one chat model per `MODELS` entry, each thinking
         at `AGENT_THINKING` (medium unless configured) between its tool calls."""
         thinking = safe_read_cfg("AGENT_THINKING") or DEFAULT_THINKING
-        return build_llm_clients(llm_client_config, owner=cls.__name__, thinking=thinking, require_thinking=True)
+        clients = build_llm_clients(llm_client_config, owner=cls.__name__, thinking=thinking, require_thinking=True)
+        # The registry calls this at startup, the one hook this class gets
+        # there: probing now puts the reason a calculator is left out in the
+        # boot log, and no turn waits on the probe (it can take a `docker` CLI
+        # call). Cached, so a key changed on the setup page does not repeat it.
+        cfg = global_config()
+        _offers_python((cfg.get_agent_settings() if cfg else {}).get("disallowed_tools"))
+        return clients

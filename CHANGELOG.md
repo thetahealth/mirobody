@@ -1,5 +1,23 @@
 ## Unreleased
 
+### Fixed
+
+- **The calculator is offered only where it can run.** A stack started from
+  `compose.yaml` alone mounts no Docker socket into the app, yet every chat
+  model was still given `python_exec` and told to use it, so every call
+  answered "local Python execution is unavailable" and a model that then did
+  the arithmetic itself could get it wrong and carry the error into the next
+  turn. The app now asks the local Docker daemon once at startup; when nothing
+  answers, the tool is left out, the system prompt drops its computation
+  section and the record tools stop pointing at it, and one log line says why.
+  The prompt's rule to name a change's direction in words (rise, fall,
+  unchanged) sat inside that section and would have gone with it; it now
+  stands with the citing rules. How to tell: on a stack without
+  `compose-python.yaml` the log has `python_exec left out: no local Docker
+  daemon answered`, and a calculation question gets no `python_exec` call;
+  with it, the call returns the computed result. `pytest
+  tests/test_code_tool_capability.py`.
+
 ## 1.5.10
 
 ### Fixed

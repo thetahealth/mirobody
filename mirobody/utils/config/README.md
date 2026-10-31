@@ -232,8 +232,8 @@ and no switching.
 
 ## Code execution: local Python
 
-Every chat model uses `python_exec`, with original record artifacts injected
-as data. [Local Python analysis](../../../docs/python-analysis.md) describes
+Every chat model gets `python_exec` when a local Docker daemon answered at
+startup, with original record artifacts injected as data. [Local Python analysis](../../../docs/python-analysis.md) describes
 the local Docker image, daemon connection, data access and limits. The
 original QuickJS/`eval` interpreter and PTC bridge were removed.
 

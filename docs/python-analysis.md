@@ -56,14 +56,34 @@ containers. This is opt-in; the main Compose file does not mount the socket.
 Calculation containers never receive it.
 
 Set `PYTHON_DOCKER_SOCKET` to the socket path on the Docker host and
-`PYTHON_DOCKER_GID` to its owning group ID, then run:
+`PYTHON_DOCKER_GID` to its owning group ID as the daemon sees it (Colima
+reports 991), which this prints:
+
+```bash
+docker run --rm -v /var/run/docker.sock:/s python:3.12-slim stat -c %g /s
+```
+
+Then run:
 
 ```bash
 docker compose -f compose.yaml -f compose-python.yaml up -d
 ```
 
-If the executor is unavailable, the tool reports a setup problem; existing
-query results remain valid. To hide the calculator, set
+### When no daemon answers
+
+The app asks the daemon once, at startup. When nothing answers (the main
+Compose file alone, a socket whose group the app is not in, Docker not
+running), chat models are not offered `python_exec` and the system prompt does
+not mention it; the query views' own statistics still answer. The log says so
+once:
+
+```text
+python_exec left out: no local Docker daemon answered: error_type=FileNotFoundError (docs/python-analysis.md)
+```
+
+Restart the app after fixing the setup. If the daemon stops while the app
+runs, the tool reports a setup problem and the queried readings remain valid.
+To hide the calculator even when a daemon answers, set
 `DISALLOWED_TOOLS: [python_exec]`.
 
 <a id="runtime-and-checks"></a>

@@ -33,13 +33,27 @@ docker pull python:3.12-slim
 
 应用需要连接主机的 Docker 服务，才能创建计算容器。可选配置 [compose-python.yaml](../compose-python.yaml) 会将管理 socket 挂载给应用，授予其管理容器的权限，因此需要主动启用；主 Compose 配置不会默认挂载。计算容器不会获得该 socket。
 
-将 `PYTHON_DOCKER_SOCKET` 设为 Docker 主机上的 socket 路径，将 `PYTHON_DOCKER_GID` 设为所属组 ID，然后执行：
+将 `PYTHON_DOCKER_SOCKET` 设为 Docker 主机上的 socket 路径，将 `PYTHON_DOCKER_GID` 设为 Docker 服务看到的所属组 ID（Colima 为 991），可用以下命令查看：
+
+```bash
+docker run --rm -v /var/run/docker.sock:/s python:3.12-slim stat -c %g /s
+```
+
+然后执行：
 
 ```bash
 docker compose -f compose.yaml -f compose-python.yaml up -d
 ```
 
-执行器不可用时，工具会提示配置问题，已有查询结果仍然有效。如需隐藏计算工具，可设置 `DISALLOWED_TOOLS: [python_exec]`。
+### 无法连接 Docker 服务时
+
+应用只在启动时检查一次 Docker 服务。检查失败时（只用主 Compose 配置、应用不在 socket 所属组、Docker 未运行），聊天模型不会获得 `python_exec`，系统提示也不会提到它，查询视图自带的统计仍然可用。日志只记录一次原因：
+
+```text
+python_exec left out: no local Docker daemon answered: error_type=FileNotFoundError (docs/python-analysis.md)
+```
+
+修正配置后需重启应用。如果应用运行期间 Docker 服务停止，工具会提示配置问题，已有查询结果仍然有效。即使 Docker 服务可用也要隐藏计算工具时，可设置 `DISALLOWED_TOOLS: [python_exec]`。
 
 ## 运行约束与验证
 

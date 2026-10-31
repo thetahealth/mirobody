@@ -224,6 +224,6 @@ content goes to the text model. See [pipeline.md](pipeline.md) for the process
 and [model-choice.md](model-choice.md#the-document-reader-glm-ocr-09b) for OCR
 alternatives and their configuration.
 
-All chat models use `python_exec` for calculations over queried records.
-Enable its separate local Docker executor as described in
-[Local Python analysis](python-analysis.md).
+All chat models use `python_exec` for calculations over queried records
+once its separate local Docker executor is enabled, as described in
+[Local Python analysis](python-analysis.md); without one, the tool is left out.

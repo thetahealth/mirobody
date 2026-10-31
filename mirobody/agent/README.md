@@ -12,7 +12,7 @@ What a turn has:
 | --- | --- | --- |
 | tools | [`tools/`](./tools/) via [`tool_loader.py`](./tool_loader.py) | the four record tools, each schema passed through verbatim, the same ones an MCP client sees over `/mcp`; the three terminology tools stay MCP-only (`tool_loader._MCP_ONLY_TOOLS`) |
 | virtual filesystem | [`filesystem/`](./filesystem/) — `backend.py`, `files_backend.py`, `profile_backend.py` | `/uploads`, `/library`, `/memories` — read-only projections of the tables that own the data |
-| computation | [`python_tool.py`](./python_tool.py), [`python_sandbox.py`](./python_sandbox.py) | original record artifacts → local Python; the same tool for every model |
+| computation | [`python_tool.py`](./python_tool.py), [`python_sandbox.py`](./python_sandbox.py) | original record artifacts → local Python; the same tool for every model, offered only when a local Docker daemon answered at startup (`python_tool.executor_ready`) |
 | memory | [`checkpointer.py`](./checkpointer.py) | LangGraph Postgres checkpointer, one thread per asker and session (`thread_for`) |
 | governance | [`middleware/`](./middleware/) | fault containment, retry refusal keyed on the envelope, prompt caching; plus the model-call and tool-call budgets |
 | one question | [`hitl.py`](./hitl.py) | `ask_user`, the human-in-the-loop interrupt (never an MCP tool) |

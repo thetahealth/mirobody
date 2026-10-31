@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import socketserver
+import tempfile
+import threading
+from http.server import BaseHTTPRequestHandler
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -141,6 +147,57 @@ async def test_unavailable_executor_does_not_claim_the_record_is_empty(monkeypat
 
 async def test_agent_registers_one_python_tool_and_omits_it_when_disallowed(monkeypatch):
     from mirobody.agent.agent import MirobodyAgent
+    from mirobody.agent import python_tool, tool_loader
+    notes = []
+
+    async def loaded(**kwargs):
+        notes.append(kwargs["result_note"])
+        return []
+
+    monkeypatch.setattr(tool_loader, "load_global_tools", loaded)
+    monkeypatch.setattr(python_tool, "executor_ready", lambda: True)
+    agent = MirobodyAgent()
+    assert [tool.name for tool in await agent._load_tools("synthetic")] == ["python_exec"]
+    assert "original rows" in notes[-1]
+    agent.disallowed_tools = ["python_exec"]
+    assert await agent._load_tools("synthetic") == []
+    assert notes[-1] == ""
+
+
+class _FakeDaemon(BaseHTTPRequestHandler):
+    """The two requests a Docker client makes before any work: the API
+    version it negotiates on connect, and the ping."""
+
+    def do_GET(self):
+        body = json.dumps({"ApiVersion": "1.47", "Version": "27.0.0"}).encode() \
+            if self.path.endswith("/version") else b"OK"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json" if body != b"OK" else "text/plain")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+@pytest.fixture
+def socket_dir():
+    # Under /tmp, not tmp_path: macOS caps a Unix socket path at 104 bytes.
+    with tempfile.TemporaryDirectory(dir="/tmp") as directory:
+        yield Path(directory)
+
+
+@pytest.fixture
+def fresh_probe():
+    from mirobody.agent import python_tool
+    python_tool.executor_ready.cache_clear()
+    yield python_tool
+    python_tool.executor_ready.cache_clear()
+
+
+async def _offered(monkeypatch):
+    from mirobody.agent.agent import MirobodyAgent
     from mirobody.agent import tool_loader
     notes = []
 
@@ -150,11 +207,68 @@ async def test_agent_registers_one_python_tool_and_omits_it_when_disallowed(monk
 
     monkeypatch.setattr(tool_loader, "load_global_tools", loaded)
     agent = MirobodyAgent()
-    assert [tool.name for tool in await agent._load_tools("synthetic")] == ["python_exec"]
-    assert "original rows" in notes[-1]
-    agent.disallowed_tools = ["python_exec"]
-    assert await agent._load_tools("synthetic") == []
-    assert notes[-1] == ""
+    names = [[tool.name for tool in await agent._load_tools("synthetic")] for _ in range(2)]
+    return names, notes
+
+
+async def test_python_exec_is_left_out_without_a_docker_socket(monkeypatch, socket_dir, fresh_probe, caplog):
+    monkeypatch.setenv("PYTHON_SANDBOX_DOCKER_HOST", f"unix://{socket_dir / 'docker.sock'}")
+    with caplog.at_level(logging.WARNING, logger=fresh_probe.__name__):
+        names, notes = await _offered(monkeypatch)
+    assert names == [[], []]
+    assert notes == ["", ""]
+    reasons = [r.getMessage() for r in caplog.records if "python_exec left out" in r.getMessage()]
+    assert len(reasons) == 1, "probed once per process, not once per turn"
+    assert "error_type=" in reasons[0]
+
+
+async def test_python_exec_is_offered_when_a_docker_socket_answers(monkeypatch, socket_dir, fresh_probe):
+    path = socket_dir / "docker.sock"
+    server = socketserver.UnixStreamServer(str(path), _FakeDaemon)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.setenv("PYTHON_SANDBOX_DOCKER_HOST", f"unix://{path}")
+        names, notes = await _offered(monkeypatch)
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert names == [["python_exec"], ["python_exec"]]
+    assert all("original rows" in note for note in notes)
+
+
+def test_the_startup_hook_probes_unless_the_tool_is_disallowed(monkeypatch):
+    from mirobody.agent import agent as agent_module, python_tool
+    probed = []
+    monkeypatch.setattr(python_tool, "executor_ready", lambda: probed.append(True) or True)
+    monkeypatch.setattr(agent_module, "build_llm_clients", lambda *args, **kwargs: {})
+
+    class Settings:
+        disallowed = []
+
+        def get_agent_settings(self):
+            return {"disallowed_tools": self.disallowed}
+
+    settings = Settings()
+    monkeypatch.setattr(agent_module, "global_config", lambda: settings)
+    agent_module.MirobodyAgent.load_llm_clients({})
+    assert probed == [True]
+    settings.disallowed = ["python_exec"]
+    agent_module.MirobodyAgent.load_llm_clients({})
+    assert probed == [True]
+
+
+@pytest.mark.parametrize("offered", [True, False])
+async def test_the_prompt_names_the_calculator_only_when_it_is_offered(offered):
+    from mirobody.agent.prompt import build_system_prompt
+    template = (Path(__file__).resolve().parents[1] / "mirobody" / "agent" / "prompts" / "mirobody.jinja").read_text()
+    prompt = await build_system_prompt(template, [python_exec] if offered else [], "Mirobody")
+    assert ("python_exec" in prompt) is offered
+    assert ("code tool" in prompt) is offered
+    assert ("# Computation" in prompt) is offered
+    # The direction rule once sat inside the computation section, so it went
+    # missing with the calculator.
+    assert "上升/下降/持平" in prompt
 
 
 @pytest.fixture

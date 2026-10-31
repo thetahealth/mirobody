@@ -52,6 +52,17 @@ def _local_endpoint() -> str:
     return host
 
 
+def ping() -> None:
+    """Raise unless a local daemon answers this process. A socket that is
+    mounted but owned by a group the app is not in fails here too: the ping
+    goes through the same connection every calculation would."""
+    client = docker.DockerClient(base_url=_local_endpoint(), timeout=5)
+    try:
+        client.ping()
+    finally:
+        client.close()
+
+
 class LocalPythonSandbox(BaseSandbox):
     """One local calculation, with standard Deep Agents execution results."""
 

@@ -75,7 +75,8 @@ or `query_pharmacogenomics`. A chat turn gets the four record tools, not the
 three terminology tools: the readings tool already resolves names and units, so
 those serve only a client holding readings of its own
 (`agent/tool_loader.py::_MCP_ONLY_TOOLS`). Beside them: the harness's `ls`,
-`read_file`, `glob`, `grep`, the local `python_exec` calculator, and `ask_user`.
+`read_file`, `glob`, `grep`, `ask_user` and, when a local Docker daemon answered
+at startup, the `python_exec` calculator ([python-analysis.md](python-analysis.md)).
 `ask_user` is never an MCP tool — an MCP client has no widget to answer a
 question with.
 
