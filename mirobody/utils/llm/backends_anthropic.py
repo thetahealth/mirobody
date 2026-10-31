@@ -180,22 +180,28 @@ async def structured_output(spec: RouteSpec, messages: list[dict], schema: dict 
         return None
 
 
-async def text_completion(spec: RouteSpec, messages: list[dict], **kwargs) -> str | None:
-    """Plain text (titles, summaries, profile prose). None when the call failed."""
+async def text_completion(spec: RouteSpec, messages: list[dict], *, whole: bool = False, **kwargs) -> str | None:
+    """Plain text (titles, summaries, profile prose). None when the call
+    failed; a cut reply as `utils.async_get_text_completion` says."""
+    from mirobody.utils.llm.utils import text_was_cut
+
     start = time.monotonic()
     system, converted = _split_system(messages)
+    params = _request_params(spec, kwargs)
     try:
         response = await _create(spec, model=spec.model, messages=converted,
-                                 **({"system": system} if system else {}),
-                                 **_request_params(spec, kwargs))
-        duration_ms = _ms(start)
-        logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
-        return _text_of(response)
+                                 **({"system": system} if system else {}), **params)
+        text, cut = _text_of(response), response.stop_reason == "max_tokens"
     except Exception as e:
         duration_ms = _ms(start)
         logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
                      type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
+    duration_ms = _ms(start)
+    if cut:
+        text_was_cut(spec, params["max_tokens"], getattr(response.usage, "output_tokens", None), duration_ms, whole)
+    logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
+    return text
 
 
 async def image_extract(spec: RouteSpec, image: VisionImage, prompt: str, *, max_tokens: int | None = None) -> str:

@@ -465,7 +465,11 @@ dose, not an ongoing medication".
 them only after `consume()` succeeds, and retries an interrupted claim after
 its lease expires. A repeatedly failing batch remains visible in the table
 with `failed_at` after five attempts. `ProfileRefreshTask.consume` reports
-per-user failures to the queue instead of acknowledging them as successes.
+per-user failures to the queue instead of acknowledging them as successes. A
+rewrite the profile rejected (cut at its output cap, or a copy of its
+instructions) or that ran past its 600 s timeout is acknowledged: a retry
+would send the same readings to the same model, beside a server possibly
+still writing the first.
 The isolated Postgres check exercised competing claims, retry, acknowledgement
 and retained failure rows.
 
@@ -959,7 +963,10 @@ and left open, each for the reason given.
 - `th_coding_decision.unit_ucum` is "" for a decision whose id includes the
   printed unit, which every decision for a unit that did not normalize has.
 - The profile rewrite in `user/profile.py` is given the previous profile, the
-  drift loop `kernel.memory` is built without a parameter to prevent.
+  drift loop `kernel.memory` is built without a parameter to prevent. A
+  rewrite cut at its output cap or copying its instructions is no longer
+  stored, so neither feeds the next one; anything else a rewrite gets wrong
+  still does.
 
 **Devices.** Each needs a real vendor account to verify, which the pass had not.
 - Garmin's `activities` and `activityDetails` both decode the same activity,

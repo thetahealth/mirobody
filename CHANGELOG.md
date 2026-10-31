@@ -1,5 +1,33 @@
 ## Unreleased
 
+### Fixed
+
+- **A health-profile refresh on a small local model is bounded, and a profile
+  that copies its own instructions is not stored.** The profile rewrite that
+  runs after every ingest (`user/profile.py`) asked for up to 32,000 tokens.
+  MiniCPM5-2B on the llama.cpp router wrote all 32,000 three times in one
+  100%-local load, 18 to 21 minutes each on a GPU (replayed, it repeats one
+  block of lines until the cap); at a CPU's 8 tokens/s that is over an hour.
+  The 600 s timeout released the lock while the server kept writing, so the
+  next refresh took the router's other slot and uploads and chats waited.
+  Two of the seven profiles it did store opened with the prompt's Core
+  Summary instructions instead of the person's summary, and that section is
+  what the agent's system prompt carries. The cap is now 6,144 tokens (the
+  longest profile either local evaluation stored was 4,735), and a rewrite
+  that reaches it is not stored; nor is one that repeats eight or more words
+  of an instruction line in a row (the other stored profiles share at most
+  five, a section heading). Either way the previous version stays, the queue
+  does not retry it (the same readings would go to the same model), and the
+  readings are picked up by the next refresh. A rewrite past the 600 s
+  timeout is now `timed_out`, not `error`, and is not retried either: the
+  server is still writing it.
+  `async_get_text_completion` now logs every reply cut at `max_tokens`, and
+  raises `CutAtMaxTokens` to a caller that passes `whole=True`. How to tell:
+  the worker logs `profile rewrite reached the output cap, not stored` or
+  `profile rewrite repeats its instructions, not stored`, then
+  `profile_refresh not stored: ... status=rejected`, where it used to spend
+  19 minutes.
+
 ## 1.5.10
 
 ### Fixed

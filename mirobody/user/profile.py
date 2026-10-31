@@ -6,7 +6,7 @@ from typing import Any
 
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
-from mirobody.utils.llm import async_get_text_completion
+from mirobody.utils.llm import CutAtMaxTokens, async_get_text_completion
 from mirobody.utils.llm_output import strip_code_fence
 from mirobody.utils.config import safe_read_cfg
 
@@ -96,7 +96,14 @@ async def get_health_profile_core(user_id: str, maxlen: int = 2000) -> str | Non
 
 
 MAX_TOKENS = 10000
-MAX_OUTPUT_TOKENS = 32000  # No limit on profile output length to avoid truncation
+#: What one rewrite may write; one that reaches it has run away and is not
+#: stored. At 32000 MiniCPM5-2B on llama.cpp wrote all of it three times in one
+#: local load (2026-10-30), 1,061-1,240 s each, still writing after the 600 s
+#: timeout below had freed the lock for the next refresh. The longest of the
+#: 26 profiles two local evaluations stored is 4,735 MiniCPM5-2B tokens; 6144
+#: leaves room for the entries that reason at `low`, and at that load's 30
+#: tokens/s is 3.4 minutes, inside that timeout.
+MAX_OUTPUT_TOKENS = 6144
 MAX_PREVIOUS_PROFILE_LENGTH = 15000  # Maximum character limit for previous profile version
 
 
@@ -492,6 +499,45 @@ Please merge all chunks into a single comprehensive Markdown profile following t
 """
 
 #-----------------------------------------------------------------------------
+# An answer that repeats its instructions is not a profile.
+
+#: Words in a row a profile may share with one line of its instructions.
+#: MiniCPM5-2B opened two of the seven profiles it wrote on 2026-10-30 with
+#: the Core Summary paragraph above (17 words in a row), which
+#: `get_health_profile_core` then puts in every system prompt as the person's
+#: summary; replaying those two people's refreshes with nine different sets of
+#: their readings echoed it nine times. The other 24 profiles the two
+#: evaluations stored share at most 5, a heading ("Recent Device Data (Past 7
+#: Days)").
+ECHO_WORDS = 8
+
+
+def _words(text: str) -> list[str]:
+    """Latin words only: the instructions are English, and a profile written
+    in Chinese shares its headings' English halves with them, never a sentence."""
+    return re.findall(r"[a-z]+", text.lower())
+
+
+def _runs(words: list[str]) -> set[tuple[str, ...]]:
+    return {tuple(words[i:i + ECHO_WORDS]) for i in range(len(words) - ECHO_WORDS + 1)}
+
+
+# Per line: a run across two lines of the prompt is a heading followed by the
+# next section's first words, which a profile with empty sections reproduces.
+_INSTRUCTION_RUNS = frozenset(
+    run
+    for prompt in (GENERATE_USER_PROFILE_PROMPT, GENERATE_USER_PROFILE_USER_PROMPT,
+                   MERGE_USER_PROFILE_PROMPT, MERGE_USER_PROFILE_USER_PROMPT)
+    for line in prompt.splitlines()
+    for run in _runs(_words(line))
+)
+
+
+def _echoes_instructions(profile_markdown: str) -> bool:
+    """Whether the profile repeats ECHO_WORDS words of one instruction line."""
+    return not _INSTRUCTION_RUNS.isdisjoint(_runs(_words(profile_markdown)))
+
+#-----------------------------------------------------------------------------
 
 
 def _generate_scenario_image_name(name: str) -> str:
@@ -804,6 +850,9 @@ class UserProfileGenerator:
             
         Returns:
             Generated profile in Markdown format
+
+        Raises:
+            CutAtMaxTokens: the model wrote to MAX_OUTPUT_TOKENS
         """
         language_instruction = f"\n\nPlease generate the profile in {language}." if language != "English" else ""
         
@@ -827,8 +876,9 @@ class UserProfileGenerator:
             messages=messages,
             temperature=0,
             max_tokens=MAX_OUTPUT_TOKENS,
+            whole=True,
         )
-        
+
         if not result:
             logger.error("Profile generation failed: empty response")
             return ""
@@ -848,6 +898,9 @@ class UserProfileGenerator:
             
         Returns:
             Merged profile in Markdown format
+
+        Raises:
+            CutAtMaxTokens: the model wrote to MAX_OUTPUT_TOKENS
         """
         if len(results) == 1:
             return results[0]
@@ -869,8 +922,9 @@ class UserProfileGenerator:
             messages=messages,
             temperature=0,
             max_tokens=MAX_OUTPUT_TOKENS,
+            whole=True,
         )
-        
+
         if not result:
             logger.error("Profile merge failed: empty response")
             return ""
@@ -898,6 +952,9 @@ class UserProfileGenerator:
             
         Returns:
             User profile in Markdown format
+
+        Raises:
+            CutAtMaxTokens: a chunk or the merge wrote to MAX_OUTPUT_TOKENS
         """
         if not doc_list and not basic_info:
             logger.info("No data provided for profile generation")
@@ -929,7 +986,9 @@ class UserProfileGenerator:
             else:
                 context_list = ["No health indicator data available"]
             
-            # Process each chunk in parallel, max 50 chunks
+            # Process each chunk in parallel, max 50 chunks. Every chunk is
+            # waited for even when one was cut: the server writes the others
+            # to the end regardless, and the caller's lock should cover them.
             results = await asyncio.gather(*[
                 cls._generate_profile_chunk(
                     basic_info=basic_info_str,
@@ -940,13 +999,18 @@ class UserProfileGenerator:
                     language=language
                 )
                 for context in context_list[:50]
-            ])
-            
+            ], return_exceptions=True)
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
+
             # Merge results
             merged_result = await cls._merge_profile_results(list(results), language)
-            
+
             return merged_result
-            
+
+        except CutAtMaxTokens:
+            raise
         except Exception as e:
             logger.error("profile generation failed: user_id=%s error_type=%s", user_id, type(e).__name__,
                          exc_info=not is_driver_exception(e))
@@ -989,9 +1053,12 @@ class UserProfileService:
             async with asyncio.timeout(PROFILE_LOCK_TIMEOUT_SECONDS):
                 return await cls._create_user_profile_locked(user_id)
         except TimeoutError:
+            # Not "error": the model server writes on after the call is
+            # dropped (on 2026-10-30, up to 11 minutes past this timeout), so
+            # a retry would run beside the rewrite it replaces.
             seconds = PROFILE_LOCK_TIMEOUT_SECONDS
             logger.error("profile creation timed out: user_id=%s seconds=%d", user_id, seconds)
-            return {"status": "error", "message": "Profile generation took too long."}
+            return {"status": "timed_out", "message": "Profile generation took too long."}
         finally:
             # Always release lock
             await user_profile_lock_manager.release_lock(user_id, lock_id)
@@ -1024,13 +1091,18 @@ class UserProfileService:
         device_data = await DeviceDataService.get_device_data(user_id)
 
         # 5. Generate user profile (Markdown format)
-        profile_markdown = await UserProfileGenerator.generate_user_profile(
-            user_id=user_id,
-            basic_info=basic_info,
-            doc_list=doc_list,
-            device_data=device_data,
-            language=language
-        )
+        try:
+            profile_markdown = await UserProfileGenerator.generate_user_profile(
+                user_id=user_id,
+                basic_info=basic_info,
+                doc_list=doc_list,
+                device_data=device_data,
+                language=language
+            )
+        except CutAtMaxTokens:
+            # The cap, the tokens and the seconds are in the line before.
+            logger.warning("profile rewrite reached the output cap, not stored: user_id=%s", user_id)
+            return cls._rejected(current_version, last_execute_doc_id)
 
         if not profile_markdown:
             logger.info(f"Failed to generate profile for user: {user_id}")
@@ -1038,6 +1110,13 @@ class UserProfileService:
                 "status": "error",
                 "message": "Failed to generate user profile"
             }
+
+        # This rewrite is the next one's "previous profile", so an echo stored
+        # once is fed back into every later version.
+        if _echoes_instructions(profile_markdown):
+            logger.warning("profile rewrite repeats its instructions, not stored: user_id=%s char_count=%d",
+                           user_id, len(profile_markdown))
+            return cls._rejected(current_version, last_execute_doc_id)
 
         # 6. Extract scenario from profile
         profile_without_scenario, scenario_zh = _extract_scenario_from_profile(profile_markdown)
@@ -1083,6 +1162,17 @@ class UserProfileService:
             "profile_data": profile_markdown
         }
     
+    @staticmethod
+    def _rejected(current_version: int, last_execute_doc_id: int) -> dict[str, Any]:
+        """The model answered, but not with a profile. The previous version
+        stays, and the readings stay unprocessed for the next refresh."""
+        return {
+            "status": "rejected",
+            "message": "The generated profile was not stored",
+            "current_version": current_version,
+            "last_execute_doc_id": last_execute_doc_id,
+        }
+
     @staticmethod
     async def _get_version_info(user_id: str) -> dict[str, int]:
         """Get version control information"""
