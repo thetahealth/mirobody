@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 1.5.10
+
 ### Fixed
 
 - **The health profile is written from the record by code; the model only
@@ -25,8 +27,12 @@
   diagnosis however old) and no longer reads the previous profile. The model
   is asked for the scenario alone, one line `场景：<name>` in at most 1,024
   tokens; a name not in the table is not stored, and no answer keeps the
-  previous scenario, so the profile is stored without any model. A refresh
-  past the 600 s timeout is `timed_out`, not `error`, and is not retried.
+  previous scenario, so the profile is stored without any model. The
+  scenario answer has its own 300 s limit, past which the previous scenario
+  stays and the record is still stored; a refresh past the 600 s timeout is
+  `timed_out`, not `error`, and is not retried. Each note keeps its own line
+  and dates: every note is filed in one series, and grouped by series a
+  person's notes became one line under the newest note's words.
   `async_get_text_completion` now logs every reply cut at `max_tokens`.
   How to tell: on the same replayed refreshes MiniCPM5-2B answers in 4 to 12
   tokens where it wrote up to 3,266, or 32,000; the lab section quotes each
@@ -97,10 +103,6 @@
   2026-05-12 to 2026-06-10, not 2026-05-11; `pytest
   mirobody/tests/test_last_n_days_window.py` checks the default, the
   `end`-only window and that both schemas carry the example.
-
-## 1.5.10
-
-### Fixed
 
 - **Citations in an answer are drawn on the values, not as numbered chips,
   and the web client's tables, charts and indicator pages read on a phone.**
@@ -207,6 +209,8 @@
   cycle average and maximum heart rate go to `dailyHeartRateAvg` and
   `dailyHeartRateMax`. Rows already stored keep their old names and days; a
   re-sync of a night already stored adds the new reading beside the old one.
+  The Oura and WHOOP samples in the wheel, which `mirobody.testing.run_samples`
+  holds a decoder to, expect this filing and the workout distance below.
   How to tell: `pytest mirobody/tests/test_nightly_sleep_figures.py`.
 
 - **A workout's distance is an exercise distance, and an increment is not a
