@@ -77,7 +77,7 @@ pytest mirobody/tests/test_engine_coverage.py -s   # 离线，大约一秒
 
 ```python
 >>> import mirobody; mirobody.BUNDLE_VERSION
-'loinc-2.83+2026.09.17-aacb2c715b56'
+'loinc-2.83+2026.10.27-126ecba69782'
 ```
 
 发行版本、切分日期，加一份对词表自身成员算出来的摘要，于是「构建期用的词表」和
