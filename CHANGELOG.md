@@ -2,43 +2,23 @@
 
 ### Fixed
 
-- **Every deployment has a calculator: `code_exec`, in JavaScript for a cloud
-  model and in Python for a local one.** A stack started from `compose.yaml`
-  alone mounts no Docker socket into the app, yet every chat model was given
-  `python_exec` and told to use it, so every call answered "local Python
-  execution is unavailable", and a model that then did the arithmetic itself
-  could get it wrong and carry the error into the next turn. The calculator is
-  now one tool, `code_exec`, with two engines. A model at a cloud service
-  writes JavaScript, run in process by QuickJS on WebAssembly (the engine
-  under deepagents' `eval` interpreter, new dependency `quickjs-rs`), with no
-  container, network or files. A model on this machine or the person's own
-  network writes Python in the local container, when a Docker daemon answered
-  the one check at startup; without one it writes JavaScript too, and the log
-  says why once. Both read the original rows as `data` and `results`, as
-  before; the old interpreter's tool bridge, which had models rebuild rows from
-  tables, does not come back. The prompt names the language it got. The
-  prompt's rule to name a change's direction in words (rise, fall, unchanged)
-  sat inside the computation section and now stands with the citing rules.
-  `DISALLOWED_TOOLS` still turns it off; `python_exec` and `eval` there are read
-  as `code_exec`, with a warning, so an existing setting keeps hiding it.
-  `compose.yaml` now says where the Python overlay is; the default deploy is
-  unchanged. The web client labels the step by the old names, so a
-  `code_exec` step shows as a generic tool until it learns the new one. How
-  to tell: on a stack without `compose-python.yaml`, a cloud model's
-  calculation question gets a `code_exec` call that returns the result;
-  `pytest tests/test_code_tool_capability.py`.
-
-- **"The last N days" reads N days, not N+1.** `query_health_indicators`
-  takes `start` and `end` as inclusive local dates, and the model wrote "the
-  last N days" as today minus N: asked about the last 60 days, DeepSeek V4.1
-  Flash read 61 and answered "61 of the last 61 days" (found by a local
-  evaluation). The `start` description,
-  which the chat agent and MCP clients both read, now says the window counts
-  both ends and gives a worked example: on 2026-03-10 the last 7 days start
-  2026-03-04, not 2026-03-03. How to tell: ask about "the last 7 days" and
-  check that the answer's window starts six days before today; `pytest
-  mirobody/tests/test_last_n_days_window.py` holds the example to the window
-  the server builds.
+- **The local evaluation no longer stalls on a large streamed event.**
+  `benchmarks/local_models/run.py` read the chat stream one byte at a time,
+  and `requests` rebuilds the unfinished line on every read, so a line cost
+  time in the square of its length. With a model that reads photos itself, a
+  `read_file` result carries the photo as base64, up to 1.5 MB: it took
+  minutes to arrive, the question's deadline (checked once per line) never
+  fired, and the recorded time was the reader's, not the answer's. The runner
+  now reads whatever has arrived (`read1`) and splits the lines itself, so
+  each event is still timed when it arrives, chunked stream or not;
+  `iter_lines(chunk_size=None)` would have waited for the end of a stream
+  that is not chunked. A connection dropped mid-event or a read timeout
+  still fails only its question: the reader raises urllib3's errors as
+  requests' own, as `iter_lines` did. How to tell: `pytest
+  tests/agent/test_local_eval_contract.py -k "large_event or broken_stream"`
+  sends a 300 KB event both ways and breaks a stream two ways; the old reader
+  was still on the large event after 280 s, and a 1.5 MB event now takes
+  0.02 s.
 
 ## 1.5.10
 
