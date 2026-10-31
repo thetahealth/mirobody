@@ -38,6 +38,22 @@
   and again in a `<statement>` beside it. How to tell: `pytest
   mirobody/tests/test_citations.py mirobody/tests/test_chat_auto_citations.py`.
 
+- **A Chinese question's thinking is Chinese, a Japanese question is
+  answered in Japanese, and an English answer has no Chinese words.** The
+  web client streams the model's thinking while it works. With DeepSeek V4
+  Flash every Chinese and Japanese run thought in English, and a Japanese
+  question about cholesterol was answered in Chinese on two runs of four,
+  once right after its thinking said "Now answer in Japanese". The note sent
+  with a non-English question now asks for the thinking in that language
+  too, and the Japanese note and the prompt say kana mark Japanese, not
+  Chinese: ten Chinese runs of thirteen then thought in Chinese
+  throughout, and nine Japanese runs of nine answered in Japanese (their
+  thinking stays English). A prompt rule spelled a change's direction in Chinese
+  (`上升/下降/持平`), and English answers copied it ("total cholesterol
+  **下降** slightly", four runs of four); it now asks for the words in the
+  answer's language, and four English runs had none. How to tell: ask in
+  Chinese and watch the thinking; ask in Japanese.
+
 - **A counting question can be asked of `view="stats"`, and its count is
   right.** "How many days last week did I get under an hour of deep sleep"
   is a band plus a count, and the tool returned the whole series; a local 2B
