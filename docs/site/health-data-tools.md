@@ -48,5 +48,5 @@ count days, so their averages can differ from statistics over individual reading
 
 Missing data means no recorded evidence, not that a condition is absent.
 Keep returned row IDs when citing or calculating from results. Use the
-[local calculator](../python-analysis.md) for additional arithmetic.
+[calculator](../python-analysis.md) for additional arithmetic.
 Full schemas and result conventions are in the [tool reference](../answers.md).

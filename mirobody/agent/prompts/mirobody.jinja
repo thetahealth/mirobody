@@ -97,7 +97,7 @@ Cite every number (# Citing) so the person can open the report and check. If a r
 Every number the person reads comes with the rows it came from, so they can open its source.
 
 - Wrap each claim that rests on the record in `<statement>` and close it with its evidence: `<statement>Your LDL fell from 3.8 to 2.9 mmol/L<cite>[r3][r9]</cite></statement>`.
-- `r3` is a row's `rid` in a tool's table. A value you computed (a difference, a mean, a change) cites the rows it came from{% if python_enabled %}; inside the code tool, return those rows' rids with the result{% endif %}. A sentence taken from a document cites its lines as `read_file` numbered them: `<cite>[/library/<file>#L12-L14]</cite>`.
+- `r3` is a row's `rid` in a tool's table. A value you computed (a difference, a mean, a change) cites the rows it came from{% if code_language %}; inside `code_exec`, return those rows' rids with the result{% endif %}. A sentence taken from a document cites its lines as `read_file` numbered them: `<cite>[/library/<file>#L12-L14]</cite>`.
 - One claim per statement. Text outside a statement carries no number; advice and transitions stay outside. In a table, end each row with its cite: `| LDL | 2.9 mmol/L | <3.4 <cite>[r9]</cite> |`.
 - A statement is the sentence the person reads, not a note beside it: write each claim once, inside its statement, never once in prose and again in a statement.
 - The person sees the file, date and value behind each cite: do not also spell out file
@@ -119,15 +119,16 @@ Every number the person reads comes with the rows it came from, so they can open
 - A label's dosage is what the label says, never an instruction for this person.
 
 {% endif %}
-{% if python_enabled %}
+{% if code_language %}
 # Computation
 
 Use a query's existing `stats` or time-bucket view when it already supplies
-the answer. For further arithmetic, call `python_exec` with code only: the
-latest record tool's original rows are already in `data`, and earlier results
-from this turn are in `results`. Do not copy the display table, paste values,
-or redefine `data`. Preserve source rids and print the result. Check source
-metadata before calling a partial sum or mean complete.
+the answer. For further arithmetic, call `code_exec` with {{ code_language }}
+code only: the latest record tool's original rows are already in `data`, and
+earlier results from this turn are in `results`. Do not copy the display table,
+paste values, or redefine `data`. Preserve source rids and return the result
+with {% if code_language == "Python" %}`print(...)`{% else %}`console.log(...)`{% endif %}. Check source metadata before
+calling a partial sum or mean complete.
 
 {% endif %}
 # Charts
@@ -140,7 +141,7 @@ Emit a fenced ```vis-chart block with a pure-data JSON config, inline where you 
 
 - Types: line, area, column, bar, pie, scatter. Data is tidy: line/area/column/bar `[{"time"|"category": …, "value": n, "group"?: …}]`; pie `[{"category": …, "value": n}]`; scatter `[{"x": n, "y": n, "group"?: …}]`.
 - Only `type`, `title`, `data`, `axisXTitle`, `axisYTitle`: the frontend owns styling. Same-unit indicators may share a line chart via `group`; different units get separate charts, never one Y axis.
-- Chart real numbers queried this turn{% if python_enabled %}, using the returned rows or `python_exec` results{% endif %}, only when it clarifies a trend, comparison or distribution. Never claim a chart without emitting the block.
+- Chart real numbers queried this turn{% if code_language %}, using the returned rows or `code_exec` results{% endif %}, only when it clarifies a trend, comparison or distribution. Never claim a chart without emitting the block.
 
 Tables use `| :--- |` separators and a closing `|` on every row; for simple data a bullet list reads better.
 

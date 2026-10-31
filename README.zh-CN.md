@@ -88,9 +88,11 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 
 **也可以在 Docker 中使用云端模型。** 不启用本地模型 profile，直接运行 `./deploy.sh`，再在打印的设置链接中填写自己的模型 Key。应用和记录保存在你自己的主机上，文档和问题交给模型服务商处理。
 
-所有模型的聊天计算统一使用本机 Python，直接接收查询工具返回的原始数据。
-可选计算工具需要本地 Docker 镜像和 daemon 连接；[配置与数据流程](docs/python-analysis.md)
-说明了原生应用和容器应用的接入方法。查询工具已有的统计视图不依赖这个执行器。
+聊天计算直接接收查询工具返回的原始数据。
+云端模型的代码在应用内以 JavaScript 执行，无需配置；
+本地模型在应用能连接 Docker 服务时，在本地容器中用 Python 计算。
+[配置与数据流程](docs/python-analysis.md)说明了这两种方式。
+查询工具已有的统计视图不依赖计算工具。
 
 → [自部署指南](https://docs.mirobody.ai/zh/self-host) · [完整演示](docs/walkthrough.zh-CN.md) · [部署到服务器](https://docs.mirobody.ai/zh/deployment/production)
 

@@ -1,4 +1,4 @@
-"""Synthetic query-artifact -> Python regressions; Docker checks run when available."""
+"""Synthetic query-artifact -> code_exec regressions, in both engines; Docker checks run when available."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from langgraph.prebuilt import ToolNode
 from langgraph.graph import END, START, MessagesState, StateGraph
 
 from mirobody.agent.python_sandbox import LocalPythonSandbox
-from mirobody.agent.python_tool import python_exec, source_results
+from mirobody.agent.code_tool import javascript_code, python_code, source_results
 from mirobody.agent.tools._render import render_compact
 from mirobody.kernel import tools
 
@@ -53,15 +53,15 @@ class RecordingSandbox:
     [{"rid": "r1", "rsid": "rs1", "GT": "0|1", "annotations": {"calls": [1, 2]}}],
 ])
 async def test_hidden_runtime_uses_original_rows_after_rendering_or_eviction(monkeypatch, rows):
-    from mirobody.agent import python_tool
-    monkeypatch.setattr(python_tool, "LocalPythonSandbox", RecordingSandbox)
+    from mirobody.agent import code_tool
+    monkeypatch.setattr(code_tool, "LocalPythonSandbox", RecordingSandbox)
     source = message(rows)
     assert "(constants:" in source.content
     source.content = "Result was evicted; use read_file to see its display."
-    call = AIMessage(content="", tool_calls=[{"name": "python_exec", "args": {"code": "print(data)"},
+    call = AIMessage(content="", tool_calls=[{"name": "code_exec", "args": {"code": "print(data)"},
                                                "id": "compute-1", "type": "tool_call"}])
     graph = StateGraph(MessagesState)
-    graph.add_node("tools", ToolNode([python_exec]))
+    graph.add_node("tools", ToolNode([python_code]))
     graph.add_edge(START, "tools")
     graph.add_edge("tools", END)
     result = await graph.compile().ainvoke({"messages": [HumanMessage("Calculate"), source, call]})
@@ -72,12 +72,12 @@ async def test_hidden_runtime_uses_original_rows_after_rendering_or_eviction(mon
 
 
 async def test_multiple_source_tools_and_partial_metadata_are_preserved(monkeypatch):
-    from mirobody.agent import python_tool
-    monkeypatch.setattr(python_tool, "LocalPythonSandbox", RecordingSandbox)
+    from mirobody.agent import code_tool
+    monkeypatch.setattr(code_tool, "LocalPythonSandbox", RecordingSandbox)
     first = message([{"rid": "r1", "value": 7.0}], call_id="query-1")
     second = message([{"rid": "r2", "name": "Example medication", "slots": [{"taken": True}]}],
                      call_id="query-2", name="query_medications", partial=True)
-    text, artifact = await python_exec.coroutine(
+    text, artifact = await python_code.coroutine(
         code="print(data)", runtime=SimpleNamespace(state={"messages": [HumanMessage("Combine"), first, second]}),
     )
     assert RecordingSandbox.inputs["data"] == list(second.artifact.data)
@@ -108,20 +108,22 @@ def test_harness_nudges_do_not_hide_this_turn_original_results(name):
         source_results([*messages, HumanMessage("A different question", name="person")])
 
 
-def test_model_schema_contains_code_and_source_handles_without_runtime_or_table():
-    properties = python_exec.tool_call_schema.model_json_schema()["properties"]
+@pytest.mark.parametrize("engine", [python_code, javascript_code])
+def test_model_schema_contains_code_and_source_handles_without_runtime_or_table(engine):
+    assert engine.name == "code_exec"
+    properties = engine.tool_call_schema.model_json_schema()["properties"]
     assert set(properties) == {"code", "timeout_s"}
 
 
 async def test_output_truncation_is_visible_to_the_model(monkeypatch):
-    from mirobody.agent import python_tool
+    from mirobody.agent import code_tool
 
     class TruncatedSandbox(RecordingSandbox):
         def run(self, code, inputs):
             return ExecuteResponse("synthetic output", 0, True)
 
-    monkeypatch.setattr(python_tool, "LocalPythonSandbox", TruncatedSandbox)
-    text, artifact = await python_exec.coroutine(
+    monkeypatch.setattr(code_tool, "LocalPythonSandbox", TruncatedSandbox)
+    text, artifact = await python_code.coroutine(
         code="print(data)", runtime=SimpleNamespace(state={"messages": [HumanMessage("Calculate"),
                                                                          message([{"value": 1.0}])]}),
     )
@@ -129,14 +131,14 @@ async def test_output_truncation_is_visible_to_the_model(monkeypatch):
 
 
 async def test_unavailable_executor_does_not_claim_the_record_is_empty(monkeypatch):
-    from mirobody.agent import python_tool
+    from mirobody.agent import code_tool
 
     class UnavailableSandbox:
         def __init__(self, **kwargs):
             raise FileNotFoundError("synthetic missing executor")
 
-    monkeypatch.setattr(python_tool, "LocalPythonSandbox", UnavailableSandbox)
-    text, artifact = await python_exec.coroutine(
+    monkeypatch.setattr(code_tool, "LocalPythonSandbox", UnavailableSandbox)
+    text, artifact = await python_code.coroutine(
         code="print(data)", runtime=SimpleNamespace(state={"messages": [HumanMessage("Calculate"),
                                                                          message([{"value": 1.0}])]}),
     )
@@ -145,23 +147,59 @@ async def test_unavailable_executor_does_not_claim_the_record_is_empty(monkeypat
     assert "readings remain valid" in text
 
 
-async def test_agent_registers_one_python_tool_and_omits_it_when_disallowed(monkeypatch):
-    from mirobody.agent.agent import MirobodyAgent
-    from mirobody.agent import python_tool, tool_loader
-    notes = []
+def _turn(rows=None, *more):
+    return SimpleNamespace(state={"messages": [HumanMessage("Calculate"),
+                                               message(rows or [{"rid": "r1", "value": 7.0}]), *more]})
 
-    async def loaded(**kwargs):
-        notes.append(kwargs["result_note"])
-        return []
 
-    monkeypatch.setattr(tool_loader, "load_global_tools", loaded)
-    monkeypatch.setattr(python_tool, "executor_ready", lambda: True)
-    agent = MirobodyAgent()
-    assert [tool.name for tool in await agent._load_tools("synthetic")] == ["python_exec"]
-    assert "original rows" in notes[-1]
-    agent.disallowed_tools = ["python_exec"]
-    assert await agent._load_tools("synthetic") == []
-    assert notes[-1] == ""
+async def test_javascript_computes_on_the_original_rows_in_process():
+    rows = [{"rid": "r1", "value": 7.0}, {"rid": "r2", "value": 8.5}]
+    text, artifact = await javascript_code.coroutine(
+        code="const v = data.map(r => r.value);\n"
+             "console.log(JSON.stringify({mean: v.reduce((a, b) => a + b) / v.length, rids: data.map(r => r.rid)}))",
+        runtime=_turn(rows),
+    )
+    assert json.loads(text) == {"mean": 7.75, "rids": ["r1", "r2"]}
+    assert artifact["status"] == tools.STATUS_OK and artifact["source_tool_call_ids"] == ["query-1"]
+
+
+async def test_javascript_sees_every_source_and_the_partial_flag():
+    first = message([{"rid": "r1", "value": 7.0}], call_id="query-1")
+    second = message([{"rid": "r2", "name": "Example medication"}], call_id="query-2",
+                     name="query_medications", partial=True)
+    text, artifact = await javascript_code.coroutine(
+        code="console.log(results.length, results[1].meta.truncated, data[0].rid)",
+        runtime=SimpleNamespace(state={"messages": [HumanMessage("Combine"), first, second]}),
+    )
+    assert text.endswith("2 true r2")
+    assert "Source data is partial" in text and artifact["source_partial"]
+
+
+@pytest.mark.parametrize("code, expected", [
+    ("data.length * 2", "2"),                       # the last expression's value
+    ("return data[0].value", "7"),                  # a top-level return, run as a function body
+    ("console.log(typeof fetch, typeof require, typeof process)", "undefined undefined undefined"),
+])
+async def test_javascript_answers_the_way_a_model_writes_it(code, expected):
+    text, artifact = await javascript_code.coroutine(code=code, runtime=_turn())
+    assert text == expected and artifact["exit_code"] == 0
+
+
+@pytest.mark.parametrize("code, exit_code, shown", [
+    ("throw new Error('synthetic failure')", 1, "error (exit 1): Error: synthetic failure"),
+    ("const x = ;", 1, "SyntaxError"),
+    ("while (true) {}", 124, "error: JavaScript computation timed out"),
+])
+async def test_javascript_failures_reach_the_model_as_errors(code, exit_code, shown):
+    text, artifact = await javascript_code.coroutine(code=code, runtime=_turn(), timeout_s=1)
+    assert shown in text
+    assert artifact["exit_code"] == exit_code and artifact["status"] == tools.STATUS_ERROR
+
+
+def test_javascript_output_is_bounded():
+    from mirobody.agent import js_sandbox
+    result = js_sandbox.run("console.log('x'.repeat(10000))", {"data": [], "results": []}, timeout=5, max_output=100)
+    assert result.exit_code == 0 and result.truncated and len(result.output) == 100
 
 
 class _FakeDaemon(BaseHTTPRequestHandler):
@@ -190,13 +228,70 @@ def socket_dir():
 
 @pytest.fixture
 def fresh_probe():
-    from mirobody.agent import python_tool
-    python_tool.executor_ready.cache_clear()
-    yield python_tool
-    python_tool.executor_ready.cache_clear()
+    from mirobody.agent import code_tool
+    code_tool.executor_ready.cache_clear()
+    yield code_tool
+    code_tool.executor_ready.cache_clear()
 
 
-async def _offered(monkeypatch):
+@pytest.fixture
+def daemon(socket_dir, monkeypatch):
+    """A socket that answers like a Docker daemon, at the path the sandbox reads."""
+    path = socket_dir / "docker.sock"
+    server = socketserver.UnixStreamServer(str(path), _FakeDaemon)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setenv("PYTHON_SANDBOX_DOCKER_HOST", f"unix://{path}")
+    yield path
+    server.shutdown()
+    server.server_close()
+
+
+@pytest.fixture
+def no_daemon(socket_dir, monkeypatch):
+    monkeypatch.setenv("PYTHON_SANDBOX_DOCKER_HOST", f"unix://{socket_dir / 'docker.sock'}")
+
+
+async def _offered(monkeypatch, *, local: bool, turns: int = 2):
+    from mirobody.agent.agent import MirobodyAgent
+    from mirobody.agent import prompt, tool_loader
+    notes = []
+
+    async def loaded(**kwargs):
+        notes.append(kwargs["result_note"])
+        return []
+
+    monkeypatch.setattr(tool_loader, "load_global_tools", loaded)
+    monkeypatch.setattr(prompt, "runs_locally", lambda alias: local)
+    agent = MirobodyAgent()
+    offered = [await agent._load_tools("synthetic", model="synthetic") for _ in range(turns)]
+    return [[(tool.name, tool.metadata["language"]) for tool in tools] for tools in offered], notes
+
+
+async def test_a_cloud_model_computes_in_javascript_without_asking_docker(monkeypatch, fresh_probe):
+    pinged = []
+    monkeypatch.setattr(fresh_probe, "ping", lambda: pinged.append(True))
+    offered, notes = await _offered(monkeypatch, local=False)
+    assert offered == [[("code_exec", "JavaScript")]] * 2
+    assert all("original rows" in note for note in notes)
+    assert not pinged
+
+
+async def test_a_local_model_computes_in_python_when_a_docker_socket_answers(monkeypatch, fresh_probe, daemon):
+    offered, _ = await _offered(monkeypatch, local=True)
+    assert offered == [[("code_exec", "Python")]] * 2
+
+
+async def test_a_local_model_without_a_docker_socket_computes_in_javascript(monkeypatch, fresh_probe, no_daemon,
+                                                                            caplog):
+    with caplog.at_level(logging.WARNING, logger=fresh_probe.__name__):
+        offered, _ = await _offered(monkeypatch, local=True)
+    assert offered == [[("code_exec", "JavaScript")]] * 2
+    reasons = [r.getMessage() for r in caplog.records if "runs JavaScript for local models" in r.getMessage()]
+    assert len(reasons) == 1, "probed once per process, not once per turn"
+    assert "error_type=" in reasons[0]
+
+
+async def test_disallowing_code_exec_removes_the_calculator_and_its_note(monkeypatch, fresh_probe):
     from mirobody.agent.agent import MirobodyAgent
     from mirobody.agent import tool_loader
     notes = []
@@ -206,66 +301,67 @@ async def _offered(monkeypatch):
         return []
 
     monkeypatch.setattr(tool_loader, "load_global_tools", loaded)
-    agent = MirobodyAgent()
-    names = [[tool.name for tool in await agent._load_tools("synthetic")] for _ in range(2)]
-    return names, notes
+    agent = MirobodyAgent(disallowed_tools=["code_exec"])
+    assert await agent._load_tools("synthetic") == []
+    assert notes == [""]
 
 
-async def test_python_exec_is_left_out_without_a_docker_socket(monkeypatch, socket_dir, fresh_probe, caplog):
-    monkeypatch.setenv("PYTHON_SANDBOX_DOCKER_HOST", f"unix://{socket_dir / 'docker.sock'}")
-    with caplog.at_level(logging.WARNING, logger=fresh_probe.__name__):
-        names, notes = await _offered(monkeypatch)
-    assert names == [[], []]
-    assert notes == ["", ""]
-    reasons = [r.getMessage() for r in caplog.records if "python_exec left out" in r.getMessage()]
-    assert len(reasons) == 1, "probed once per process, not once per turn"
-    assert "error_type=" in reasons[0]
+@pytest.mark.parametrize("old", ["python_exec", "eval"])
+def test_an_earlier_calculator_name_in_a_tool_list_still_hides_it(old, caplog):
+    from mirobody.utils.config.agent_options import tool_names
+    with caplog.at_level(logging.WARNING):
+        assert tool_names([old, "code_exec", "query_medications"]) == ["code_exec", "query_medications"]
+    assert any(old in r.getMessage() and "code_exec" in r.getMessage() for r in caplog.records)
 
 
-async def test_python_exec_is_offered_when_a_docker_socket_answers(monkeypatch, socket_dir, fresh_probe):
-    path = socket_dir / "docker.sock"
-    server = socketserver.UnixStreamServer(str(path), _FakeDaemon)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        monkeypatch.setenv("PYTHON_SANDBOX_DOCKER_HOST", f"unix://{path}")
-        names, notes = await _offered(monkeypatch)
-    finally:
-        server.shutdown()
-        server.server_close()
-    assert names == [["python_exec"], ["python_exec"]]
-    assert all("original rows" in note for note in notes)
+@pytest.mark.parametrize("base_url, llm_type, local", [
+    ("http://host.docker.internal:18097/v1", "openai", True),
+    ("http://127.0.0.1:8080/v1", "openai", True),
+    ("http://192.168.1.20:11434/v1", "openai", True),
+    ("https://openrouter.ai/api/v1", "openai", False),
+    ("", "anthropic", False),
+])
+def test_where_a_model_runs_picks_its_engine(monkeypatch, base_url, llm_type, local):
+    from mirobody.agent import prompt
+    monkeypatch.setattr(prompt, "_chat_route", lambda alias: ("synthetic", base_url, llm_type))
+    assert prompt.runs_locally("synthetic") is local
 
 
-def test_the_startup_hook_probes_unless_the_tool_is_disallowed(monkeypatch):
-    from mirobody.agent import agent as agent_module, python_tool
+def test_an_entry_with_no_route_counts_as_remote(monkeypatch):
+    from mirobody.agent import prompt
+    monkeypatch.setattr(prompt, "_chat_route", lambda alias: None)
+    assert prompt.runs_locally("synthetic") is False
+
+
+@pytest.mark.parametrize("local, disallowed, probes", [
+    (True, [], 1),
+    (False, [], 0),                # no local model: the daemon is never asked
+    (True, ["code_exec"], 0),
+])
+def test_the_startup_hook_probes_only_for_a_local_model(monkeypatch, local, disallowed, probes):
+    from mirobody.agent import agent as agent_module, code_tool, prompt
     probed = []
-    monkeypatch.setattr(python_tool, "executor_ready", lambda: probed.append(True) or True)
+    monkeypatch.setattr(code_tool, "executor_ready", lambda: probed.append(True) or True)
+    monkeypatch.setattr(prompt, "runs_locally", lambda alias: local)
     monkeypatch.setattr(agent_module, "build_llm_clients", lambda *args, **kwargs: {})
-
-    class Settings:
-        disallowed = []
-
-        def get_agent_settings(self):
-            return {"disallowed_tools": self.disallowed}
-
-    settings = Settings()
-    monkeypatch.setattr(agent_module, "global_config", lambda: settings)
-    agent_module.MirobodyAgent.load_llm_clients({})
-    assert probed == [True]
-    settings.disallowed = ["python_exec"]
-    agent_module.MirobodyAgent.load_llm_clients({})
-    assert probed == [True]
+    monkeypatch.setattr(agent_module, "global_config",
+                        lambda: SimpleNamespace(get_agent_settings=lambda: {"disallowed_tools": disallowed}))
+    agent_module.MirobodyAgent.load_llm_clients({"synthetic": {}})
+    assert len(probed) == probes
 
 
-@pytest.mark.parametrize("offered", [True, False])
-async def test_the_prompt_names_the_calculator_only_when_it_is_offered(offered):
+@pytest.mark.parametrize("engine, write", [(python_code, "`print(...)`"), (javascript_code, "`console.log(...)`"),
+                                           (None, None)])
+async def test_the_prompt_names_the_calculator_and_its_language_only_when_offered(engine, write):
     from mirobody.agent.prompt import build_system_prompt
     template = (Path(__file__).resolve().parents[1] / "mirobody" / "agent" / "prompts" / "mirobody.jinja").read_text()
-    prompt = await build_system_prompt(template, [python_exec] if offered else [], "Mirobody")
-    assert ("python_exec" in prompt) is offered
-    assert ("code tool" in prompt) is offered
-    assert ("# Computation" in prompt) is offered
+    prompt = await build_system_prompt(template, [engine] if engine else [], "Mirobody")
+    assert ("code_exec" in prompt) is bool(engine)
+    assert ("# Computation" in prompt) is bool(engine)
+    assert "python_exec" not in prompt
+    if engine:
+        assert f"`code_exec` with {engine.metadata['language']}\ncode only" in prompt
+        assert write in prompt
     # The direction rule once sat inside the computation section, so it went
     # missing with the calculator.
     assert "上升/下降/持平" in prompt
@@ -311,7 +407,7 @@ def test_remote_docker_endpoints_are_refused(monkeypatch):
 
 
 async def test_cancellation_closes_the_inflight_executor(monkeypatch):
-    from mirobody.agent import python_tool
+    from mirobody.agent import code_tool
     started = asyncio.Event()
     closed = asyncio.Event()
 
@@ -332,9 +428,9 @@ async def test_cancellation_closes_the_inflight_executor(monkeypatch):
             closed.set()
         return result
 
-    monkeypatch.setattr(python_tool, "LocalPythonSandbox", BlockingSandbox)
-    monkeypatch.setattr(python_tool.asyncio, "to_thread", threaded)
-    task = asyncio.create_task(python_exec.coroutine(
+    monkeypatch.setattr(code_tool, "LocalPythonSandbox", BlockingSandbox)
+    monkeypatch.setattr(code_tool.asyncio, "to_thread", threaded)
+    task = asyncio.create_task(python_code.coroutine(
         code="print(data)", runtime=SimpleNamespace(state={"messages": [HumanMessage("Calculate"),
                                                                          message([{"value": 1.0}])]}),
     ))

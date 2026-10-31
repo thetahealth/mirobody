@@ -44,5 +44,5 @@ query_health_indicators(indicators=["<从结果中复制的名称>"], view="late
 按日及更粗粒度的视图以天为单位统计，均值可能与逐条读数的统计结果不同。
 
 没有数据不代表没有相关症状或疾病。引用或计算时请保留返回的行 ID；
-额外计算可使用[本地 Python 分析](../python-analysis.zh-CN.md)。
+额外计算可使用[计算工具](../python-analysis.zh-CN.md)。
 完整参数与返回约定见[工具参考](../answers.md)。

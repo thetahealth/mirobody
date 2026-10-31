@@ -12,7 +12,7 @@ What a turn has:
 | --- | --- | --- |
 | tools | [`tools/`](./tools/) via [`tool_loader.py`](./tool_loader.py) | the four record tools, each schema passed through verbatim, the same ones an MCP client sees over `/mcp`; the three terminology tools stay MCP-only (`tool_loader._MCP_ONLY_TOOLS`) |
 | virtual filesystem | [`filesystem/`](./filesystem/) — `backend.py`, `files_backend.py`, `profile_backend.py` | `/uploads`, `/library`, `/memories` — read-only projections of the tables that own the data |
-| computation | [`python_tool.py`](./python_tool.py), [`python_sandbox.py`](./python_sandbox.py) | original record artifacts → local Python; the same tool for every model, offered only when a local Docker daemon answered at startup (`python_tool.executor_ready`) |
+| computation | [`code_tool.py`](./code_tool.py), [`js_sandbox.py`](./js_sandbox.py), [`python_sandbox.py`](./python_sandbox.py) | original record artifacts → `code_exec`: in-process JavaScript for a cloud model, local Python for a local model when a Docker daemon answered at startup (`code_tool.calculator`) |
 | memory | [`checkpointer.py`](./checkpointer.py) | LangGraph Postgres checkpointer, one thread per asker and session (`thread_for`) |
 | governance | [`middleware/`](./middleware/) | fault containment, retry refusal keyed on the envelope, prompt caching; plus the model-call and tool-call budgets |
 | one question | [`hitl.py`](./hitl.py) | `ask_user`, the human-in-the-loop interrupt (never an MCP tool) |
@@ -35,7 +35,7 @@ MODELS:            # the model picker: one LangChain chat model per entry
 PROMPTS:
   - agent/prompts/mirobody.jinja   # path, or path@name; the first is the default
 ALLOWED_TOOLS:        # whitelist, or
-DISALLOWED_TOOLS:     # blacklist (`python_exec` here hides the calculator)
+DISALLOWED_TOOLS:     # blacklist (`code_exec` here hides the calculator)
 DEFAULT_MODEL:     # used when ready; else the first entry whose key is present
 AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 ```
@@ -44,10 +44,12 @@ AGENT_NAME:           # the persona name in the prompt; default "Mirobody"
 the default first (`utils.config.llm.default_model`, which `mirobody doctor --probe`
 tests too). A chat request picks one with `provider`.
 
-Python calculation needs a local Docker daemon and image; setup, limits and
-the opt-in Compose connection are in [Local Python analysis](../../docs/python-analysis.md).
-The original `eval`/QuickJS/PTC surface and model-specific language switches
-were removed. Existing query views still provide their built-in statistics.
+A cloud model's calculation runs in process and needs no setup; a local
+model's runs in Python when a Docker daemon answers. Both engines, the limits
+and the opt-in Compose connection are in [Calculation in chat](../../docs/python-analysis.md).
+The `eval` tool bridge (PTC) and per-model language settings are gone: where
+the model runs decides the language. Existing query views still provide their
+built-in statistics.
 
 ## Replacing the agent
 

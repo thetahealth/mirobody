@@ -154,7 +154,8 @@ async def build_system_prompt(
         answer_language=answer_language,
         knowledge=dict(knowledge or {}),
         deployment_facts=deployment_facts,
-        python_enabled=any(tool.name == "python_exec" for tool in langchain_tools),
+        code_language=next((str((getattr(tool, "metadata", None) or {}).get("language", ""))
+                            for tool in langchain_tools if tool.name == "code_exec"), ""),
     )
 
 
@@ -215,6 +216,14 @@ def _chat_route(alias: str) -> tuple[str, str, str] | None:
         base_url = endpoint_value(base_url)
     base_url = base_url_override(str(entry.get("api_key") or "").strip()) or base_url
     return str(entry.get("model") or alias), base_url, str(entry.get("llm_type") or "openai")
+
+
+def runs_locally(chat_alias: str) -> bool:
+    """Whether chat entry `chat_alias` runs on this machine or the person's
+    own network (`place`). False for a cloud service and for an entry whose
+    endpoint cannot be told."""
+    route = _chat_route(chat_alias)
+    return route is not None and place(route[1], route[2]).startswith(("on this machine", "on your own network"))
 
 
 def deployment_facts(chat_alias: str) -> str:
