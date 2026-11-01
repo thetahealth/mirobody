@@ -28,11 +28,15 @@
   Code or Cursor found nothing to paste. Each edition now gives the one line
   (`claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`) under the
   one-command section, a row for it in "Build on Mirobody" beside the
-  personal-link row, which now says it needs the running app, and a third line
-  on the first screen that states what the record is for: comparable,
-  checkable, yours. A sentence after "What you can do" says Mirobody does not
-  diagnose or prescribe and its answers are not medical advice; CPIC is linked
-  where it is first named; the footer links Discussions. To tell: run the line,
+  personal-link row, which now says it needs the running app. On the first
+  screen, the two lines under the tagline that listed the sources and then the
+  three ways to run it (the link bar and the start table below repeat both)
+  are one sentence that says only what the open-source edition adds: the
+  record stays on the reader's machine and their agent can query it over MCP.
+  One trend across labs and the file behind every number are left to the demo
+  and its caption right below, which already show them. A sentence after "What you can do" says Mirobody does not diagnose
+  or prescribe and its answers are not medical advice; CPIC is linked where it
+  is first named; the footer links Discussions. To tell: run the line,
   then `claude mcp get mirobody` reports it connected.
 
 ### Fixed

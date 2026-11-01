@@ -10,8 +10,7 @@
 **Mirror your body in data.**
 
 One standard, every source, one complete picture of you — building a lasting record to understand where your health is going.<br>
-This open-source edition builds that record on your own machine from lab reports, wearables and genetic files, traces every number to its source, and opens it to your AI agent over MCP.<br>
-**Comparable**: one test, printed three ways in any language, lands on one trend. **Checkable**: every number in an answer opens the file it came from. **Yours**: the app, the records and even the models can run on your own machine.
+This open-source edition keeps that record on your own machine: lab reports, wearables and genetic files flow into it, and your AI agent can query it over MCP.
 
 **English** · **[中文](README.zh-CN.md)** · **[日本語](README.ja.md)**
 
@@ -127,7 +126,7 @@ The local models belong to the Docker path, so this one answers through a model 
 - **Explore genetic data.** Upload a 23andMe, AncestryDNA or WeGene export, or a VCF, and ask by rsID, gene or region. Drug questions get the matching [CPIC](https://cpicpgx.org/) guideline coverage, never a change of medication.
 - **Use your own agent.** Connect Claude Code, Codex or Cursor over MCP, or embed the offline engine in Python.
 
-Mirobody organizes your records and answers from them. It does not diagnose or prescribe, and its answers are not medical advice.
+Mirobody does not diagnose or prescribe, and its answers are not medical advice.
 
 ## Collect · Standardize · Agent
 
