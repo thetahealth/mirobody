@@ -78,6 +78,20 @@
   names and units". The Chinese guides also broke lines mid-sentence, which
   GitHub and the docs site render as a space between two characters; those
   lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+- **A calculation step reads as a calculation.** 1.5.10 named the calculator
+  `code_exec`, and the web client, which knew it as `eval` and
+  `python_exec`, showed the step as "调用了 code_exec" with a generic tool
+  icon. It now reads "完成计算" ("Calculated") with the calculator icon;
+  conversations stored before 1.5.10 keep their labels. How to tell: ask a
+  question that needs the calculator and open the thinking panel.
+
+- **On a phone the indicator drawer no longer scrolls sideways.** A
+  document's readings add a reference-range and a source column, and at
+  375px the drawer's table was 492px wide in a 327px column, so the whole
+  drawer moved sideways and the source link and the edit and delete buttons
+  fell off the screen. Only the table scrolls now, as the indicator list's
+  table already did. How to tell: at 375px, open an indicator read from an
+  uploaded report.
 
 ## 1.5.10
 
