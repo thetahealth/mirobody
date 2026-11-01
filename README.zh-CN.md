@@ -11,7 +11,7 @@
 
 同一套标准，汇聚每一个来源，映出完整的你——让长期记录成为理解健康走向的依据。<br>
 开源版在你自己的机器上，把体检报告、可穿戴设备和基因数据整理成这份标准化记录，每个数字都能追溯到原始来源，并通过 MCP 交给你的 AI 助手。<br>
-一条命令体验健康数据标准化；在 Codespaces 填入自己的模型 Key，直接用浏览器体验完整应用；或让应用、数据和模型 100% 在本机运行。
+**可比**：同一项检查，不同医院、不同语言、不同单位，落在同一条趋势上。**可查**：回答里的每个数字，都能点开它出自的文件。**归你**：应用、记录乃至模型，都可以只在你自己的机器上运行。
 
 **[English](README.md)** · **中文** · **[日本語](README.ja.md)**
 
@@ -32,7 +32,7 @@
 
 | 你想要 | 从这里开始 | 需要什么 |
 | --- | --- | --- |
-| 统一健康指标名称和单位 | [一条命令](#一条命令体验标准化引擎) | uv；不需要模型或 API Key |
+| 统一健康指标名称和单位，在终端里或在你的 AI agent 里 | [一条命令](#一条命令体验标准化引擎) | uv；不需要模型或 API Key |
 | 在浏览器里体验完整应用 | [GitHub Codespaces](#在-codespaces-体验完整应用) | GitHub 账号和你自己的模型 API Key |
 | 应用、模型和记录都留在自己机器上 | [Docker 100% 本地部署](#100-本地部署应用数据和模型) | 带 Compose 的 Docker；16 GB 内存；无需 API Key |
 | 应用和记录留在自己机器上，且不用 Docker | [不用 Docker 运行](#不用-docker-运行) | Debian 或 Ubuntu；PostgreSQL 16；Python 3.12；你自己的模型 API Key |
@@ -53,6 +53,16 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 <p align="center">
   <img src="docs/images/resolve-demo.zh-CN.gif" alt="mirobody resolve：血红蛋白与ヘモグロビン得到同一个 LOINC 编码，宽泛的类别保持未解析" width="880">
 </p>
+
+也可以把同一个引擎交给你的 AI agent。在 Claude Code 里运行：
+
+```bash
+claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+之后，你贴给 agent 的指标名称、读数、单位或症状，它都能在本机标准化，不需要 Key。
+读取整份报告还需要 `mirobody[parse]` 和一个模型 Key。
+[其他 MCP 客户端](https://docs.mirobody.ai/zh/tools/mcp-integration#通过-stdio-使用本地术语工具)使用同一条命令。
 
 → [在 Python 或 MCP 中使用引擎](docs/quickstart.zh-CN.md#a--the-library)
 
@@ -122,8 +132,10 @@ PIP_INDEX_URL=https://<镜像站>/simple scripts/install_native.sh
 - **汇入日常数据。** 导入 Apple Health 导出包，或连接 Garmin、Oura、Whoop。
 - **照顾家人。** 邀请家人共享他们自己的档案，或替不登录的长辈代管一份档案。
 - **记健康日记。** 一句 `昨晚开始头疼，血压150/95，没发烧` 会变成一条带编码的症状和两条带编码的读数，「没发烧」不会被记成发烧。
-- **查询基因数据。** 上传 23andMe、AncestryDNA、WeGene 的原始数据或 VCF，按 rsID、基因或区间查询。用药相关问题只给出 CPIC 覆盖情况，不建议调整用药。
+- **查询基因数据。** 上传 23andMe、AncestryDNA、WeGene 的原始数据或 VCF，按 rsID、基因或区间查询。用药相关问题只给出 [CPIC](https://cpicpgx.org/) 指南的覆盖情况，不建议调整用药。
 - **接入你自己的 agent。** 通过 MCP 连接 Claude Code、Codex 或 Cursor，或在 Python 里直接调用离线引擎。
+
+Mirobody 整理你的记录，并依据记录回答问题。它不做诊断，不开处方，回答也不构成医疗建议。
 
 ## 收集 · 标准化 · 智能体
 
@@ -174,7 +186,8 @@ PIP_INDEX_URL=https://<镜像站>/simple scripts/install_native.sh
 
 | 你想要 | 从这里开始 |
 | --- | --- |
-| 在 Claude Code、Codex、Cursor 或 Gemini CLI 里查询你的记录 | **设置 → MCP 链接**（默认 10 天有效），再按[各客户端的一行配置](https://docs.mirobody.ai/zh/tools/mcp-integration) |
+| 在 Claude Code、Codex、Cursor 或 Gemini CLI 里查询你的记录 | 在运行中的应用里打开**设置 → MCP 链接**（默认 10 天有效），再按[各客户端的一行配置](https://docs.mirobody.ai/zh/tools/mcp-integration) |
+| 不运行应用，把离线引擎作为工具交给任意 MCP 客户端 | 通过 stdio 运行 `uvx --python 3.12 mirobody mcp`（[客户端配置](https://docs.mirobody.ai/zh/tools/mcp-integration#通过-stdio-使用本地术语工具)） |
 | 在自己的代码里解析名称和单位 | `pip install mirobody`：离线、无需 Key，只依赖 numpy（[库的用法](docs/quickstart.zh-CN.md#a--the-library)） |
 | 让你的编码 agent 学会这套流程 | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | 新增设备 provider 或工具 | 把文件放进 `mirobody/collect/providers/` 或 `mirobody/agent/tools/`（[CONTRIBUTING](CONTRIBUTING.md)） |
@@ -226,7 +239,7 @@ Mirobody 也是 [Theta](https://www.thetahealth.ai/) 背后的健康数据引擎
   </picture>
 </a>
 
-[文档目录](docs/README.md) · [路线图](docs/roadmap.md) · [更新日志](CHANGELOG.md) · [安全](SECURITY.md) · [AGENTS.md](AGENTS.md)（均为英文）
+[文档目录](docs/README.md) · [讨论区](https://github.com/thetahealth/mirobody/discussions) · [路线图](docs/roadmap.md) · [更新日志](CHANGELOG.md) · [安全](SECURITY.md) · [AGENTS.md](AGENTS.md)（均为英文）
 
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 

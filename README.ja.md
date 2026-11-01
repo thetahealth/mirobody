@@ -11,7 +11,7 @@
 
 ひとつの標準で、あらゆる情報源をまとめ、あなたの全体像を映し出す。健康の行方を理解するための、長く続く記録です。<br>
 このオープンソース版は、検査報告・ウェアラブル・遺伝子ファイルを手元のマシンで1つの標準化された記録にまとめ、すべての数値を出典までたどれるようにし、MCP で AI エージェントにつなぎます。<br>
-健康データの標準化はコマンド1つで試せます。自分のモデルキーを使って Codespaces でアプリ全体を試すことも、アプリ・データ・モデルを 100% 手元のマシンで動かすこともできます。
+**比べられる**：同じ検査が、どの言語・どんな書き方で印字されていても、1本の推移にまとまります。**確かめられる**：回答の中のどの数値も、元のファイルを開いて確認できます。**自分のもの**：アプリも記録も、モデルさえも、自分のマシンで動かせます。
 
 **[English](README.md)** · **[中文](README.zh-CN.md)** · **日本語**
 
@@ -32,7 +32,7 @@
 
 | やりたいこと | ここから | 必要なもの |
 | --- | --- | --- |
-| 名称と単位を標準化する | [コマンド1つ](#コマンド1つでエンジンを試す) | uv。モデルも API キーも不要 |
+| 名称と単位を標準化する（ターミナルでも、AI エージェントの中でも） | [コマンド1つ](#コマンド1つでエンジンを試す) | uv。モデルも API キーも不要 |
 | ブラウザでアプリ全体を試す | [GitHub Codespaces](#codespaces-でアプリ全体を試す) | GitHub アカウントと、自分のモデル API キー |
 | アプリ・モデル・記録をすべて手元に置く | [Docker で 100% ローカル](#すべてを-100-ローカルで動かす) | Compose 付きの Docker、メモリ 16 GB。API キー不要 |
 | Docker を使わずに、アプリと記録を手元に置く | [Docker なし](#docker-なしで動かす) | Debian または Ubuntu、PostgreSQL 16、Python 3.12、自分のモデル API キー |
@@ -53,6 +53,14 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 <p align="center">
   <img src="docs/images/resolve-demo.ja.gif" alt="mirobody resolve：ヘモグロビンの中国語名と日本語名が同じ LOINC コードに解決され、広すぎるカテゴリは未解決のまま残る" width="880">
 </p>
+
+同じエンジンを AI エージェントに渡すこともできます。Claude Code では次のとおりです。
+
+```bash
+claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)（英語）でも同じコマンドを使います。
 
 → [Python や MCP からエンジンを使う](docs/quickstart.md#a--the-library)（英語）
 
@@ -116,8 +124,10 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 - **日々のデータを取り込む。** Apple Health の書き出しデータを読み込んだり、Garmin、Oura、Whoop と連携したりできます。
 - **家族を見守る。** 自分の記録を共有してくれる家族を招待したり、ログインしない親の記録を代わりに管理したりできます。
 - **健康日記をつける。** `headache since last night, BP 150/95, no fever`（昨夜から頭痛、血圧 150/95、熱なし）は、コード化された症状1件とコード化された測定値2件になります。「no fever」が発熱として記録されることはありません。
-- **遺伝子データを調べる。** 23andMe、AncestryDNA、WeGene の書き出しデータや VCF をアップロードし、rsID、遺伝子、領域で質問できます。薬に関する質問には CPIC の対応状況を示し、服薬の変更を勧めることはありません。
+- **遺伝子データを調べる。** 23andMe、AncestryDNA、WeGene の書き出しデータや VCF をアップロードし、rsID、遺伝子、領域で質問できます。薬に関する質問には [CPIC](https://cpicpgx.org/) ガイドラインの対応状況を示し、服薬の変更を勧めることはありません。
 - **自分のエージェントを使う。** MCP で Claude Code、Codex、Cursor をつないだり、オフラインのエンジンを Python に組み込んだりできます。
+
+Mirobody は記録を整理し、その記録にもとづいて答えます。診断や処方は行わず、回答は医学的な助言ではありません。
 
 ## 収集 · 標準化 · エージェント
 
@@ -168,7 +178,8 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 
 | やりたいこと | ここから |
 | --- | --- |
-| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | **設定 → MCP リンク**（既定で10日間有効）のあと、[クライアントごとの1行設定](https://docs.mirobody.ai/en/tools/mcp-integration)（英語） |
+| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | 動いているアプリで **設定 → MCP リンク**（既定で10日間有効）を開き、[クライアントごとの1行設定](https://docs.mirobody.ai/en/tools/mcp-integration)（英語） |
+| アプリを動かさずに、オフラインのエンジンを MCP クライアントのツールとして使う | stdio で `uvx --python 3.12 mirobody mcp`（[クライアント設定](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)、英語） |
 | 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.md#a--the-library)、英語） |
 | コーディングエージェントにこの手順を教える | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | デバイスのプロバイダーやツールを追加する | `mirobody/collect/providers/` か `mirobody/agent/tools/` にファイルを置く（[CONTRIBUTING](CONTRIBUTING.md)） |
@@ -220,7 +231,7 @@ Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Th
   </picture>
 </a>
 
-[ドキュメント](docs/README.md) · [ロードマップ](docs/roadmap.md) · [変更履歴](CHANGELOG.md) · [セキュリティ](SECURITY.md) · [AGENTS.md](AGENTS.md)（いずれも英語）
+[ドキュメント](docs/README.md) · [ディスカッション](https://github.com/thetahealth/mirobody/discussions) · [ロードマップ](docs/roadmap.md) · [変更履歴](CHANGELOG.md) · [セキュリティ](SECURITY.md) · [AGENTS.md](AGENTS.md)（いずれも英語）
 
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 

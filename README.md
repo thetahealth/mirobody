@@ -11,7 +11,7 @@
 
 One standard, every source, one complete picture of you — building a lasting record to understand where your health is going.<br>
 This open-source edition builds that record on your own machine from lab reports, wearables and genetic files, traces every number to its source, and opens it to your AI agent over MCP.<br>
-Standardize health data with one command, try the full app in Codespaces with your own model key, or run the app, the data and the models 100% locally.
+**Comparable**: one test, printed three ways in any language, lands on one trend. **Checkable**: every number in an answer opens the file it came from. **Yours**: the app, the records and even the models can run on your own machine.
 
 **English** · **[中文](README.zh-CN.md)** · **[日本語](README.ja.md)**
 
@@ -32,7 +32,7 @@ Standardize health data with one command, try the full app in Codespaces with yo
 
 | You want to | Start here | What you need |
 | --- | --- | --- |
-| Standardize names and units | [One command](#try-the-engine-with-one-command) | uv; no model or API key |
+| Standardize names and units, in a terminal or inside your AI agent | [One command](#try-the-engine-with-one-command) | uv; no model or API key |
 | Try the full app in your browser | [GitHub Codespaces](#try-the-full-app-in-codespaces) | A GitHub account and your own model API key |
 | Keep the app, models and records on your machine | [100% local with Docker](#run-everything-100-locally) | Docker with Compose; 16 GB memory; no API key |
 | Keep the app and records on your machine, without Docker | [No Docker](#run-without-docker) | Debian or Ubuntu; PostgreSQL 16; Python 3.12; your own model API key |
@@ -53,6 +53,14 @@ No repository clone, Docker, model or API key. uv prepares Python and the packag
 <p align="center">
   <img src="docs/images/resolve-demo.gif" alt="mirobody resolve: Chinese and Japanese names for haemoglobin resolve to the same LOINC code, while a broad category stays unresolved" width="880">
 </p>
+
+Give the same engine to your AI agent. In Claude Code:
+
+```bash
+claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+Your agent can then standardize any name, reading, unit or complaint you paste, on your machine and without a key. Reading a whole report also needs `mirobody[parse]` and a model key. [Other MCP clients](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio) take the same command.
 
 → [Use the engine from Python or MCP](docs/quickstart.md#a--the-library)
 
@@ -116,8 +124,10 @@ The local models belong to the Docker path, so this one answers through a model 
 - **Bring in everyday data.** Import an Apple Health export, or connect Garmin, Oura and Whoop.
 - **Look after your family.** Invite someone who shares their own record, or keep one for a parent who never signs in.
 - **Write a health journal.** `headache since last night, BP 150/95, no fever` becomes a coded complaint and two coded readings; "no fever" is not logged as a fever.
-- **Explore genetic data.** Upload a 23andMe, AncestryDNA or WeGene export, or a VCF, and ask by rsID, gene or region. Drug questions get CPIC coverage, never a change of medication.
+- **Explore genetic data.** Upload a 23andMe, AncestryDNA or WeGene export, or a VCF, and ask by rsID, gene or region. Drug questions get the matching [CPIC](https://cpicpgx.org/) guideline coverage, never a change of medication.
 - **Use your own agent.** Connect Claude Code, Codex or Cursor over MCP, or embed the offline engine in Python.
+
+Mirobody organizes your records and answers from them. It does not diagnose or prescribe, and its answers are not medical advice.
 
 ## Collect · Standardize · Agent
 
@@ -168,7 +178,8 @@ Device vendors see data only after you link one. Before this reaches a network y
 
 | You want | Start here |
 | --- | --- |
-| Your record in Claude Code, Codex, Cursor or Gemini CLI | **Settings → MCP link** (valid for 10 days by default), then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
+| Your record in Claude Code, Codex, Cursor or Gemini CLI | In the running app, **Settings → MCP link** (valid for 10 days by default), then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
+| The offline engine as tools in any MCP client, with no app | `uvx --python 3.12 mirobody mcp` over stdio ([client setup](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)) |
 | Names and units resolved in your own code | `pip install mirobody`: offline, no key, numpy the only dependency ([library guide](docs/quickstart.md#a--the-library)) |
 | Your coding agent taught the workflow | `npx skills add thetahealth/mirobody --skill standardize-health-data` ([skills](skills/README.md)) |
 | A new device provider or tool | Drop a file into `mirobody/collect/providers/` or `mirobody/agent/tools/` ([CONTRIBUTING](CONTRIBUTING.md)) |
@@ -220,7 +231,7 @@ Built on [HL7 FHIR](https://hl7.org/fhir/), [LOINC](https://loinc.org/) from the
   </picture>
 </a>
 
-[Documentation](docs/README.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [AGENTS.md](AGENTS.md)
+[Documentation](docs/README.md) · [Discussions](https://github.com/thetahealth/mirobody/discussions) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [AGENTS.md](AGENTS.md)
 
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 

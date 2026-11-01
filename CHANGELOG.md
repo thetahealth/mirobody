@@ -21,6 +21,19 @@
   Both pages have Chinese editions written for Chinese readers. Every example
   was run against the 1.5.10 bundle. To tell: open the Standardization page;
   its first table is "The steps one reading goes through".
+- **The READMEs show how to give the engine to an AI agent.** `mirobody mcp`
+  serves the offline tools over stdio, but no README said so: the only MCP
+  route they named was the personal link, which
+  needs the full app running, so a reader who wanted the engine inside Claude
+  Code or Cursor found nothing to paste. Each edition now gives the one line
+  (`claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`) under the
+  one-command section, a row for it in "Build on Mirobody" beside the
+  personal-link row, which now says it needs the running app, and a third line
+  on the first screen that states what the record is for: comparable,
+  checkable, yours. A sentence after "What you can do" says Mirobody does not
+  diagnose or prescribe and its answers are not medical advice; CPIC is linked
+  where it is first named; the footer links Discussions. To tell: run the line,
+  then `claude mcp get mirobody` reports it connected.
 
 ### Fixed
 
