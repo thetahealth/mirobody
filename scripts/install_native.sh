@@ -86,9 +86,10 @@ python3 -m venv .venv
 .venv/bin/pip install --quiet -e '.[app]'
 
 # `.env` is gitignored and `Config.init` reads it first, which is where
-# `deploy.sh` keeps its settings too. JWT_KEY and CONFIG_ENCRYPTION_KEY are
-# written once: regenerating them would sign every session out and leave the
-# stored provider credentials undecryptable.
+# `deploy.sh` keeps its settings too. The keys are written once: regenerating
+# them would sign every session out and leave the stored provider credentials
+# and encrypted record fields undecryptable. Without PG_ENCRYPTION_KEY (1.5.7
+# to 1.5.9) those fields used config.yaml's public placeholder (SECURITY.md).
 if [[ ! -f .env ]]; then
     echo "== .env =="
     umask 077
@@ -108,6 +109,7 @@ if [[ ! -f .env ]]; then
         echo "SEED_DEMO_DATA=true"
         echo "JWT_KEY=$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))')"
         echo "CONFIG_ENCRYPTION_KEY=$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(16))')"
+        echo "PG_ENCRYPTION_KEY=$(.venv/bin/python -c 'import secrets; print(secrets.token_hex(32))')"
         # Pinned so the link `start_native.sh` prints keeps working across a
         # restart. Unset, the first-run page mints a new token per process and
         # any link printed earlier is dead.

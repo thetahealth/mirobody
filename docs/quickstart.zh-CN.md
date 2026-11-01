@@ -138,7 +138,7 @@ curl -fsS http://127.0.0.1:18090/api/health
 
 返回内容包含 `version`。在仓库根目录运行 `dev`，即可同时访问 `frontend/` 中的网页客户端和 API；Python 安装包本身不包含网页客户端。
 
-`dev` 默认生成临时密钥。如需重启后保留会话和加密配置，请设置固定的 `JWT_KEY` 和 `CONFIG_ENCRYPTION_KEY`。正式部署使用 `serve`，它读取随包配置和 `config.{ENV}.yaml`，并要求使用持久化密钥。
+`dev` 默认生成临时密钥。如需重启后保留会话和加密配置，请设置固定的 `JWT_KEY` 和 `CONFIG_ENCRYPTION_KEY`。同时请设置 `PG_ENCRYPTION_KEY`：不设置时，数据库中加密存储的记录字段使用 `config.yaml` 里公开的占位密钥（见 SECURITY.md）。正式部署使用 `serve`，它读取随包配置和 `config.{ENV}.yaml`，并要求使用持久化密钥。
 
 Debian 或 Ubuntu 也可直接运行 `scripts/install_native.sh`，安装 PostgreSQL、pgvector 和 Python 环境，无需 Docker；然后通过 `scripts/start_native.sh` 启动 worker 和端口 18060 上的服务端。
 
