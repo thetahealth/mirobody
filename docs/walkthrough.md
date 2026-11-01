@@ -1,6 +1,6 @@
 # The whole engine, in four minutes
 
-**English** · **[中文](walkthrough.zh-CN.md)**
+**English** · **[中文](walkthrough.zh-CN.md)** · **[日本語](walkthrough.ja.md)**
 
 This page walks through five scenes on the demo record: arriving, uploading a
 file, reading its coded values, asking across reports, and writing a journal
@@ -145,7 +145,7 @@ than logged as a fever.
 </p>
 
 That is the whole chain in one sitting: a file goes in, a coded reading comes
-out, and an agent answers over it — **C · T · A**, each stage visible on its own
+out, and an agent answers over it — **C · S · A**, each stage visible on its own
 rather than asserted.
 
 Every value is generated; no file here describes a person, and the seed needs no
