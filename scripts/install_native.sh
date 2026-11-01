@@ -115,6 +115,10 @@ if [[ ! -f .env ]]; then
         # any link printed earlier is dead.
         echo "SETUP_TOKEN=$(.venv/bin/python -c 'import secrets; print(secrets.token_urlsafe(18))')"
     } > .env
+    # The umask alone is not enough in a codespace: `/workspaces` carries a
+    # default ACL, which takes precedence over it. Measured, `.env` came out
+    # 666 and the postgres account could read every key in it.
+    chmod 600 .env
 fi
 
 echo

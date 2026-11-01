@@ -25,6 +25,15 @@
   `docs/roadmap.md`). How to tell: after a fresh install,
   `grep -c PG_ENCRYPTION_KEY .env` prints 1.
 
+- **A codespace's `.env` is readable by its owner only.**
+  `scripts/install_native.sh` set `umask 077` before writing `.env`, but a
+  codespace's `/workspaces` carries a default ACL, which takes precedence
+  over the umask: `.env` came out 666, and the postgres account could read
+  `JWT_KEY` and both encryption keys. The installer now sets 600 after
+  writing, as `deploy.sh` does, and `scripts/start_native.sh` narrows an
+  existing codespace's `.env` on its next start. How to tell:
+  `stat -c %a .env` prints 600.
+
 - **The README counts 902 catalogue members, not 543.** The README in all
   three editions and `docs/standardization` quoted 1.5.9's count. This
   release adds 359 rows and removes none: the 352 laboratory orders the
