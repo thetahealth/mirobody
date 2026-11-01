@@ -841,9 +841,10 @@ sibling per-user prompt store and `chat/user_config.py` are gone.
 ### `PG_ENCRYPTION_KEY` cannot be rotated
 
 Every field `encrypt_content()` covers is encrypted with one key, and nothing
-re-encrypts them under a new one. A Compose stack first deployed with 1.5.2
-used `config.yaml`'s placeholder, and upgrading keeps it, because a new key
-would leave those fields unreadable. The fix is a command that reads each
+re-encrypts them under a new one. A Compose stack first deployed with 1.5.2,
+and a native install (`scripts/install_native.sh`) from 1.5.7 to 1.5.9, used
+`config.yaml`'s placeholder, and upgrading keeps it, because a new key would
+leave those fields unreadable. The fix is a command that reads each
 covered column with the old key and writes it with the new one in one
 transaction per table, and `deploy.sh` offering it on upgrade.
 

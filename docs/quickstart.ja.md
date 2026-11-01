@@ -130,7 +130,7 @@ curl -fsS http://127.0.0.1:18090/api/health
 
 応答には `version` が含まれます。`dev` はリポジトリのルートから実行してください。そうすれば `frontend/` の Web クライアントも API と一緒に配信されます。Python パッケージ単体には Web クライアントは含まれません。
 
-`dev` は一時的なシークレットを生成します。再起動をまたいでセッションと暗号化された設定を保持するには、`JWT_KEY` と `CONFIG_ENCRYPTION_KEY` を設定してください。デプロイでは `serve` が同梱の設定と `config.{ENV}.yaml` を読み込み、永続的なシークレットを前提とします。
+`dev` は一時的なシークレットを生成します。再起動をまたいでセッションと暗号化された設定を保持するには、`JWT_KEY` と `CONFIG_ENCRYPTION_KEY` を設定してください。`PG_ENCRYPTION_KEY` も設定してください。設定しないと、保存される記録の項目は `config.yaml` の公開されたプレースホルダーの鍵で暗号化されます（SECURITY.md）。デプロイでは `serve` が同梱の設定と `config.{ENV}.yaml` を読み込み、永続的なシークレットを前提とします。
 
 Debian や Ubuntu では、Docker を使わずに `scripts/install_native.sh` が PostgreSQL、pgvector、Python 環境をインストールします。`scripts/start_native.sh` はワーカーとサーバーをポート 18060 で起動します。
 
