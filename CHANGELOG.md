@@ -4,6 +4,34 @@
 
 ### Fixed
 
+- **The agent imports with every langchain the package accepts.**
+  `pyproject.toml` asked for `langchain>=1.4.0`, but since 1.5.8
+  `agent/middleware/genotype_summarization.py` imports `_summary_config`,
+  which langchain added in 1.4.4. deepagents 0.7.23 accepts 1.4.3, so an
+  environment that already held 1.4.0 to 1.4.3 kept it on
+  `pip install "mirobody[agent]"`, and the agent failed to import
+  (`ImportError: cannot import name '_summary_config'`). The floor is now
+  1.4.4. How to tell: `pip install "mirobody[agent]" "langchain==1.4.3"`
+  refuses to resolve instead of installing an agent that cannot start.
+
+- **A native install encrypts the record with its own key.**
+  `scripts/install_native.sh`, which a codespace runs, wrote `JWT_KEY` and
+  `CONFIG_ENCRYPTION_KEY` into `.env` but not `PG_ENCRYPTION_KEY`, so from
+  1.5.7 chat messages, uploaded files' text and the health profile were
+  encrypted under `config.yaml`'s public placeholder. A new install now
+  generates one, 32 random bytes in hex as `deploy.sh` makes it. An existing
+  install keeps its `.env` and its placeholder: a new key would leave its
+  encrypted fields unreadable, and nothing re-encrypts them yet (SECURITY.md,
+  `docs/roadmap.md`). How to tell: after a fresh install,
+  `grep -c PG_ENCRYPTION_KEY .env` prints 1.
+
+- **The README counts 902 catalogue members, not 543.** The README in all
+  three editions and `docs/standardization` quoted 1.5.9's count. This
+  release adds 359 rows and removes none: the 352 laboratory orders the
+  unit-family gate admits, the four distances, `altitudes`, `waso` and
+  `bloodGlucoseMoles`. How to tell:
+  `python -c "from mirobody.kernel import metrics; print(len(metrics.ROWS))"`.
+
 - **The health profile is written from the record by code; the model only
   picks its scenario.** After every ingest `user/profile.py` asked a model to
   rewrite the whole profile: the previous one plus every new reading, every
@@ -286,9 +314,8 @@
   `TERMINOLOGY_VERSION` is 1.5.10. Stored data is untouched: the four stay
   `series` on the 18:00 day, so readings land in the same table on the same
   day, and `dailyAvgSleepEfficiency` and `dailyTotalSleepDisturbances`, which
-  read the values all along, are identical before and after on PostgreSQL. A
-  nap on the same 18:00 day still replaces the night's score, because the
-  decoders file naps under the same names. How to tell:
+  read the values all along, are identical before and after on PostgreSQL.
+  How to tell:
   `pytest mirobody/tests/test_sleep_scores.py`, which also refuses
   `duration_union` for any metric whose unit is not a time.
 

@@ -193,7 +193,7 @@ resolve("血脂").resolved                                     # False    1つ�
 | 主張 | 確かめ方 |
 | --- | --- |
 | 一般的な健康診断に載る検査名で **345/345**（英語、中国語、日本語、ロシア語、エストニア語、トルコ語） | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) がスコアを表示します |
-| 次元解析つきの **UCUM 単位 330 個**と、デバイス・臨床検査指標の**カタログ項目 543 件** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
+| 次元解析つきの **UCUM 単位 330 個**と、デバイス・臨床検査指標の**カタログ項目 902 件** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
 | 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA のエクスポートと GRCh37/GRCh38 の VCF から、**同じ 13 サイト（12 遺伝子）**の判定が得られます。テストデータはパッケージ同梱の 1000 Genomes 公開サンプルです | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公開遺伝子サンプル](mirobody/testing/genomics/README.md)（英語） |
 | パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公開している健康エージェントのベンチマーク：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |

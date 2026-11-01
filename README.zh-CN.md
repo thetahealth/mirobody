@@ -199,7 +199,7 @@ resolve("血脂").resolved                                     # False    一个
 | 说法 | 怎么验证 |
 | --- | --- |
 | **345/345**：常规体检会打印的项目，覆盖英文、中文、日文、俄文、爱沙尼亚文和土耳其文 | 运行 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 会打印分数 |
-| **330 个 UCUM 单位**，带量纲分析；**543 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md) |
+| **330 个 UCUM 单位**，带量纲分析；**902 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md) |
 | 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA 的导出和 GRCh37/GRCh38 的 VCF，解析出**同样的 13 个位点（12 个基因）**；测试数据是随包附带的 1000 Genomes 公开样本 | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公开基因样本说明](mirobody/testing/genomics/README.md)（英文） |
 | 包会说明是哪份词表在回答：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
