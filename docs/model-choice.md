@@ -1,6 +1,6 @@
 # Choosing a model
 
-**English** · [中文](model-choice.zh-CN.md)
+**English** · **[中文](model-choice.zh-CN.md)** · **[日本語](model-choice.ja.md)**
 
 Choose where your health data may be processed, then consider your hardware
 and image-understanding needs. Mirobody supports fully local, cloud and hybrid

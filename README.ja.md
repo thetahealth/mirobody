@@ -59,9 +59,9 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
-エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)（英語）でも同じコマンドを使います。
+エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)でも同じコマンドを使います。
 
-→ [Python や MCP からエンジンを使う](docs/quickstart.md#a--the-library)（英語）
+→ [Python や MCP からエンジンを使う](docs/quickstart.ja.md#a--the-library)
 
 ## Codespaces でアプリ全体を試す
 
@@ -85,9 +85,9 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-メモリは 16 GB、そのうち少なくとも 8 GB を Docker に割り当ててください。GPU は不要です。Windows では WSL 2 のターミナルでコマンドを実行します。初回起動時はコンテナイメージとモデルの重みをダウンロードするため、ネットワーク接続が必要です。レジストリに届かないネットワークでは、`deploy.sh` がその旨を表示してミラー経由で再試行します。`.env` の `DOCKER_MIRROR` で自分のミラーを指定できます。ダウンロードが済めば、文書の読み取り、標準化、回答はすべてローカルで動きます。CPU での回答には数分かかることがあります。GPU を使う方法は [Mac・NVIDIA・Windows の設定](docs/local-models.md)（英語）で説明しています。
+メモリは 16 GB、そのうち少なくとも 8 GB を Docker に割り当ててください。GPU は不要です。Windows では WSL 2 のターミナルでコマンドを実行します。初回起動時はコンテナイメージとモデルの重みをダウンロードするため、ネットワーク接続が必要です。レジストリに届かないネットワークでは、`deploy.sh` がその旨を表示してミラー経由で再試行します。`.env` の `DOCKER_MIRROR` で自分のミラーを指定できます。ダウンロードが済めば、文書の読み取り、標準化、回答はすべてローカルで動きます。CPU での回答には数分かかることがあります。GPU を使う方法は [Mac・NVIDIA・Windows の設定](docs/local-models.ja.md)で説明しています。
 
-スクリプトが表示するアプリのリンクを開きます。ローカルモデルは選択済みです。上と同じデモアカウントでログインし、質問するか、サンプルをアップロードしてください。ローカルモデルの選択肢は[モデルの選び方](docs/model-choice.md)（英語）で比較しています。
+スクリプトが表示するアプリのリンクを開きます。ローカルモデルは選択済みです。上と同じデモアカウントでログインし、質問するか、サンプルをアップロードしてください。ローカルモデルの選択肢は[モデルの選び方](docs/model-choice.ja.md)で比較しています。
 
 <p align="center">
   <img src="docs/images/setup-demo.ja.gif" alt="初回セットアップ画面：OpenRouter のキーの横でモデル名を編集し、次に 100% このマシンで実行を選んで「小」のサイズのまま進むと、ページが llama.cpp サーバーを見つけ、2つのモデルを読み込んで準備完了になる" width="880">
@@ -98,10 +98,10 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 チャットでの計算は、クエリしたもとのデータをそのまま受け取ります。
 クラウドのモデルのコードはアプリ内の JavaScript で動き、設定は要りません。
 手元のハードウェアで動くモデルは、アプリが Docker デーモンに接続できるとき、ローカルのコンテナで Python を使います。
-両方の仕組みは[セットアップとデータの流れ](docs/python-analysis.md)（英語）で説明しています。
+両方の仕組みは[セットアップとデータの流れ](docs/python-analysis.ja.md)で説明しています。
 クエリビューに組み込まれた統計は、計算ツールがなくても使えます。
 
-→ [セルフホストガイド](https://docs.mirobody.ai/en/self-host) · [ウォークスルー](docs/walkthrough.md) · [サーバーへのデプロイ](https://docs.mirobody.ai/en/deployment/production)（いずれも英語）
+→ [セルフホストガイド](https://docs.mirobody.ai/ja/self-host) · [ウォークスルー](docs/walkthrough.ja.md) · [サーバーへのデプロイ](https://docs.mirobody.ai/ja/deployment/production)
 
 ## Docker なしで動かす
 
@@ -143,7 +143,7 @@ Mirobody は診断や処方を行わず、回答は医学的な助言ではあ�
 | **② 標準化 Standardize** | `A1c`、`HbA1c`、`ヘモグロビンA1c` を同じコードに、単位を1つの標準にそろえます。すべてオフラインです。出どころも書き方もばらばらな指標が、1つの表に整った行として並びます。特定できない名前は未解決のまま残します。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
 | **③ エージェント Agent** | モデルの記憶ではなく、この表を検索するツールを呼んで答えます。推移、検査機関やデバイスをまたいだ比較、グラフ。どの数値も元のファイルまでたどれるので、うのみにせず確かめられます。 | [`agent/`](mirobody/agent/) |
 
-モデルは文書を読み、推論します。コードと単位はパッケージに同梱された語彙から来るもので、モデルが生成することはありません。[測定値が1ステップずつ標準化される流れ](docs/site/standardization.md) · [測定値がパイプラインをどう通るか](docs/pipeline.md)（いずれも英語）。
+モデルは文書を読み、推論します。コードと単位はパッケージに同梱された語彙から来るもので、モデルが生成することはありません。[測定値が1ステップずつ標準化される流れ](docs/site/standardization.ja.md) · [測定値がパイプラインをどう通るか](docs/pipeline.md)（英語）。
 
 ## 家族を見守る
 
@@ -156,7 +156,7 @@ Mirobody は診断や処方を行わず、回答は医学的な助言ではあ�
   </picture>
 </p>
 
-ケアサークルに参加しただけでは、何も共有されません。自分の記録の閲覧や編集をほかのメンバーに許すかどうかは、メンバー一人ひとりが決めます。ログインしない親の記録はあなたが管理でき、本人が記録を引き継いだあとは、あなたに残す権限を本人が選びます。[ウォークスルーで見る](docs/walkthrough.md)（英語）。
+ケアサークルに参加しただけでは、何も共有されません。自分の記録の閲覧や編集をほかのメンバーに許すかどうかは、メンバー一人ひとりが決めます。ログインしない親の記録はあなたが管理でき、本人が記録を引き継いだあとは、あなたに残す権限を本人が選びます。[ウォークスルーで見る](docs/walkthrough.ja.md)。
 
 ## 手元のマシンに残るもの
 
@@ -177,9 +177,9 @@ Mirobody は診断や処方を行わず、回答は医学的な助言ではあ�
 
 | やりたいこと | ここから |
 | --- | --- |
-| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | 動いているアプリで **設定 → MCP リンク**（既定で10日間有効）を開き、[クライアントごとの1行設定](https://docs.mirobody.ai/en/tools/mcp-integration)（英語） |
-| アプリを動かさずに、オフラインのエンジンを MCP クライアントのツールとして使う | stdio で `uvx --python 3.12 mirobody mcp`（[クライアント設定](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)、英語） |
-| 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.md#a--the-library)、英語） |
+| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | 動いているアプリで **設定 → MCP リンク**（既定で10日間有効）を開き、[クライアントごとの1行設定](https://docs.mirobody.ai/ja/tools/mcp-integration) |
+| アプリを動かさずに、オフラインのエンジンを MCP クライアントのツールとして使う | stdio で `uvx --python 3.12 mirobody mcp`（[クライアント設定](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)） |
+| 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.ja.md#a--the-library)） |
 | コーディングエージェントにこの手順を教える | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | デバイスのプロバイダーやツールを追加する | `mirobody/collect/providers/` か `mirobody/agent/tools/` にファイルを置く（[CONTRIBUTING](CONTRIBUTING.md)） |
 | デプロイせずにアプリを試す | [Mirobody Web デモ](https://chat.mirobody.ai/demo?ref=github-readme&lang=ja)。同じ[合成デモファイル](demo/README.md)を使っています |

@@ -1,6 +1,6 @@
 # The whole engine, in four minutes
 
-**English** · **[中文](walkthrough.zh-CN.md)**
+**English** · **[中文](walkthrough.zh-CN.md)** · **[日本語](walkthrough.ja.md)**
 
 This page walks through five scenes on the demo record: arriving, uploading a
 file, reading its coded values, asking across reports, and writing a journal

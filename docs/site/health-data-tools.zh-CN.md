@@ -33,6 +33,7 @@ query_health_indicators(indicators=["<从结果中复制的名称>"], view="late
 | `minute`、`hour`、`day`、`week`、`month` | 对应时间粒度的汇总。 |
 | `stats` | 数量、最小值、最大值、均值、总和、首尾值和变化。 |
 | `latest` | 每个指标的最近一次结果。 |
+| `trend` | 窗口内变化的方向和形态；数据无法比较时会说明原因。 |
 
 未提供 `keywords` 或 `indicators` 时，返回指标目录，指定的视图不会直接应用。
 `start`、`end` 按记录所属用户的时区解释，包含起止当天，所以“最近 7 天”从六天前开始；指标查询未指定日期时，范围为全部记录。

@@ -1,6 +1,6 @@
 # 四分钟走完整条引擎
 
-**[English](walkthrough.md)** · **中文**
+**[English](walkthrough.md)** · **中文** · **[日本語](walkthrough.ja.md)**
 
 本页用示例数据走完五个场景：进入系统、上传文件、查看编码后的读数、跨报告提问，以及写一句健康日记。
 第 2 到第 5 段对着一套运行中的 `./deploy.sh`、在 `SEED_DEMO_DATA` 打开时录制；

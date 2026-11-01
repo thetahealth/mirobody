@@ -38,6 +38,17 @@
   or prescribe and its answers are not medical advice; CPIC is linked where it
   is first named; the footer links Discussions. To tell: run the line,
   then `claude mcp get mirobody` reports it connected.
+- **The user guides have Japanese editions.** The README had a Japanese
+  edition, but every guide it linked was English and marked （英語）, and
+  docs.mirobody.ai had no Japanese pages. The guides the site renders now have
+  a Japanese edition beside the English and Chinese ones (`*.ja.md`):
+  quickstart, walkthrough, model-choice, local-models, python-analysis and every
+  page under `docs/site/`. Each one carries the English ids that other pages
+  link to, uses the app's own Japanese labels (「設定 → MCP リンク」), and shows the
+  Japanese demo images where they exist. The top-level guides' language line
+  names all three editions, and `README.ja.md` links the Japanese guides and the
+  site's `/ja/` pages. To tell: open `docs/quickstart.ja.md`; once the site pins
+  this release, docs.mirobody.ai/ja/quickstart shows it.
 
 ### Fixed
 
@@ -59,6 +70,17 @@
   checked against `fhir_loinc_bundle.NOTICE`. To tell:
   `python -c "from mirobody.kernel import metrics; print(len(metrics.MEMBERS))"`
   prints 902, the figure the READMEs now quote.
+- **Four guide errors, and Chinese lines that rendered with stray spaces.**
+  `docs/site/file-processing.md` implied `POST /files/upload` files a document
+  into the record; it only stores it unless the request sets `file=true`, the
+  likely cause of "stored but no readings" that the same section debugs.
+  `docs/site/health-data-tools.md` listed the query views without `trend`, which
+  the tool schema accepts. The Chinese `model-choice` said two things the
+  English does not (that Mirobody never loads weights, that OpenRouter switches
+  host after a failure), and the Chinese pipeline page dropped "standardizes
+  names and units". The Chinese guides also broke lines mid-sentence, which
+  GitHub and the docs site render as a space between two characters; those
+  lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
 
 ## 1.5.10
 

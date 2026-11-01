@@ -1,6 +1,6 @@
 # 数据处理流程
 
-Mirobody 将文件、设备数据和健康日记整理成统一记录，再供网页、agent 和 MCP 客户端查询。
+Mirobody 收集健康记录，标准化名称和单位，并将结果提供给 Web 客户端、智能体和 MCP 客户端使用。
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="../images/collect-standardize-agent-dark.zh-CN.svg">
