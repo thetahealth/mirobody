@@ -30,6 +30,12 @@ fi
 #
 # Sourced before the port is read so an edit to `.env` is honoured here too.
 if [[ -f .env ]]; then
+    # A codespace created before 1.5.10 wrote `.env` as 666 (the default ACL on
+    # `/workspaces` overrides the installer's umask), readable by the postgres
+    # account. Narrowed here as well, since postStartCommand runs this on every
+    # start and the installer never runs again. A `.env` someone else owns
+    # cannot be changed, and that does not stop the start.
+    chmod go-rwx .env 2>/dev/null || true
     set -a
     # shellcheck disable=SC1091
     . ./.env || echo "warning: .env could not be sourced; continuing with the environment as it is" >&2
