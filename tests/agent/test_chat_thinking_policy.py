@@ -254,7 +254,7 @@ def _tool_chunks():
 
 
 @pytest.mark.parametrize("reasoning", ["Check the returned result.", ""])
-def test_probe_checks_streamed_thinking_after_a_real_tool_round(monkeypatch, reasoning):
+def test_probe_reports_streamed_thinking_after_a_real_tool_round(monkeypatch, reasoning):
     final = [AIMessageChunk(content="", additional_kwargs={"reasoning_content": reasoning}), AIMessageChunk(content="5.4 mmol/L.")]
     fake = _StreamModel([_tool_chunks(), final])
     constructed = {}
@@ -265,11 +265,13 @@ def test_probe_checks_streamed_thinking_after_a_real_tool_round(monkeypatch, rea
 
     monkeypatch.setattr(clients, "build_chat_model", build)
     passed, detail = asyncio.run(probe._chat("local", entry=LOCAL))
-    assert passed is bool(reasoning)
+    # A tool round without thinking still passes: the setup page saves a key
+    # on this result, and adaptive models skip thinking on the short question.
+    assert passed is True
     assert constructed["require_thinking"] is True
     assert len(fake.inputs) == 2
     assert fake.inputs[1][-1].type == "tool" and fake.inputs[1][-1].tool_call_id == "c1"
-    assert ("first thinking" if reasoning else "no native thinking was observed") in detail
+    assert ("first thinking" if reasoning else "no thinking was shown") in detail
 
 
 def test_probe_rejects_invalid_parsed_tool_arguments_before_a_second_request(monkeypatch):

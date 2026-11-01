@@ -34,6 +34,17 @@
   existing codespace's `.env` on its next start. How to tell:
   `stat -c %a .env` prints 600.
 
+- **The setup page accepts a working OpenRouter key.** Since 1.5.8 the page
+  saved a key only when the chat probe saw the model think, and on the
+  probe's short question claude-sonnet-5.5 and gpt-6-luna on OpenRouter spent
+  0 reasoning tokens at medium and at high effort; both thought on a question
+  that needed it. The page answered "The key did not work: … no native
+  thinking was observed" to a key that answered every chat, 6 times out of 6,
+  and `mirobody doctor --probe` failed the chat surface the same way. The
+  probe now passes on the tool round and reports whether thinking was shown.
+  How to tell: an OpenRouter key pasted on the setup page is saved, and
+  `mirobody doctor --probe` prints `chat  PASS` with the note.
+
 - **The README counts 902 catalogue members, not 543.** The README in all
   three editions and `docs/standardization` quoted 1.5.9's count. This
   release adds 359 rows and removes none: the 352 laboratory orders the

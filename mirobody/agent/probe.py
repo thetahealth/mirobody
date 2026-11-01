@@ -125,8 +125,13 @@ async def _chat(name: str | None = None, resolve: Any = None, entry: dict | None
         final = await streamed(messages)
         if not message_text(final).strip() or getattr(final, "tool_calls", None) or getattr(final, "invalid_tool_calls", None):
             return False, f"{name}: no final answer after the synthetic tool result"
+    # Thinking is reported, not required. A model that thinks adaptively
+    # decides per request: on this question claude-sonnet-5.5 and gpt-6-luna
+    # on OpenRouter spent 0 reasoning tokens at medium and at high effort, and
+    # both streamed reasoning on a question that needed it (2026-11-01). As a
+    # failure it made the setup page refuse every working OpenRouter key.
     if first_reasoning is None:
-        return False, f"{name}: tool round passed; no native thinking was observed before or after the tool result (endpoint/model capability unverified)"
+        return True, f"{name}: tool round passed; no thinking was shown on this short question (a model that thinks adaptively may skip it)"
     return True, f"{name}: tool round and native thinking passed; first thinking {first_reasoning:.2f}s"
 
 
