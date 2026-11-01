@@ -210,8 +210,10 @@ agent = [
     # (`azure-identity`, which [parse] carries) adds that one package — instead
     # of every install carrying all of them for a configuration it never has.
     # `langchain_community` was declared and never imported; gone.
-    # 1.4.0 is deepagents 0.7.14's floor.
-    "langchain>=1.4.0",
+    # 1.4.4 is the first with `summarization._summary_config`, which
+    # `agent/middleware/genotype_summarization.py` imports. deepagents 0.7.23
+    # accepts 1.4.3, and beside it the agent failed to import (2026-11-01).
+    "langchain>=1.4.4",
     "langchain-openai>=1.4.3",
     # 4.2.4 relaxed its google-genai cap to <3.0.0 (earlier 4.x pinned <2.0.0,
     # which would block the google-genai>=2.0 required by [parse]).
