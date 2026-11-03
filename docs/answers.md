@@ -102,6 +102,14 @@ No parameter names a person. A call reads the account it is authenticated as:
 the MCP token or URL, or the record a chat turn was opened on, which the chat
 layer authorises before the model runs. One call, one person's data.
 
+A personal link is one URL for one record, and that is deliberate: a person who
+manages someone else mints a second link for that member — `POST /personal/mcp`
+with `{"user_id": …}`, authorised through the care circle — and registers it as
+a second MCP server. The link belongs to the pair (creator, subject). Stopping
+the share, leaving the circle or deleting either account revokes it, and sharing
+again does not revive the old URL, so a link never outlives the access that
+allowed it.
+
 Genetic region queries accept `build=GRCh37|GRCh38|raw`. The explicit `raw`
 choice reads the file's original coordinates without asserting an assembly;
 Ancestry PAR rows use this path because the bundled site index has no
