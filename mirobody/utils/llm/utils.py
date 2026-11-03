@@ -140,6 +140,14 @@ async def async_get_structured_output(
             messages=messages,
             **params,
         )
+        # A compatibility layer can resolve to None instead of raising: on
+        # 1.5.10 a 587 s call that ended in the provider's 503 left `response`
+        # None and the attribute access below raised AttributeError, which the
+        # caller reported as an extraction failure with no reason. None is
+        # already this function's "no model answered", so it leaves here.
+        if response is None:
+            logger.warning("structured output: no response: model=%s", spec.model)
+            return None
         result = response.choices[0].message.to_dict()
         if result.get("refusal") is not None:
             logger.warning("structured output refused: model=%s", spec.model)

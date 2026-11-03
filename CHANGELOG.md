@@ -2,6 +2,16 @@
 
 ### Fixed
 
+- **A provider that answers nothing is no longer logged as a bug in this
+  repo.** A 587 s `deepseek-utils` call that ended in the provider's 503 left
+  the completion `None`, and `async_get_structured_output` dereferenced it, so
+  the extraction log read `AttributeError: 'NoneType' object has no attribute
+  'choices'` at `utils/llm/utils.py` with a traceback that buried the 503
+  which caused it (found on 1.5.10, #239). A `None` now returns the same "no
+  model answered" that a refusal or an empty answer already returns. How to
+  tell: a failed extraction logs `structured output: no response` with the
+  model name, and no traceback.
+
 - **A calculation step reads as a calculation.** 1.5.10 named the calculator
   `code_exec`, and the web client, which knew it as `eval` and
   `python_exec`, showed the step as "调用了 code_exec" with a generic tool
