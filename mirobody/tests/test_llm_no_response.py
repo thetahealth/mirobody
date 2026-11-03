@@ -12,8 +12,17 @@ from __future__ import annotations
 
 import logging
 
-from mirobody.utils.config.llm import RouteSpec
-from mirobody.utils.llm import clients, utils
+import pytest
+
+# The model-client factory arrives with the `[parse]` extra (`openai`, the PDF
+# library), so CI's minimal job — `pip install -e '.[test]'` — would abort
+# COLLECTION here rather than skip. Decided at import time, which is the only
+# point early enough (see conftest.py).
+try:
+    from mirobody.utils.config.llm import RouteSpec
+    from mirobody.utils.llm import clients, utils
+except ImportError as missing:  # pragma: no cover - the minimal install
+    pytest.skip(f"needs the [parse] extra: {missing}", allow_module_level=True)
 
 _SPEC = RouteSpec(
     alias="test", model="test-model", api_key_env="", base_url="http://127.0.0.1:9"
