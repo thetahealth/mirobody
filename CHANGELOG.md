@@ -13,6 +13,21 @@
   activation that chose "none", the link's row in `th_personal_mcp_url` has
   `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
 
+- **A provider that answers nothing is no longer logged as a bug in this
+  repo.** The OpenAI client returns `None`, without raising, when an endpoint
+  answers HTTP 200 with a JSON `null` body. On 1.5.10 a 587 s `deepseek-utils`
+  call did that during the provider's 503 outage, and
+  `async_get_structured_output` dereferenced it, so the extraction log read
+  `AttributeError: 'NoneType' object has no attribute 'choices'` at
+  `utils/llm/utils.py` (found on 1.5.10, #239). Text completion and vision had
+  the same unguarded access. Structured output and text completion now return
+  their "no model answered" `None`; vision raises `NoResponse`, and an upload
+  that fails on it tells the person "… sent back an empty response, which an
+  overloaded provider does" instead of a type name. How to tell: the log reads
+  `structured output: no response` or `text completion: no response` with the
+  model name, and no traceback. The native Anthropic path streams and was not
+  affected.
+
 - **A calculation step reads as a calculation.** 1.5.10 named the calculator
   `code_exec`, and the web client, which knew it as `eval` and
   `python_exec`, showed the step as "调用了 code_exec" with a generic tool
