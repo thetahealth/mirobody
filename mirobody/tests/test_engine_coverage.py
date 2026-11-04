@@ -238,6 +238,10 @@ CASES: list[tuple[str, str, str]] = [
     ("free T3",                     r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
     ("游离T3",                       r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
     ("红细胞计数",                   r"erythrocyte|red blood cell",   r""),
+    # Both answered 24360-0, the hemoglobin and hematocrit PANEL, which no
+    # unit admits: a hematocrit printed under either name was never coded.
+    ("红细胞比容",                   r"hematocrit",                   r"panel"),
+    ("红细胞比积",                   r"hematocrit",                   r"panel"),
     ("血小板计数",                   r"platelet",                     r""),
     ("谷丙转氨酶",                   r"alanine aminotransferase",     r""),
     ("谷草转氨酶",                   r"aspartate aminotransferase",   r""),
@@ -662,6 +666,8 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # all leave the answer exactly where `resolve` put it.
     ("HGB",             "140", "g/L",    "718-7",   "g/L is already MCnc"),
     ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
+    ("hematocrit",      "0.42", "L/L",   "4544-3",  "L/L is a volume fraction too"),
+    ("红细胞比容",          "0.42", "L/L",   "4544-3",  "the SI spelling on a Chinese report"),
     ("白细胞计数",         "6.5", "10*9/L", "26464-8", "count already NCnc"),
     # The differential, both ways: a measure word in the name goes to the
     # fraction component, and the unit then picks the count or the ratio;

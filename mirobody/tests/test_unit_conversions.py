@@ -97,6 +97,31 @@ def test_printed_unit_spellings_normalize_without_changing_their_scale():
         assert parse_value_unit(printed).unit == expected, printed
 
 
+def test_a_volume_fraction_is_one_series_in_percent_or_l_per_l():
+    """Hematocrit prints as `45 %` or `0.45 L/L`: one quantity, a factor of
+    100 apart (#202). Both fold to the pair a stored percent already has."""
+    from mirobody.units import (canonicalize, conversion_factor, convert_value, normalize_unit,
+                                partition_units)
+
+    assert {normalize_unit(u) for u in ("L/L", "l/l", "L/l", "升/升")} == {"L/L"}
+    assert conversion_factor("L/L", "%") == 100 and conversion_factor("%", "L/L") == 0.01
+    assert convert_value(0.45, "L/L", "%") == 45.0 and convert_value(45.0, "%", "L/L") == 0.45
+    assert partition_units(["%", "L/L", "/uL"], loinc_code="4544-3") == [["%", "L/L"], ["/uL"]]
+    assert canonicalize(0.45, "L/L") == canonicalize(45, "%") == (45.0, "%")
+
+
+def test_a_percent_is_not_every_dimensionless_unit():
+    """A percent is a hundredth of whichever whole its analyte names. HbA1c
+    6.5 % (NGSP) is 48 mmol/mol (IFCC), not 65; a count, a dose per body mass,
+    a time per day and a bare index (`1`) are dimensionless too."""
+    from mirobody.units import convertible
+
+    for other in ("mmol/mol", "10*9", "10*9/L", "mg/kg", "h/d", "1", "mg/g"):
+        assert not convertible("%", other), other
+        assert not convertible("L/L", other), other
+    assert _convert("%", "mmol/mol", 6.5, "4548-4")["converted"] is None
+
+
 def test_comma_separated_competing_units_are_refused():
     from mirobody.units import normalize_unit
 

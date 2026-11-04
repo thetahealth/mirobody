@@ -78,6 +78,26 @@
   names and units". The Chinese guides also broke lines mid-sentence, which
   GitHub and the docs site render as a space between two characters; those
   lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+
+- **Hematocrit printed as `0.45 L/L` and as `45 %` is one series.** `L/L`,
+  the SI spelling of a volume fraction, was not a unit the engine knew, so a
+  `0.45 L/L` reading was stored with no unit and no canonical value and
+  shared no statistic with `45 %` (#202). `L/L` is now a volume fraction: it
+  converts to `%` by a factor of 100 and folds to the pair every stored
+  percent already has, `(45.0, '%')`. A percent still converts to nothing
+  else, because the other dimensionless units hold HbA1c in `mmol/mol`
+  (6.5 % NGSP is 48 mmol/mol IFCC, not 65), counts, doses per body mass and
+  time per day; and `%` keeps its own canonical pair, which `recode` would
+  never rewrite for readings already stored. `红细胞比容` and `红细胞比积`,
+  common Chinese names for hematocrit, answered 24360-0, the hemoglobin and
+  hematocrit panel: a reading in `%` asked for input and one in `L/L` was
+  filed under the panel. Both now code to 4544-3 (one item of #234).
+  Readings stored before keep the empty unit they were stored with;
+  `mirobody recode` moves the two Chinese names to 4544-3. The resolver
+  coverage score is 347/347 and the unit table has 331 units. How to tell:
+  `convert_value(0.45, "L/L", "%")` is `45.0`, and
+  `convertible("%", "mmol/mol")` is still `False`.
+
 - **A cited id with a comma in it resolves.** `GET /api/citations` took the
   ids as one comma-separated `rids` parameter, but a `ref:doi:` id and a
   document cite such as `/library/lab results, March.pdf#L12-L14` may hold a

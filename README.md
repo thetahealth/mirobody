@@ -202,9 +202,9 @@ resolve("血脂").resolved                                     # False    a cate
 
 | Claim | Check it |
 | --- | --- |
-| **345/345** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
+| **347/347** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
 | **63,416 LOINC 2.83 codes** cut by rule and **1,023,273 names** pointing at them, including LOINC's own 21 languages; report spellings the index misses are added one reviewed row at a time | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE) · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [How a reading is standardized](docs/site/standardization.md) |
-| **330 UCUM units** with dimensional analysis, and **902 catalogue members for device and laboratory indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
+| **331 UCUM units** with dimensional analysis, and **902 catalogue members for device and laboratory indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
 | 23andMe, AncestryDNA, WeGene, MyHeritage and FamilyTreeDNA exports and VCF on GRCh37 and GRCh38 decode to **the same 13 calls across 12 genes**, tested on public 1000 Genomes samples shipped in the package | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [Public genotype examples](mirobody/testing/genomics/README.md) |
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |

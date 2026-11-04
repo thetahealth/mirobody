@@ -312,6 +312,7 @@ UCUM_FAMILY: dict[str, str] = {
     "[ppth]":   "VFr",
     "mL/dL":    "VFr",
     "mL/L":     "VFr",
+    "L/L":      "VFr",     # SI hematocrit: 0.45 L/L is 45 %
 
     # ── Ratios / dimensionless ────────────────────────────────────────
     "1":        "Ratio",   # INR, indices
