@@ -78,6 +78,16 @@
   names and units". The Chinese guides also broke lines mid-sentence, which
   GitHub and the docs site render as a space between two characters; those
   lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+- **A cited id with a comma in it resolves.** `GET /api/citations` took the
+  ids as one comma-separated `rids` parameter, but a `ref:doi:` id and a
+  document cite such as `/library/lab results, March.pdf#L12-L14` may hold a
+  comma: the server cut them into pieces that resolved to `unknown`, and no
+  entry came back under the id the client asked about (#192). `POST
+  /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
+  they were cited, with no split and no strip. The comma `GET` still answers
+  the web client shipped until now. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole.
+
 - **Taking over a managed account and choosing not to share now revokes the
   family member's personal MCP link.** Activation wrote the new owner's
   `health_access` directly and skipped the revocation that lowering the switch
