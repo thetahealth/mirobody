@@ -2,7 +2,7 @@
 
 # Run models locally
 
-**English** · **[中文](local-models.zh-CN.md)**
+**English** · **[中文](local-models.zh-CN.md)** · **[日本語](local-models.ja.md)**
 
 Run Mirobody's models on your own machine to keep document processing and
 questions local, without a model API key. The first start downloads model

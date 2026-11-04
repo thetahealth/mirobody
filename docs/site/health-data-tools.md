@@ -34,6 +34,7 @@ query_health_indicators(indicators=["<name from the result>"], view="latest")
 | `minute`, `hour`, `day`, `week`, `month` | Time buckets. |
 | `stats` | Count, minimum, maximum, average, sum, first, last and change. |
 | `latest` | Most recent value per indicator. |
+| `trend` | Direction and shape over the window, with a reason when the data isn't comparable. |
 
 Without `keywords` or `indicators`, the result is a catalogue, even if a view
 was requested. `start` and `end` are inclusive dates in the record owner's

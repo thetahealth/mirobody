@@ -1,6 +1,6 @@
 # 聊天中的计算
 
-[English](python-analysis.md)
+**[English](python-analysis.md)** · **中文** · **[日本語](python-analysis.ja.md)**
 
 `code_exec` 用于对已查询的健康记录进行计算，也可比较多次查询得到的健康指标、用药、基因型和药物基因组数据。工具会自动传入原始数据，模型无需从展示表格中复制数值。模型写哪种语言取决于模型在哪里运行，工具名称不变。
 

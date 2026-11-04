@@ -1,6 +1,6 @@
 # 快速开始
 
-**[English](quickstart.md)** · **中文**
+**[English](quickstart.md)** · **中文** · **[日本語](quickstart.ja.md)**
 
 用一条命令体验健康数据标准化，或部署完整应用，处理文档并查询健康记录。
 

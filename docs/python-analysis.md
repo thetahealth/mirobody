@@ -1,6 +1,6 @@
 # Calculation in chat
 
-[中文](python-analysis.zh-CN.md)
+**English** · **[中文](python-analysis.zh-CN.md)** · **[日本語](python-analysis.ja.md)**
 
 `code_exec` lets chat models calculate over queried health records, including
 comparisons across indicators, medications, genetics and pharmacogenomics.

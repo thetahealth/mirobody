@@ -29,8 +29,10 @@
 ## API 接入
 
 REST 上传使用 `POST /files/upload`；需要进度通知时使用 `/ws/upload-health-report`。
-WebSocket 客户端应等待 `extraction_completed`，不能把 `upload_completed` 当作提取完成。
-请求需要登录凭据，以及目标记录的写入权限；当前参数以部署服务的 `/docs` 为准。
+REST 接口默认只存储文件，只有请求同时带上 `file=true` 才会把它归入记录并启动提取——
+与**数据**页走的是同一条路径。WebSocket 客户端应等待 `extraction_completed`，
+不能把 `upload_completed` 当作提取完成。请求需要登录凭据，以及目标记录的写入权限；
+当前参数以部署服务的 `/docs` 为准。
 
 文件已保存却没有读数时，先检查提取状态、模型配置，以及 `ENABLE_INDICATOR_EXTRACTION`。
 完整消息格式、示例和错误说明见[文件处理参考](../file-processing.md)。
