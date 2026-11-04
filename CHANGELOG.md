@@ -2,6 +2,16 @@
 
 ### Fixed
 
+- **A cited id with a comma in it resolves.** `GET /api/citations` took the
+  ids as one comma-separated `rids` parameter, but a `ref:doi:` id and a
+  document cite such as `/library/lab results, March.pdf#L12-L14` may hold a
+  comma: the server cut them into pieces that resolved to `unknown`, and no
+  entry came back under the id the client asked about (#192). `POST
+  /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
+  they were cited, with no split and no strip. The comma `GET` still answers
+  the web client shipped until now. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole.
+
 - **A calculation step reads as a calculation.** 1.5.10 named the calculator
   `code_exec`, and the web client, which knew it as `eval` and
   `python_exec`, showed the step as "调用了 code_exec" with a generic tool

@@ -320,7 +320,7 @@ A chat answer cites what it rests on, in the LongCite form
 * **Row ids.** Every row a record tool shows in a conversation carries a short
   id (`r1`, `r2`, …), minted the first time that conversation sees the row and
   stored in `th_chat_citation`. The id stores which row it is, never its value:
-  `GET /api/citations` reads the row live, so an id still names the same
+  `/api/citations` reads the row live, so an id still names the same
   reading after a restart, and a reading the person has deleted resolves to
   "gone".
 * **Three kinds of cite.** A row (`r3`), a reference passage
