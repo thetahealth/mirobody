@@ -2,6 +2,17 @@
 
 ### Fixed
 
+- **Taking over a managed account and choosing not to share now revokes the
+  family member's personal MCP link.** Activation wrote the new owner's
+  `health_access` directly and skipped the revocation that lowering the switch
+  in the care circle performs, so the link was refused but stayed live: if
+  the person later raised the switch again, within the link's 10 days, the old
+  URL read their record once more. Unsharing never had that hole, and the docs
+  said neither did this. Activation now ends the links the circle no longer
+  allows, like every other sharing change (#232). How to tell: after an
+  activation that chose "none", the link's row in `th_personal_mcp_url` has
+  `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
+
 - **A calculation step reads as a calculation.** 1.5.10 named the calculator
   `code_exec`, and the web client, which knew it as `eval` and
   `python_exec`, showed the step as "调用了 code_exec" with a generic tool
