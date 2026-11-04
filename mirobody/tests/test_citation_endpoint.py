@@ -9,9 +9,16 @@ import asyncio
 import json
 from urllib.parse import urlencode
 
-from starlette.requests import Request
+import pytest
 
-from mirobody.agent.chat import service
+# The chat service arrives with the `[app]` extra, so CI's minimal job, a
+# `pip install -e '.[test]'`, would abort COLLECTION here rather than skip.
+try:
+    from starlette.requests import Request
+
+    from mirobody.agent.chat import service
+except ImportError as missing:  # pragma: no cover - the minimal install
+    pytest.skip(f"needs the [app] extra: {missing}", allow_module_level=True)
 
 #: Two of the three cite kinds may hold a comma; the leading space is part of
 #: the id too, and the GET's strip changed it.
