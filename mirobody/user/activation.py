@@ -204,4 +204,9 @@ async def hand_over(db_pool, act: Activation, *, into: int | None, password: str
             {"accepted": cc.STATUS_ACCEPTED, "a": int(access), "u": owner, "c": circle_id},
             log_sql=False,
         )
+        # Choosing "none" here lowers the switch the way `set_health_access`
+        # does, so it ends the creator's personal MCP links the same way:
+        # revoked, not merely refused, or raising the switch later would bring
+        # the old URL back. A choice that still shares revokes nothing.
+        await cc.end_links([owner])
     return owner

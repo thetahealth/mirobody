@@ -21,6 +21,42 @@
   `convert_value(0.45, "L/L", "%")` is `45.0`, and
   `convertible("%", "mmol/mol")` is still `False`.
 
+- **A cited id with a comma in it resolves.** `GET /api/citations` took the
+  ids as one comma-separated `rids` parameter, but a `ref:doi:` id and a
+  document cite such as `/library/lab results, March.pdf#L12-L14` may hold a
+  comma: the server cut them into pieces that resolved to `unknown`, and no
+  entry came back under the id the client asked about (#192). `POST
+  /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
+  they were cited, with no split and no strip. The comma `GET` still answers
+  the web client shipped until now. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole.
+
+- **Taking over a managed account and choosing not to share now revokes the
+  family member's personal MCP link.** Activation wrote the new owner's
+  `health_access` directly and skipped the revocation that lowering the switch
+  in the care circle performs, so the link was refused but stayed live: if
+  the person later raised the switch again, within the link's 10 days, the old
+  URL read their record once more. Unsharing never had that hole, and the docs
+  said neither did this. Activation now ends the links the circle no longer
+  allows, like every other sharing change (#232). How to tell: after an
+  activation that chose "none", the link's row in `th_personal_mcp_url` has
+  `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
+
+- **A provider that answers nothing is no longer logged as a bug in this
+  repo.** The OpenAI client returns `None`, without raising, when an endpoint
+  answers HTTP 200 with a JSON `null` body. On 1.5.10 a 587 s `deepseek-utils`
+  call did that during the provider's 503 outage, and
+  `async_get_structured_output` dereferenced it, so the extraction log read
+  `AttributeError: 'NoneType' object has no attribute 'choices'` at
+  `utils/llm/utils.py` (found on 1.5.10, #239). Text completion and vision had
+  the same unguarded access. Structured output and text completion now return
+  their "no model answered" `None`; vision raises `NoResponse`, and an upload
+  that fails on it tells the person "… sent back an empty response, which an
+  overloaded provider does" instead of a type name. How to tell: the log reads
+  `structured output: no response` or `text completion: no response` with the
+  model name, and no traceback. The native Anthropic path streams and was not
+  affected.
+
 - **A calculation step reads as a calculation.** 1.5.10 named the calculator
   `code_exec`, and the web client, which knew it as `eval` and
   `python_exec`, showed the step as "调用了 code_exec" with a generic tool
