@@ -82,7 +82,7 @@ async def database(monkeypatch):
         await connection.execute("CREATE FUNCTION decrypt_content(text) RETURNS text LANGUAGE SQL IMMUTABLE AS $$SELECT $1$$")
         root = Path(__file__).resolve().parents[1]
         for file in ("10_accounts.sql", "20_files.sql", "30_observations.sql", "31_medications.sql", "32_genomics.sql",
-                     "40_devices.sql", "41_device_rules.sql"):
+                     "40_devices.sql", "41_device_rules.sql", "62_personal_mcp.sql"):
             await connection.execute((root / "schema" / file).read_text())
         await connection.execute("INSERT INTO health_app_user(is_del,email,tz) VALUES (false,'synthetic@example.invalid','UTC')")
         chat = (root / "schema" / "50_chat.sql").read_text()
@@ -706,3 +706,37 @@ async def test_an_empty_window_names_the_readings_the_record_holds_elsewhere(dat
     missing = await service.envelope({"user_id": "1"}, indicators=["Ferritin"], start="2026-10-01",
                                      end="2026-10-07", view="day")
     assert any("no indicator matched" in a for a in missing.assumptions)
+
+
+async def test_choosing_not_to_share_at_activation_revokes_the_creators_link(database):
+    """A person who takes over the account a family member managed, and
+    chooses not to share, ends that member's personal MCP link for good:
+    raising the switch later must not bring the old URL back, the rule
+    unsharing already keeps (#232). Before, activation only refused it."""
+    from mirobody.user import activation, personal_mcp
+    from mirobody.user import care_circle as cc
+
+    # `hand_over` sets the password through pgcrypto, which this schema does not
+    # see; identity stand-ins, like the encryption ones the fixture creates.
+    await database("CREATE FUNCTION gen_salt(text, integer) RETURNS text LANGUAGE SQL AS $$SELECT $1$$")
+    await database("CREATE FUNCTION crypt(text, text) RETURNS text LANGUAGE SQL AS $$SELECT $1$$")
+    [creator] = await database("INSERT INTO health_app_user(is_del,email,tz) VALUES (false,'creator@example.invalid','UTC')"
+                               " RETURNING id", log_sql=False)
+    [member] = await database("INSERT INTO health_app_user(is_del,email,tz,managed_by)"
+                              " VALUES (false,'managed@example.invalid','UTC',:c) RETURNING id",
+                              {"c": creator["id"]}, log_sql=False)
+    creator_id, member_id = int(creator["id"]), int(member["id"])
+    circle = await cc.create_circle(creator_id)
+    await cc.force_accept_managed_member(circle, member_id)
+    secret, _ = await personal_mcp.mint(str(creator_id), str(member_id))
+    assert await personal_mcp.authorize(secret) == str(member_id)
+
+    taken = activation.Activation(id=1, member_id=member_id, email="member@example.invalid", created_by=creator_id,
+                                  member_name="", creator_name="", expires_at=datetime.now(UTC))
+    assert await activation.hand_over(None, taken, into=None, password="", access=cc.ACCESS_NONE) == member_id
+    assert await personal_mcp.authorize(secret) == ""
+    [link] = await database("SELECT revoked_by FROM th_personal_mcp_url", log_sql=False)
+    assert link["revoked_by"] == "care_circle"
+
+    assert await cc.set_health_access(member_id, circle, cc.ACCESS_VIEW)
+    assert await personal_mcp.authorize(secret) == ""
