@@ -142,18 +142,14 @@ _BASE: dict[str, tuple[str, float]] = {
 
 _DIMENSIONLESS = "1"
 
-#: A fraction in percent: `L/L` is 100 %. Kept out of `_BASE`, where
-#: `L/L` would cancel to the dimensionless class `scale` builds and `%`
-#: would join it as 10^-2. That class holds `mmol/mol`, and HbA1c 6.5 %
-#: (NGSP) is 48 mmol/mol (IFCC), not 65; it holds counts (`10*9`), doses per
-#: body mass (`mg/kg`) and time per day (`h/d`) too. A percent is a
-#: hundredth of whichever whole its analyte names (`AMBIGUOUS_UNITS`), so
-#: it converts only to the other spelling of a part of a whole that reports
-#: print for the same analytes: hematocrit is `45 %` or `0.45 L/L`. Both
-#: fold to `%`, the canonical unit every stored percent already carries:
-#: `recode` skips a row whose coding is unchanged, and the pair is not part
-#: of that comparison, so a new pair for `%` would never reach the readings
-#: already stored.
+#: A fraction in percent: `L/L` is 100 %. In `_BASE`, `%` would join the
+#: dimensionless class `scale` builds, which holds `mmol/mol` (HbA1c 6.5 %
+#: NGSP is 48 mmol/mol IFCC, not 65), counts, `mg/kg` and `h/d`. A percent is
+#: a hundredth of whichever whole its analyte names, so it converts only to
+#: the other spelling reports print it in: hematocrit is `45 %` or `0.45 L/L`.
+#: Both fold to `%`, the pair every stored percent already carries: `recode`
+#: skips a row whose coding is unchanged, so a new pair for `%` would never
+#: reach the readings already stored.
 _PERCENT: dict[str, float] = {"%": 1.0, "L/L": 100.0}
 
 #: Temperature scales, as (to Celsius, from Celsius). Kept out of `_BASE`: a
