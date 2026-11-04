@@ -69,7 +69,8 @@ canonicalize(1000, "mm")                          # (1.0, 'm')
 canonicalize(5, "10*9/L")                         # (5000000000.0, '/L')
 canonicalize(100, "mg/dL", loinc_code="2345-7")   # ≈ (0.005551, 'mol/L')
 canonicalize(5.6, "mmol/L", loinc_code="2345-7")  #   (0.0056,   'mol/L')
-canonical_unit("%")                               # None — atomic
+canonicalize(0.45, "L/L")                         # (45.0, '%')  hematocrit, as a percent
+canonical_unit("meq/L")                           # None — atomic
 ```
 
 Write the pair into a second column beside the value **as recorded**, and two
@@ -89,11 +90,17 @@ Three properties worth knowing before you store it:
 * **The bridge is keyed by LOINC code, never by name.** Same code in, same basis
   out, every time. A code `MOLAR_MASS` does not carry is not bridged and folds
   to `g/L` — declining, not guessing.
-* **An unfoldable unit comes back untouched.** `%`, `meq/L`, `个/HP` and the
+* **An unfoldable unit comes back untouched.** `meq/L`, `个/HP` and the
   temperature scales are already their own canonical form: equal only to
   themselves, which is exactly what an unchanged pair means to a caller
   comparing pairs. (`convert_value` still converts `Cel`, `[degF]` and `K`
   into each other; an offset has no factor to fold with.)
+* **A percent folds to itself, and `L/L` folds into it.** `%` is the
+  canonical form of every stored percent, so the SI hematocrit `0.45 L/L`
+  becomes `(45.0, '%')` rather than moving both to `1`. A percent converts to
+  `L/L` and nothing else: the other dimensionless units hold HbA1c in
+  `mmol/mol` (6.5 % NGSP is 48 mmol/mol IFCC, not 65), counts, doses per body
+  mass and time per day.
 
 The pattern is borrowed from the Android FHIR SDK's `ResourceIndexer`, which
 writes two index rows per `Quantity` — the human-readable unit as given, and the

@@ -25,8 +25,10 @@ concentration, and refuses a conversion that is the identity. A dimension
 signature rejects the first and accepts the second by construction.
 
 `None` from :func:`scale` is **not an error**, it means "atomic unit": equal
-only to a unit spelled exactly the same way. `%`, `个/HP`, `meq/L` all take that
-path. Better to decline than to guess.
+only to a unit spelled exactly the same way. `个/HP` and `meq/L` take that
+path, and so does `%`, with one exception: it converts to `L/L`, the other
+spelling of a fraction of a whole (:data:`_PERCENT`). Better to decline than
+to guess.
 
 Temperature is the one scale with an offset, so no factor converts it:
 :func:`convert_value` and :func:`convertible` cross between `Cel`, `[degF]`
@@ -140,6 +142,20 @@ _BASE: dict[str, tuple[str, float]] = {
 
 _DIMENSIONLESS = "1"
 
+#: A fraction in percent: `L/L` is 100 %. Kept out of `_BASE`, where
+#: `L/L` would cancel to the dimensionless class `scale` builds and `%`
+#: would join it as 10^-2. That class holds `mmol/mol`, and HbA1c 6.5 %
+#: (NGSP) is 48 mmol/mol (IFCC), not 65; it holds counts (`10*9`), doses per
+#: body mass (`mg/kg`) and time per day (`h/d`) too. A percent is a
+#: hundredth of whichever whole its analyte names (`AMBIGUOUS_UNITS`), so
+#: it converts only to the other spelling of a part of a whole that reports
+#: print for the same analytes: hematocrit is `45 %` or `0.45 L/L`. Both
+#: fold to `%`, the canonical unit every stored percent already carries:
+#: `recode` skips a row whose coding is unchanged, and the pair is not part
+#: of that comparison, so a new pair for `%` would never reach the readings
+#: already stored.
+_PERCENT: dict[str, float] = {"%": 1.0, "L/L": 100.0}
+
 #: Temperature scales, as (to Celsius, from Celsius). Kept out of `_BASE`: a
 #: scale with an offset has no conversion factor, so only `convert_value`,
 #: which has the number, crosses between them.
@@ -183,9 +199,10 @@ def scale(ucum: str | None) -> DimScale | None:
 
     Only units :data:`~.families.UCUM_FAMILY` already knows are parsed, so noise
     like `mgL` cannot be composed into a plausible-looking factor. That is the
-    same guard :func:`~.normalize.normalize_unit` applies.
+    same guard :func:`~.normalize.normalize_unit` applies. A percent and
+    `L/L` are None too: they convert to each other only (:data:`_PERCENT`).
     """
-    if not ucum or ucum not in UCUM_FAMILY:
+    if not ucum or ucum not in UCUM_FAMILY or ucum in _PERCENT:
         return None
     numerator, _, denominator = ucum.partition("/")
     dims: dict[str, int] = defaultdict(int)
@@ -281,11 +298,16 @@ def conversion_factor(from_unit: str, to_unit: str, *, loinc_code: str = "") -> 
     converts them.
 
     T1 compares factors within one dimension; T2 crosses M/V ↔ N/V when
-    `loinc_code` has a molar mass. Two temperature scales have no factor
+    `loinc_code` has a molar mass. A percent converts to `L/L` and to
+    nothing else (:data:`_PERCENT`). Two temperature scales have no factor
     either (an offset is not one); :func:`convert_value` converts them.
     """
     if from_unit == to_unit:
         return 1.0
+    if from_unit in _PERCENT or to_unit in _PERCENT:
+        if from_unit in _PERCENT and to_unit in _PERCENT:
+            return _PERCENT[from_unit] / _PERCENT[to_unit]
+        return None
     src, dst = scale(from_unit), scale(to_unit)
     if src is None or dst is None:
         return None
@@ -359,8 +381,10 @@ def _render(signature: tuple[tuple[str, int], ...]) -> str:
     return f"{numerator}/{denominator}"
 
 
-def _canonical(ucum: str | None, loinc_code: str) -> tuple[tuple[tuple[str, int], ...], float] | None:
-    """(signature, factor) after the molar bridge is applied; None if unparseable."""
+def _canonical(ucum: str | None, loinc_code: str) -> tuple[str, float] | None:
+    """(base unit, factor to it) after the molar bridge is applied; None if unparseable."""
+    if ucum in _PERCENT:
+        return ("%", _PERCENT[ucum])
     parsed = scale(ucum)
     if parsed is None:
         return None
@@ -368,19 +392,19 @@ def _canonical(ucum: str | None, loinc_code: str) -> tuple[tuple[tuple[str, int]
     if signature == _MASS_PER_VOLUME:
         molar = MOLAR_MASS.get(loinc_code or "")
         if molar is not None:
-            return (_SUBSTANCE_PER_VOLUME, factor / molar[0])
-    return (signature, factor)
+            return (_render(_SUBSTANCE_PER_VOLUME), factor / molar[0])
+    return (_render(signature), factor)
 
 
 def canonical_unit(ucum: str | None, *, loinc_code: str = "") -> str | None:
     """The base unit `ucum` folds to, or None when it does not fold at all.
 
     `mg/dL` and `g/L` both answer `g/L`; with a `loinc_code` that
-    :data:`MOLAR_MASS` bridges, both answer `mol/L` instead. None means atomic
-    (`%`, `meq/L`, a temperature): see :func:`scale`.
+    :data:`MOLAR_MASS` bridges, both answer `mol/L` instead. `%` and `L/L`
+    answer `%`. None means atomic (`meq/L`, a temperature): see :func:`scale`.
     """
     got = _canonical(ucum, loinc_code)
-    return None if got is None else _render(got[0])
+    return None if got is None else got[0]
 
 
 def canonicalize(value: float, unit: str | None, *, loinc_code: str = "") -> CanonicalQuantity:
@@ -404,15 +428,17 @@ def canonicalize(value: float, unit: str | None, *, loinc_code: str = "") -> Can
         canonicalize(5.6, "mmol/L", loinc_code="2345-7")  #   (0.0056,   'mol/L')
 
     An unparseable unit is returned unchanged rather than raising: a reading
-    whose unit this module cannot fold is still a reading, and `%` or `Cel` is
-    already its own canonical form: equal only to itself, which is exactly
-    what an unchanged pair means to a caller comparing pairs.
+    whose unit this module cannot fold is still a reading, and `meq/L` or
+    `Cel` is already its own canonical form: equal only to itself, which is
+    exactly what an unchanged pair means to a caller comparing pairs. `%` is
+    its own canonical form too, and `L/L` folds into it: `0.45 L/L` is
+    `(45.0, '%')`.
     """
     got = _canonical(unit, loinc_code)
     if got is None:
         return CanonicalQuantity(value, unit or "")
-    signature, factor = got
-    return CanonicalQuantity(value * factor, _render(signature))
+    base, factor = got
+    return CanonicalQuantity(value * factor, base)
 
 
 def partition_units(units: Iterable[str], *, loinc_code: str = "") -> list[list[str]]:
