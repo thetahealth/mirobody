@@ -107,10 +107,10 @@ manages someone else mints a second link for that member — `POST /personal/mcp
 with `{"user_id": …}`, authorised through the care circle — and registers it as
 a second MCP server. The link belongs to the pair (creator, subject) and lives 10
 days from when it is made, unextended by use (`MCP_URL_TTL_DAYS`). Stopping the
-share, leaving the circle, or
-the member taking the account over and choosing not to share revokes it, and
-sharing again does not revive the old URL; deleting either account ends it at
-once. A link never outlives the access that allowed it.
+share, leaving the circle, or the member taking the account over and choosing
+not to share revokes it, and sharing again does not revive the old URL;
+deleting either account ends it at once. A link never outlives the access that
+allowed it.
 
 Genetic region queries accept `build=GRCh37|GRCh38|raw`. The explicit `raw`
 choice reads the file's original coordinates without asserting an assembly;
