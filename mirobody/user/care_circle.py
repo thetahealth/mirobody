@@ -355,7 +355,7 @@ async def set_health_access(user_id: int | str, circle_id: int, access: int) -> 
     )
     changed = bool(result.get("record_count"))
     if changed and access < ACCESS_VIEW:
-        await _end_links([user_id])
+        await end_links([user_id])
     return changed
 
 
@@ -369,14 +369,16 @@ async def remove_member(member_row_id: int) -> bool:
         {"m": int(member_row_id)},
     ) or []
     if rows:
-        await _end_links([rows[0]["user_id"]])
+        await end_links([rows[0]["user_id"]])
     return bool(rows)
 
 
-async def _end_links(user_ids: list) -> None:
+async def end_links(user_ids: list) -> None:
     """Personal MCP links this change stops allowing are revoked, not merely
     refused, so sharing again does not revive them (`personal_mcp`). Failing to
-    revoke leaves them refused on every use; the change itself stands."""
+    revoke leaves them refused on every use; the change itself stands. Public
+    because a membership is also written outside this module: an activation
+    sets the new owner's switch directly (`activation.hand_over`)."""
     from mirobody.user import personal_mcp
 
     try:
