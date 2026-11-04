@@ -22,10 +22,12 @@ from xml.etree import ElementTree as ET
 
 from .apple import SLEEP_TYPE
 
-#: The path Apple writes inside the archive. Apple documents neither this nor
-#: the `export.zip` filename, so the archive is searched by content: any
-#: member whose name ends this way is the export.
+#: The path Apple writes inside the archive on an English phone. Apple
+#: documents neither this nor the `export.zip` filename, and a phone set to
+#: another language localizes it (Chinese writes `导出.xml`), so this name is
+#: only tried first: the export is the XML document whose root is `HealthData`.
 _MEMBER = "apple_health_export/export.xml"
+_ROOT = "HealthData"
 
 #: Attributes copied from a `Record` element. The DTD makes `value` and
 #: `unit` optional, so a record can legitimately carry neither.
@@ -46,23 +48,50 @@ def _item(elem: ET.Element) -> dict:
     return {k: elem.get(k) for k in _FIELDS if elem.get(k) is not None}
 
 
+def _is_candidate(name: str) -> bool:
+    # The clinical records sit next to the export as `*_cda.xml`.
+    return name.lower().endswith(".xml") and not name.lower().endswith("_cda.xml")
+
+
+def _has_health_root(handle: IO[bytes]) -> bool:
+    with handle:
+        try:
+            for _event, elem in ET.iterparse(handle, events=("start",)):
+                return elem.tag == _ROOT
+        except ET.ParseError:
+            return False
+    return False
+
+
 def open_export(path: str | Path) -> tuple[IO[bytes], zipfile.ZipFile | None]:
-    """A binary handle on `export.xml`, whether `path` is the zip, the
+    """A binary handle on the export document, whether `path` is the zip, the
     unpacked directory, or the file itself. The second element is the archive
     to close when the caller is done, or None."""
     p = Path(path)
     if p.is_dir():
-        found = p / _MEMBER
-        if not found.exists():
-            found = p / "export.xml"
-        return found.open("rb"), None
+        named = [p / _MEMBER, p / "export.xml"]
+        others = sorted(
+            f
+            for d in (p / "apple_health_export", p)
+            if d.is_dir()
+            for f in d.iterdir()
+            if f.is_file() and _is_candidate(f.name)
+        )
+        for found in dict.fromkeys(f for f in named + others if f.is_file()):
+            if _has_health_root(found.open("rb")):
+                return found.open("rb"), None
+        raise FileNotFoundError(f"{p}: no Apple Health export inside the directory")
     if zipfile.is_zipfile(p):
         zf = zipfile.ZipFile(p)
-        names = [n for n in zf.namelist() if n.endswith((_MEMBER, "/export.xml"))]
-        if not names:
-            zf.close()
-            raise FileNotFoundError(f"{p}: no export.xml inside the archive")
-        return zf.open(names[0]), zf
+        names = zf.namelist()
+        named = [n for n in names if n.endswith((_MEMBER, "/export.xml")) or n == "export.xml"]
+        # Only the export folder itself: the routes and ECGs live in subfolders.
+        others = [n for n in names if n.count("/") <= 1 and _is_candidate(n) and n not in named]
+        for name in named + others:
+            if _has_health_root(zf.open(name)):
+                return zf.open(name), zf
+        zf.close()
+        raise FileNotFoundError(f"{p}: no Apple Health export inside the archive")
     return p.open("rb"), None
 
 

@@ -559,7 +559,10 @@ def _cmd_import(args: argparse.Namespace) -> None:
         sys.exit(f"mirobody import: no such file: {args.file}")
     if args.into:
         _require_extra("import --into", "app", "sqlalchemy", "the database layer")
-        stored = asyncio.run(_store_export(args))
+        try:
+            stored = asyncio.run(_store_export(args))
+        except FileNotFoundError as e:
+            sys.exit(f"mirobody import: {e}")
         print(f"Read {stored['records']} records, {stored['facts']} decoded; record {args.into} gained "
               f"{stored['added']} readings, daily values included. A re-import adds nothing.")
         return
