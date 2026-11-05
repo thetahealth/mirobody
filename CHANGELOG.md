@@ -149,6 +149,18 @@
   table already did. How to tell: at 375px, open an indicator read from an
   uploaded report.
 
+- **An Apple Health export from an iPhone set to Chinese imports.** Such a
+  phone names the export `apple_health_export/导出.xml`, and
+  `mirobody import apple` looked only for `export.xml`, so the zip and the
+  unpacked folder were both refused ("no export.xml inside the archive"), and
+  with `--into` the refusal was a traceback (#244). `export.xml` is still
+  tried first; otherwise the export is the `.xml` in the export folder, other
+  than `*_cda.xml`, whose root element is `HealthData`, so the lookup no
+  longer depends on the phone's language. An archive or folder without one is
+  refused in one line, `--into` included. Contributed by Mayuri (#249). How
+  to tell: `mirobody import apple export.zip` on a zip holding
+  `apple_health_export/导出.xml` lists its readings.
+
 ## 1.5.10
 
 ### Fixed
