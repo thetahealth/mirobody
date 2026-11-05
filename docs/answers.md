@@ -102,6 +102,16 @@ No parameter names a person. A call reads the account it is authenticated as:
 the MCP token or URL, or the record a chat turn was opened on, which the chat
 layer authorises before the model runs. One call, one person's data.
 
+A personal link is one URL for one record, and that is deliberate: a person who
+manages someone else mints a second link for that member — `POST /personal/mcp`
+with `{"user_id": …}`, authorised through the care circle — and registers it as
+a second MCP server. The link belongs to the pair (creator, subject) and lives 10
+days from when it is made, unextended by use (`MCP_URL_TTL_DAYS`). Stopping the
+share, leaving the circle, or the member taking the account over and choosing
+not to share revokes it, and sharing again does not revive the old URL;
+deleting either account ends it at once. A link never outlives the access that
+allowed it.
+
 Genetic region queries accept `build=GRCh37|GRCh38|raw`. The explicit `raw`
 choice reads the file's original coordinates without asserting an assembly;
 Ancestry PAR rows use this path because the bundled site index has no
@@ -320,7 +330,7 @@ A chat answer cites what it rests on, in the LongCite form
 * **Row ids.** Every row a record tool shows in a conversation carries a short
   id (`r1`, `r2`, …), minted the first time that conversation sees the row and
   stored in `th_chat_citation`. The id stores which row it is, never its value:
-  `GET /api/citations` reads the row live, so an id still names the same
+  `/api/citations` reads the row live, so an id still names the same
   reading after a restart, and a reading the person has deleted resolves to
   "gone".
 * **Three kinds of cite.** A row (`r3`), a reference passage

@@ -18,6 +18,20 @@ from mirobody.utils.config.llm import RouteSpec, no_provider_message, resolve_na
 logger = logging.getLogger(__name__)
 
 
+class NoResponse(RuntimeError):
+    """The endpoint answered and the answer held no completion. The OpenAI
+    client returns None, without raising, for an HTTP 200 whose body is JSON
+    `null` (measured on openai 3.28, also after leading blank lines), so this
+    is the provider's failure, not a request this code got wrong. The text
+    surfaces turn it into their None; vision, whose contract is that a failed
+    request raises, raises this, with a message written for the person whose
+    upload failed (`collect/files/errors.failure_reason`)."""
+
+    def __init__(self, model: str) -> None:
+        super().__init__(f"{model} sent back an empty response, which an overloaded provider does; "
+                         "try again later, or point the route at another model.")
+
+
 def _max_tokens_param(spec: RouteSpec) -> str:
     """OpenAI's current models reject `max_tokens` in favour of
     `max_completion_tokens`; every other OpenAI-compatible endpoint still
@@ -140,6 +154,13 @@ async def async_get_structured_output(
             messages=messages,
             **params,
         )
+        # The client returns None for a 200 whose body is `null` (`NoResponse`):
+        # on 1.5.10 a 587 s call did, during a provider's 503 outage, and the
+        # attribute access below raised AttributeError, which the log blamed
+        # on this file. None is already this function's "no model answered".
+        if response is None:
+            logger.warning("structured output: no response: model=%s", spec.model)
+            return None
         result = response.choices[0].message.to_dict()
         if result.get("refusal") is not None:
             logger.warning("structured output refused: model=%s", spec.model)
@@ -203,6 +224,10 @@ async def async_get_text_completion(
             messages=messages,
             **params,
         )
+        if response is None:
+            # The same empty 200 as `async_get_structured_output` meets.
+            logger.warning("text completion: no response: model=%s", spec.model)
+            return None
         choice = response.choices[0]
         content, cut = choice.message.content, choice.finish_reason == "length"
     except Exception as e:

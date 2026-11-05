@@ -1,8 +1,8 @@
-# Device crosswalk: wearable fields to LOINC
+# Device crosswalk: what each wearable field measures
 
-Which LOINC code is Apple Health's step count? Is the HRV a Fitbit reports the
-same statistic as the one an Apple Watch reports? Where does Huawei's 深睡
-land, and is WHOOP's slow-wave sleep the same thing? No vendor API answers
+Is the HRV a Fitbit reports the same statistic as the one an Apple Watch
+reports? Where does Huawei's 深睡 land, and is WHOOP's slow-wave sleep the same
+thing? Which standard code is Apple Health's step count? No vendor API answers
 these: none of the thirteen read here carries a LOINC code of its own, and
 every integration maps by hand and keeps the result to itself.
 

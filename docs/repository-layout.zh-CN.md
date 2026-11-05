@@ -2,8 +2,7 @@
 
 **[English](repository-layout.md)** · **中文**
 
-三个阶段（① 收集 Collect、② 标准化 Standardize、③ 智能体 Agent）各自住在哪里，以及
-这套代码出货的两种形态。1.4.1 从 README 挪到这里，README 只留一行地图。
+三个阶段（① 收集 Collect、② 标准化 Standardize、③ 智能体 Agent）各自住在哪里，以及这套代码出货的两种形态。1.4.1 从 README 挪到这里，README 只留一行地图。
 
 ```
 mirobody/
@@ -37,14 +36,10 @@ scripts/         构建、打包与发版闸门脚本
 从 `engine/` 到 `kernel/` 这一段就是**库**的全部：只依赖 numpy，两个包。
 
 **两种形态，诉求正好相反。** 发到 PyPI 的那个是一个**库**，小到没人需要为它操心：
-`pip install mirobody` 装下来是 **2 个包、67 MB**，即上面 `documents/` 那行以上的
-部分，外加 numpy。`[parse]` 补上文件读取，`[agent]` 把 agent 框架当库用；`[app]`
-是全部，而唯一会装它的是 `requirements.txt`，因为 Docker 那条路是
-`git clone && ./deploy.sh`，从来不是 pip install。
+`pip install mirobody` 装下来是 **2 个包、67 MB**，即上面 `documents/` 那行以上的部分，外加 numpy。`[parse]` 补上文件读取，`[agent]` 把 agent 框架当库用；`[app]`
+是全部，而唯一会装它的是 `requirements.txt`，因为 Docker 那条路是 `git clone && ./deploy.sh`，从来不是 pip install。
 
-**这些边界是机器守的，不是写在文档里的。** 六条 import-linter 契约压着分层：库这
-一层除了 numpy 什么都不 import，engine 永远不 import agent 层，`collect` 和
-`standardize` 各自只有一个入口，`lint-imports` 不过就构建失败。另一道闸门 `scripts/check_wheel_data.py` 负责把词表构建流程和 v2
+**这些边界是机器守的，不是写在文档里的。** 六条 import-linter 契约压着分层：库这一层除了 numpy 什么都不 import，engine 永远不 import agent 层，`collect` 和 `standardize` 各自只有一个入口，`lint-imports` 不过就构建失败。另一道闸门 `scripts/check_wheel_data.py` 负责把词表构建流程和 v2
 语义管线（19,000 行，装了包的人一行也跑不了）挡在产物外面。
 
 → [架构](https://docs.mirobody.ai/zh/concepts/architecture/) ·

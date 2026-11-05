@@ -104,10 +104,11 @@ An answer cites what it rests on, in the format of `mirobody/kernel/citations.py
   over. The same row keeps its rid for the life of the conversation, across restarts and workers.
 * **Three kinds of cite.** A row (`r3`); a reference passage (`ref:<source>:<id>`); lines of a document as
   `read_file` numbered them (`/library/<file>#L12-L14`).
-* **Resolving.** `GET /api/citations?session_id=…&rids=r3,r9` returns what each rid is now: the reading with
-  its file, or an aggregate with its readings. A reading the person has deleted returns `gone`, a rid the
-  conversation never showed returns `unknown`. Only the conversation's owner can resolve, while they can
-  still read the record.
+* **Resolving.** `POST /api/citations` with `{"session_id": …, "rids": ["r3", "r9"]}` returns what each rid
+  is now: the reading with its file, or an aggregate with its readings. A reading the person has deleted
+  returns `gone`, a rid the conversation never showed returns `unknown`. Only the conversation's owner can
+  resolve, while they can still read the record. Send the ids as the answer cites them: a `ref:doi:` id or a
+  file name may hold a comma, which is why the older `GET …&rids=r3,r9`, split on commas, cannot carry it.
 * **Checking.** `kernel.citations.check(answer, support)` lists every number that is not traced: outside a
   statement, cited to nothing, or neither in its cited rows nor derived from them (a difference, ratio,
   percentage change, sum or mean). The benchmark and the training judge use the same function.

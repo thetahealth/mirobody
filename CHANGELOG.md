@@ -1,6 +1,138 @@
 ## Unreleased
 
+### Added
+
+- **The docs say how a printed reading becomes a comparable one.** The public
+  standardization page (`docs/site/standardization.md`, the site's
+  Standardization page) was three bullets and a `resolve("hemoglobin")`
+  example, and the reference page opened on vocabulary statistics: nowhere
+  said, in order, what happens to `LDL-C 2.48 mmol/L` between the report and a
+  trend line, or what a reading that is not coded becomes. The public page now
+  walks one test printed three ways (`LDL-C 2.48 mmol/L`,
+  `低密度脂蛋白胆固醇 96 mg/dL`, `LDL Cholesterol 101 mg/dL`) through seven
+  steps to one series, says where a model takes part and where it does not,
+  lists the needs-input and refused outcomes with what a person can do about
+  each, and ends with commands to try and the limits. `docs/standardization.md`
+  gains the same flow module by module: the source routes, `name_key`,
+  `parse_value`, the quality gates, the order of authority in `code()`, the
+  resolver's candidate keys, `variant_for_reading`'s four outcomes, every
+  reason code, the FHIR Observation `standardize_reading` returns, the series
+  key and the canonical value pair, the read side, and confirm and recode.
+  Both pages have Chinese editions written for Chinese readers. Every example
+  was run against the 1.5.10 bundle. To tell: open the Standardization page;
+  its first table is "The steps one reading goes through".
+- **The READMEs show how to give the engine to an AI agent.** `mirobody mcp`
+  serves the offline tools over stdio, but no README said so: the only MCP
+  route they named was the personal link, which
+  needs the full app running, so a reader who wanted the engine inside Claude
+  Code or Cursor found nothing to paste. Each edition now gives the one line
+  (`claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`) under the
+  one-command section, a row for it in "Build on Mirobody" beside the
+  personal-link row, which now says it needs the running app. On the first
+  screen, the two lines under the tagline that listed the sources and then the
+  three ways to run it (the link bar and the start table below repeat both)
+  are one sentence that says only what the open-source edition adds: the
+  record stays on the reader's machine and their agent can query it over MCP.
+  One trend across labs and the file behind every number are left to the demo
+  and its caption right below, which already show them. A sentence after "What you can do" says Mirobody does not diagnose
+  or prescribe and its answers are not medical advice; CPIC is linked where it
+  is first named; the footer links Discussions. To tell: run the line,
+  then `claude mcp get mirobody` reports it connected.
+- **The user guides have Japanese editions.** The README had a Japanese
+  edition, but every guide it linked was English and marked （英語）, and
+  docs.mirobody.ai had no Japanese pages. The guides the site renders now have
+  a Japanese edition beside the English and Chinese ones (`*.ja.md`):
+  quickstart, walkthrough, model-choice, local-models, python-analysis and every
+  page under `docs/site/`. Each one carries the English ids that other pages
+  link to, uses the app's own Japanese labels (「設定 → MCP リンク」), and shows the
+  Japanese demo images where they exist. The top-level guides' language line
+  names all three editions, and `README.ja.md` links the Japanese guides and the
+  site's `/ja/` pages. To tell: open `docs/quickstart.ja.md`; once the site pins
+  this release, docs.mirobody.ai/ja/quickstart shows it.
+
 ### Fixed
+
+- **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
+  said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
+  from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental
+  code (it resolves to nothing, as the English said), and both described a
+  "downloadable-corpus" semantic index that 1.5.0 deleted. The READMEs said
+  MCP serves seven tools; a deployment with a knowledge source also lists the
+  two medical-reference tools, and none of them said a personal MCP link
+  expires after 10 days. The walkthrough still lettered the stages C · T · A,
+  the Chinese README linked the English `python-analysis.md` and called the
+  hosted app Theta Wellness without the live user badges the other two
+  editions carry, and the docs index had no row for `python-analysis.md` or
+  `local-models-roadmap.md`. All corrected in every edition; the READMEs'
+  "Numbers you can check" table gains a row for the LOINC cut and its names,
+  checked against `fhir_loinc_bundle.NOTICE`. To tell: `grep -c 1,023,273
+  README.md docs/standardization.md` prints 1 for each.
+- **Four guide errors, and Chinese lines that rendered with stray spaces.**
+  `docs/site/file-processing.md` implied `POST /files/upload` files a document
+  into the record; it only stores it unless the request sets `file=true`, the
+  likely cause of "stored but no readings" that the same section debugs.
+  `docs/site/health-data-tools.md` listed the query views without `trend`, which
+  the tool schema accepts. The Chinese `model-choice` said two things the
+  English does not (that Mirobody never loads weights, that OpenRouter switches
+  host after a failure), and the Chinese pipeline page dropped "standardizes
+  names and units". The Chinese guides also broke lines mid-sentence, which
+  GitHub and the docs site render as a space between two characters; those
+  lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+
+- **Hematocrit printed as `0.45 L/L` and as `45 %` is one series.** `L/L`,
+  the SI spelling of a volume fraction, was not a unit the engine knew, so a
+  `0.45 L/L` reading was stored with no unit and no canonical value and
+  shared no statistic with `45 %` (#202). `L/L` is now a volume fraction: it
+  converts to `%` by a factor of 100 and folds to the pair every stored
+  percent already has, `(45.0, '%')`. A percent still converts to nothing
+  else, because the other dimensionless units hold HbA1c in `mmol/mol`
+  (6.5 % NGSP is 48 mmol/mol IFCC, not 65), counts, doses per body mass and
+  time per day; and `%` keeps its own canonical pair, which `recode` would
+  never rewrite for readings already stored. `红细胞比容` and `红细胞比积`,
+  common Chinese names for hematocrit, answered 24360-0, the hemoglobin and
+  hematocrit panel: a reading in `%` asked for input and one in `L/L` was
+  filed under the panel. Both now code to 4544-3 (one item of #234).
+  Readings stored before keep the empty unit they were stored with;
+  `mirobody recode` moves the two Chinese names to 4544-3. The resolver
+  coverage score is 347/347 and the unit table has 331 units. How to tell:
+  `convert_value(0.45, "L/L", "%")` is `45.0`, and
+  `convertible("%", "mmol/mol")` is still `False`.
+
+- **A cited id with a comma in it resolves.** `GET /api/citations` took the
+  ids as one comma-separated `rids` parameter, but a `ref:doi:` id and a
+  document cite such as `/library/lab results, March.pdf#L12-L14` may hold a
+  comma: the server cut them into pieces that resolved to `unknown`, and no
+  entry came back under the id the client asked about (#192). `POST
+  /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
+  they were cited, with no split and no strip. The comma `GET` still answers
+  the web client shipped until now. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole.
+
+- **Taking over a managed account and choosing not to share now revokes the
+  family member's personal MCP link.** Activation wrote the new owner's
+  `health_access` directly and skipped the revocation that lowering the switch
+  in the care circle performs, so the link was refused but stayed live: if
+  the person later raised the switch again, within the link's 10 days, the old
+  URL read their record once more. Unsharing never had that hole, and the docs
+  said neither did this. Activation now ends the links the circle no longer
+  allows, like every other sharing change (#232). How to tell: after an
+  activation that chose "none", the link's row in `th_personal_mcp_url` has
+  `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
+
+- **A provider that answers nothing is no longer logged as a bug in this
+  repo.** The OpenAI client returns `None`, without raising, when an endpoint
+  answers HTTP 200 with a JSON `null` body. On 1.5.10 a 587 s `deepseek-utils`
+  call did that during the provider's 503 outage, and
+  `async_get_structured_output` dereferenced it, so the extraction log read
+  `AttributeError: 'NoneType' object has no attribute 'choices'` at
+  `utils/llm/utils.py` (found on 1.5.10, #239). Text completion and vision had
+  the same unguarded access. Structured output and text completion now return
+  their "no model answered" `None`; vision raises `NoResponse`, and an upload
+  that fails on it tells the person "… sent back an empty response, which an
+  overloaded provider does" instead of a type name. How to tell: the log reads
+  `structured output: no response` or `text completion: no response` with the
+  model name, and no traceback. The native Anthropic path streams and was not
+  affected.
 
 - **A calculation step reads as a calculation.** 1.5.10 named the calculator
   `code_exec`, and the web client, which knew it as `eval` and

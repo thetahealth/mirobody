@@ -2,7 +2,7 @@
 
 # 本地模型部署
 
-**[English](local-models.md)** · **中文**
+**[English](local-models.md)** · **中文** · **[日本語](local-models.ja.md)**
 
 将模型部署在自己的机器上，即可在本地完成文档识别和健康问答，无需模型 API Key。首次启动需要下载模型权重，之后会复用缓存。
 

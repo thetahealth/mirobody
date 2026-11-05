@@ -12,7 +12,7 @@ from typing import Any
 
 from mirobody.utils.config.llm import RouteSpec
 from mirobody.utils.llm import clients
-from mirobody.utils.llm.utils import _max_tokens_param
+from mirobody.utils.llm.utils import NoResponse, _max_tokens_param
 
 from .media import VisionImage
 
@@ -40,7 +40,8 @@ def _api_params(spec: RouteSpec, messages: list[dict], json_mode: bool,
 async def image_extract(spec: RouteSpec, image: VisionImage, prompt: str, *, json_mode: bool,
                         max_tokens: int | None = None) -> str:
     """One request: the image, then the prompt. The answer as the model wrote
-    it, "" for none; a failed request raises."""
+    it, "" for none; a failed request raises, and so does an empty 200
+    (`NoResponse`)."""
     messages = [{
         "role": "user",
         "content": [
@@ -50,4 +51,6 @@ async def image_extract(spec: RouteSpec, image: VisionImage, prompt: str, *, jso
     }]
     response = await clients.client_manager.for_spec(spec).chat.completions.create(
         **_api_params(spec, messages, json_mode, max_tokens))
+    if response is None:
+        raise NoResponse(spec.model)
     return response.choices[0].message.content or ""

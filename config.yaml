@@ -4,7 +4,7 @@
 # Files load in this order, later wins (a dict key replaces the whole value):
 #   config.yaml            this file — server, database, login (containers wire these)
 #   config.llm.yaml        THE ONE TO OPEN: models, and which model each surface uses
-#   config.devices.yaml    Garmin / Oura / Whoop, Google / Apple sign-in (optional)
+#   config.devices.yaml    Garmin / Oura / Whoop (optional)
 #   config.{ENV}.yaml      your overlay
 #   environment / .env     the API key goes in .env, next to compose.yaml
 INCLUDE:
