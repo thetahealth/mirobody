@@ -668,6 +668,16 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
     ("hematocrit",      "0.42", "L/L",   "4544-3",  "L/L is a volume fraction too"),
     ("红细胞比容",          "0.42", "L/L",   "4544-3",  "the SI spelling on a Chinese report"),
+    # A checkup prints the assay word, or a flag, after the name (#234).
+    ("尿酸(UA)测定",        "420", "umol/L", "14933-6", "名称(缩写)测定, molar"),
+    ("丙氨酸氨基转移酶(ALT)测定", "30", "U/L", "1742-6",  "名称(缩写)测定"),
+    ("低密度脂蛋白胆固醇测定",   "2.5", "mmol/L", "22748-8", "名称测定"),
+    ("γ-谷氨酰基转移酶*",     "28",  "U/L",    "2324-2",  "a flag mark after the name"),
+    ("体重指数BMI",          "22.1", "kg/m2", "39156-5", "acronym glued on"),
+    ("白球比例",             "1.5", "",       "1759-0",  "ratio said in words"),
+    ("中性粒细胞比值",        "60",  "%",      "26511-6", "ratio said in words"),
+    ("红细胞分布宽度-变异系数", "13",  "%",      "30385-9", "RDW-CV in words"),
+    ("天门冬氨酸/丙氨酸氨基转移酶", "1.1", "",   "1916-6",  "AST/ALT in words"),
     ("白细胞计数",         "6.5", "10*9/L", "26464-8", "count already NCnc"),
     # The differential, both ways: a measure word in the name goes to the
     # fraction component, and the unit then picks the count or the ratio;
@@ -905,6 +915,19 @@ def test_a_name_that_holds_two_analytes_says_which_two():
     assert "51637-7" in r.rejected_reason and "33959-8" in r.rejected_reason
     assert r.rejected_code == ""
     assert resolve("血脂").rejected_reason == ""
+
+
+def test_a_report_mark_is_answered_as_the_bare_name_would_be():
+    """Stripping `测定` or a flag keeps every rule the bare name meets: a
+    category stays refused, two analytes in one name stay two, and the word
+    alone is no name (#234)."""
+    from mirobody.engine import resolve
+
+    assert resolve("尿酸(UA)测定").term == "尿酸(UA)测定"
+    assert resolve("血脂测定").method == "refused"
+    assert "4548-4" in resolve("血糖(HbA1c)测定").rejected_reason
+    assert resolve("测定").method == "refused"
+    assert resolve("红细胞分布宽度-标准差").method == "refused"
 
 
 def test_the_unit_still_selects_between_two_real_siblings():

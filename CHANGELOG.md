@@ -52,6 +52,21 @@
 
 ### Fixed
 
+- **A checkup name with `测定` or a flag after it codes like the bare name.**
+  A Chinese checkup prints the assay word after the analyte,
+  `尿酸(UA)测定` and `低密度脂蛋白胆固醇测定`, or a flag mark, `γ-谷氨酰基转移酶*`.
+  None of those resolved while the bare name did, so each became an uncoded
+  series beside the coded one (#234). After a miss, the resolver now strips a
+  trailing `测定` or `*`/`↑`/`↓` and answers as the bare name would, every
+  block and the two-analytes rule included: `血脂测定` stays refused and
+  `血糖(HbA1c)测定` stays two analytes. `测定` alone, which answered an HbA1c
+  device-type code, is refused. Five names from the same reports get override
+  rows: `体重指数BMI`, `白球比例`, `中性粒细胞比值`, `红细胞分布宽度-变异系数` and
+  `天门冬氨酸/丙氨酸氨基转移酶`; `红细胞分布宽度-标准差` abstains like `RDW-SD`,
+  since the 2.83 cut has no reachable code for it. Readings already stored
+  under these names move with `mirobody recode`. How to tell:
+  `mirobody resolve "尿酸(UA)测定"` answers Urate.
+
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
   from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental

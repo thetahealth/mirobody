@@ -99,6 +99,11 @@ Inside the resolver (`engine/resolver.py`):
   (`Protein CSF`, `Glucose OGTT`, `胆固醇 HDL`), so those stay unresolved
   rather than quietly answering the code of the stem alone. Measure words (`计数`,
   `count`) are dropped last, so they can only turn a miss into a hit.
+- **What a report prints after the name comes off after a miss.**
+  `尿酸(UA)测定` and `γ-谷氨酰基转移酶*` are the name followed by the assay word
+  or a flag. When the name as printed misses, a trailing `测定`, `*`, `↑` or
+  `↓` is stripped and the rest is answered as the bare name would be, the
+  blocks and the rule below included (`lexical.strip_report_marks`).
 - **`Name (abbreviation)` must agree.** Both halves are resolved. One analyte:
   the stem wins (`空腹血糖(GLU)` → 1558-6). Two analytes: refused, with both
   codes named so a person can choose (`血糖(HbA1c)` gives 2339-0 and 4548-4).
