@@ -240,7 +240,9 @@ def prepare(
     say: a missing time is a rejection, not today.
     """
     name = _clean(draft.name_text)
-    if not name:
+    # The key, not the text: a lone `：` is not empty, but it folds to "" and
+    # the reading was filed under a series with no name (#235).
+    if not standardize.name_key(name):
         raise Rejected(REJECT_NO_NAME)
     if draft.observed_start is None:
         raise Rejected(REJECT_NO_TIME)

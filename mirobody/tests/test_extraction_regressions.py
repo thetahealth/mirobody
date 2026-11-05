@@ -88,6 +88,19 @@ async def test_saved_measurement_carries_evidence_verdict(monkeypatch, text, met
     assert saved["modality"] == expected
 
 
+@pytest.mark.parametrize("name", ["", "  ", "：", ":", "。", " ， "])
+def test_a_name_that_folds_to_nothing_is_no_name(name):
+    """`：` passed the empty-text check and was stored under a series key of ""
+    (#235); the gate tests the folded key every series is built from."""
+    draft = observations.Draft(name_text=name, observed_start=datetime(2026, 3, 1, tzinfo=UTC),
+                               value_text="420", unit_text="umol/L")
+    provenance = observations.Provenance(modality=observations.MODALITY_LAB, source_kind="file",
+                                         source_ref="synthetic-report.pdf")
+    with pytest.raises(observations.Rejected) as rejected:
+        observations.prepare(draft, provenance, "synthetic-user", "UTC", now=datetime(2026, 10, 14, tzinfo=UTC))
+    assert rejected.value.reason == observations.REJECT_NO_NAME
+
+
 @pytest.mark.parametrize("shape", [_catalog_row, _stats_row, _bucket_row])
 @pytest.mark.parametrize("unverified", [True, False, None])
 def test_aggregate_rows_preserve_evidence_verdict(shape, unverified):

@@ -52,6 +52,16 @@
 
 ### Fixed
 
+- **A reading whose name is only punctuation is refused, not filed under
+  no name.** The write path refused an empty name after trimming whitespace,
+  but a name such as a lone `：` is not empty, and its series key folds to
+  `""` (NFKC makes it `:` and trailing punctuation is stripped), so the
+  reading was stored under a blank local series. That is one way to get the
+  nameless uric acid row reported from a self-hosted 1.5.10 (#235).
+  The gate now tests the folded key every series is built from, and such a
+  reading is rejected as `no-name`. How to tell: a draft named `：` comes back
+  `Rejected("no-name")` from `observations.prepare`.
+
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
   from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental
