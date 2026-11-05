@@ -52,6 +52,29 @@
 
 ### Fixed
 
+- **A long indicator name no longer pushes the newest value off the screen.**
+  On Data → 指标 the name column took the width of its longest name: a
+  60-character LOINC display, or one unbreakable token such as
+  `Cholesterol.in.LDL/Cholesterol.in.HDL…`, took 665px of a 704px table at
+  1024px, and 最新值, 记录数 and 最近记录 left the window (#236). Names with
+  spaces stayed on one line too, because the records list's stylesheet sets
+  `white-space: nowrap` on every table cell. Names now wrap; when the columns
+  still do not fit, the table scrolls inside its own frame, and the drawer's
+  title wraps the same way. The web client in `frontend/` is rebuilt from
+  thetahealth/mirobody-web `985f3c2`. How to tell: at 1024px, open 指标 on a
+  record with a long name.
+
+- **查看 on a file no longer leaves a blank tab.** The viewer opens a tab,
+  fetches `/files/<key>` with the session's token and points the tab at what
+  came back. A request that never finished, or a 200 that was not the file
+  (a reverse proxy answering `/files/` with the app's own `index.html` or a
+  login page), left the tab on `about:blank` with no message (#238). The
+  request now gives up after 60 seconds; a PDF must carry the PDF header, an
+  image must come back as an image, and nothing else may come back as HTML.
+  Either failure closes the tab and says why, and the second names the
+  proxy's rule for `/files/` as the usual cause. How to tell: behind a proxy
+  that does not forward `/files/`, 查看 closes the tab with that message.
+
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
   from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental
