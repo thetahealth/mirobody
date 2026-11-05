@@ -275,7 +275,9 @@ class ChatService:
         document's `<path>#L12-L14`: `kernel.citations`), and `GET
         ?session_id=…&rids=r1,r2` splits on commas, so it cuts such an id into
         pieces that resolve to nothing and answers none of them under the id
-        that was asked. The GET stays for the web client shipped until now.
+        that was asked. The bundled web client posts since mirobody-web
+        3b4bcfd; the GET stays for a client built before it, and for a page
+        left open across the upgrade.
         """
         if request.method == "POST":
             params, err_response = await _json_body(request)
