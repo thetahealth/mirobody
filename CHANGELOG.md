@@ -104,9 +104,12 @@
   comma: the server cut them into pieces that resolved to `unknown`, and no
   entry came back under the id the client asked about (#192). `POST
   /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
-  they were cited, with no split and no strip. The comma `GET` still answers
-  the web client shipped until now. How to tell: post an id with a comma and
-  the answer's `rid` is that id, whole.
+  they were cited, with no split and no strip, and the web client in
+  `frontend/`, rebuilt from thetahealth/mirobody-web `3b4bcfd`, now asks that
+  way. The comma `GET` still answers a web client built before that, and a
+  page left open across the upgrade. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole; in the browser, a chip's lookup is a
+  `POST /api/citations`.
 
 - **Taking over a managed account and choosing not to share now revokes the
   family member's personal MCP link.** Activation wrote the new owner's
