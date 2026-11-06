@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 1.6.0
+
 ### Added
 
 - **The docs say how a printed reading becomes a comparable one.** The public

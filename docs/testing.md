@@ -12,23 +12,24 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 20 | 723 passed, 196 skipped, 12 xfailed |
-| `'.[test,parse]'` | 78 | 805 passed, 185 skipped, 12 xfailed |
-| `'.[test,app]'` | 147 | 1045 passed, 121 skipped, 12 xfailed |
+| `'.[test]'` | 20 | 833 passed, 234 skipped, 12 xfailed |
+| `'.[test,parse]'` | 76 | 919 passed, 222 skipped, 12 xfailed |
+| `'.[test,app]'` | 147 | 1187 passed, 143 skipped, 12 xfailed |
 
 The extras change less of what a clone can run than the package counts
-suggest. Thirty-six public modules are kept in `mirobody/tests`, described
+suggest. Forty-four public modules are kept in `mirobody/tests`, described
 below, and most need no extra, so every install runs them in a clone.
-`[parse]` adds 82 tests, most of them the capability probes (48), which
+`[parse]` adds 86 tests, most of them the capability probes (48), which
 import the parser's dependencies, and the profile refresh (22), which
-imports the model client's; the value-range filter (4), the absence
-semantics (4), the last-N-days window (3) and one collection case make up
-the rest. `[app]` adds 240 more,
+imports the model client's; the absence semantics (4), the value-range
+filter (4), a model that answers nothing (4), the last-N-days window (3) and
+one collection case make up the rest. `[app]` adds 268 more,
 the ones that need FastAPI or the MCP SDK and skip without them
-(`pytest.importorskip`): the security gates (81), the extraction (70),
-collection (55) and plugin-directory (22) regressions, the trend service (6),
-the confirmation route checks (5) and the chat turn's citation repair (1).
-The 121 database cases skip on every install
+(`pytest.importorskip`): the security gates (81), the extraction (80),
+collection (59) and plugin-directory (22) regressions, the Apple record day
+(8), the trend service (6), the confirmation route checks (5), the citation
+endpoint (4), the Chinese names (2) and the chat turn's citation repair (1).
+The 143 database cases skip on every install
 until `MIROBODY_TEST_POSTGRES_DSN` names a database (see below); CI supplies
 one. The skills module also ships in the wheel as inspectable release
 evidence, but skips when the wheel is installed without the repository-root
@@ -36,10 +37,10 @@ evidence, but skips when the wheel is installed without the repository-root
 described below. What the extras still decide is what the SERVER needs, which
 is what the package counts are for.
 
-<sub>Measured 2026-10-31 for 1.5.10 on a clone-shaped tree, each install in a
+<sub>Measured 2026-11-06 for 1.6.0 on a clone-shaped tree, each install in a
 fresh venv: packages are `uv pip freeze` lines, tests `pytest -q mirobody/tests`
-(1178 collected with `[app]`; plain `pytest -q`, which also collects the
-published modules under `tests/`, finds 1448). The table counts
+(1342 collected with `[app]`; plain `pytest -q`, which also collects the
+published modules under `tests/`, finds 1612). The table counts
 `mirobody/tests` only; the published Python-analysis checks below live in
 `tests/`. `pytest` in a checkout with the remaining maintainers' local
 suite collects additional tests.</sub>
@@ -80,7 +81,7 @@ enough.
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 two trees, and a third that is neither:
 
-- `mirobody/tests/` — thirty-six public modules, the gates among them
+- `mirobody/tests/` — forty-four public modules, the gates among them
   described below.
   It ships in the repository and is what `pytest mirobody` runs in a clone;
   only `test_skills.py` is carried into the wheel, and
