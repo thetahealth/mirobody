@@ -148,6 +148,17 @@
   hemoglobin row with `"label": "血红蛋白"` and
   `"facets": {"specimen": "全血", "property": "质量浓度"}`; open its drawer on a
   中文 page.
+- **A page opened in English asks for English, whatever the browser's
+  language.** The web client read `?lang=` once to draw the page and again on
+  every request for `X-Language`. Once an in-app link dropped the query, a
+  page opened as `/login?lang=en` in a browser set to Chinese stayed English
+  but asked the server for Chinese: the indicator list read 体重 and 总胆固醇
+  under English headings, and every later request, the chat included, said
+  the reader's language was Chinese. A request now asks for the language the
+  page is drawn in, which both language switches set (`frontend/`, rebuilt
+  from thetahealth/mirobody-web `1047eb1`). How to tell: in a browser set to
+  Chinese, open `/login?lang=en`, sign in and open Indicators; the names read
+  `Body weight`, `Cholesterol, Blood`.
 - **The web client can be read in dark mode.** With the system (or the
   browser, or an embedded view) set to dark, the page painted no background,
   so near-black showed through behind the cream design's near-black text:
