@@ -88,10 +88,13 @@ async def test_saved_measurement_carries_evidence_verdict(monkeypatch, text, met
     assert saved["modality"] == expected
 
 
-@pytest.mark.parametrize("name", ["", "  ", "：", ":", "。", " ， "])
-def test_a_name_that_folds_to_nothing_is_no_name(name):
+@pytest.mark.parametrize("name", ["", "  ", "：", ":", "。", " ， ", "\u200b", "\ufeff", "\u00ad", "\u200b："],
+                         ids=repr)
+def test_a_name_that_folds_to_nothing_visible_is_no_name(name):
     """`：` passed the empty-text check and was stored under a series key of ""
-    (#235); the gate tests the folded key every series is built from."""
+    (#235); a zero-width space, a byte-order mark or a soft hyphen survives the
+    fold but prints as nothing. The gate tests the folded key every series is
+    built from for a character that shows."""
     draft = observations.Draft(name_text=name, observed_start=datetime(2026, 3, 1, tzinfo=UTC),
                                value_text="420", unit_text="umol/L")
     provenance = observations.Provenance(modality=observations.MODALITY_LAB, source_kind="file",

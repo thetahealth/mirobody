@@ -151,19 +151,22 @@
   `dailyAvgHrvSDNN` has a row per day with HRV, and `query_health_indicators`
   returns it.
 
-- **A reading whose name is only punctuation is refused, not filed under
-  no name.** The write path refused an empty name after trimming whitespace,
-  but a name such as a lone `：` is not empty, and its series key folds to
-  `""` (NFKC makes it `:` and trailing punctuation is stripped), so the
-  reading was stored under a blank local series. That is one way to get the
-  nameless uric acid row reported from a self-hosted 1.5.10 (#235).
-  The gate now tests the folded key every series is built from, and such a
-  reading is rejected as `no-name`. A row already stored that way stays where
-  it is: changing its report's date moves every other reading and leaves that
-  one on its old date, where the stricter gate would otherwise have failed
-  the whole change with "This update could not complete." How to tell: a
-  draft named `：` comes back `Rejected("no-name")` from
-  `observations.prepare`.
+- **A reading whose name is only punctuation or invisible characters is
+  refused, not filed under no name.** The write path refused an empty name
+  after trimming whitespace, but a name such as a lone `：` is not empty, and
+  its series key folds to `""` (NFKC makes it `:` and trailing punctuation is
+  stripped), so the reading was stored under a blank local series. A lone
+  zero-width space (U+200B), byte-order mark or soft hyphen survives that
+  fold and prints as nothing, the same blank row on screen. Either is one way
+  to get the nameless uric acid row reported from a self-hosted 1.5.10 (#235).
+  The gate now requires a character that shows in the folded key every series
+  is built from, and such a reading is rejected as `no-name`. A row already
+  stored that way stays where it is: changing its report's date moves every
+  other reading and leaves that one on its old date, counted neither moved
+  nor skipped (the Data page words `skipped` as "already had a reading that
+  day"), where the stricter gate would otherwise have failed the whole change
+  with "This update could not complete." How to tell: a draft named `：` or
+  `"\u200b"` comes back `Rejected("no-name")` from `observations.prepare`.
 
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates

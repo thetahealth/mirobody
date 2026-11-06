@@ -313,7 +313,9 @@ async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(da
     """A row named a lone `：` was stored before the no-name gate read the
     folded key (#235). Re-dating its report amended it, the amendment raised
     `no-name`, and the report was left half moved with its date unsaved on
-    every retry. That row now keeps its time; a future date still fails."""
+    every retry. That row now keeps its time and is counted neither moved nor
+    skipped, the count the Data page words as "already had a reading that
+    day"; a future date still fails."""
     from mirobody.collect import observations
     from mirobody.kernel import quality
 
@@ -333,7 +335,7 @@ async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(da
         await observations.redate("1", source, datetime(2100, 1, 1, tzinfo=UTC), user_tz="UTC")
     assert refused.value.reason == quality.ERR_IMPOSSIBLE_TIME_RANGE
 
-    assert await observations.redate("1", source, datetime(2026, 2, 1, tzinfo=UTC), user_tz="UTC") == (2, 1)
+    assert await observations.redate("1", source, datetime(2026, 2, 1, tzinfo=UTC), user_tz="UTC") == (2, 0)
     rows = await database("SELECT name_text, observed_start FROM v_observation WHERE source_ref=:source",
                           {"source": source}, log_sql=False)
     dates = {r["name_text"]: r["observed_start"].date().isoformat() for r in rows}

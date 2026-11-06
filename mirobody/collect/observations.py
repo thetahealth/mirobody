@@ -241,9 +241,11 @@ def prepare(
     """
     name = _clean(draft.name_text)
     # The key, not the text: a lone `：` is not empty, but it folds to "" and
-    # the reading was filed under a series with no name (#235).
+    # the reading was filed under a series with no name (#235). A lone
+    # zero-width space survives the fold and prints as nothing, the same
+    # blank row on screen, so the key must hold a character that shows.
     name_key = standardize.name_key(name)
-    if not name_key:
+    if not any(c.isprintable() and not c.isspace() for c in name_key):
         raise Rejected(REJECT_NO_NAME)
     if draft.observed_start is None:
         raise Rejected(REJECT_NO_TIME)
@@ -894,8 +896,9 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
     date came from the upload time, answered by the person). A naive `when`
     is wall clock in each row's own zone, as `amend` reads it. Each move is
     an amendment. Returns `(moved, skipped)`, where a skipped row already sat
-    on that time, an equal row already holds the target identity, or the row
-    has no name the write path would accept today."""
+    on that time, or an equal row already holds the target identity. A row
+    with no name the write path would accept today stays where it is and is
+    counted in neither."""
     rows = await _select_by_source(user_id, source_ref)
     moved = skipped = 0
     for r in rows:
@@ -910,9 +913,10 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
             # as a name of a lone `：` (#235). Raising here left the report
             # half moved and its date unsaved on every retry, so it keeps its
             # old time. Any other refusal, a future date, still fails the move.
+            # Not `skipped`: the Data page and the agent word that count as
+            # "already had a reading that day", which this row did not.
             if e.reason != REJECT_NO_NAME:
                 raise
-            skipped += 1
             continue
         if new_id is None or new_id == int(r["id"]):
             skipped += 1
