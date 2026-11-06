@@ -75,6 +75,18 @@
   proxy's rule for `/files/` as the usual cause. How to tell: behind a proxy
   that does not forward `/files/`, 查看 closes the tab with that message.
 
+- **The web client renders again.** The 985f3c2 sync above committed the new
+  chunks but not the `index.html` that loads them, so `index.html` still named
+  the entry chunk the same sync deleted (`index-mKXkiuxp.js`): the script
+  404'd and every page was blank. No release carried it. `index.html` is now
+  the one the 985f3c2 build writes; a fresh build matches all 70 files in
+  `frontend/assets/` byte for byte and differed only in that script line. A
+  new gate, `mirobody/tests/test_frontend_bundle.py`, follows what a browser
+  fetches from `index.html` through every chunk it loads and fails on any
+  file `frontend/` does not hold. How to tell: `/login?lang=en` renders and
+  the network log has no 404; the gate fails on the previous `index.html`
+  with `index.html -> assets/index-mKXkiuxp.js`.
+
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
   from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental
