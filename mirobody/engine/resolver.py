@@ -33,7 +33,7 @@ from mirobody._bundle import (
 from mirobody._strtab import StringTable
 from mirobody.lexical import (
     fold_plural, index_fold, is_component_suffix, measure_stems, split_trailing_parenthetical,
-    strip_trailing_abbreviation, surface_variants,
+    strip_report_marks, strip_trailing_abbreviation, surface_variants,
 )
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
@@ -557,6 +557,13 @@ class OfflineResolver:
         hit = self._lookup(term)
         if hit is not None:
             return hit
+
+        # `尿酸(UA)测定`, `γ-谷氨酰基转移酶*`: the name with what the report
+        # printed after it. Answered as the bare name would be, blocks and the
+        # parenthetical rule below included; only reached after a miss.
+        bare = strip_report_marks(term)
+        if bare:
+            return replace(self.resolve(bare), term=term)
 
         # "名称(缩写)", the shape a lab report prints more often than not: on
         # production data 147 of 868 distinct indicator names have it and 70 of
