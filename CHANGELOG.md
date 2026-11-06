@@ -49,6 +49,19 @@
   names all three editions, and `README.ja.md` links the Japanese guides and the
   site's `/ja/` pages. To tell: open `docs/quickstart.ja.md`; once the site pins
   this release, docs.mirobody.ai/ja/quickstart shows it.
+- **Settings makes a personal MCP link for a family member, not only for
+  yourself.** `POST /personal/mcp` has taken `{"user_id": …}` for a member
+  the care circle lets you read, but the web client posted an empty body, so
+  someone who manages a parent could make a link only for their own record
+  (#232). Settings → MCP link now has a row for each record: yours, then
+  every member on the record switcher's roster, each with its own create,
+  regenerate and revoke; a new URL shows once, under the row it reads. A line
+  under the hint says one link reads one record and a family member's is
+  added as a second MCP server. A member who stopped sharing gets a refusal
+  that names them, and their row goes. The web client in `frontend/` is
+  rebuilt from thetahealth/mirobody-web `8385563`. How to tell: add a member
+  on 关爱圈, create a link on their row in Settings → MCP link; an MCP client
+  pointed at it reads that member's record, and Revoke makes it answer 401.
 
 ### Fixed
 
