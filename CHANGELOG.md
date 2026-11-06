@@ -138,9 +138,27 @@
   to Regenstrief under section 12 of the LOINC licence, so these files ship
   under that licence (`res/loinc/zh_CN.NOTICE`) and
   `standardize_build/loinc_names.py --submission` writes the file that goes
-  back to them. To tell: with `X-Language: zh-CN`,
-  `GET /api/v1/health-indicators` answers a hemoglobin row with
-  `"label": "血红蛋白"` and `"facets": {"specimen": "全血", "property": "质量浓度"}`.
+  back to them. In the web client (`frontend/`, rebuilt from
+  thetahealth/mirobody-web `d83f10b`), the indicator list, All entries and an
+  answer's cite sources show `label`; a language switch renames them without
+  a reload (the list kept the rows it had fetched, so an English page showed
+  Chinese names until a refresh); and the drawer lists the facets one per
+  line, closing with the code and LOINC's long name in small type. To tell:
+  with `X-Language: zh-CN`, `GET /api/v1/health-indicators` answers a
+  hemoglobin row with `"label": "血红蛋白"` and
+  `"facets": {"specimen": "全血", "property": "质量浓度"}`; open its drawer on a
+  中文 page.
+- **The web client can be read in dark mode.** With the system (or the
+  browser, or an embedded view) set to dark, the page painted no background,
+  so near-black showed through behind the cream design's near-black text:
+  indicator names, tabs and the record switcher disappeared, while headers,
+  inputs and cards stayed white. The client now has a dark palette that
+  follows `prefers-color-scheme` (the same warm hue, contrast checked: body
+  text 12.8:1 or better), paints its own canvas, and reads tokens where about
+  110 colours were hard-coded; antd components, the trend and chat charts,
+  and the logo switch with it. Light mode looks as it did. `frontend/` is
+  rebuilt from thetahealth/mirobody-web `d83f10b`. How to tell: set the
+  system to dark and open 指标; names and values read light on a dark page.
 - **A long indicator name no longer pushes the newest value off the screen.**
   On Data → 指标 the name column took the width of its longest name: a
   60-character LOINC display, or one unbreakable token such as
