@@ -930,6 +930,27 @@ def test_a_report_mark_is_answered_as_the_bare_name_would_be():
     assert resolve("红细胞分布宽度-标准差").method == "refused"
 
 
+def test_a_run_of_flag_marks_does_not_backtrack():
+    """The rule's first spelling, `(?:\\s*[*↑↓]+|\\s*测定)+\\s*$`, backtracked
+    exponentially (CodeQL py/redos): 22 `*` and one more character took 0.4 s,
+    and every two more `*` took four times as long, so 26 take seconds and 40
+    take a day. A name is whatever a report or an MCP client sends. The scan
+    that replaced it answers both in microseconds; the bound is loose enough
+    for a slow runner and still fails in seconds, not never."""
+    import time
+
+    from mirobody.engine import resolve
+    from mirobody.lexical import strip_report_marks
+
+    hostile = "尿酸" + "*" * 26 + "x"
+    resolve("尿酸")  # the first call loads the bundle; that is not what is timed
+    started = time.perf_counter()
+    assert strip_report_marks(hostile) == ""
+    assert resolve(hostile).loinc == ""
+    assert time.perf_counter() - started < 1.0
+    assert strip_report_marks("尿酸" + " 测定*↑" * 10_000) == "尿酸"
+
+
 def test_the_unit_still_selects_between_two_real_siblings():
     """The refusal above must not have cost the capability it protects."""
     from mirobody.engine import resolve_reading
