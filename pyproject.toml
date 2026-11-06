@@ -664,14 +664,18 @@ allow_indirect_imports = true
 # is the way to widen this, and it is one line.
 #
 # Tests are exempt by construction: they live in `tests/`, outside the graph.
-# That is the right privilege for them. A regression test for `readings.py`
-# should import `readings.py`, including its underscore-private names.
+# That is the right privilege for them. A regression test for `query.py`
+# should import `query.py`, including its underscore-private names.
+#
+# Every module listed must exist: import-linter 2.16 fails the run on one that
+# does not. `backfill.py` and `readings.py` went when every write moved to
+# `observations.ingest` and every read to `query.py` ("one writer, one
+# reader", 2026-09-20), and stayed listed here until 2.16 noticed.
 source_modules = [
     "mirobody.agent",
     "mirobody.server",
 ]
 forbidden_modules = [
-    "mirobody.collect.backfill",
     "mirobody.collect.base",
     "mirobody.collect.citations",
     "mirobody.collect.core",
@@ -681,7 +685,6 @@ forbidden_modules = [
     "mirobody.collect.meds",
     "mirobody.collect.providers",
     "mirobody.collect.query",
-    "mirobody.collect.readings",
     "mirobody.collect.setup",
 ]
 ignore_imports = []
