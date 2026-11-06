@@ -310,6 +310,39 @@ async def test_amendment_preserves_notes_unless_a_new_note_is_requested(database
     assert rows[0]["note"] is None
 
 
+async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(database):
+    """A row named a lone `：` was stored before the no-name gate read the
+    folded key (#235). Re-dating its report amended it, the amendment raised
+    `no-name`, and the report was left half moved with its date unsaved on
+    every retry. That row now keeps its time and is counted neither moved nor
+    skipped, the count the Data page words as "already had a reading that
+    day"; a future date still fails."""
+    from mirobody.collect import observations
+    from mirobody.kernel import quality
+
+    source = "th_files:synthetic-redate"
+    first = datetime(2026, 1, 1, tzinfo=UTC)
+    report = await observations.ingest("1", [
+        observations.Draft(name_text="FPG", value_text="5.0", unit_text="mmol/L", observed_start=first),
+        observations.Draft(name_text="UA", value_text="420", unit_text="umol/L", observed_start=first),
+        observations.Draft(name_text="TC", value_text="4.5", unit_text="mmol/L", observed_start=first),
+    ], observations.Provenance(modality="lab-report", source_kind="file", source_ref=source), user_tz="UTC")
+    nameless = report.ids[1]
+    # What the write path stored for `：` before the gate: the text, and a key of "".
+    await database("UPDATE th_observation SET name_text='：', name_key='', local_key='|umol/L' WHERE id=:id",
+                   {"id": nameless}, log_sql=False)
+
+    with pytest.raises(observations.Rejected) as refused:
+        await observations.redate("1", source, datetime(2100, 1, 1, tzinfo=UTC), user_tz="UTC")
+    assert refused.value.reason == quality.ERR_IMPOSSIBLE_TIME_RANGE
+
+    assert await observations.redate("1", source, datetime(2026, 2, 1, tzinfo=UTC), user_tz="UTC") == (2, 0)
+    rows = await database("SELECT name_text, observed_start FROM v_observation WHERE source_ref=:source",
+                          {"source": source}, log_sql=False)
+    dates = {r["name_text"]: r["observed_start"].date().isoformat() for r in rows}
+    assert dates == {"FPG": "2026-02-01", "TC": "2026-02-01", "：": "2026-01-01"}
+
+
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])
 @pytest.mark.parametrize("same_instant", [False, True], ids=["overlapping", "same-instant"])
 async def test_apple_import_selects_one_device_before_cumulative_aggregation(database, monkeypatch, tmp_path, source_order, same_instant):
