@@ -49,7 +49,9 @@ class AppleHealthRecord(BaseModel):
     sourceName: str | None = Field(None, description="Data source name, e.g. Apple Watch")
     sourcePlatform: str | None = Field(None, description="Data source platform")
     sourceDeviceId: str | None = Field(None, description="Device ID")
-    timezone: str = Field(default="UTC", description="Timezone")
+    # No default: a default of "UTC" was always set, so `metaInfo.timezone`
+    # was never read and every record without its own zone landed in UTC.
+    timezone: str | None = Field(None, description="Timezone for this record (overrides metaInfo)")
     recordingMethod: str | None = Field(None, description="Recording method")
     createdAt: int | None = Field(None, description="Creation timestamp (milliseconds)")
 

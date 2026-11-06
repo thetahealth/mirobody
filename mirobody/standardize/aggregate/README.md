@@ -27,13 +27,20 @@ A day's bounds:
 For Asia/Shanghai, a point at local 2025-10-30 12:00 begins a plain day at
 2025-10-30 00:00 local and a night at 2025-10-29 18:00 local.
 
+A row's `timezone` is an IANA name or a fixed offset spelled `UTC±HH:MM`
+(an Apple record read in its own offset). Postgres reads `UTC+08:00` the
+POSIX way, eight hours west, so `windows.local_expression` and
+`utc_expression` apply an offset as an interval instead.
+
 ## One pass
 
 ```
 series_data
     ↓ get_trigger_tasks (updated since the cursor) / _get_tasks_for_user_date_range
 CalculationTask: (person, indicator, rule, day begin, zone)
-    ↓ calculate_batch_aggregations: per day begin, per person and zone
+    ↓ calculate_batch_aggregations: per day begin, per person and day
+    ↓   (two zones that date and end the day alike, `Asia/Shanghai` and
+    ↓   `UTC+08:00`, are one day, written under the IANA name)
 summary rows: daily{Method}{Indicator}.{source}, with unit and timezone
     ↓ AggregateDatabaseService → observations.ingest_legacy_rows
 th_observation (an equal row is skipped, a changed one amends it)
@@ -47,7 +54,11 @@ th_day_authority
   `update_time` it processed.
 * **A date range** (`recalculate_date_range`): one person over any span, or
   everyone over at most 30 days; longer spans run in 30-day chunks.
-  `ingest/services/repair_reconcile.py` uses it after a repair sweep.
+  `ingest/services/repair_reconcile.py` uses it after a repair sweep. With
+  `sweep_source`, one person's figures from that source dated in the range
+  that the pass does not write again are retracted
+  (`observations.retract_unproduced`): `mirobody import apple --into` uses it,
+  so a reading whose zone changed does not leave its old day's figure.
 
 ## The methods
 

@@ -18,12 +18,12 @@ from datetime import datetime
 
 from mirobody import units
 from mirobody.kernel import metrics
-from mirobody.kernel.series import Fact
+from mirobody.kernel.series import Fact, offset_name, zone
 from ._common import fact, number
 
 #: Apple writes `"2014-09-13 10:27:54 +0100"`: a space, and a numeric offset
 #: rather than an IANA zone. The offset is what the device's clock said, so
-#: it is taken literally and the account timezone is not consulted.
+#: it is taken literally, for the instant and for the day (`record_zone`).
 _TS = "%Y-%m-%d %H:%M:%S %z"
 
 #: HealthKit identifier → catalogue metric. The same targets the mobile path
@@ -189,6 +189,34 @@ def record_time_ms(value: str | int | float | None) -> int:
         return int(datetime.strptime(value.strip(), _TS).timestamp() * 1000)
     except (ValueError, AttributeError):
         return 0
+
+
+def record_zone(value: str | int | float | None, fallback: str) -> str:
+    """The zone a record's day is read in: the offset its own timestamp
+    carries, spelled `UTC±HH:MM`, or `fallback` when `fallback` puts the
+    record's instant at that same offset or the record carries none.
+
+    The offset is the day the phone showed. An HRV sample written
+    `2026-11-01 07:10:00 +0800` read in the import's `UTC` default was filed
+    under 31 October. `fallback` wins whenever it agrees because an IANA name
+    knows daylight saving and an offset does not: read in `America/New_York`
+    the day the clocks go back is 25 hours, read in `UTC-04:00` it is 24 and
+    loses its last hour. Epoch milliseconds carry no offset, so a pushed
+    record that sends them is read in `fallback`.
+    """
+    named = offset_name(fallback) or fallback
+    if not isinstance(value, str):
+        return named
+    try:
+        at = datetime.strptime(value.strip(), _TS)
+    except ValueError:
+        return named
+    own = offset_name(at.strftime("%z")) or named
+    try:
+        agrees = at.astimezone(zone(fallback, strict=True)).utcoffset() == at.utcoffset()
+    except ValueError:
+        agrees = False
+    return named if agrees else own
 
 
 def decode(
