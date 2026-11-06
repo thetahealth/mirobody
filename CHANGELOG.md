@@ -1,5 +1,28 @@
 ## Unreleased
 
+### Fixed
+
+- **The journal names a coded reading as the indicator list does.** On a
+  Chinese page, a sentence logged in 数据 › 记录 such as
+  "昨晚开始头疼，血压150/95" came back as `收缩压 150 mmHg → Systolic blood pressure
+  8480-6`: `GET /api/v1/journal` and `POST /api/v1/journal/sentence` sent only
+  `display`, LOINC's long name, so the journal stayed English after 1.6.0 named
+  the same code 收缩压 in the indicator list (#231). Now a LOINC-coded entry in
+  both answers carries `label` from `standardize.names_for` in the request's
+  language, exactly as
+  `GET /api/v1/health-indicators` does, and the web client shows it with
+  `display` as its tooltip, falling back to `display`; a language switch
+  reloads the feed. An English page reads as before: LOINC gives vital signs
+  no English consumer name, so they keep `Systolic blood pressure`, and a code
+  with one (`Heart rate`) shows it. An ICPC-3 complaint gets no `label` in any
+  language and keeps WONCA's English term (头疼 → `Headache NS01`): the bundle
+  holds no Chinese ICPC-3 title, and ICPC-3 is CC BY-ND, so writing our own
+  would be a derivative we may not publish (`res/icpc3/icpc3.NOTICE`). The web
+  client is `frontend/`, rebuilt from thetahealth/mirobody-web `d83f10b` with
+  its #26 (already in 1.6.0's bundle) and #27 (`6441628`) merged on top. To
+  tell: with `X-Language: zh-CN`, a journal entry coded 8480-6 answers
+  `"label": "收缩压"`; with `X-Language: en` it has no `label`.
+
 ## 1.6.0
 
 ### Added

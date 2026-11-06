@@ -225,7 +225,11 @@ name: `Albumin, Urine` is 白蛋白，尿液), and last from its reviewed compon
 qualifier in brackets (心率（静息）). Any other language gets LOINC's English
 ConsumerName, verbatim; a code without one (LOINC has none for vital signs)
 gets no `label`, and its long name is already plain. An uncoded row keeps its
-printed name and gets neither field. LOINC's own zh-CN variant translates only
+printed name and gets neither field. The journal (`GET /api/v1/journal` and the
+answers of the `POST`s that log to it) gives an entry coded to LOINC the same
+`label`. An entry coded to ICPC-3 gets none in any language and keeps WONCA's
+English preferred term: there is no Chinese ICPC-3 to take a name from, and its
+CC BY-ND licence forbids writing one (`res/icpc3/icpc3.NOTICE`). LOINC's own zh-CN variant translates only
 the Parts, so the Parts were reviewed one by one against it and the two name
 columns it leaves empty were filled; the translated long names go back to
 LOINC and are not shown. Nothing is stored: a better translation names every

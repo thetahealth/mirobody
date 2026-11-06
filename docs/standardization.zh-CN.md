@@ -168,7 +168,9 @@ METHOD 合并，质量浓度和摩尔浓度折叠成同一个量纲，这和 LOI
 与已翻译的码共用的中文消费者名（LOINC 让很多码共用一个消费者名：`Albumin, Urine` 译为"白蛋白，尿液"）；
 最后是复核过的中文成分名，限定词放进括号（心率（静息））。其他语言的请求拿到 LOINC 的英文 ConsumerName，原样不改；
 没有消费者名的码（LOINC 没给生命体征定消费者名）不加 `label`，它的长名本来就好读。
-未编码的行保持报告原名，两个字段都不加。LOINC 官方中文版只翻译了组成部分，所以我们逐个复核了组成部分，
+未编码的行保持报告原名，两个字段都不加。记录（`GET /api/v1/journal`，以及写入记录的几个 `POST` 的返回）里编到 LOINC 的条目，
+也带同样的 `label`。编到 ICPC-3 的条目在任何语言下都不加 `label`，保留 WONCA 的英文首选术语：
+ICPC-3 没有可用的中文版，它的 CC BY-ND 许可也不允许我们自己翻译（`res/icpc3/icpc3.NOTICE`）。LOINC 官方中文版只翻译了组成部分，所以我们逐个复核了组成部分，
 并补上了它留空的两列名称；翻译好的中文长名提交给 LOINC，不在界面上显示。中文名不入库：译名改进后，过去的读数也随之更新。
 按 LOINC 许可第 12 条，LOINC 的译文归 Regenstrief 所有，并要提交给他们（`res/loinc/zh_CN.NOTICE`、
 `standardize_build/loinc_names.py --submission`）。
