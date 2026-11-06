@@ -173,7 +173,9 @@ CREATE TABLE IF NOT EXISTS th_concept (
     code_system      text NOT NULL,
     code             text NOT NULL,
     display          text NOT NULL,              -- LONG_COMMON_NAME (LOINC licence 10.3)
-    display_zh       text,
+    display_zh       text,                       -- never written: a Chinese name is looked up per request
+                                                 -- (standardize/names.py) so a better translation names past
+                                                 -- readings too; dropping the column means rebuilding v_observation
     series_id        text,
     group_id         text,
     loinc_component  text,

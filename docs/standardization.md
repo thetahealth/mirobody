@@ -201,6 +201,22 @@ g/L and umol/L has no molar mass to bridge them). Raw rows carry both values.
 Answers cite the rows they rest on ([answers.md](answers.md),
 `kernel/citations.py`).
 
+A coded row is named by LOINC's long common name, `indicator`, which is also
+what a caller selects it by. A Chinese request (`X-Language` or
+`Accept-Language` starting `zh`) gets two more fields from
+`standardize/names.py`: `label`, the name a Chinese report prints
+(低密度脂蛋白胆固醇, 凝血酶原时间（PT）, 尿隐血), and `label_long`, the precise test
+(低密度脂蛋白胆固醇 [物质的量/体积]，血清/血浆). They come from our translation of the
+17,555 codes LOINC ranks as commonly ordered, then from the catalogue's own
+Chinese label where the catalogue names the series one way only, then from the
+six Chinese Parts composed into a long name; an uncoded row keeps its printed
+name and gets neither. LOINC's own zh-CN variant translates only the Parts, so
+the Parts were reviewed one by one against it and the two name columns it
+leaves empty were filled. Nothing is stored: a better translation names every
+past reading. A translation of LOINC belongs to Regenstrief under section 12
+of the LOINC licence and goes back to them (`res/loinc/zh_CN.NOTICE`,
+`standardize_build/loinc_zh.py --submission`).
+
 ### 8. Change your mind
 
 `observations.confirm_alias` (the API is `POST /api/v1/health-indicators/confirm-code`,

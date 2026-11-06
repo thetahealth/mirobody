@@ -740,3 +740,35 @@ async def test_choosing_not_to_share_at_activation_revokes_the_creators_link(dat
 
     assert await cc.set_health_access(member_id, circle, cc.ACCESS_VIEW)
     assert await personal_mcp.authorize(secret) == ""
+
+
+async def test_a_chinese_request_names_coded_readings_in_chinese(database):
+    """#231: a Chinese report's readings were coded, and the indicator list then
+    named them in English only. The list's rows keep `indicator` (what callers
+    select by) and gain `label` / `label_long` for a Chinese request alone."""
+    pytest.importorskip("fastapi")
+    from mirobody.agent.tools._render import render_rest
+    from mirobody.collect import observations
+    from mirobody.server.routers.indicator_router import _service
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    at = datetime(2026, 7, 23, tzinfo=UTC)
+    report = await observations.ingest("1", [
+        observations.Draft(name_text="低密度脂蛋白胆固醇", value_text="2.85", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="糖化血红蛋白", value_text="5.6", unit_text="%", observed_start=at),
+        observations.Draft(name_text="某自定义指标", value_text="1", unit_text="", observed_start=at),
+    ], observations.Provenance("lab-report", "file", "th_files:synthetic-zh-names"), user_tz="UTC")
+    assert report.inserted == 3
+
+    with set_req_ctx({"language": "zh-CN"}):
+        chinese = render_rest(await _service.envelope({"user_id": "1"}))["rows"]
+    english = render_rest(await _service.envelope({"user_id": "1"}))["rows"]
+
+    by_code = {r["code"]: r for r in chinese if r.get("code")}
+    assert by_code["22748-8"]["label"] == "低密度脂蛋白胆固醇"
+    assert by_code["4548-4"]["label"] == "糖化血红蛋白（HbA1c）"
+    assert by_code["22748-8"]["indicator"] == "Cholesterol in LDL [Moles/volume] in Serum or Plasma"
+    assert [r["indicator"] for r in chinese] == [r["indicator"] for r in english]
+    assert not any("label" in r for r in english)
+    # An uncoded reading already reads as it was printed; it gets no label.
+    assert not any("label" in r for r in chinese if not r.get("code"))
