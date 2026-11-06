@@ -109,8 +109,12 @@
   reading was stored under a blank local series. That is one way to get the
   nameless uric acid row reported from a self-hosted 1.5.10 (#235).
   The gate now tests the folded key every series is built from, and such a
-  reading is rejected as `no-name`. How to tell: a draft named `：` comes back
-  `Rejected("no-name")` from `observations.prepare`.
+  reading is rejected as `no-name`. A row already stored that way stays where
+  it is: changing its report's date moves every other reading and leaves that
+  one on its old date, where the stricter gate would otherwise have failed
+  the whole change with "This update could not complete." How to tell: a
+  draft named `：` comes back `Rejected("no-name")` from
+  `observations.prepare`.
 
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates

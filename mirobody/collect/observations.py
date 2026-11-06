@@ -242,7 +242,8 @@ def prepare(
     name = _clean(draft.name_text)
     # The key, not the text: a lone `：` is not empty, but it folds to "" and
     # the reading was filed under a series with no name (#235).
-    if not standardize.name_key(name):
+    name_key = standardize.name_key(name)
+    if not name_key:
         raise Rejected(REJECT_NO_NAME)
     if draft.observed_start is None:
         raise Rejected(REJECT_NO_TIME)
@@ -272,7 +273,6 @@ def prepare(
     if code:
         raise Rejected(code)
 
-    name_key = standardize.name_key(name)
     unit_part = parsed.unit_ucum or standardize.unit_key(unit_text)
     local_key = f"{name_key}|{unit_part}"
     stream_key = f"{local_key}|{provenance.source_kind}:{provenance.vendor or ''}"
@@ -894,7 +894,8 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
     date came from the upload time, answered by the person). A naive `when`
     is wall clock in each row's own zone, as `amend` reads it. Each move is
     an amendment. Returns `(moved, skipped)`, where a skipped row already sat
-    on that time, or an equal row already holds the target identity."""
+    on that time, an equal row already holds the target identity, or the row
+    has no name the write path would accept today."""
     rows = await _select_by_source(user_id, source_ref)
     moved = skipped = 0
     for r in rows:
@@ -902,7 +903,17 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
         if r["observed_start"] == target and r["observed_end"] == target:
             skipped += 1
             continue
-        new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
+        try:
+            new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
+        except Rejected as e:
+            # A row stored before the no-name gate read the folded key, such
+            # as a name of a lone `：` (#235). Raising here left the report
+            # half moved and its date unsaved on every retry, so it keeps its
+            # old time. Any other refusal, a future date, still fails the move.
+            if e.reason != REJECT_NO_NAME:
+                raise
+            skipped += 1
+            continue
         if new_id is None or new_id == int(r["id"]):
             skipped += 1
         else:
