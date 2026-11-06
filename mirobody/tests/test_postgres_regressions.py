@@ -983,8 +983,8 @@ async def test_account_merge_keeps_one_unrevoked_link_per_creator_and_record(dat
 
 async def test_a_chinese_request_names_coded_readings_in_chinese(database):
     """#231: a Chinese report's readings were coded, and the indicator list then
-    named them in English only. The list's rows keep `indicator` (what callers
-    select by) and gain `label` / `label_long` for a Chinese request alone."""
+    named them by LOINC's long name only. The list's rows keep `indicator` (what
+    callers select by) and gain `label` and `facets` in the request's language."""
     pytest.importorskip("fastapi")
     from mirobody.agent.tools._render import render_rest
     from mirobody.collect import observations
@@ -1007,7 +1007,37 @@ async def test_a_chinese_request_names_coded_readings_in_chinese(database):
     assert by_code["22748-8"]["label"] == "低密度脂蛋白胆固醇"
     assert by_code["4548-4"]["label"] == "糖化血红蛋白（HbA1c）"
     assert by_code["22748-8"]["indicator"] == "Cholesterol in LDL [Moles/volume] in Serum or Plasma"
+    assert by_code["22748-8"]["facets"] == {"specimen": "血清/血浆", "property": "物质的量浓度"}
     assert [r["indicator"] for r in chinese] == [r["indicator"] for r in english]
-    assert not any("label" in r for r in english)
+    english_by_code = {r["code"]: r for r in english if r.get("code")}
+    assert english_by_code["22748-8"]["label"] == "LDL cholesterol, Blood"
+    assert english_by_code["22748-8"]["facets"]["specimen"] == "Serum or Plasma"
     # An uncoded reading already reads as it was printed; it gets no label.
-    assert not any("label" in r for r in chinese if not r.get("code"))
+    assert not any("label" in r or "facets" in r for r in chinese if not r.get("code"))
+
+
+async def test_a_cite_names_its_reading_in_the_readers_language(database):
+    """#231: the indicator list named a coded reading in Chinese and the cite on
+    the same number, in the answer beside it, still said LOINC's English. A
+    reading cite and an aggregate cite both carry `label` for a Chinese request.
+    An English one carries LOINC's consumer name, which 8480-6 does not have, so
+    there it keeps the long name."""
+    from mirobody.collect import citations, observations
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    at = datetime(2026, 7, 23, tzinfo=UTC)
+    report = await observations.ingest("1", [
+        observations.Draft(name_text="Systolic Blood Pressure", value_text="118", unit_text="mm[Hg]", observed_start=at),
+    ], observations.Provenance("lab-report", "file", "th_files:synthetic-cite-names"), user_tz="UTC")
+    [row] = await database("SELECT id, series_id, display FROM v_observation", log_sql=False)
+    detail = {"view": "stats", "series": row["series_id"], "indicator": row["display"],
+              "from": "2026-07-23", "to": "2026-07-23"}
+    keys = [citations.reading_key(report.ids[0]), citations.aggregate_key(detail)]
+    rids = await citations.mint_rids("synthetic-cite-names", "1", [(keys[0], None), (keys[1], detail)])
+
+    with set_req_ctx({"language": "zh-CN"}):
+        reading, aggregate = await citations.resolve_rids("synthetic-cite-names", "1", [rids[k] for k in keys])
+    assert reading["label"] == "收缩压" and reading["code"] == "8480-6"
+    assert aggregate["label"] == "收缩压" and aggregate["indicator"] == row["display"]
+    for cited in await citations.resolve_rids("synthetic-cite-names", "1", [rids[k] for k in keys]):
+        assert "label" not in cited

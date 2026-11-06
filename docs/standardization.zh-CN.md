@@ -154,15 +154,24 @@ METHOD 合并，质量浓度和摩尔浓度折叠成同一个量纲，这和 LOI
 否则不给统计值（白蛋白的 g/L 和 umol/L 没有摩尔质量可以换算）。原始行同时带着两种值。
 回答会引用它所依据的行（[answers.md](answers.md)（英文），`kernel/citations.py`）。
 
-已编码的行用 LOINC 的英文长名命名，即 `indicator` 字段，调用方也按它选取。请求语言是中文时
-（`X-Language` 或 `Accept-Language` 以 `zh` 开头），`standardize/names.py` 会多给两个字段：`label` 是化验单上印的名字
-（低密度脂蛋白胆固醇、凝血酶原时间（PT）、尿隐血），`label_long` 是精确到样本和方法的长名
-（低密度脂蛋白胆固醇 [物质的量/体积]，血清/血浆）。来源依次是：LOINC 标为常用的 17,555 个码的中文译名；
-指标目录里的中文标签（仅当目录对该序列只有一种叫法时）；六个中文组成部分拼成的长名。
-未编码的行保持报告原名，不加这两个字段。LOINC 官方中文版只翻译了组成部分，
-所以我们逐个复核了组成部分，并补上了它留空的两列名称。中文名不入库：译名改进后，过去的读数也随之更新。
+已编码的行用 LOINC 的英文长名命名，即 `indicator` 字段，调用方也按它选取。这个名字是给系统用的键，不是给人读的：
+`Hemoglobin [Mass/volume] in Blood`。所以每个已编码的行还会按请求语言（`X-Language` 或 `Accept-Language`），
+从 `standardize/names.py` 多拿到两个字段：`label` 是给人看的名字；目录行另有 `facets`，逐轴说明这个码测的是什么：
+标本、性质，码里有的话再加时间或方法。血红蛋白在中文请求里是 `血红蛋白`，
+附 `{"specimen": "全血", "property": "质量浓度"}`；在英文请求里是 `Hemoglobin, Blood`，
+附 `{"specimen": "Blood", "property": "Mass Concentration"}`。这些分轴信息就是 LOINC 自己的组成部分，
+和长名说的是同一件事，只是没有方括号；占位的轴（时点、未指定标本）不列出。
+
+中文 `label` 的来源依次是：LOINC 标为常用的 17,555 个码的中文译名（低密度脂蛋白胆固醇、凝血酶原时间（PT）、尿隐血）；
+同一序列、同一方法下已有译名的兄弟码（中文报告用 mmol/L 时，空腹血糖编到 14771-0，这个码在 LOINC 里没有常用度排名，
+它的 mg/dL 兄弟码叫"空腹血糖"，它也就叫"空腹血糖"）；指标目录里的中文标签（仅当目录对该序列只有一种叫法时）；
+与已翻译的码共用的中文消费者名（LOINC 让很多码共用一个消费者名：`Albumin, Urine` 译为"白蛋白，尿液"）；
+最后是复核过的中文成分名，限定词放进括号（心率（静息））。其他语言的请求拿到 LOINC 的英文 ConsumerName，原样不改；
+没有消费者名的码（LOINC 没给生命体征定消费者名）不加 `label`，它的长名本来就好读。
+未编码的行保持报告原名，两个字段都不加。LOINC 官方中文版只翻译了组成部分，所以我们逐个复核了组成部分，
+并补上了它留空的两列名称；翻译好的中文长名提交给 LOINC，不在界面上显示。中文名不入库：译名改进后，过去的读数也随之更新。
 按 LOINC 许可第 12 条，LOINC 的译文归 Regenstrief 所有，并要提交给他们（`res/loinc/zh_CN.NOTICE`、
-`standardize_build/loinc_zh.py --submission`）。
+`standardize_build/loinc_names.py --submission`）。
 
 ### 8. 改主意
 

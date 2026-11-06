@@ -1,4 +1,4 @@
-zh_CN_names.tsv and zh_CN_parts.tsv.gz: Simplified Chinese names for LOINC codes
+zh_CN_names.tsv, zh_CN_parts.tsv.gz and en_parts.tsv.gz: names of LOINC codes for a reader
 
 This material contains content from LOINC (http://loinc.org). LOINC is copyright
 © Regenstrief Institute, Inc. and the Logical Observation Identifiers Names and
@@ -8,7 +8,8 @@ Regenstrief Institute, Inc.
 
 Source: LOINC release 2.83, its zh-CN linguistic variant
 (AccessoryFiles/LinguisticVariants/zhCN5LinguisticVariant.csv, variant ID 5,
-produced by Lin Zhang, a LOINC volunteer from China), and Loinc.csv.
+produced by Lin Zhang, a LOINC volunteer from China), Loinc.csv,
+AccessoryFiles/ConsumerName/ConsumerName.csv and AccessoryFiles/PartFile/Part.csv.
 
 What these files are:
 
@@ -21,19 +22,27 @@ What these files are:
                       against the current English Part, or not the standard
                       Chinese term; every other Part is the variant's text,
                       unchanged. standardize_build/zh_CN/parts.tsv lists each
-                      reviewed Part beside the variant's rendering.
+                      reviewed Part beside the variant's rendering. A last
+                      column holds the Chinese consumer name where the code's
+                      English ConsumerName is one translated for a commonly
+                      ordered code.
   zh_CN_names.tsv     LONG_COMMON_NAME and LinguisticVariantDisplayName in
                       Chinese for those commonly ordered codes. The zh-CN
                       variant leaves both columns empty.
+  en_parts.tsv.gz     The same six Parts in English, as LOINC's Part.csv
+                      displays them (PartDisplayName), and LOINC's
+                      ConsumerName, both verbatim. Not a translation.
 
-These are translations of LOINC. Under section 12 of the LOINC License (5.8),
-Regenstrief Institute was notified before the work began, all right, title and
-interest in a translation of LOINC is assigned to Regenstrief Institute, Inc.
-(and to the LOINC Committee for a translation of the LOINC Table), and the
-translation is transmitted to Regenstrief and made available under the LOINC
-License. They are therefore distributed under the LOINC License, not under this
-project's Apache-2.0 licence. Regenstrief Institute does not verify the
-accuracy of translations; neither file is clinical advice.
+zh_CN_names.tsv and zh_CN_parts.tsv.gz are translations of LOINC. Under
+section 12 of the LOINC License (5.8), Regenstrief Institute was notified
+before the work began, all right, title and interest in a translation of LOINC
+is assigned to Regenstrief Institute, Inc. (and to the LOINC Committee for a
+translation of the LOINC Table), and the translation is transmitted to
+Regenstrief and made available under the LOINC License. en_parts.tsv.gz is
+LOINC content as released. All three are therefore distributed under the LOINC
+License, not under this project's Apache-2.0 licence. Regenstrief Institute
+does not verify the accuracy of translations; none of these files is clinical
+advice.
 
 Prepared by the Mirobody project (Theta Health) with the help of language
 models, reviewed by automated rules and independent second readers.

@@ -25,6 +25,8 @@ use of each is subject to the license terms of its sources:
                                     (LOINC License §12)
   loinc/zh_CN_parts.tsv.gz          LOINC zh-CN variant 5,      res/loinc/zh_CN.NOTICE
                                     Parts reviewed (§12)
+  loinc/en_parts.tsv.gz             LOINC 2.83 Part display     res/loinc/zh_CN.NOTICE
+                                    names and ConsumerName
   loinc/zh_CN.NOTICE                LOINC notice                res/loinc/zh_CN.NOTICE
   icpc3/icpc3.tsv                   ICPC-3 S and D components,  res/icpc3/icpc3.NOTICE
                                     verbatim (CC BY-ND)

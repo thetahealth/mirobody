@@ -30,10 +30,11 @@ REQUIRED = {
     "mirobody/res/loinc/fhir_loinc_bundle.tar.gz": 1_000_000,
     "mirobody/res/loinc/aliases_src/zh.tsv": 100_000,
     "mirobody/res/loinc/resolver_overrides.tsv": 1_000,
-    # The Chinese names `standardize.names` reads on every Chinese request. Missing,
-    # nothing fails: every reading quietly goes back to its English name (#231).
+    # The names and facets `standardize.names` reads on every request. Missing,
+    # nothing fails: every reading quietly goes back to LOINC's long name (#231).
     "mirobody/res/loinc/zh_CN_names.tsv": 1_000_000,
     "mirobody/res/loinc/zh_CN_parts.tsv.gz": 500_000,
+    "mirobody/res/loinc/en_parts.tsv.gz": 500_000,
     "mirobody/res/loinc/zh_CN.NOTICE": 1_000,
     # The CLASS gate. Absent, `_skipped()` logs a warning and every radiology,
     # dental and cell-marker code becomes reachable again — `癌胚抗原` would go

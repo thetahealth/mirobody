@@ -98,8 +98,8 @@
   missing sample evidence retains the existing ranking. Reproduce with a
   morning export and afternoon push for the same metric and day: the later
   measurements publish their own value (see `docs/apple-health.md`).
-- **A Chinese reader sees a coded reading's name in Chinese.** A report that
-  printed 低密度脂蛋白胆固醇 was standardized and then listed as
+- **A coded reading is named for a person, in the reader's language.** A
+  report that printed 低密度脂蛋白胆固醇 was standardized and then listed as
   `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
   list, the drawer and the agent's answers, whatever the UI language (#231):
   `th_concept.display_zh` was never written, and LOINC's own Simplified
@@ -111,19 +111,36 @@
   of 0.01 and 0.001 where the English says 0.05 and 0.005, 贫血小板血浆 for
   乏血小板血浆, Greek letters spelled out, non-standard drug and organism
   names), and those codes gained a Chinese display name and long name
-  (`res/loinc/zh_CN_names.tsv`); every other code in the bundle reads from its
-  Chinese Parts (`res/loinc/zh_CN_parts.tsv.gz`). `standardize.names_for`
-  looks the name up per request and nothing is stored, so a better
-  translation names past readings too. `indicator` stays LOINC's English name,
-  because callers select by it and two series can share one Chinese name; a
-  request whose `X-Language` or `Accept-Language` is Chinese gets `label` and
-  `label_long` beside it, and the agent's tables a `label` column, which an
-  English request never sees. A translation of LOINC belongs to Regenstrief
-  under section 12 of the LOINC licence, so these files ship under that
-  licence (`res/loinc/zh_CN.NOTICE`) and `standardize_build/loinc_zh.py
-  --submission` writes the file that goes back to them. To tell: with
-  `X-Language: zh-CN`, `GET /api/v1/health-indicators` answers an LDL row
-  with `"label": "低密度脂蛋白胆固醇"`.
+  (`res/loinc/zh_CN_names.tsv`). A first cut then showed the translated long
+  name in the drawer, which kept LOINC's syntax (`血红蛋白 [质量/体积]，全血`,
+  `心率^静息 [计数型速率]`), and every English reader still read the long name
+  itself. Now a coded row carries `label`, the one name a person reads, and a
+  catalogue row `facets`, what the code measures axis by axis (specimen,
+  property, and timing or method when it has them; a point in time or an
+  unspecified specimen is left out), both in the request's language
+  (`X-Language` or `Accept-Language`); hemoglobin is 血红蛋白 with 全血 and
+  质量浓度, or `Hemoglobin, Blood` with `Blood` and `Mass Concentration`. A
+  Chinese `label` is the translated display name; for a code LOINC leaves
+  unranked, the display name of a translated code in the same series by the
+  same method when they all agree (1,104 codes: the molar fasting glucose a
+  report in mmol/L codes to, 14771-0, is 空腹血糖 like its mg/dL sibling), the
+  catalogue's label, the Chinese consumer name it shares with a translated
+  code (7,544 more codes: `Albumin, Urine` is 白蛋白，尿液), or last its reviewed
+  component with any qualifier in brackets (心率（静息）). Any other language
+  gets LOINC's English ConsumerName, verbatim, and no `label` where LOINC has
+  none (vital signs, whose long names already read plainly). Ten blood-group
+  display names kept a caret (`Fy^a 抗原`) and now read `红细胞 Fy(a) 抗原`.
+  `indicator` stays LOINC's long name, because callers select by it and two
+  series can share one plain name; the agent's tables gain a `label` column,
+  and a cite on a number carries `label`, so a device reading or a statistic
+  in an answer's sources is named as the list names it. Nothing is stored, so
+  a better translation names past readings too. A translation of LOINC belongs
+  to Regenstrief under section 12 of the LOINC licence, so these files ship
+  under that licence (`res/loinc/zh_CN.NOTICE`) and
+  `standardize_build/loinc_names.py --submission` writes the file that goes
+  back to them. To tell: with `X-Language: zh-CN`,
+  `GET /api/v1/health-indicators` answers a hemoglobin row with
+  `"label": "血红蛋白"` and `"facets": {"specimen": "全血", "property": "质量浓度"}`.
 - **A long indicator name no longer pushes the newest value off the screen.**
   On Data → 指标 the name column took the width of its longest name: a
   60-character LOINC display, or one unbreakable token such as
