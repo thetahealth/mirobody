@@ -16,6 +16,16 @@ days. Importing the same file again adds nothing. A person whose phone also
 pushes gets two streams, and each day takes one of them, so a day's steps are
 never counted twice.
 
+A reading counts on the day its record says. Apple writes every timestamp
+with the offset the phone showed (`2026-11-01 07:10:00 +0800`), and the day
+is read in that offset. `--tz` names a zone to keep when it gives the same
+offset at that instant, because an IANA name knows daylight saving and an
+offset does not; without it, the person's own zone is tried. A record taken
+somewhere else keeps its own offset either way. An export imported before
+this rule (the day was read in `--tz`, `UTC` by default) is repaired by
+importing it again: the readings move, and the daily values left on the days
+they moved off are retracted.
+
 ## The vocabulary is HealthKit's own
 
 **`type` is a HealthKit identifier**: `HKQuantityTypeIdentifierHeartRate`, not
@@ -157,4 +167,8 @@ which is what makes them evidence.
 
 - **Duplicates** are the client's problem: deduplicate before sending.
 - **Volume**: large uploads are fine, and gzip is worth using.
-- **Time**: send the offset. A record's own `timezone` wins over `metaInfo`.
+- **Time**: send the zone. A record's own `timezone` wins over
+  `metaInfo.timezone`, which wins over the person's zone. A `startDate` in
+  Apple's string form is read in its own offset unless that zone gives the
+  same one, the rule `mirobody import apple` uses, so a record pushed and
+  exported lands on one day.

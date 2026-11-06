@@ -341,6 +341,136 @@ async def test_apple_import_selects_one_device_before_cumulative_aggregation(dat
     assert any(float(r["latest_value"]) == 100 for r in records if "step" in r["indicator"].lower())
 
 
+# Three local days of HRV (SDNN) in Shanghai's offset. Read in UTC, the import's
+# default, each morning before 08:00 fell on the day before.
+_SHANGHAI_HRV = [("2026-11-01 07:10:00", 40), ("2026-11-01 12:00:00", 52), ("2026-11-01 22:30:00", 61),
+                 ("2026-11-02 06:00:00", 35), ("2026-11-02 07:30:00", 48), ("2026-11-03 07:10:00", 70)]
+_SHANGHAI_DAYS = {"2026-11-01": (51, 40, 61), "2026-11-02": (41.5, 35, 48), "2026-11-03": (70, 70, 70)}
+
+
+def _hrv_export(tmp_path):
+    records = "".join(
+        f'<Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" '
+        f'startDate="{at} +0800" endDate="{at} +0800" value="{value}"/>' for at, value in _SHANGHAI_HRV)
+    export = tmp_path / "synthetic-export.xml"
+    export.write_text(f"<HealthData>{records}</HealthData>")
+    return export
+
+
+async def _hrv_days(database, source="apple_health_export"):
+    """`{local date: (avg, min, max)}` of the visible daily HRV rows of `source`,
+    and every visible row, so a day held twice shows."""
+    rows = await database(
+        "SELECT name_text, local_date, value_num, tz FROM v_observation WHERE source_ref = :ref "
+        "AND name_text LIKE 'daily%HrvSDNN%' ORDER BY local_date, name_text", {"ref": f"aggregate:{source}"},
+        log_sql=False)
+    days: dict[str, dict[str, float]] = {}
+    for r in rows:
+        stat = next(s for s in ("Avg", "Min", "Max") if s in r["name_text"])
+        days.setdefault(r["local_date"].isoformat(), {})[stat] = float(r["value_num"])
+    return {d: (v["Avg"], v["Min"], v["Max"]) for d, v in days.items()}, rows
+
+
+def _import_args(export, *extra):
+    """The arguments `mirobody import apple <export> --into 1` parses to,
+    with the parser's own defaults."""
+    from mirobody import cli
+
+    parsed = []
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(cli, "_cmd_import", parsed.append)
+        cli.main(["import", "apple", str(export), "--into", "1", *extra])
+    return parsed[0]
+
+
+async def _import_as_before(export):
+    """What `mirobody import apple --into` did before a record's offset decided
+    its day: every reading in `--tz`, here its `UTC` default, and the export's
+    UTC dates recalculated."""
+    from mirobody.collect import StandardPulseData, StandardPulseMetaInfo, records_from_facts
+    from mirobody.collect.ingest import StandardHealthService
+    from mirobody.kernel import decoders
+    from mirobody.kernel.decoders import apple_export
+    from mirobody.standardize import AggregateIndicatorService
+
+    records, span = [], []
+    for kind, item in apple_export.iter_items(export):
+        found = decoders.decode("apple", kind, item, "UTC")
+        span.extend(f.effective_start_ms for f in found)
+        records.extend(records_from_facts(found, slug="apple_health", tz="UTC", source_id=item["sourceName"],
+                                          source="apple_health_export"))
+    data = StandardPulseData(metaInfo=StandardPulseMetaInfo(userId="1", source="apple_health_export", timezone="UTC"),
+                             healthData=records)
+    assert await StandardHealthService().process_standard_data(data, "1")
+    first, last = (datetime.fromtimestamp(ms / 1000, UTC).replace(tzinfo=None) for ms in (min(span), max(span)))
+    assert (await AggregateIndicatorService().recalculate_date_range(first, last, user_id="1"))["status"] == "success"
+
+
+async def test_apple_import_reads_each_day_in_the_records_own_offset(database, monkeypatch, tmp_path):
+    from mirobody import cli
+    from mirobody.utils.config import Config
+
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    # The person has no zone of their own (the fixture's is UTC) and passes none.
+    await cli._store_export(_import_args(_hrv_export(tmp_path)))
+    days, rows = await _hrv_days(database)
+    assert days == _SHANGHAI_DAYS
+    assert {r["tz"] for r in rows} == {"UTC+08:00"}
+
+
+async def test_apple_reimport_moves_readings_and_retracts_the_days_they_left(database, monkeypatch, tmp_path):
+    from mirobody import cli
+    from mirobody.utils.config import Config
+
+    export = _hrv_export(tmp_path)
+    await _import_as_before(export)
+    days, _rows = await _hrv_days(database)
+    assert sorted(days) == ["2026-10-31", "2026-11-01", "2026-11-02"]
+
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    result = await cli._store_export(_import_args(export))
+    points = await database("SELECT timezone, count(*) AS n FROM series_data GROUP BY timezone", log_sql=False)
+    assert points == [{"timezone": "UTC+08:00", "n": len(_SHANGHAI_HRV)}]
+    # One figure per statistic per day, on the readings' own days: the UTC days'
+    # figures, 31 October's included, are retracted rather than left beside them.
+    days, rows = await _hrv_days(database)
+    assert days == _SHANGHAI_DAYS
+    assert len(rows) == 3 * len(_SHANGHAI_DAYS)
+    assert result["moved"] == 3
+    retracted = await database("SELECT count(*) AS n FROM th_observation WHERE status = 'entered-in-error' "
+                               "AND note_text = 'recalculated:apple_health_export'", log_sql=False)
+    assert retracted[0]["n"] == 9
+    # Importing again changes nothing.
+    before = await database("SELECT count(*) AS n FROM th_observation", log_sql=False)
+    await cli._store_export(_import_args(export))
+    assert await database("SELECT count(*) AS n FROM th_observation", log_sql=False) == before
+
+
+async def test_a_phone_zone_and_an_export_offset_for_one_day_write_it_once(database, monkeypatch, tmp_path):
+    """A phone pushes `Asia/Shanghai`, the export reads `UTC+08:00`: one day.
+    Computed once per spelling, each pass wrote each day's figure under the
+    other zone, an amendment every time."""
+    from mirobody import cli
+    from mirobody.collect.ingest.repositories.health_data import HealthDataRepository
+    from mirobody.standardize import AggregateIndicatorService
+    from mirobody.utils.config import Config
+
+    pushed = [{"user_id": "1", "indicator": "hrvSDNN", "source": "apple_health", "source_id": "Apple Watch",
+               "start_time": datetime.strptime(at + " +0800", "%Y-%m-%d %H:%M:%S %z").astimezone(UTC).replace(tzinfo=None),
+               "value": str(value), "timezone": "Asia/Shanghai"} for at, value in _SHANGHAI_HRV]
+    assert await HealthDataRepository().save_health_records(pushed)
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    await cli._store_export(_import_args(_hrv_export(tmp_path)))
+    for source in ("apple_health", "apple_health_export"):
+        days, rows = await _hrv_days(database, source)
+        assert days == _SHANGHAI_DAYS
+        assert len(rows) == 3 * len(_SHANGHAI_DAYS)
+        assert {r["tz"] for r in rows} == {"Asia/Shanghai"}
+    before = await database("SELECT count(*) AS n FROM th_observation", log_sql=False)
+    await AggregateIndicatorService().recalculate_date_range(datetime(2026, 10, 31), datetime(2026, 11, 3), user_id="1")
+    assert await database("SELECT count(*) AS n FROM th_observation", log_sql=False) == before
+
+
 async def test_vcf_loc_and_rsid_citations_resolve_with_ownership_and_upload_lifecycle(database, tmp_path):
     from mirobody.agent.tool_loader import _envelope_wrapper
     from mirobody.agent.tools.genetic_service import GeneticService

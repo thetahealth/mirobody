@@ -4,9 +4,10 @@ schedule are the task's (`task.py`); this is what one run does."""
 
 import logging
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
+from mirobody.collect import observations
 from mirobody.kernel.ops import is_driver_exception
 
 from .aggregators import SQLAggregator
@@ -121,10 +122,22 @@ class AggregateIndicatorService:
             self,
             start_date: datetime,
             end_date: datetime,
-            user_id: str | None = None
+            user_id: str | None = None,
+            *,
+            sweep_source: str | None = None,
     ) -> dict[str, Any]:
         """Recalculate every day from `start_date` to `end_date` inclusive, for
-        one person or (at most 30 days) for everyone, then write and elect."""
+        one person or (at most 30 days) for everyone, then write and elect.
+
+        With `sweep_source`, for one person: the daily figures computed from
+        that source and dated in the range that this pass does not write again
+        are retracted (`observations.retract_unproduced`). A reading whose zone
+        changed otherwise left its old day's figure beside its new day's. The
+        pass reads a day either side, so that every zone's day in the range,
+        ±14 hours and the 18:00 window included, is read whole.
+        """
+        if sweep_source and user_id is None:
+            return {"status": "error", "error": "sweep_source needs a user_id"}
         # Guard against unbounded all-users backfills. 30 days is the
         # chunk size used internally by calculate_time_range_aggregations;
         # beyond this the DB load grows linearly with active user count.
@@ -144,19 +157,25 @@ class AggregateIndicatorService:
             f"user={user_id or 'all'}"
         )
 
-        # Delegate to aggregator for time range processing
+        pad = timedelta(days=1) if sweep_source else timedelta(0)
         all_summaries = await self.aggregator.calculate_time_range_aggregations(
-            start_date=start_date,
-            end_date=end_date,
+            start_date=start_date - pad,
+            end_date=end_date + pad,
             user_id=user_id
         )
 
-        # Save summaries
         if all_summaries:
             save_success = await self.db_service.batch_save_summary_data(all_summaries)
             if not save_success:
                 return {"status": "error", "error": "Failed to save summary data"}
-            await self._elect_written_days(all_summaries)
+        retracted: list[date] = []
+        if sweep_source:
+            retracted = await observations.retract_unproduced(
+                str(user_id), all_summaries, source=sweep_source, first=start_date.date(), last=end_date.date(),
+                note=f"recalculated:{sweep_source}",
+            )
+        if all_summaries or retracted:
+            await self._elect_written_days(all_summaries, also={str(user_id): retracted} if retracted else None)
 
         logger.info(
             f"Historical recalculation completed: {len(all_summaries)} summaries created"
@@ -165,13 +184,15 @@ class AggregateIndicatorService:
         return {
             "status": "success",
             "summaries_created": len(all_summaries),
+            "days_retracted": len(retracted),
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat()
         }
 
 
-    async def _elect_written_days(self, summaries: list[dict]) -> None:
-        """Re-elect every (person, day) this pass wrote.
+    async def _elect_written_days(self, summaries: list[dict], also: dict[str, list[date]] | None = None) -> None:
+        """Re-elect every (person, day) this pass wrote, and the days in
+        `also` (a figure retracted there may have been the elected one).
 
         Scoped to what changed rather than to the whole history: a person's
         day is a few hundred cells, and re-electing a year on every four-minute
@@ -182,7 +203,7 @@ class AggregateIndicatorService:
         an aggregation pass that refuses to finish because of it would be a
         worse outcome than a day that is merely not yet arbitrated.
         """
-        by_user: dict[str, list] = {}
+        by_user: dict[str, list] = {user: list(days) for user, days in (also or {}).items()}
         for row in summaries:
             # A summary row already IS a day: its start is local 00:00 of the
             # day it summarises, so the date is the day.

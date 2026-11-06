@@ -9,6 +9,7 @@ from datetime import date, datetime
 from typing import Any
 
 from mirobody.kernel import decoders, meds
+from mirobody.kernel.decoders import apple
 from mirobody.kernel.ops import is_driver_exception
 from .models import AppleHealthRecord, MetaInfo
 from mirobody.collect.base import LinkRequest, Provider, ProviderInfo
@@ -63,6 +64,9 @@ class AppleHealthProvider(Provider):
         health_data: list[AppleHealthRecord] = raw.get("health_data", [])
         for record in health_data:
             tz = record.timezone if record.timezone and len(record.timezone) <= 20 else default_tz
+            # The day rule `mirobody import apple` uses, so a record pushed and
+            # the same record exported land on one day.
+            tz = apple.record_zone(record.startDate, tz)
             facts = decoders.decode("apple", record.type, record.sample(), tz)
             if not facts:
                 dropped[record.type] = dropped.get(record.type, 0) + 1

@@ -49,9 +49,47 @@
   names all three editions, and `README.ja.md` links the Japanese guides and the
   site's `/ja/` pages. To tell: open `docs/quickstart.ja.md`; once the site pins
   this release, docs.mirobody.ai/ja/quickstart shows it.
+- **Settings makes a personal MCP link for a family member, not only for
+  yourself.** `POST /personal/mcp` has taken `{"user_id": …}` for a member
+  the care circle lets you read, but the web client posted an empty body, so
+  someone who manages a parent could make a link only for their own record
+  (#232). Settings → MCP link now has a row for each record: yours, then
+  every member on the record switcher's roster, each with its own create,
+  regenerate and revoke; a new URL shows once, under the row it reads. A line
+  under the hint says one link reads one record and a family member's is
+  added as a second MCP server. A member who stopped sharing gets a refusal
+  that names them, and their row goes. The web client in `frontend/` is
+  rebuilt from thetahealth/mirobody-web `8385563`. How to tell: add a member
+  on 关爱圈, create a link on their row in Settings → MCP link; an MCP client
+  pointed at it reads that member's record, and Revoke makes it answer 401.
 
 ### Fixed
 
+- **An imported Apple Health reading counts on the day its phone showed.**
+  `mirobody import apple export.zip --into <id>` said `--tz` was a fallback
+  because "Apple records carry their own offset", then read every day in
+  `--tz`, `UTC` unless given: an HRV sample written `2026-11-01 07:10:00
+  +0800` was filed under 31 October, and a person in China who passed no
+  `--tz` had every morning before 08:00 on the day before. The phone push had
+  the same shape: a record's `timezone` defaulted to `UTC`, so
+  `metaInfo.timezone` (the zone the docs' own example sends) was never read.
+  Now a record's day is read in the offset its timestamp carries, unless the
+  zone given (`--tz`, else the person's own; for a push, the record's or
+  `metaInfo`'s) gives the same offset at that instant, in which case that
+  zone is kept, so a daylight-saving day keeps its 23 or 25 hours
+  (`decoders.apple.record_zone`, one rule for both front doors). The daily
+  aggregation now reads a `UTC+08:00` zone as eight hours east: Postgres
+  reads that spelling the POSIX way, eight hours west, and `ZoneInfo` raised
+  on it. When a phone's `Asia/Shanghai` and an export's `UTC+08:00` describe
+  one day, it is computed once: computed per spelling, every recalculation
+  amended each of that day's figures twice. **If you imported before this
+  release, run the same import again:** the readings move to their own
+  zone (a changed zone now rewrites a stored reading; the value alone used
+  to), and the daily figures left on the days they moved off are retracted,
+  never deleted (`note_text = recalculated:apple_health_export`). How to
+  tell: the re-import prints "Retracted the daily values on N days";
+  `SELECT DISTINCT timezone FROM series_data WHERE source =
+  'apple_health_export'` names the phone's offset or zone, not `UTC`.
 - **A coded reading is named for a person, in the reader's language.** A
   report that printed 低密度脂蛋白胆固醇 was standardized and then listed as
   `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
