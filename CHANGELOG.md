@@ -52,6 +52,41 @@
 
 ### Fixed
 
+- **A long indicator name no longer pushes the newest value off the screen.**
+  On Data → 指标 the name column took the width of its longest name: a
+  60-character LOINC display, or one unbreakable token such as
+  `Cholesterol.in.LDL/Cholesterol.in.HDL…`, took 665px of a 704px table at
+  1024px, and 最新值, 记录数 and 最近记录 left the window (#236). Names with
+  spaces stayed on one line too, because the records list's stylesheet sets
+  `white-space: nowrap` on every table cell. Names now wrap; when the columns
+  still do not fit, the table scrolls inside its own frame, and the drawer's
+  title wraps the same way. The web client in `frontend/` is rebuilt from
+  thetahealth/mirobody-web `985f3c2`. How to tell: at 1024px, open 指标 on a
+  record with a long name.
+
+- **查看 on a file no longer leaves a blank tab.** The viewer opens a tab,
+  fetches `/files/<key>` with the session's token and points the tab at what
+  came back. A request that never finished, or a 200 that was not the file
+  (a reverse proxy answering `/files/` with the app's own `index.html` or a
+  login page), left the tab on `about:blank` with no message (#238). The
+  request now gives up after 60 seconds; a PDF must carry the PDF header, an
+  image must come back as an image, and nothing else may come back as HTML.
+  Either failure closes the tab and says why, and the second names the
+  proxy's rule for `/files/` as the usual cause. How to tell: behind a proxy
+  that does not forward `/files/`, 查看 closes the tab with that message.
+
+- **The web client renders again.** The 985f3c2 sync above committed the new
+  chunks but not the `index.html` that loads them, so `index.html` still named
+  the entry chunk the same sync deleted (`index-mKXkiuxp.js`): the script
+  404'd and every page was blank. No release carried it. `index.html` is now
+  the one the 985f3c2 build writes; a fresh build matches all 70 files in
+  `frontend/assets/` byte for byte and differed only in that script line. A
+  new gate, `mirobody/tests/test_frontend_bundle.py`, follows what a browser
+  fetches from `index.html` through every chunk it loads and fails on any
+  file `frontend/` does not hold. How to tell: `/login?lang=en` renders and
+  the network log has no 404; the gate fails on the previous `index.html`
+  with `index.html -> assets/index-mKXkiuxp.js`.
+
 - **Apple HRV (SDNN), walking asymmetry and 21 more device readings show
   up.** A series reaches a day only through the statistics its catalogue row
   declares, and 23 of the series metrics the device decoders write declared
@@ -120,9 +155,12 @@
   comma: the server cut them into pieces that resolved to `unknown`, and no
   entry came back under the id the client asked about (#192). `POST
   /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
-  they were cited, with no split and no strip. The comma `GET` still answers
-  the web client shipped until now. How to tell: post an id with a comma and
-  the answer's `rid` is that id, whole.
+  they were cited, with no split and no strip, and the web client in
+  `frontend/`, rebuilt from thetahealth/mirobody-web `3b4bcfd`, now asks that
+  way. The comma `GET` still answers a web client built before that, and a
+  page left open across the upgrade. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole; in the browser, a chip's lookup is a
+  `POST /api/citations`.
 
 - **Taking over a managed account and choosing not to share now revokes the
   family member's personal MCP link.** Activation wrote the new owner's
