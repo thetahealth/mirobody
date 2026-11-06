@@ -131,6 +131,9 @@ _HRV = {"type": "HKQuantityTypeIdentifierHeartRateVariabilitySDNN", "value": 40,
     ({**_HRV, "startDate": SHANGHAI_MORNING}, {"timezone": "Asia/Shanghai"}, "Asia/Shanghai"),
 ])
 async def test_push_reads_the_zone_the_payload_gives(record, meta, expected):
+    # Before the provider import: its models need pydantic, which the
+    # numpy-only install CI also runs does not have.
+    pytest.importorskip("fastapi")
     from mirobody.collect.providers.apple.provider import AppleHealthProvider
 
     data = await AppleHealthProvider(platform=None).format_data(_pushed([record], meta))
