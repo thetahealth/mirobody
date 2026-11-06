@@ -25,6 +25,8 @@ _INCOMING_PRIORITY = build_apple_priority_case("EXCLUDED.source", "EXCLUDED.sour
 # The buffer's key does not include source_id. For an export's same-instant
 # device collision, keep the same valid winner the daily aggregator would
 # elect; a repeated reading from that device still applies its correction.
+# A changed zone is a correction too: it decides the reading's day, and an
+# Apple import that filed readings in UTC is repaired by importing again.
 _UPSERT_POINTS = f"""
     INSERT INTO series_data (user_id, indicator, source, time, value, timezone, task_id, source_id, create_time, update_time)
     VALUES (:user_id, :indicator, :source, :time, :value, :timezone, :task_id, :source_id, now(), now())
@@ -38,6 +40,7 @@ _UPSERT_POINTS = f"""
       update_time = now()
     WHERE (
       series_data.value IS DISTINCT FROM EXCLUDED.value
+      OR series_data.timezone IS DISTINCT FROM EXCLUDED.timezone
       OR series_data.task_id IS DISTINCT FROM EXCLUDED.task_id
       OR (series_data.source = 'apple_health_export' AND series_data.source_id IS DISTINCT FROM EXCLUDED.source_id)
     ) AND (

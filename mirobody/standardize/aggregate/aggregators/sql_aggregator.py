@@ -8,12 +8,12 @@ Handles all complex grouping and batching logic internally.
 import logging
 import re
 from collections import defaultdict
+from dataclasses import replace
 from datetime import datetime, timedelta, UTC
 from typing import Any
 
-from zoneinfo import ZoneInfo
-
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.kernel.series import offset_name
 from mirobody.utils import execute_query
 from mirobody.standardize.aggregate import windows
 from mirobody.standardize.aggregate.models import CalculationTask
@@ -50,7 +50,7 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetim
 
     Args:
         data_begin_utc: Window start as a UTC instant (naive or aware).
-        timezone: User's IANA timezone (e.g. 'America/Los_Angeles').
+        timezone: The rows' zone, an IANA name or `UTC±HH:MM`.
 
     Returns:
         (local 00:00:00, local 23:59:59) as naive datetimes. Falls back to the
@@ -62,13 +62,14 @@ def to_local_day_range(data_begin_utc: datetime, timezone: str) -> tuple[datetim
         day_start_utc = data_begin_utc
 
     try:
-        day_start_local = day_start_utc.replace(tzinfo=UTC).astimezone(ZoneInfo(timezone)).replace(tzinfo=None)
+        day_start_local = day_start_utc.replace(tzinfo=UTC).astimezone(zone_for(timezone)).replace(tzinfo=None)
         local_date = day_start_local.date()
         day_start = datetime(local_date.year, local_date.month, local_date.day, 0, 0, 0)
         day_end = datetime(local_date.year, local_date.month, local_date.day, 23, 59, 59)
         return day_start, day_end
-    except (ValueError, KeyError) as e:
-        # ZoneInfo raises ZoneInfoNotFoundError (a KeyError) or ValueError.
+    except ValueError as e:
+        # `zone_for` reads `UTC+08:00` as well; `ZoneInfo` raised on it, and
+        # this fallback filed the summary under the window's UTC instant.
         logger.error("local day of a summary not placed: error_type=%s", type(e).__name__)
         return day_start_utc, day_start_utc + timedelta(hours=24)
 
@@ -96,6 +97,24 @@ def _local_days_later(begin_utc: datetime, timezone: str, days: int) -> datetime
     except ValueError:
         return (begin + timedelta(days=days)).astimezone(UTC).replace(tzinfo=None)
     return (begin.astimezone(zone) + timedelta(days=days)).astimezone(UTC).replace(tzinfo=None)
+
+
+#: The local wall clock of a heart-rate point in the custom derived queries,
+#: whose `user_tz` CTE picks the zone of one of the day's rows.
+_LOCAL_HOUR_TIME = windows.local_expression("time", "(SELECT tz FROM user_tz)")
+
+
+def _day_key(begin_utc: datetime, timezone: str) -> tuple:
+    """What makes two zones' day beginning at `begin_utc` the same day: the
+    offset it begins at, which dates it, and the instant it ends. The end
+    alone is not enough: a midnight at +04:00 and an 18:00 window at -02:00
+    both begin and end at 20:00 UTC, on different dates."""
+    begin = begin_utc if begin_utc.tzinfo else begin_utc.replace(tzinfo=UTC)
+    try:
+        offset = begin.astimezone(zone_for(timezone)).utcoffset()
+    except ValueError:
+        return (timezone,)
+    return (offset, _local_days_later(begin_utc, timezone, 1))
 
 
 def _naive_utc(instant: datetime) -> datetime:
@@ -379,14 +398,28 @@ class SQLAggregator:
         # Get data_begin_utc from first task (all tasks have the same data_begin_utc)
         data_begin_utc = data_begin_tasks[0].data_begin_utc
 
-        # One group per person and zone: the zone decides where the day ends.
+        # One group per person and day: the zone decides the day's date and
+        # where it ends, and two zones that agree on both (`Asia/Shanghai`
+        # from a phone, `UTC+08:00` from an export) are one day. Computed once
+        # per zone, the day was written twice under one identity with two
+        # `tz`s, and each pass amended it back. The IANA name is kept.
         user_groups = defaultdict(list)
+        zones: dict[tuple, str] = {}
         for task in data_begin_tasks:
-            user_groups[(task.user_id, task.timezone)].append(task)
+            key = (task.user_id, *_day_key(data_begin_utc, task.timezone))
+            user_groups[key].append(task)
+            kept = zones.get(key)
+            if kept is None or (offset_name(kept) and not offset_name(task.timezone)):
+                zones[key] = task.timezone
 
         all_summaries = []
 
-        for (user_id, timezone), user_tasks in user_groups.items():
+        for key, grouped in user_groups.items():
+            user_id, timezone = key[0], zones[key]
+            # Each zone's tasks name the same rules: one copy of each, in the
+            # zone kept, which is the one every summary row is written in.
+            user_tasks = list({(t.source_indicator, t.target_indicator, t.aggregation_type): replace(t, timezone=timezone)
+                               for t in grouped}.values())
             # One person's failure is theirs: raised, it failed the pass, and
             # the cursor stayed put, so every later pass failed on the same row.
             try:
@@ -1157,7 +1190,7 @@ class SQLAggregator:
             FROM (
                 SELECT
                     {_num("value")} AS hr,
-                    EXTRACT(HOUR FROM (time AT TIME ZONE 'UTC') AT TIME ZONE (SELECT tz FROM user_tz)) as local_hour,
+                    EXTRACT(HOUR FROM {_LOCAL_HOUR_TIME}) as local_hour,
                     source
                 FROM series_data
                 WHERE user_id = :user_id
@@ -1236,7 +1269,7 @@ class SQLAggregator:
                   AND time >= :day_start
                   AND time < :day_end
                   AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
-                  AND EXTRACT(HOUR FROM (time AT TIME ZONE 'UTC') AT TIME ZONE (SELECT tz FROM user_tz)) BETWEEN 1 AND 4
+                  AND EXTRACT(HOUR FROM {_LOCAL_HOUR_TIME}) BETWEEN 1 AND 4
             ) points
             WHERE hr BETWEEN 30 AND 220
         )
@@ -1285,7 +1318,7 @@ class SQLAggregator:
         try:
             hours, minutes = map(int, utc_time_str.split(':'))
             utc_dt = reference_date_utc.replace(hour=hours, minute=minutes, second=0, microsecond=0)
-            local_dt = utc_dt.replace(tzinfo=UTC).astimezone(ZoneInfo(timezone_str))
+            local_dt = utc_dt.replace(tzinfo=UTC).astimezone(zone_for(timezone_str))
             return local_dt.strftime('%H:%M')
         except (ValueError, KeyError, AttributeError, TypeError) as e:
             logger.warning("time of day not converted to local: error_type=%s", type(e).__name__)
