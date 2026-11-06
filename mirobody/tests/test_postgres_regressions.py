@@ -10,6 +10,7 @@ import argparse
 import importlib
 import os
 import statistics
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -870,6 +871,114 @@ async def test_choosing_not_to_share_at_activation_revokes_the_creators_link(dat
 
     assert await cc.set_health_access(member_id, circle, cc.ACCESS_VIEW)
     assert await personal_mcp.authorize(secret) == ""
+
+
+@asynccontextmanager
+async def _merge_pool(database):
+    """A psycopg pool on the fixture's schema: `merge_accounts` takes a pool,
+    not the engine `execute_query` runs on."""
+    from psycopg_pool import AsyncConnectionPool
+    from sqlalchemy.engine import make_url
+
+    [row] = await database("SELECT current_schema() AS s", log_sql=False)
+    pool = AsyncConnectionPool(make_url(DSN).set(drivername="postgresql").render_as_string(hide_password=False),
+                               kwargs={"options": f"-c search_path={row['s']}"}, min_size=1, open=False)
+    await pool.open()
+    try:
+        yield pool
+    finally:
+        await pool.close()
+
+
+async def _account(database, email: str, managed_by: int | None = None) -> int:
+    [row] = await database("INSERT INTO health_app_user(is_del,email,tz,managed_by) VALUES (false,:e,'UTC',:m)"
+                           " RETURNING id", {"e": email, "m": managed_by}, log_sql=False)
+    return int(row["id"])
+
+
+@pytest.mark.parametrize("access", ["view", "none"])
+async def test_activation_into_an_existing_account_carries_the_creators_link(database, access):
+    """#232: a person who takes over a managed account by signing in to one
+    they already had merges the two, and the creator's link went on naming the
+    deleted account. It was refused even when they kept sharing, still listed
+    as live, and missing from their own list of links that read their record.
+    The link now follows the record, and their choice applies to it as it does
+    when there is no account to merge into."""
+    from mirobody.user import activation, personal_mcp
+    from mirobody.user import care_circle as cc
+
+    await database("CREATE FUNCTION gen_salt(text, integer) RETURNS text LANGUAGE SQL AS $$SELECT $1$$")
+    await database("CREATE FUNCTION crypt(text, text) RETURNS text LANGUAGE SQL AS $$SELECT $1$$")
+    creator_id = await _account(database, "creator@example.invalid")
+    member_id = await _account(database, "managed@example.invalid", managed_by=creator_id)
+    mom_id = await _account(database, "mom@example.invalid")
+    circle = await cc.create_circle(creator_id)
+    await cc.force_accept_managed_member(circle, member_id)
+    secret, _ = await personal_mcp.mint(str(creator_id), str(member_id))
+
+    taken = activation.Activation(id=1, member_id=member_id, email="mom@example.invalid", created_by=creator_id,
+                                  member_name="", creator_name="", expires_at=datetime.now(UTC))
+    choice = cc.ACCESS_VIEW if access == "view" else cc.ACCESS_NONE
+    async with _merge_pool(database) as pool:
+        assert await activation.hand_over(pool, taken, into=mom_id, password="", access=choice) == mom_id
+
+    [link] = await database("SELECT subject_id, revoked_by FROM th_personal_mcp_url", log_sql=False)
+    assert link["subject_id"] == str(mom_id)
+    if access == "view":
+        assert link["revoked_by"] is None
+        assert await personal_mcp.authorize(secret) == str(mom_id)
+        assert [r["subject_id"] for r in (await personal_mcp.listed(str(creator_id)))["made"]] == [str(mom_id)]
+        assert [r["creator_id"] for r in (await personal_mcp.listed(str(mom_id)))["holders"]] == [str(creator_id)]
+    else:
+        assert link["revoked_by"] == "care_circle"
+        assert await personal_mcp.authorize(secret) == ""
+        assert await cc.set_health_access(mom_id, circle, cc.ACCESS_VIEW)
+        assert await personal_mcp.authorize(secret) == ""
+
+
+async def test_account_merge_keeps_one_unrevoked_link_per_creator_and_record(database):
+    """`th_personal_mcp_url` allows one unrevoked link per (creator, subject),
+    expired or not. A creator holding links to both records keeps the one that
+    expires later; links the closed account made, and the surviving account's
+    link to the closed one, are revoked and stay where they were."""
+    from mirobody.user import personal_mcp
+    from mirobody.user import care_circle as cc
+    from mirobody.user.account_merge import merge_accounts
+
+    creator_id = await _account(database, "creator@example.invalid")
+    member_id = await _account(database, "managed@example.invalid", managed_by=creator_id)
+    mom_id = await _account(database, "mom@example.invalid")
+    circle = await cc.create_circle(creator_id)
+    await cc.force_accept_managed_member(circle, member_id)
+    await database("INSERT INTO care_circle_members (care_circle_id, user_id, role, status, health_access)"
+                   " VALUES (:c, :u, :role, :status, :access)",
+                   {"c": circle, "u": mom_id, "role": cc.ROLE_MEMBER, "status": cc.STATUS_ACCEPTED,
+                    "access": cc.ACCESS_VIEW}, log_sql=False)
+    kept, _ = await personal_mcp.mint(str(creator_id), str(member_id))
+    await personal_mcp.mint(str(creator_id), str(mom_id))
+    await database("UPDATE th_personal_mcp_url SET expires_at = now() - interval '1 day' WHERE subject_id = :s",
+                   {"s": str(mom_id)}, log_sql=False)
+    await personal_mcp.mint(str(member_id), str(member_id))
+    await personal_mcp.mint(str(member_id), str(creator_id))
+    await personal_mcp.mint(str(mom_id), str(member_id))
+
+    async with _merge_pool(database) as pool:
+        affected, err = await merge_accounts(pool, losing_user_id=member_id, winning_user_id=mom_id,
+                                             reason="activation")
+    assert err is None
+    assert affected["th_personal_mcp_url"] == 5
+
+    rows = await database("SELECT creator_id, subject_id, revoked_by FROM th_personal_mcp_url ORDER BY id",
+                          log_sql=False)
+    c, m, w = str(creator_id), str(member_id), str(mom_id)
+    assert [(r["creator_id"], r["subject_id"], r["revoked_by"]) for r in rows] == [
+        (c, w, None),
+        (c, w, "account_merge"),
+        (m, m, "account_merge"),
+        (m, c, "account_merge"),
+        (w, m, "account_merge"),
+    ]
+    assert await personal_mcp.authorize(kept) == w
 
 
 async def test_a_chinese_request_names_coded_readings_in_chinese(database):

@@ -183,6 +183,65 @@ async def _merge_care_circle_members(cur, losing_id: int, winning_id: int) -> in
     return total
 
 
+async def _merge_personal_mcp_links(cur, losing_str: str, winning_str: str) -> int:
+    """th_personal_mcp_url has a partial UNIQUE (creator_id, subject_id) on unrevoked rows.
+
+    A link someone made to read the losing account follows the record to the
+    winning one, as that person's circle membership does, and every use still
+    asks the circle (`personal_mcp.authorize`). Left behind, it named a deleted
+    account: an activation into an address that already had an account
+    refused the creator's link even when the person chose to keep sharing,
+    kept it listed as live, and kept it off the person's own list of links
+    that read their record (#232). The no-merge path keeps the account id, so
+    the link already behaved this way there.
+
+    Links the losing account made are revoked rather than moved: the account
+    that made them is closed, `authorize` already refuses them, and the person
+    makes new ones from the account they keep. A link the winning account made
+    to read the losing one would become a second "own" link, so it is revoked
+    too. If a creator holds unrevoked links to both records, the one that
+    expires later is kept; expired rows count, because the index does.
+    """
+    if not await _table_exists(cur, "th_personal_mcp_url"):
+        return 0
+
+    ids = {"losing": losing_str, "winning": winning_str}
+    await cur.execute(
+        """
+        UPDATE th_personal_mcp_url SET revoked_at = now(), revoked_by = 'account_merge'
+         WHERE revoked_at IS NULL
+           AND (creator_id = %(losing)s OR (creator_id = %(winning)s AND subject_id = %(losing)s));
+        """,
+        ids,
+    )
+    total = cur.rowcount or 0
+
+    await cur.execute(
+        """
+        UPDATE th_personal_mcp_url l SET revoked_at = now(), revoked_by = 'account_merge'
+          FROM th_personal_mcp_url k
+         WHERE l.revoked_at IS NULL AND k.revoked_at IS NULL
+           AND k.creator_id = l.creator_id
+           AND l.subject_id IN (%(losing)s, %(winning)s)
+           AND k.subject_id IN (%(losing)s, %(winning)s)
+           AND k.subject_id <> l.subject_id
+           AND (l.expires_at, l.id) < (k.expires_at, k.id);
+        """,
+        ids,
+    )
+    total += cur.rowcount or 0
+
+    # Revoked rows stay on the account they read: they are history, and the
+    # index does not cover them.
+    await cur.execute(
+        "UPDATE th_personal_mcp_url SET subject_id = %(winning)s"
+        " WHERE subject_id = %(losing)s AND revoked_at IS NULL;",
+        ids,
+    )
+    total += cur.rowcount or 0
+    return total
+
+
 async def _merge_observations(cur, losing_str: str, winning_str: str) -> int:
     """The observation tables, through their one writer."""
     if not await _table_exists(cur, "th_observation"):
@@ -270,6 +329,10 @@ async def merge_accounts(
                     n = await _merge_care_circle_members(cur, losing_user_id, winning_user_id)
                     if n:
                         affected["care_circle_members"] = n
+
+                    n = await _merge_personal_mcp_links(cur, losing_str, winning_str)
+                    if n:
+                        affected["th_personal_mcp_url"] = n
 
                     n = await _merge_th_user_avatar_managed(cur, losing_str, winning_str)
                     if n:
