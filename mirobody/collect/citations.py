@@ -252,11 +252,11 @@ def _public(row: Mapping[str, Any]) -> dict[str, Any]:
     out = {k: ("" if v is None else v) for k, v in row.items() if k != "id"}
     out["value"] = _shown(out.get("value"), out.get("unit"))
     out["file"] = out.pop("file_name", "") or ""
-    # The same name the indicator list shows a Chinese reader (#231): a cite on a
-    # device reading or a statistic otherwise named it in LOINC's English.
+    # The same name the indicator list shows (#231): a cite on a device reading or
+    # a statistic otherwise named it by LOINC's long name.
     if out.get("system") == standardize.LOINC_SYSTEM and out.get("code"):
         names = standardize.names_for(out["code"], request_language())
-        if names is not None:
+        if names is not None and names.display:
             out["label"] = names.display
     return out
 

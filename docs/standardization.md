@@ -202,22 +202,36 @@ Answers cite the rows they rest on ([answers.md](answers.md),
 `kernel/citations.py`).
 
 A coded row is named by LOINC's long common name, `indicator`, which is also
-what a caller selects it by. A Chinese request (`X-Language` or
-`Accept-Language` starting `zh`) gets two more fields from
-`standardize/names.py`: `label`, the name a Chinese report prints
-(低密度脂蛋白胆固醇, 凝血酶原时间（PT）, 尿隐血), and `label_long`, the precise test
-(低密度脂蛋白胆固醇 [物质的量/体积]，血清/血浆). They come from our translation of the
-17,555 codes LOINC ranks as commonly ordered, then from a translated code in
-the same series by the same method (the mmol/L fasting glucose a Chinese report
-codes to, 14771-0, is unranked; its mg/dL sibling is 空腹血糖, and so is it), then
-from the catalogue's own Chinese label where the catalogue names the series one
-way only, then from the six Chinese Parts composed into a long name; an uncoded row keeps its printed
-name and gets neither. LOINC's own zh-CN variant translates only the Parts, so
-the Parts were reviewed one by one against it and the two name columns it
-leaves empty were filled. Nothing is stored: a better translation names every
+what a caller selects it by. That name is a key, not something to read:
+`Hemoglobin [Mass/volume] in Blood`. So every coded row also gets, from
+`standardize/names.py` and in the request's language (`X-Language` or
+`Accept-Language`), `label`, the name a person reads, and on a catalogue row
+`facets`, what the code measures, one axis per entry: specimen, property, and
+timing or method when the code has them. Hemoglobin is `血红蛋白` with
+`{"specimen": "全血", "property": "质量浓度"}` for a Chinese request and
+`Hemoglobin, Blood` with `{"specimen": "Blood", "property": "Mass Concentration"}`
+for an English one. The facets are LOINC's own Parts, so they say what the long
+name says without its brackets; a placeholder axis (a point in time, an
+unspecified specimen) is left out.
+
+A Chinese `label` comes from our translation of the 17,555 codes LOINC ranks as
+commonly ordered (低密度脂蛋白胆固醇, 凝血酶原时间（PT）, 尿隐血), then from a
+translated code in the same series by the same method (the mmol/L fasting
+glucose a Chinese report codes to, 14771-0, is unranked; its mg/dL sibling is
+空腹血糖, and so is it), then from the catalogue's own Chinese label where the
+catalogue names the series one way only, then from the Chinese consumer name
+the code shares with a translated one (LOINC gives many codes one consumer
+name: `Albumin, Urine` is 白蛋白，尿液), and last from its reviewed component,
+qualifier in brackets (心率（静息）). Any other language gets LOINC's English
+ConsumerName, verbatim; a code without one (LOINC has none for vital signs)
+gets no `label`, and its long name is already plain. An uncoded row keeps its
+printed name and gets neither field. LOINC's own zh-CN variant translates only
+the Parts, so the Parts were reviewed one by one against it and the two name
+columns it leaves empty were filled; the translated long names go back to
+LOINC and are not shown. Nothing is stored: a better translation names every
 past reading. A translation of LOINC belongs to Regenstrief under section 12
 of the LOINC licence and goes back to them (`res/loinc/zh_CN.NOTICE`,
-`standardize_build/loinc_zh.py --submission`).
+`standardize_build/loinc_names.py --submission`).
 
 ### 8. Change your mind
 

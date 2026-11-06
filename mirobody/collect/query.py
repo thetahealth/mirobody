@@ -858,13 +858,15 @@ def _date_of(ms: int, tz: str) -> date:
     return datetime.fromtimestamp(ms / 1000, standardize.zone_for(tz)).date()
 
 
-def _identity(r: dict) -> dict:
-    """`indicator` is the English name and stays what callers select by: the web
-    client groups readings by it and sends it back as `indicators=`, and two
-    series can share one Chinese name (serum and whole-blood glucose are both
-    葡萄糖). A reader of another language gets `label` (a list's name) and
-    `label_long` (the precise test) beside it, only when a LOINC-coded row has
-    a name in that language (`standardize.names`)."""
+def _identity(r: dict, facets: bool = False) -> dict:
+    """`indicator` is LOINC's long name and stays what callers select by: two
+    series can share one plain name (serum and whole-blood glucose are both
+    葡萄糖). A LOINC-coded row also gets, in the request's language
+    (`standardize.names`), `label`, the name a person reads (血红蛋白, `Hemoglobin,
+    Blood`), and with `facets` what the code measures, axis by axis (specimen 全血,
+    property 质量浓度): the long name's content without its brackets. Only a
+    catalogue row asks for those: they describe the code, so on every one of 200
+    readings they would be the same dict 200 times."""
     out = {
         "indicator": r.get("display") or r.get("name") or r.get("name_text") or "",
         "series": r.get("series_id") or "",
@@ -874,7 +876,10 @@ def _identity(r: dict) -> dict:
     if out["system"] == standardize.LOINC_SYSTEM and out["code"]:
         names = standardize.names_for(out["code"], request_language())
         if names is not None:
-            out["label"], out["label_long"] = names.display, names.long
+            if names.display:
+                out["label"] = names.display
+            if facets and names.facets:
+                out["facets"] = dict(names.facets)
     return out
 
 
@@ -894,7 +899,7 @@ def _reported(r: dict) -> dict:
 
 def _catalog_row(r: dict) -> dict:
     return {
-        **_identity(r),
+        **_identity(r, facets=True),
         "standard": bool(r.get("standard")),
         "name": r.get("name") or "",
         "kind": r.get("kind") or "",

@@ -9,9 +9,9 @@ reads.
 
 | File | What it is |
 | --- | --- |
-| `parts.tsv` | Every Part used by the 17,555 codes with a `COMMON_TEST_RANK`: `axis`, the English Part, the variant's rendering (`official`, every rendering in use when the variant has more than one), the reviewed one (`chinese`) and, when they differ beyond spacing, why (`note`). `standardize_build/loinc_zh.py` reads it to build `res/loinc/zh_CN_parts.tsv.gz`. |
+| `parts.tsv` | Every Part used by the 17,555 codes with a `COMMON_TEST_RANK`: `axis`, the English Part, the variant's rendering (`official`, every rendering in use when the variant has more than one), the reviewed one (`chinese`) and, when they differ beyond spacing, why (`note`). `standardize_build/loinc_names.py` reads it to build `res/loinc/zh_CN_parts.tsv.gz`. |
 | `STYLE.md` | The rules every Part, name and consumer name was reviewed or written by, with the two glossaries. |
-| `consumer.tsv` | LOINC's English `ConsumerName` and its Chinese translation, one row per distinct English name, so sibling codes cannot disagree. Not read at runtime; it goes into the submission file. |
+| `consumer.tsv` | LOINC's English `ConsumerName` and its Chinese translation, one row per distinct English name, so sibling codes cannot disagree. It goes into the submission file, and into `res/loinc/zh_CN_parts.tsv.gz` as the consumer name of every bundle code that shares the English one. |
 
 How they were made. Each Part was reviewed against the English Part and corrected
 where the variant was wrong, stale against the current English Part, or not the
@@ -26,6 +26,6 @@ labels and specimens are there too); a correction should follow it as well.
 
 Licence. These are translations of LOINC. Under section 12 of the LOINC License
 (5.8) they are assigned to Regenstrief Institute and transmitted to them
-(`python -m standardize_build.loinc_zh --loinc <release> --submission <file>`
+(`python -m standardize_build.loinc_names --loinc <release> --submission <file>`
 writes them in the LinguisticVariant CSV layout). They are distributed under the
 LOINC License, not this project's: see `mirobody/res/loinc/zh_CN.NOTICE`.

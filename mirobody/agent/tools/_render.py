@@ -41,9 +41,10 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 #: for a value it had just printed as 5.4 mmol/L. Both, never one: a
 #: device-namespace row carries the indicator's own name in `code`.
 
-#: `label` is the reading's name in the request's language (`standardize.names`).
-#: An English request has none, and `query.compact` drops an empty column, so the
-#: table a model reads in English is unchanged.
+#: `label` is the reading's name in the request's language (`standardize.names`):
+#: the Chinese display name, or LOINC's English consumer name. A row without one
+#: leaves the cell empty, and `query.compact` drops a column that is empty
+#: throughout. `facets` stays out: the model has the code, and the code says it.
 _COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "label", "system", "code", "count", "first_date", "last_date", "reason"),
     "readings": ("indicator", "label", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),

@@ -744,8 +744,8 @@ async def test_choosing_not_to_share_at_activation_revokes_the_creators_link(dat
 
 async def test_a_chinese_request_names_coded_readings_in_chinese(database):
     """#231: a Chinese report's readings were coded, and the indicator list then
-    named them in English only. The list's rows keep `indicator` (what callers
-    select by) and gain `label` / `label_long` for a Chinese request alone."""
+    named them by LOINC's long name only. The list's rows keep `indicator` (what
+    callers select by) and gain `label` and `facets` in the request's language."""
     pytest.importorskip("fastapi")
     from mirobody.agent.tools._render import render_rest
     from mirobody.collect import observations
@@ -768,17 +768,21 @@ async def test_a_chinese_request_names_coded_readings_in_chinese(database):
     assert by_code["22748-8"]["label"] == "低密度脂蛋白胆固醇"
     assert by_code["4548-4"]["label"] == "糖化血红蛋白（HbA1c）"
     assert by_code["22748-8"]["indicator"] == "Cholesterol in LDL [Moles/volume] in Serum or Plasma"
+    assert by_code["22748-8"]["facets"] == {"specimen": "血清/血浆", "property": "物质的量浓度"}
     assert [r["indicator"] for r in chinese] == [r["indicator"] for r in english]
-    assert not any("label" in r for r in english)
+    english_by_code = {r["code"]: r for r in english if r.get("code")}
+    assert english_by_code["22748-8"]["label"] == "LDL cholesterol, Blood"
+    assert english_by_code["22748-8"]["facets"]["specimen"] == "Serum or Plasma"
     # An uncoded reading already reads as it was printed; it gets no label.
-    assert not any("label" in r for r in chinese if not r.get("code"))
+    assert not any("label" in r or "facets" in r for r in chinese if not r.get("code"))
 
 
 async def test_a_cite_names_its_reading_in_the_readers_language(database):
     """#231: the indicator list named a coded reading in Chinese and the cite on
     the same number, in the answer beside it, still said LOINC's English. A
-    reading cite and an aggregate cite both carry `label` for a Chinese request
-    and neither does for an English one."""
+    reading cite and an aggregate cite both carry `label` for a Chinese request.
+    An English one carries LOINC's consumer name, which 8480-6 does not have, so
+    there it keeps the long name."""
     from mirobody.collect import citations, observations
     from mirobody.utils.req_ctx import set_req_ctx
 

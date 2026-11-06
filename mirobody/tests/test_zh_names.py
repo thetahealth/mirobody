@@ -1,9 +1,11 @@
-"""#231: a coded reading's name in Chinese, and where that name reaches.
+"""#231: a coded reading's name for a person, and where that name reaches.
 
 A Chinese reader saw `Cholesterol in LDL [Moles/volume] in Serum or Plasma` where
 their report printed 低密度脂蛋白胆固醇: `th_concept.display_zh` was never written and
-nothing else carried a Chinese name. These pin the names (`standardize.names`), the
-two shipped files they come from, and the rows that carry them.
+nothing else carried a Chinese name. Then the translated long name put LOINC's
+syntax in front of them instead (`心率^静息 [计数型速率]`). These pin the names
+(`standardize.names`): a plain display name and the facets that replace the long
+name, the shipped files they come from, and the rows that carry them.
 """
 
 from __future__ import annotations
@@ -17,6 +19,8 @@ from mirobody.standardize import LOINC_SYSTEM, names, series_of
 
 CJK = re.compile(r"[一-鿿]")
 HALF_WIDTH_BESIDE_CJK = re.compile(r"[一-鿿][,;:()]|[,;:()][一-鿿]")
+#: What a long name is made of and a person does not read: `[Mass/volume]`, `^resting`.
+LOINC_SYNTAX = re.compile(r"[\[\]^]")
 
 
 def _translated_rows() -> list[dict[str, str]]:
@@ -32,7 +36,8 @@ def test_every_chinese_spelling_is_chinese(language):
 @pytest.mark.parametrize("language", ["", "en", "en-US", "ja", "zha", "fr-zh"])
 def test_other_languages_get_no_chinese_name(language):
     assert not names.is_chinese(language)
-    assert names.names_for("22748-8", language) is None
+    found = names.names_for("22748-8", language)
+    assert found is not None and not CJK.search(found.display)
 
 
 @pytest.mark.parametrize(("code", "display"), [
@@ -51,7 +56,7 @@ def test_other_languages_get_no_chinese_name(language):
 def test_the_reported_tests_read_as_a_chinese_report_prints_them(code, display):
     found = names.names_for(code, "zh-CN")
     assert found is not None and found.display == display
-    assert CJK.search(found.long)
+    assert found.facets and all(CJK.search(text) for _axis, text in found.facets)
 
 
 def test_the_translation_file_names_bundle_codes_only_and_in_chinese():
@@ -67,22 +72,69 @@ def test_the_translation_file_names_bundle_codes_only_and_in_chinese():
             # with no Chinese in it is a row nobody translated.
             assert CJK.search(text) or re.match(r"HLA-|pH$|β-HCG$", text), r
             assert not HALF_WIDTH_BESIDE_CJK.search(text), r
+        # The display name is what a person reads; the long name keeps LOINC's form.
+        assert not LOINC_SYNTAX.search(r["LinguisticVariantDisplayName"]), r
 
 
-def test_a_code_without_a_translation_reads_from_its_reviewed_parts():
+def test_hemoglobin_reads_as_a_name_and_two_facets_not_a_long_name():
+    # The drawer showed `血红蛋白 [质量/体积]，全血 / Hemoglobin [Mass/volume] in Blood`.
+    zh = names.names_for("718-7", "zh-CN")
+    assert zh == names.Names("血红蛋白", (("specimen", "全血"), ("property", "质量浓度")))
+    en = names.names_for("718-7", "en")
+    assert en == names.Names("Hemoglobin, Blood", (("specimen", "Blood"), ("property", "Mass Concentration")))
+
+
+def test_a_qualifier_reads_in_brackets_and_a_placeholder_axis_is_left_out():
+    # 40443-4 drew `心率^静息 [计数型速率]`: its system is ^Patient and its time a point.
+    found = names.names_for("40443-4", "zh")
+    assert found is not None and found.display == "静息心率"
+    assert dict(found.facets) == {"property": "计数型速率"}
+    donor = dict(names.names_for("1114-8", "zh").facets)
+    assert donor["specimen"] == "红细胞（供体）"
+    assert dict(names.names_for("1114-8", "en").facets)["specimen"] == "Red Blood Cells (Donor)"
+
+
+def test_no_name_or_facet_shows_loinc_syntax():
     table, order = names._parts()
-    assert len(order) > 60_000
+    codes = [table.field(row, 0) for row in range(0, len(order), 97)]  # ~650 codes, every class
+    assert len(codes) > 600
+    for code in codes:
+        for found in (names.names_for(code, "zh"), names.names_for(code, "en")):
+            if found is None:
+                continue
+            assert not LOINC_SYNTAX.search(found.display), (code, found)
+            for _axis, text in found.facets:
+                assert "^" not in text, (code, found)
+
+
+def test_an_unranked_code_reads_by_the_consumer_name_it_shares():
+    # LOINC gives 100158-5 the consumer name `Albumin, Urine`, translated for a
+    # ranked code; its unspecified timing is not a facet.
+    assert "100158-5" not in names._translated()
+    found = names.names_for("100158-5", "zh-CN")
+    assert found is not None and found.display == "白蛋白，尿液"
+    assert "timing" not in dict(found.facets)
+
+
+def test_a_code_with_nothing_translated_reads_from_its_reviewed_parts():
+    table, order = names._parts()
     translated = names._translated()
     for row in range(len(order)):
         code = table.field(row, 0)
-        if (code not in translated and series_of(code) not in names._catalogue_by_series()
+        if (code not in translated and not table.field(row, 7)
+                and series_of(code) not in names._catalogue_by_series()
                 and names._series_and_method(code) not in names._display_by_series_and_method()):
             break
-    component, prop = table.field(row, 1), table.field(row, 2)
     found = names.names_for(code, "zh")
     assert found is not None
-    assert found.display == found.long
-    assert found.long.startswith(f"{component} [{prop}]" if prop else component)
+    assert found.display.startswith(names._readable(table.field(row, 1), "zh"))
+
+
+def test_english_without_a_consumer_name_has_facets_and_no_label():
+    # LOINC has no consumer name for vital signs; the long name already reads well.
+    found = names.names_for("8480-6", "en")
+    assert found is not None and found.display == ""
+    assert dict(found.facets)["property"] == "Pressure"
 
 
 def test_a_molar_code_reads_as_its_translated_mass_sibling():
@@ -92,13 +144,13 @@ def test_a_molar_code_reads_as_its_translated_mass_sibling():
     assert "14771-0" not in names._translated()
     found = names.names_for("14771-0", "zh-CN")
     assert found is not None and found.display == "空腹血糖"
-    assert "物质的量" in found.long  # the long name keeps this code's own property
+    assert dict(found.facets)["property"] == "物质的量浓度"  # its own property, not the sibling's
 
 
 def test_a_sibling_by_another_method_does_not_lend_its_name():
     # 3183-1 is a Lee-White clotting time; its series holds the translated
     # thromboelastography one (52773-9), which must not name it.
-    lent = names._translated()["52773-9"].display
+    lent = names._translated()["52773-9"]
     assert series_of("3183-1") == series_of("52773-9")
     found = names.names_for("3183-1", "zh-CN")
     assert found is None or found.display != lent
@@ -110,7 +162,7 @@ def test_a_catalogue_label_speaks_for_a_series_only_when_the_catalogue_agrees():
     assert names._catalogue_by_series()[series_of("8867-4")] == "心率"
 
 
-def test_identity_carries_the_chinese_name_only_for_a_chinese_request():
+def test_identity_carries_the_readers_name_and_a_catalogue_row_its_facets():
     pytest.importorskip("fastapi")
     from mirobody.collect.query import _identity
     from mirobody.utils.req_ctx import set_req_ctx
@@ -118,14 +170,20 @@ def test_identity_carries_the_chinese_name_only_for_a_chinese_request():
     row = {"display": "Cholesterol in LDL [Moles/volume] in Serum or Plasma", "series_id": series_of("22748-8"),
            "code_system": LOINC_SYSTEM, "code": "22748-8"}
     with set_req_ctx({"language": "zh-CN"}):
-        zh = _identity(row)
-    english = _identity(row)
+        zh = _identity(row, facets=True)
+        reading = _identity(row)
+    with set_req_ctx({"language": "en"}):
+        english = _identity(row, facets=True)
     assert zh["indicator"] == english["indicator"] == row["display"]  # still the handle callers select by
-    assert zh["label"] == "低密度脂蛋白胆固醇" and "物质的量" in zh["label_long"]
-    assert "label" not in english and "label_long" not in english
+    assert zh["label"] == "低密度脂蛋白胆固醇"
+    assert zh["facets"] == {"specimen": "血清/血浆", "property": "物质的量浓度"}
+    assert english["label"] == "LDL cholesterol, Blood"  # LOINC's ConsumerName, verbatim
+    assert english["facets"]["property"] == "Substance Concentration"
+    assert "facets" not in reading  # a reading row does not repeat its code's description
     with set_req_ctx({"language": "zh-CN"}):
-        uncoded = _identity({"name_text": "尿酸", "series_id": "local:尿酸|umol/l", "code_system": "", "code": ""})
-    assert "label" not in uncoded
+        uncoded = _identity({"name_text": "尿酸", "series_id": "local:尿酸|umol/l", "code_system": "", "code": ""},
+                            facets=True)
+    assert "label" not in uncoded and "facets" not in uncoded
 
 
 def test_the_model_reads_a_label_column_only_when_rows_carry_one():
