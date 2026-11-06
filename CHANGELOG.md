@@ -1,5 +1,16 @@
 ## Unreleased
 
+### Fixed
+
+- An older Apple Health export could beat a stream containing later measurements
+  for the same day. Generated summaries now choose one valid Apple transport
+  by actual sample freshness before coverage, then compete normally with other
+  vendors. Push, export and direct-watch totals stay separate and are never
+  added together. Reimporting an old export cannot make it fresh by write time;
+  missing sample evidence retains the existing ranking. Reproduce with a
+  morning export and afternoon push for the same metric and day: the later
+  measurements publish their own value (see `docs/apple-health.md`).
+
 ### Added
 
 - **The docs say how a printed reading becomes a comparable one.** The public
