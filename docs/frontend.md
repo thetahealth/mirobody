@@ -92,3 +92,10 @@ rm -rf ../mirobody/frontend/assets && rsync -a --delete dist/ ../mirobody/fronte
 
 Clearing `assets/` first is deliberate — `rsync --delete` alone will not remove
 chunks whose hashed names no longer appear in the new build.
+
+Commit `index.html` with the chunks. Every build renames the entry chunk, and
+`index.html` is the one file that names it: the 985f3c2 sync committed the
+new chunks without it, and every page rendered blank. Then run
+`pytest -q mirobody/tests/test_frontend_bundle.py`, which follows what a
+browser fetches from `index.html` and fails on any file `frontend/` does not
+hold.

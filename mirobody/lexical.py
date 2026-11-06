@@ -44,6 +44,7 @@ __all__ = [
     "join_series_suffix",
     "measure_stems",
     "normalize",
+    "strip_report_marks",
     "strip_trailing_abbreviation",
     "split_trailing_parenthetical",
     "surface_variants",
@@ -347,6 +348,34 @@ def measure_stems(term: str) -> list[str]:
             add(stripped[: -len(suffix)])
             break
     return out
+
+
+# What a checkup report prints AFTER a name and is not part of it: the word for
+# the assay (`尿酸(UA)测定`, `低密度脂蛋白胆固醇测定`) and a flag mark
+# (`γ-谷氨酰基转移酶*`). Every `名称(缩写)测定` name on a self-hosted 1.5.10's
+# reports went uncoded while the bare name resolved (#234).
+_FLAG_MARKS = frozenset("*＊↑↓")
+_ASSAY_WORDS = ("测定", "測定")
+
+
+def strip_report_marks(term: str) -> str:
+    """``term`` without a trailing ``测定`` or flag mark; ``""`` when there is
+    none, or when nothing would be left of the name."""
+    # A scan from the end, not a regex: `(?:\s*[*↑↓]+|…)+$` backtracks
+    # exponentially on `名称` + forty `*` + one more character (CodeQL
+    # py/redos on #252), and the term is whatever a report or an MCP
+    # client sends. Each step consumes one mark, so this is linear.
+    text = (term or "").strip()
+    end = len(text)
+    while end:
+        if text[end - 1].isspace() or text[end - 1] in _FLAG_MARKS:
+            end -= 1
+        elif text.endswith(_ASSAY_WORDS, 0, end):
+            end -= 2
+        else:
+            break
+    stem = text[:end].rstrip()
+    return stem if stem and stem != text else ""
 
 
 def split_trailing_parenthetical(term: str) -> tuple[str, str]:
