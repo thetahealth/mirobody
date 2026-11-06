@@ -78,7 +78,9 @@
   because callers select by it and two series can share one Chinese name; a
   request whose `X-Language` or `Accept-Language` is Chinese gets `label` and
   `label_long` beside it, and the agent's tables a `label` column, which an
-  English request never sees. A translation of LOINC belongs to Regenstrief
+  English request never sees; a cite on a number carries `label` too, so a
+  device reading or a statistic in a Chinese answer's sources is not named in
+  English beside a list that names it in Chinese. A translation of LOINC belongs to Regenstrief
   under section 12 of the LOINC licence, so these files ship under that
   licence (`res/loinc/zh_CN.NOTICE`) and `standardize_build/loinc_zh.py
   --submission` writes the file that goes back to them. To tell: with

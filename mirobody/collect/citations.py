@@ -21,7 +21,9 @@ from datetime import date, datetime, timedelta
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from mirobody import standardize
 from mirobody.utils import execute_query
+from mirobody.utils.req_ctx import request_language
 
 from .query import REPORTED_KINDS, _DAY_AUTHORITY_CTE, _FILE_JOIN, _FILE_KEY, _FILE_NAME, _LOCAL_TS, _shown
 
@@ -123,12 +125,18 @@ async def resolve_rids(session_id: str, subject_id: str, rids: Sequence[str]) ->
                        else {"rid": rid, "status": "gone"})
         else:
             detail = row["detail"] if isinstance(row["detail"], dict) else json.loads(row["detail"] or "{}")
-            out.append({"rid": rid, "status": "ok", "kind": "aggregate", **detail,
-                        **await _members(subject_id, detail)})
+            members = await _members(subject_id, detail)
+            # The stored detail names the series as it was at mint time, in English;
+            # its members are one series, so the first one's `label` names it in the
+            # reader's language (#231).
+            label = next((m["label"] for m in members["readings"][:1] if m.get("label")), None)
+            out.append({"rid": rid, "status": "ok", "kind": "aggregate", **detail, **members,
+                        **({"label": label} if label else {})})
     return out
 
 
-_READING_COLUMNS = f"""o.id, o.display AS indicator, o.name_text AS name, o.value_text AS value,
+_READING_COLUMNS = f"""o.id, o.display AS indicator, o.code_system AS system, o.code, o.name_text AS name,
+       o.value_text AS value,
        o.unit_text AS unit, o.ref_text AS ref, o.flag_text AS flag, o.kind AS record_kind, o.modality, o.source_kind,
        to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS time, {_FILE_KEY} AS file_key, {_FILE_NAME}"""
 
@@ -244,6 +252,12 @@ def _public(row: Mapping[str, Any]) -> dict[str, Any]:
     out = {k: ("" if v is None else v) for k, v in row.items() if k != "id"}
     out["value"] = _shown(out.get("value"), out.get("unit"))
     out["file"] = out.pop("file_name", "") or ""
+    # The same name the indicator list shows a Chinese reader (#231): a cite on a
+    # device reading or a statistic otherwise named it in LOINC's English.
+    if out.get("system") == standardize.LOINC_SYSTEM and out.get("code"):
+        names = standardize.names_for(out["code"], request_language())
+        if names is not None:
+            out["label"] = names.display
     return out
 
 

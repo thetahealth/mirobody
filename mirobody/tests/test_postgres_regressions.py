@@ -772,3 +772,29 @@ async def test_a_chinese_request_names_coded_readings_in_chinese(database):
     assert not any("label" in r for r in english)
     # An uncoded reading already reads as it was printed; it gets no label.
     assert not any("label" in r for r in chinese if not r.get("code"))
+
+
+async def test_a_cite_names_its_reading_in_the_readers_language(database):
+    """#231: the indicator list named a coded reading in Chinese and the cite on
+    the same number, in the answer beside it, still said LOINC's English. A
+    reading cite and an aggregate cite both carry `label` for a Chinese request
+    and neither does for an English one."""
+    from mirobody.collect import citations, observations
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    at = datetime(2026, 7, 23, tzinfo=UTC)
+    report = await observations.ingest("1", [
+        observations.Draft(name_text="Systolic Blood Pressure", value_text="118", unit_text="mm[Hg]", observed_start=at),
+    ], observations.Provenance("lab-report", "file", "th_files:synthetic-cite-names"), user_tz="UTC")
+    [row] = await database("SELECT id, series_id, display FROM v_observation", log_sql=False)
+    detail = {"view": "stats", "series": row["series_id"], "indicator": row["display"],
+              "from": "2026-07-23", "to": "2026-07-23"}
+    keys = [citations.reading_key(report.ids[0]), citations.aggregate_key(detail)]
+    rids = await citations.mint_rids("synthetic-cite-names", "1", [(keys[0], None), (keys[1], detail)])
+
+    with set_req_ctx({"language": "zh-CN"}):
+        reading, aggregate = await citations.resolve_rids("synthetic-cite-names", "1", [rids[k] for k in keys])
+    assert reading["label"] == "收缩压" and reading["code"] == "8480-6"
+    assert aggregate["label"] == "收缩压" and aggregate["indicator"] == row["display"]
+    for cited in await citations.resolve_rids("synthetic-cite-names", "1", [rids[k] for k in keys]):
+        assert "label" not in cited
