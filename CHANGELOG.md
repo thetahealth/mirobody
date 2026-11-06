@@ -286,6 +286,14 @@
   names and units". The Chinese guides also broke lines mid-sentence, which
   GitHub and the docs site render as a space between two characters; those
   lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+- **The walkthrough's upload demo shows the list as it reads now.** It ended
+  on test names in LOINC's long form (`Cholesterol in HDL [Moles/volume] in
+  Serum or Plasma`), the Chinese GIF included. It is re-recorded in English,
+  Chinese and, for the Japanese walkthrough, which showed the English one,
+  Japanese: the upload, the list by plain names, and total cholesterol's
+  drawer with its two readings, specimen, what it measures and its code.
+  To tell: `docs/images/upload-demo.ja.gif` exists and `docs/walkthrough.ja.md`
+  shows it.
 
 - **Hematocrit printed as `0.45 L/L` and as `45 %` is one series.** `L/L`,
   the SI spelling of a volume fraction, was not a unit the engine knew, so a
