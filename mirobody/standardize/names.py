@@ -89,8 +89,12 @@ def chinese_names(code: str) -> Names | None:
 def _unreadable(path: str, e: Exception) -> None:
     # Once per file (the callers are cached): a reader without the file gets the
     # English names, which is a degraded answer, not a failed request.
-    why = "a Git LFS pointer; run `git lfs pull`" if is_lfs_pointer(path) else type(e).__name__
-    logger.warning("Chinese LOINC names unavailable: file=%s reason=%s", os.path.basename(path), why)
+    file_kind = "names" if path == NAMES_PATH else "parts"
+    if is_lfs_pointer(path):
+        logger.warning("Chinese LOINC names unavailable: file_kind=%s is a Git LFS pointer; run `git lfs pull`",
+                       file_kind)
+    else:
+        logger.warning("Chinese LOINC names unavailable: file_kind=%s error_type=%s", file_kind, type(e).__name__)
 
 
 @lru_cache(maxsize=1)
