@@ -52,6 +52,32 @@
 
 ### Fixed
 
+- **A Chinese reader sees a coded reading's name in Chinese.** A report that
+  printed 低密度脂蛋白胆固醇 was standardized and then listed as
+  `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
+  list, the drawer and the agent's answers, whatever the UI language (#231):
+  `th_concept.display_zh` was never written, and LOINC's own Simplified
+  Chinese translation (the zh-CN linguistic variant) translates only the six
+  Parts of a code, leaving its long name, display name and consumer name
+  empty. Every Part the 17,555 codes LOINC ranks as commonly ordered use was
+  reviewed against that variant and 1,654 of 9,472 corrected (stale Parts
+  from before LOINC restructured the coagulation tests, TSH detection limits
+  of 0.01 and 0.001 where the English says 0.05 and 0.005, 贫血小板血浆 for
+  乏血小板血浆, Greek letters spelled out, non-standard drug and organism
+  names), and those codes gained a Chinese display name and long name
+  (`res/loinc/zh_CN_names.tsv`); every other code in the bundle reads from its
+  Chinese Parts (`res/loinc/zh_CN_parts.tsv.gz`). `standardize.names_for`
+  looks the name up per request and nothing is stored, so a better
+  translation names past readings too. `indicator` stays LOINC's English name,
+  because callers select by it and two series can share one Chinese name; a
+  request whose `X-Language` or `Accept-Language` is Chinese gets `label` and
+  `label_long` beside it, and the agent's tables a `label` column, which an
+  English request never sees. A translation of LOINC belongs to Regenstrief
+  under section 12 of the LOINC licence, so these files ship under that
+  licence (`res/loinc/zh_CN.NOTICE`) and `standardize_build/loinc_zh.py
+  --submission` writes the file that goes back to them. To tell: with
+  `X-Language: zh-CN`, `GET /api/v1/health-indicators` answers an LDL row
+  with `"label": "低密度脂蛋白胆固醇"`.
 - **A long indicator name no longer pushes the newest value off the screen.**
   On Data → 指标 the name column took the width of its longest name: a
   60-character LOINC display, or one unbreakable token such as

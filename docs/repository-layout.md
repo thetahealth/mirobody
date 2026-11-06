@@ -21,7 +21,7 @@ mirobody/
 ├── documents/   a file becomes text, by kind — PDF text layer, OCR for scanned pages only, Office, text   [parse]
 ├── collect/       ① Collect     — providers, file parsing, store, read (Postgres)
 ├── standardize/ ② Standardize — the pure seam (fold · parse · local_day · series · code ·
-│                devices), the catalogue, units, aggregate/ and derive/
+│                names · devices), the catalogue, units, aggregate/ and derive/
 ├── agent/       ③ Agent               — the agent: models/ filesystem/ wire/ middleware/ tools/ chat/
 ├── mcp/         the MCP server
 ├── server/      the HTTP application — routers, auth, middleware

@@ -13,7 +13,8 @@ filed under.
 
 The pure seam (`fold`, `parse`, `local_day`, `series`, `outcome`, `code`,
 `icpc3`) folds a printed name, types a value, places its day and codes it;
-it has no database, clock or model. Around it: the device crosswalks
+it has no database, clock or model. `names` says what a code is called in the
+reader's language, looked up per request and never stored. Around it: the device crosswalks
 (`devices.py`, `device_bundle.py`), the terminology tools' bodies
 (`terminology.py`), the genotype and pharmacogenomics lookups (`genotype*.py`,
 `pgx.py`, `cpic_extract.py`), and the device indicator catalogue with its

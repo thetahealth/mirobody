@@ -62,6 +62,7 @@ from mirobody.collect.observations import (
     user_tz,
 )
 from mirobody.utils import execute_query
+from mirobody.utils.req_ctx import request_language
 
 logger = logging.getLogger(__name__)
 
@@ -858,12 +859,23 @@ def _date_of(ms: int, tz: str) -> date:
 
 
 def _identity(r: dict) -> dict:
-    return {
+    """`indicator` is the English name and stays what callers select by: the web
+    client groups readings by it and sends it back as `indicators=`, and two
+    series can share one Chinese name (serum and whole-blood glucose are both
+    葡萄糖). A reader of another language gets `label` (a list's name) and
+    `label_long` (the precise test) beside it, only when a LOINC-coded row has
+    a name in that language (`standardize.names`)."""
+    out = {
         "indicator": r.get("display") or r.get("name") or r.get("name_text") or "",
         "series": r.get("series_id") or "",
         "system": r.get("code_system") or "",
         "code": r.get("code") or "",
     }
+    if out["system"] == standardize.LOINC_SYSTEM and out["code"]:
+        names = standardize.names_for(out["code"], request_language())
+        if names is not None:
+            out["label"], out["label_long"] = names.display, names.long
+    return out
 
 
 def _reported(r: dict) -> dict:

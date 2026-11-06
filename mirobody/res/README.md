@@ -38,6 +38,9 @@ the second is a manifest of data that is deliberately NOT in the checkout.
 | `loinc/aliases_src/zh_curated.tsv` | our corrections to the above, and they win | same |
 | `loinc/resolver_overrides.tsv` | term → target for what the index gets wrong, ours | `engine`, first in precedence |
 | `loinc/recall_synonyms.tsv` | query-side synonyms, ours | `kernel.query` |
+| `loinc/zh_CN_names.tsv` | Chinese display name and long name of every commonly ordered code: a translation of LOINC, assigned to Regenstrief | `standardize.names` |
+| `loinc/zh_CN_parts.tsv.gz` | the six Chinese Parts of every bundle code LOINC's zh-CN variant covers, reviewed where commonly used | `standardize.names` |
+| `loinc/zh_CN.NOTICE` | LOINC's notice, the source variant, and what section 12 of the licence makes of a translation | prose; LOINC licence §10, §12 |
 | `icpc3/icpc3.tsv` | ICPC-3 S and D components, 1,218 codes, verbatim | `standardize.icpc3` |
 | `icpc3/icpc3.NOTICE` | WONCA's attribution, and what "verbatim" means here | prose |
 | `ucum/ucum-essence.xml` | UCUM 2.2, byte for byte; an edited copy is refused | `units.essence`, and the gates on our unit tables |
