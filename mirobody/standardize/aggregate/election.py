@@ -39,7 +39,8 @@ before.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from dataclasses import replace
+from datetime import UTC, date, datetime
 from functools import lru_cache
 
 from mirobody import units
@@ -47,6 +48,8 @@ from mirobody.kernel import metrics, series
 from mirobody.utils import execute_query
 
 from .rule_generator import get_all_aggregation_rules
+from .aggregators.source_id_priority import APPLE_SOURCES, build_apple_priority_case
+from .aggregators.sql_aggregator import _num
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +57,8 @@ logger = logging.getLogger(__name__)
 #: default so that changing what this application prefers is a visible diff.
 RANKING: tuple[str, ...] = ("source_class", "coverage", "measurement_freshness", "static_priority")
 RULE = "|".join(RANKING)
+APPLE_RANKING = ("source_class", "measurement_freshness", "coverage", "static_priority")
+APPLE_RULE = "apple_transport(" + "|".join(APPLE_RANKING) + ");" + RULE
 
 #: How many (series, day) cells one page of `elect_range` reads.
 CHUNK = 5_000
@@ -76,7 +81,7 @@ SELECT series_id, local_date
 """
 
 _CANDIDATES = """
-SELECT id, stream_key, source_class, vendor, name_text, value_num, value_canonical, observed_start, observed_end
+SELECT id, stream_key, source_class, vendor, name_text, value_num, value_canonical, observed_start, observed_end, tz
   FROM v_observation
  WHERE user_id = :uid AND series_id = :series_id AND local_date = :day AND value_num IS NOT NULL
  ORDER BY observed_start, id
@@ -90,6 +95,7 @@ ON CONFLICT (user_id, series_id, local_date) DO UPDATE
        candidates = EXCLUDED.candidates, decided_at = now()
  WHERE th_day_authority.observation_id IS DISTINCT FROM EXCLUDED.observation_id
     OR th_day_authority.candidates <> EXCLUDED.candidates
+    OR th_day_authority.rule IS DISTINCT FROM EXCLUDED.rule
 """
 
 _CHECK_FAIL = """
@@ -121,6 +127,9 @@ async def elect_day(
     decision = series.elect(
         candidates, ranking=RANKING, priorities=ordered, validators=_validators_for(name, day),
     )
+    decision, transport_policy = await _elect_apple_transports(
+        user_id, day, candidates, last_row, ordered, _validators_for(name, day), decision,
+    )
     params = {"uid": str(user_id), "series_id": series_id, "day": day}
     if decision.elected is None:
         if decision.blocked:
@@ -136,7 +145,7 @@ async def elect_day(
     await execute_query(_MARK, {
         **params,
         "observation_id": int(last_row[decision.elected.identity]["id"]),
-        "rule": RULE,
+        "rule": APPLE_RULE if transport_policy else RULE,
         "candidates": len(candidates),
     }, log_sql=False)
     return decision
@@ -167,6 +176,77 @@ async def elect_range(user_id: str, start: date, end: date, *, series_ids: list[
 
 
 # --- the pieces --------------------------------------------------------------
+
+
+@lru_cache(maxsize=1)
+def _generated_sources() -> dict[str, str]:
+    return {r.target_indicator: r.source_indicator for r in get_all_aggregation_rules()}
+
+
+async def _elect_apple_transports(
+    user_id: str, day: date, candidates: list[series.Candidate], rows: dict[str, dict],
+    priorities: list[str], validators: list, original: series.Decision,
+) -> tuple[series.Decision, bool]:
+    """Choose one valid Apple stream without changing inter-vendor ranking."""
+    apple = [c for c in candidates if rows[c.identity].get("vendor") in APPLE_SOURCES]
+    if len(apple) < 2:
+        return original, False
+    sources = {_generated_sources().get(rows[c.identity]["name_text"].split(".", 1)[0]) for c in apple}
+    if len(sources) != 1 or None in sources:
+        return original, False
+    indicator = sources.pop()
+    metric = metrics.METRICS.get(indicator)
+    if metric is None:
+        return original, False
+    # Summary boundaries are synthetic. Read the same source-id winner and
+    # window as SQLAggregator, including its selection before numeric filtering.
+    evidence: dict[tuple[str, str], int | None] = {}
+    for tz in sorted({rows[c.identity].get("tz") or "UTC" for c in apple}):
+        start, end = series.day_bounds_ms(day, tz, metric.window)
+        points = await execute_query(f"""
+WITH chosen_source_id AS MATERIALIZED (
+    SELECT DISTINCT ON (source) source, source_id
+      FROM series_data
+     WHERE user_id = :uid AND indicator = :indicator AND source = ANY(:sources)
+       AND time >= :start AND time < :end
+       AND (task_id IS NULL OR task_id != 'filtered_out_of_range')
+     ORDER BY source, ({build_apple_priority_case('source', 'source_id')}) ASC,
+              source_id ASC NULLS LAST
+)
+SELECT sd.source, MAX(sd.time) AS measured_at
+  FROM series_data sd
+  JOIN chosen_source_id c ON c.source = sd.source AND c.source_id = sd.source_id
+ WHERE sd.user_id = :uid AND sd.indicator = :indicator AND sd.source = ANY(:sources)
+   AND sd.time >= :start AND sd.time < :end
+   AND (sd.task_id IS NULL OR sd.task_id != 'filtered_out_of_range')
+   AND {_num('sd.value')} IS NOT NULL
+ GROUP BY sd.source
+""", {
+            "uid": str(user_id), "indicator": indicator,
+            "sources": [rows[c.identity]["vendor"] for c in apple if (rows[c.identity].get("tz") or "UTC") == tz],
+            "start": datetime.fromtimestamp(start / 1000, UTC).replace(tzinfo=None),
+            "end": datetime.fromtimestamp(end / 1000, UTC).replace(tzinfo=None),
+        }, log_sql=False) or []
+        for point in points:
+            at = point["measured_at"]
+            if isinstance(at, datetime):
+                evidence[(tz, point["source"])] = _ms(at.replace(tzinfo=UTC) if at.tzinfo is None else at)
+    blocked = {c.identity: reasons for c in apple
+               if (reasons := [reason for validate in validators for reason in validate(c)])}
+    valid = [c for c in apple if c.identity not in blocked and c.is_information]
+    fresh = {c.identity: evidence.get((rows[c.identity].get("tz") or "UTC", rows[c.identity]["vendor"])) for c in valid}
+    if len(valid) < 2 or any(at is None for at in fresh.values()):
+        return replace(original, blocked={**original.blocked, **blocked}), False
+    representative = series.rank_candidates(
+        [replace(c, measured_at_ms=fresh[c.identity]) for c in valid], APPLE_RANKING, priorities,
+    )[0].identity
+    finalists = [c for c in candidates if c not in apple or c.identity == representative]
+    result = series.elect(finalists, ranking=RANKING, priorities=priorities, validators=validators)
+    ranked = result.ranked + [c for c in original.ranked if c in apple and c.identity != representative]
+    return series.Decision(
+        result.elected, ranked, {**original.blocked, **blocked, **result.blocked},
+        series.stable_hash(APPLE_RULE, *(f"{c.identity}={sorted(c.values.items())}" for c in ranked)),
+    ), True
 
 
 async def source_priorities() -> list[str]:

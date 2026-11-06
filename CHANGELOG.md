@@ -90,6 +90,14 @@
   tell: the re-import prints "Retracted the daily values on N days";
   `SELECT DISTINCT timezone FROM series_data WHERE source =
   'apple_health_export'` names the phone's offset or zone, not `UTC`.
+- An older Apple Health export could beat a stream containing later measurements
+  for the same day. Generated summaries now choose one valid Apple transport
+  by actual sample freshness before coverage, then compete normally with other
+  vendors. Push, export and direct-watch totals stay separate and are never
+  added together. Reimporting an old export cannot make it fresh by write time;
+  missing sample evidence retains the existing ranking. Reproduce with a
+  morning export and afternoon push for the same metric and day: the later
+  measurements publish their own value (see `docs/apple-health.md`).
 - **A Chinese reader sees a coded reading's name in Chinese.** A report that
   printed 低密度脂蛋白胆固醇 was standardized and then listed as
   `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
