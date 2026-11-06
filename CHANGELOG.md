@@ -221,6 +221,22 @@
   activation that chose "none", the link's row in `th_personal_mcp_url` has
   `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
 
+- **A family member's personal MCP link survives the account it reads being
+  merged.** When a person took over a managed account by signing in to one
+  they already had, or bound an address that belonged to another account, the
+  two accounts were merged but `th_personal_mcp_url` was not: a link someone
+  made to read the closed account still named it. It was refused even when
+  the person chose to keep sharing, still listed as live to the person who
+  made it, and missing from the person's own list of links that read their
+  record, where they would revoke it (#232). The merge now moves such a link
+  to the surviving account, where every use is checked against the care
+  circle as before, so choosing "none" revokes it as it does without a merge.
+  Links the closed account made, and the surviving account's links to the
+  closed one, are revoked; if one person held links to both records, the one
+  that expires later is kept. How to tell: after the merge the link's
+  `subject_id` is the surviving account, and revoked rows read
+  `revoked_by = 'account_merge'`.
+
 - **A provider that answers nothing is no longer logged as a bug in this
   repo.** The OpenAI client returns `None`, without raising, when an endpoint
   answers HTTP 200 with a JSON `null` body. On 1.5.10 a 587 s `deepseek-utils`
