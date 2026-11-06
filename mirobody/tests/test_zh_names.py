@@ -75,13 +75,33 @@ def test_a_code_without_a_translation_reads_from_its_reviewed_parts():
     translated = names._translated()
     for row in range(len(order)):
         code = table.field(row, 0)
-        if code not in translated and series_of(code) not in names._catalogue_by_series():
+        if (code not in translated and series_of(code) not in names._catalogue_by_series()
+                and names._series_and_method(code) not in names._display_by_series_and_method()):
             break
     component, prop = table.field(row, 1), table.field(row, 2)
     found = names.names_for(code, "zh")
     assert found is not None
     assert found.display == found.long
     assert found.long.startswith(f"{component} [{prop}]" if prop else component)
+
+
+def test_a_molar_code_reads_as_its_translated_mass_sibling():
+    # A report in mmol/L codes fasting glucose to 14771-0, which LOINC leaves
+    # unranked (US practice is mg/dL) and so untranslated; its mass sibling
+    # 1558-6 is 空腹血糖, and to a patient they are one test.
+    assert "14771-0" not in names._translated()
+    found = names.names_for("14771-0", "zh-CN")
+    assert found is not None and found.display == "空腹血糖"
+    assert "物质的量" in found.long  # the long name keeps this code's own property
+
+
+def test_a_sibling_by_another_method_does_not_lend_its_name():
+    # 3183-1 is a Lee-White clotting time; its series holds the translated
+    # thromboelastography one (52773-9), which must not name it.
+    lent = names._translated()["52773-9"].display
+    assert series_of("3183-1") == series_of("52773-9")
+    found = names.names_for("3183-1", "zh-CN")
+    assert found is None or found.display != lent
 
 
 def test_a_catalogue_label_speaks_for_a_series_only_when_the_catalogue_agrees():

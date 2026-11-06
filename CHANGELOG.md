@@ -65,7 +65,13 @@
   of 0.01 and 0.001 where the English says 0.05 and 0.005, 贫血小板血浆 for
   乏血小板血浆, Greek letters spelled out, non-standard drug and organism
   names), and those codes gained a Chinese display name and long name
-  (`res/loinc/zh_CN_names.tsv`); every other code in the bundle reads from its
+  (`res/loinc/zh_CN_names.tsv`). A code LOINC leaves unranked takes the
+  display name of a translated code in the same series by the same method,
+  when they all agree (1,104 codes): LOINC ranks by US practice, so the molar
+  code a report in mmol/L codes to is often the unranked one, and a synthetic
+  Chinese checkup's fasting glucose (14771-0) read
+  `葡萄糖^在热量型禁食之后 [物质的量浓度]，血清/血浆` until it took its mg/dL
+  sibling's 空腹血糖. Every other code in the bundle reads from its
   Chinese Parts (`res/loinc/zh_CN_parts.tsv.gz`). `standardize.names_for`
   looks the name up per request and nothing is stored, so a better
   translation names past readings too. `indicator` stays LOINC's English name,

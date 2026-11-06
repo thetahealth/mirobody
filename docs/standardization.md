@@ -207,9 +207,11 @@ what a caller selects it by. A Chinese request (`X-Language` or
 `standardize/names.py`: `label`, the name a Chinese report prints
 (低密度脂蛋白胆固醇, 凝血酶原时间（PT）, 尿隐血), and `label_long`, the precise test
 (低密度脂蛋白胆固醇 [物质的量/体积]，血清/血浆). They come from our translation of the
-17,555 codes LOINC ranks as commonly ordered, then from the catalogue's own
-Chinese label where the catalogue names the series one way only, then from the
-six Chinese Parts composed into a long name; an uncoded row keeps its printed
+17,555 codes LOINC ranks as commonly ordered, then from a translated code in
+the same series by the same method (the mmol/L fasting glucose a Chinese report
+codes to, 14771-0, is unranked; its mg/dL sibling is 空腹血糖, and so is it), then
+from the catalogue's own Chinese label where the catalogue names the series one
+way only, then from the six Chinese Parts composed into a long name; an uncoded row keeps its printed
 name and gets neither. LOINC's own zh-CN variant translates only the Parts, so
 the Parts were reviewed one by one against it and the two name columns it
 leaves empty were filled. Nothing is stored: a better translation names every

@@ -1,17 +1,24 @@
 """What a coded reading is called in the reader's language.
 
 A coded reading's English name is LOINC's LONG_COMMON_NAME, stored once per code
-(`th_concept.display`). For a Chinese reader, three sources answer, first hit wins:
+(`th_concept.display`). For a Chinese reader, four sources answer, first hit wins:
 
 1. `res/loinc/zh_CN_names.tsv`: a display name (LOINC's LinguisticVariantDisplayName
    column) and a long name (LONG_COMMON_NAME) for every code LOINC ranks as commonly
    ordered. LOINC's own zh-CN variant (ID 5) translates only the six Parts and leaves
    those columns empty, so this file fills them, working from Parts that were reviewed
    one by one against that variant (`standardize_build/zh_CN/`).
-2. The catalogue's Chinese label (`res/catalog/labels/zh.tsv`) of the member whose
+2. The display name of a translated code in the same series with the same method:
+   a code that differs from it only in mass against molar units. LOINC ranks by US
+   practice, so the molar code a Chinese report in mmol/L codes to is often unranked
+   while its mass sibling is ranked: 14771-0 (fasting glucose, moles) reads as its
+   sibling 1558-6 does, 空腹血糖. To a patient they are one test; the long name still
+   comes from the code's own Parts, since the property differs. Only when every such
+   sibling agrees on the name.
+3. The catalogue's Chinese label (`res/catalog/labels/zh.tsv`) of the member whose
    `loinc` code is in the same series, when the catalogue names that series one way
    only: `每日深度睡眠` and `深度睡眠` share 93831-6, so neither may speak for it.
-3. The six reviewed Chinese Parts (`res/loinc/zh_CN_parts.tsv.gz`), composed the way
+4. The six reviewed Chinese Parts (`res/loinc/zh_CN_parts.tsv.gz`), composed the way
    LOINC composes a long name: component [property], timing, specimen, method.
    Formal, but never a different test: the component alone is not enough, since
    MCH and haemoglobin share `血红蛋白`.
@@ -78,12 +85,35 @@ def chinese_names(code: str) -> Names | None:
     if hit is not None:
         return hit
     composed = _composed(code)
-    label = _catalogue_by_series().get(_series(code))
+    label = _display_by_series_and_method().get(_series_and_method(code)) or _catalogue_by_series().get(_series(code))
     if label:
         return Names(label, composed or label)
     if composed:
         return Names(composed, composed)
     return None
+
+
+def _series_and_method(code: str) -> tuple[str, str]:
+    from .code import axes_for
+    from .series import series_id
+
+    found = axes_for(code)
+    if found is None:
+        return "", ""
+    return series_id(found[0]), found[0].method.strip()
+
+
+@lru_cache(maxsize=1)
+def _display_by_series_and_method() -> dict[tuple[str, str], str]:
+    """`(series, method)` -> the display name every translated code there shares.
+    The series already folds mass and molar together; keeping the method apart is
+    what stops a thromboelastography clotting time from naming a Lee-White one."""
+    seen: dict[tuple[str, str], set[str]] = {}
+    for code, names in _translated().items():
+        key = _series_and_method(code)
+        if key[0]:
+            seen.setdefault(key, set()).add(names.display)
+    return {key: next(iter(found)) for key, found in seen.items() if len(found) == 1}
 
 
 def _unreadable(path: str, e: Exception) -> None:
