@@ -90,6 +90,14 @@
   tell: the re-import prints "Retracted the daily values on N days";
   `SELECT DISTINCT timezone FROM series_data WHERE source =
   'apple_health_export'` names the phone's offset or zone, not `UTC`.
+- An older Apple Health export could beat a stream containing later measurements
+  for the same day. Generated summaries now choose one valid Apple transport
+  by actual sample freshness before coverage, then compete normally with other
+  vendors. Push, export and direct-watch totals stay separate and are never
+  added together. Reimporting an old export cannot make it fresh by write time;
+  missing sample evidence retains the existing ranking. Reproduce with a
+  morning export and afternoon push for the same metric and day: the later
+  measurements publish their own value (see `docs/apple-health.md`).
 - **A coded reading is named for a person, in the reader's language.** A
   report that printed 低密度脂蛋白胆固醇 was standardized and then listed as
   `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
@@ -275,6 +283,22 @@
   allows, like every other sharing change (#232). How to tell: after an
   activation that chose "none", the link's row in `th_personal_mcp_url` has
   `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
+
+- **A family member's personal MCP link survives the account it reads being
+  merged.** When a person took over a managed account by signing in to one
+  they already had, or bound an address that belonged to another account, the
+  two accounts were merged but `th_personal_mcp_url` was not: a link someone
+  made to read the closed account still named it. It was refused even when
+  the person chose to keep sharing, still listed as live to the person who
+  made it, and missing from the person's own list of links that read their
+  record, where they would revoke it (#232). The merge now moves such a link
+  to the surviving account, where every use is checked against the care
+  circle as before, so choosing "none" revokes it as it does without a merge.
+  Links the closed account made, and the surviving account's links to the
+  closed one, are revoked; if one person held links to both records, the one
+  that expires later is kept. How to tell: after the merge the link's
+  `subject_id` is the surviving account, and revoked rows read
+  `revoked_by = 'account_merge'`.
 
 - **A provider that answers nothing is no longer logged as a bug in this
   repo.** The OpenAI client returns `None`, without raising, when an endpoint

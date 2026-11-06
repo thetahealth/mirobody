@@ -15,9 +15,13 @@ circle lets them read the subject. The URL alone grants that, so:
   the creator read the subject, the same `resolve_subject` the REST routes
   ask. Unsharing, removal from a circle, deleting an account and taking one
   back therefore end the link without anyone revoking it.
-* Unsharing and removal also revoke it (`revoke_unshared`, called by
-  `care_circle`), so sharing again later does not bring an old link back: the
-  person stopped sharing for a reason, and a leaked link is one of them.
+* Unsharing, removal and an activation that shares nothing also revoke it
+  (`revoke_unshared`, through `care_circle.end_links`), so sharing again later
+  does not bring an old link back: the person stopped sharing for a reason,
+  and a leaked link is one of them.
+* Merging two accounts moves a link that reads the closed one to the one kept,
+  where these checks go on applying, and revokes the links the closed account
+  made (`account_merge._merge_personal_mcp_links`).
 * A link lives a fixed number of days from when it was made and is never
   extended by use. Making a new one for the same creator and subject revokes
   the old one in the same transaction.

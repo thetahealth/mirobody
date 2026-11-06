@@ -96,6 +96,24 @@ then coverage, then measurement freshness, then the deployment's
 (forty hours of sleep in one night) is rejected and the rejection is a row of
 `th_check_result`. Every reader joins `th_day_authority`; none re-decides.
 
+For generated daily summaries, `apple_health`, `apple_health_export` and
+`apple_health_watch` remain separate streams. Before competing with other
+vendors, their valid alternatives elect one Apple representative by source
+class, actual measurement freshness, coverage, then static priority. The
+freshness lookup uses the maximum valid `series_data.time` from the same
+source-id winner and catalogue window as SQL aggregation (including DST and
+the 18:00 sleep-day anchor). Filtered points, nonnumeric values and losing
+source IDs cannot refresh a stream. Display names are not device identities.
+
+Freshness takes precedence only when every valid alternative has retained
+sample evidence; otherwise the existing deterministic ranking applies. Equal
+measurement times fall back to coverage and priority. Reimporting an old
+export does not refresh its measurements: neither database write time nor a
+summary's synthetic day boundaries count. The representative then competes
+with other vendors under the ordinary coverage-first policy. Values are
+never summed across transports, validation still rejects impossible totals,
+and the authority row records the Apple transport policy in `rule`.
+
 ## Running it
 
 | | |
