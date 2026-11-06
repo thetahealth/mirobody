@@ -94,7 +94,7 @@ IGG_DAIRY	iggDairy	Igg Dairy	Medical Metrics	FSU	FSU	series	instant	last			00:00
 INSULIN_INJECTION_LONG_ACTING	insulinInjectionLongActing	Insulin Injection Long Acting	Medical Metrics	unit	U	series	instant	last			00:00				Long-acting insulin injection amount	1.4.0
 INSULIN_INJECTION_RAPID_ACTING	insulinInjectionRapidActing	Insulin Injection Rapid Acting	Medical Metrics	unit	U	series	instant	last			00:00				Rapid-acting insulin injection amount	1.4.0
 LIGHT_SLEEP	sleepAnalysis_Asleep(Core)	Light Sleep	Sleep Metrics	ms	ms	series	session	duration_union	93830-8	unverified	18:00		total		Light sleep duration	1.4.0
-MAX_HEART_RATE_PROFILE	maxHeartRateProfile	Max Heart Rate Profile	Vital Signs	count/min	/min	series	instant	last			00:00		last		Maximum heart rate set in user profile	1.4.0
+MAX_HEART_RATE_PROFILE	maxHeartRateProfile	Max Heart Rate Profile	Vital Signs	count/min	/min	series	instant	last			00:00				Maximum heart rate set in user profile	1.4.0
 MINDFULNESS_MINUTES	mindfulnessMinutes	Mindfulness Minutes	Lifestyle	min	min	series	instant	last			00:00				Mindfulness meditation time	1.4.0
 MUSCLE_PERCENTAGE	bodyMuscle	Muscle Percentage	Body Composition	%	%	mix	instant	last			00:00	body_composition			Percentage of muscle relative to total body weight	1.4.0
 PROTEIN_PERCENTAGE	bodyProtein	Protein Percentage	Body Composition	%	%	mix	instant	last			00:00	body_composition			Percentage of protein relative to total body weight	1.4.0

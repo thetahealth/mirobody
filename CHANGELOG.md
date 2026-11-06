@@ -87,21 +87,28 @@
   the network log has no 404; the gate fails on the previous `index.html`
   with `index.html -> assets/index-mKXkiuxp.js`.
 
-- **Apple HRV (SDNN), walking asymmetry and 21 more device readings show
+- **Apple HRV (SDNN), walking asymmetry and 20 more device readings show
   up.** A series reaches a day only through the statistics its catalogue row
-  declares, and 23 of the series metrics the device decoders write declared
+  declares, and 22 of the series metrics the device decoders write declared
   none, so they were decoded and stored and then shown nowhere: not in the
   indicator list, the dashboard or `query_health_indicators` (#245). Apple
   had eleven of them, among them HRV (SDNN), walking asymmetry and
   double-support time, wrist temperature and six-minute walk distance;
-  Garmin, Whoop, Oura and Open Wearables had twelve more, among them recovery
+  Garmin, Whoop, Oura and Open Wearables had eleven more, among them recovery
   score, skin temperature, max heart rate and alcohol. Each now declares the
   statistic its own policy names: `avg,min,max` for HRV (SDNN), `total` for
-  alcohol, `last` for the rest. A test now fails when a decoder writes a
-  series that declares no statistic; sleep stages are exempt, since their
-  nightly figures come from the derive rules. How to tell: import an Apple
-  export that has HRV, and `hrvSDNN` has daily rows that
-  `query_health_indicators` returns.
+  alcohol, `last` for the rest. WHOOP's profile maximum heart rate
+  (`maxHeartRateProfile`) stays stored and unshown: it is the ceiling set in
+  the profile, not a measurement (`res/crosswalks/unmappable.tsv`), and a
+  daily row would sit beside the measured maximum. A test now fails when a
+  decoder writes a series that declares no statistic; sleep stages are
+  exempt, since their nightly figures come from the derive rules. Days stored
+  before this release are not rebuilt on their own: the aggregator only
+  revisits a day whose points are written again. Rerunning
+  `mirobody import apple <export.zip> --into <user id>` rebuilds every day the
+  export covers and adds no readings. How to tell: after that import,
+  `dailyAvgHrvSDNN` has a row per day with HRV, and `query_health_indicators`
+  returns it.
 
 - **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
   said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
