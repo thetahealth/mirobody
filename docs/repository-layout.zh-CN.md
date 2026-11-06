@@ -18,7 +18,7 @@ mirobody/
 ├── documents/   文件变成文本，按类型分：PDF 文本层、只对扫描件做 OCR、Office、纯文本   [parse]
 ├── collect/     ① 收集 Collect   provider、文件解析、落库、读取（Postgres）
 ├── standardize/ ② 标准化 Standardize 纯函数缝（fold · parse · local_day · series · code ·
-│                devices）、指标目录、单位、aggregate/、derive/
+│                names · devices）、指标目录、单位、aggregate/、derive/
 ├── agent/       ③ 智能体 Agent   models/ filesystem/ wire/ middleware/ tools/ chat/
 ├── mcp/         MCP 服务端
 ├── server/      HTTP 应用：路由、鉴权、自带的前端

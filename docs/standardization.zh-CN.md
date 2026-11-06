@@ -154,6 +154,16 @@ METHOD 合并，质量浓度和摩尔浓度折叠成同一个量纲，这和 LOI
 否则不给统计值（白蛋白的 g/L 和 umol/L 没有摩尔质量可以换算）。原始行同时带着两种值。
 回答会引用它所依据的行（[answers.md](answers.md)（英文），`kernel/citations.py`）。
 
+已编码的行用 LOINC 的英文长名命名，即 `indicator` 字段，调用方也按它选取。请求语言是中文时
+（`X-Language` 或 `Accept-Language` 以 `zh` 开头），`standardize/names.py` 会多给两个字段：`label` 是化验单上印的名字
+（低密度脂蛋白胆固醇、凝血酶原时间（PT）、尿隐血），`label_long` 是精确到样本和方法的长名
+（低密度脂蛋白胆固醇 [物质的量/体积]，血清/血浆）。来源依次是：LOINC 标为常用的 17,555 个码的中文译名；
+指标目录里的中文标签（仅当目录对该序列只有一种叫法时）；六个中文组成部分拼成的长名。
+未编码的行保持报告原名，不加这两个字段。LOINC 官方中文版只翻译了组成部分，
+所以我们逐个复核了组成部分，并补上了它留空的两列名称。中文名不入库：译名改进后，过去的读数也随之更新。
+按 LOINC 许可第 12 条，LOINC 的译文归 Regenstrief 所有，并要提交给他们（`res/loinc/zh_CN.NOTICE`、
+`standardize_build/loinc_zh.py --submission`）。
+
 ### 8. 改主意
 
 `observations.confirm_alias`（接口是 `POST /api/v1/health-indicators/confirm-code`，

@@ -52,6 +52,32 @@
 
 ### Fixed
 
+- **A Chinese reader sees a coded reading's name in Chinese.** A report that
+  printed 低密度脂蛋白胆固醇 was standardized and then listed as
+  `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
+  list, the drawer and the agent's answers, whatever the UI language (#231):
+  `th_concept.display_zh` was never written, and LOINC's own Simplified
+  Chinese translation (the zh-CN linguistic variant) translates only the six
+  Parts of a code, leaving its long name, display name and consumer name
+  empty. Every Part the 17,555 codes LOINC ranks as commonly ordered use was
+  reviewed against that variant and 1,654 of 9,472 corrected (stale Parts
+  from before LOINC restructured the coagulation tests, TSH detection limits
+  of 0.01 and 0.001 where the English says 0.05 and 0.005, 贫血小板血浆 for
+  乏血小板血浆, Greek letters spelled out, non-standard drug and organism
+  names), and those codes gained a Chinese display name and long name
+  (`res/loinc/zh_CN_names.tsv`); every other code in the bundle reads from its
+  Chinese Parts (`res/loinc/zh_CN_parts.tsv.gz`). `standardize.names_for`
+  looks the name up per request and nothing is stored, so a better
+  translation names past readings too. `indicator` stays LOINC's English name,
+  because callers select by it and two series can share one Chinese name; a
+  request whose `X-Language` or `Accept-Language` is Chinese gets `label` and
+  `label_long` beside it, and the agent's tables a `label` column, which an
+  English request never sees. A translation of LOINC belongs to Regenstrief
+  under section 12 of the LOINC licence, so these files ship under that
+  licence (`res/loinc/zh_CN.NOTICE`) and `standardize_build/loinc_zh.py
+  --submission` writes the file that goes back to them. To tell: with
+  `X-Language: zh-CN`, `GET /api/v1/health-indicators` answers an LDL row
+  with `"label": "低密度脂蛋白胆固醇"`.
 - **A long indicator name no longer pushes the newest value off the screen.**
   On Data → 指标 the name column took the width of its longest name: a
   60-character LOINC display, or one unbreakable token such as
@@ -101,6 +127,29 @@
   since the 2.83 cut has no reachable code for it. Readings already stored
   under these names move with `mirobody recode`. How to tell:
   `mirobody resolve "尿酸(UA)测定"` answers Urate.
+
+- **Apple HRV (SDNN), walking asymmetry and 20 more device readings show
+  up.** A series reaches a day only through the statistics its catalogue row
+  declares, and 22 of the series metrics the device decoders write declared
+  none, so they were decoded and stored and then shown nowhere: not in the
+  indicator list, the dashboard or `query_health_indicators` (#245). Apple
+  had eleven of them, among them HRV (SDNN), walking asymmetry and
+  double-support time, wrist temperature and six-minute walk distance;
+  Garmin, Whoop, Oura and Open Wearables had eleven more, among them recovery
+  score, skin temperature, max heart rate and alcohol. Each now declares the
+  statistic its own policy names: `avg,min,max` for HRV (SDNN), `total` for
+  alcohol, `last` for the rest. WHOOP's profile maximum heart rate
+  (`maxHeartRateProfile`) stays stored and unshown: it is the ceiling set in
+  the profile, not a measurement (`res/crosswalks/unmappable.tsv`), and a
+  daily row would sit beside the measured maximum. A test now fails when a
+  decoder writes a series that declares no statistic; sleep stages are
+  exempt, since their nightly figures come from the derive rules. Days stored
+  before this release are not rebuilt on their own: the aggregator only
+  revisits a day whose points are written again. Rerunning
+  `mirobody import apple <export.zip> --into <user id>` rebuilds every day the
+  export covers and adds no readings. How to tell: after that import,
+  `dailyAvgHrvSDNN` has a row per day with HRV, and `query_health_indicators`
+  returns it.
 
 - **A reading whose name is only punctuation is refused, not filed under
   no name.** The write path refused an empty name after trimming whitespace,

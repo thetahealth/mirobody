@@ -3,8 +3,8 @@ ACTIVE_TIME	exerciseMinutes	Active Time	Activity Metrics	min	min	series	cumulati
 DAILY_ACTIVITY_INTENSITY_HIGH	dailyActivityIntensityHigh	Daily Activity Intensity High	Activity Metrics	min	min	summary	provider_daily	provider_value	101690-6	confident	00:00				High intensity activity time	1.4.0
 DAILY_ACTIVITY_INTENSITY_MEDIUM	dailyActivityIntensityMedium	Daily Activity Intensity Medium	Activity Metrics	min	min	summary	provider_daily	provider_value	101689-8	confident	00:00				Medium intensity activity time	1.4.0
 DAILY_ACTIVITY_INTENSITY_LOW	dailyActivityIntensityLow	Daily Activity Intensity Low	Activity Metrics	min	min	summary	provider_daily	provider_value	101688-0	confident	00:00				Low intensity activity time	1.4.0
-ALTITUDE_CHANGE	altitudeChange	Altitude Change	Performance Metrics	m	m	series	instant	last			00:00				Net altitude change during exercise	1.4.0
-ALTITUDE_GAIN	altitudeGain	Altitude Gain	Performance Metrics	m	m	series	instant	last	101687-2	confident	00:00				Total altitude gain during exercise	1.4.0
+ALTITUDE_CHANGE	altitudeChange	Altitude Change	Performance Metrics	m	m	series	instant	last			00:00		last		Net altitude change during exercise	1.4.0
+ALTITUDE_GAIN	altitudeGain	Altitude Gain	Performance Metrics	m	m	series	instant	last	101687-2	confident	00:00		last		Total altitude gain during exercise	1.4.0
 HOURLY_APNEA_INDEX	hourlyApneaIndex	Hourly Apnea Index	Medical Metrics	count/hour	/h	summary	provider_daily	provider_value			00:00				Number of apnea events per hour	1.4.0
 DAILY_APNEA_INDEX	dailyApneaIndex	Daily Apnea Index	Medical Metrics	count	{#}	summary	provider_daily	provider_value			00:00				Number of apnea events per sleep	1.4.0
 AWAKE_TIME	sleepAnalysis_Awake	Awake Time	Sleep Metrics	ms	ms	series	session	duration_union	103210-1	unverified	18:00		total		Awake time during sleep period	1.4.0
@@ -31,12 +31,12 @@ CHOLESTEROL_TOTAL	bodyCholesterol	Cholesterol Total	Metabolic Metrics	mmol/L	mmo
 CHOLESTEROL_TRIGLYCERIDES	bodyCholesterolTriglycerides	Cholesterol Triglycerides	Metabolic Metrics	mmol/L	mmol/L	series	instant	last			00:00	lipids			Triglyceride level in blood	1.4.0
 CYCLING_DISTANCE	cyclingDistances	Cycling Distance	Activity Metrics	m	m	series	cumulative	sum_delta	93818-3	confident	00:00		total		Total cycling distance	1.4.0
 CYCLING_DURATION	cyclingDuration	Cycling Duration	Activity Metrics	ms	ms	series	instant	last			00:00				Duration of cycling	1.4.0
-CYCLING_SPEED	cyclingSpeeds	Cycling Speed	Activity Metrics	m/s	m/s	series	instant	last			00:00				Average cycling speed	1.4.0
+CYCLING_SPEED	cyclingSpeeds	Cycling Speed	Activity Metrics	m/s	m/s	series	instant	last			00:00		last		Average cycling speed	1.4.0
 DAILY_CALORIES_ACTIVE	dailyCaloriesActive	Daily Calories Active	Activity Metrics	kcal	kcal	summary	provider_daily	provider_value	41979-6	confident	00:00				Daily summary of calories burned through exercise	1.4.0
 DAILY_CALORIES_BASAL	dailyCaloriesBasal	Daily Calories Basal	Activity Metrics	kcal	kcal	summary	provider_daily	provider_value			00:00				Daily summary of calories burned through basal metabolism	1.4.0
 DAILY_DISTANCE	dailyDistance	Daily Distance	Activity Metrics	m	m	summary	provider_daily	provider_value	103208-5	confident	00:00				Daily summary of walking or exercise distance	1.4.0
 DEEP_SLEEP	sleepAnalysis_Asleep(Deep)	Deep Sleep	Sleep Metrics	ms	ms	series	session	duration_union	93831-6	confident	18:00		total		Deep sleep duration	1.4.0
-DIETARY_ALCOHOL	alcohol	Dietary Alcohol	Nutrition Intake	g	g	series	cumulative	sum_delta			00:00				Alcohol intake amount	1.4.0
+DIETARY_ALCOHOL	alcohol	Dietary Alcohol	Nutrition Intake	g	g	series	cumulative	sum_delta			00:00		total		Alcohol intake amount	1.4.0
 DIETARY_CAFFEINE	caffeine	Dietary Caffeine	Nutrition Intake	g	g	series	cumulative	sum_delta			00:00				Caffeine intake amount	1.4.0
 DIETARY_CARBS	carbohydrates	Dietary Carbs	Nutrition Intake	g	g	mix	cumulative	sum_delta			00:00				Carbohydrate intake amount	1.4.0
 DIETARY_CHOLESTEROL	cholesterol	Dietary Cholesterol	Nutrition Intake	g	g	series	cumulative	sum_delta			00:00				Dietary cholesterol intake amount	1.4.0
@@ -53,7 +53,7 @@ DIETARY_SATURATED	saturated	Dietary Saturated	Nutrition Intake	g	g	series	cumula
 DIETARY_SUGAR	sugar	Dietary Sugar	Nutrition Intake	g	g	series	cumulative	sum_delta			00:00				Sugar intake amount	1.4.0
 DIETARY_WATER	waters	Dietary Water	Nutrition Intake	L	L	series	cumulative	sum_delta			00:00		total		Daily water intake	1.4.0
 DISTANCE	walkingRunningDistances	Distance	Activity Metrics	m	m	series	cumulative	sum_delta	112427-0	confident	00:00		total		Walking or exercise distance	1.4.0
-WALKING_RUNNING_DURATION	walkingRunningDuration	Walking Running Duration	Activity Metrics	ms	ms	series	instant	last			00:00				Duration of walking and running	1.4.0
+WALKING_RUNNING_DURATION	walkingRunningDuration	Walking Running Duration	Activity Metrics	ms	ms	series	instant	last			00:00		last		Duration of walking and running	1.4.0
 ELECTROCARDIOGRAM_VOLTAGE	electrocardiogramVoltage	Electrocardiogram Voltage	Medical Metrics	mV	mV	series	instant	last			00:00				Electrocardiogram voltage signal	1.4.0
 ELECTROCARDIOGRAM_VOLTAGE_LEAD1	electrocardiogramVoltageLead1	Electrocardiogram Voltage Lead1	Medical Metrics	mV	mV	series	instant	last			00:00				Electrocardiogram lead I voltage	1.4.0
 ELECTROCARDIOGRAM_VOLTAGE_LEAD2	electrocardiogramVoltageLead2	Electrocardiogram Voltage Lead2	Medical Metrics	mV	mV	series	instant	last			00:00				Electrocardiogram lead II voltage	1.4.0
@@ -79,7 +79,7 @@ FLOORS_CLIMBED	floors	Floors Climbed	Activity Metrics	count	{#}	series	cumulativ
 FLOORS_CLIMBED_DURATION	floorsDuration	Floors Climbed Duration	Activity Metrics	ms	ms	series	instant	last			00:00				Duration of floors climbed	1.4.0
 DAILY_FLOORS_CLIMBED	dailyFloors	Daily Floors Climbed	Activity Metrics	count	{#}	summary	provider_daily	provider_value			00:00				Number of floors climbed	1.4.0
 HEART_RATE	heartRates	Heart Rate	Vital Signs	count/min	/min	series	instant	mean_min_max	8867-4	confident	00:00		avg,max,min,morning_hr_jump,nighttime_resting_hr	morning_hr_jump,nighttime_resting_hr	Number of heartbeats per minute	1.4.0
-HEART_RATE_MAX	heartRateMax	Heart Rate Max	Vital Signs	bpm	/min	series	instant	last			00:00				Maximum heart rate during time range	1.4.0
+HEART_RATE_MAX	heartRateMax	Heart Rate Max	Vital Signs	bpm	/min	series	instant	last			00:00		last		Maximum heart rate during time range	1.4.0
 DAILY_HEART_RATE_MAX	dailyHeartRateMax	Daily Heart Rate Max	Vital Signs	bpm	/min	summary	provider_daily	provider_value	101692-2	confident	00:00				Maximum heart rate during time range	1.4.0
 HEART_RATE_MIN	heartRateMin	Heart Rate Min	Vital Signs	bpm	/min	series	instant	last			00:00				Minimum heart rate during time range	1.4.0
 DAILY_HEART_RATE_MIN	dailyHeartRateMin	Daily Heart Rate Min	Vital Signs	bpm	/min	summary	provider_daily	provider_value	103222-6	confident	00:00				Minimum heart rate during time range	1.4.0
@@ -98,8 +98,8 @@ MAX_HEART_RATE_PROFILE	maxHeartRateProfile	Max Heart Rate Profile	Vital Signs	co
 MINDFULNESS_MINUTES	mindfulnessMinutes	Mindfulness Minutes	Lifestyle	min	min	series	instant	last			00:00				Mindfulness meditation time	1.4.0
 MUSCLE_PERCENTAGE	bodyMuscle	Muscle Percentage	Body Composition	%	%	mix	instant	last			00:00	body_composition			Percentage of muscle relative to total body weight	1.4.0
 PROTEIN_PERCENTAGE	bodyProtein	Protein Percentage	Body Composition	%	%	mix	instant	last			00:00	body_composition			Percentage of protein relative to total body weight	1.4.0
-RECOVERY_SCORE	recoveryScore	Recovery Score	Performance Metrics	%	%	series	instant	last			00:00				Body recovery status score percentage based on HRV, resting heart rate and other indicators	1.4.0
-RECOVERY_TIME	recoveryes	Recovery Time	Performance Metrics	count/min	/min	series	instant	last			00:00				Recommended recovery time	1.4.0
+RECOVERY_SCORE	recoveryScore	Recovery Score	Performance Metrics	%	%	series	instant	last			00:00		last		Body recovery status score percentage based on HRV, resting heart rate and other indicators	1.4.0
+RECOVERY_TIME	recoveryes	Recovery Time	Performance Metrics	count/min	/min	series	instant	last			00:00		last		Recommended recovery time	1.4.0
 REM_SLEEP	sleepAnalysis_Asleep(REM)	REM Sleep	Sleep Metrics	ms	ms	series	session	duration_union	93829-0	confident	18:00		total		Rapid eye movement sleep duration	1.4.0
 RESPIRATORY_RATE	respiratoryRates	Respiratory Rate	Vital Signs	count/min	/min	series	instant	mean_min_max	9279-1	confident	00:00		avg		Number of breaths per minute	1.4.0
 RESPIRATORY_RATE_MIN	respiratoryRateMin	Respiratory Rate Min	Vital Signs	count/min	/min	summary	provider_daily	provider_value			00:00				Minimum respiratory rate	1.4.0
@@ -136,7 +136,7 @@ ARRHYTHMIA_OTHER_SEGMENTS	arrhythmiaOtherSegments	Arrhythmia Other Segments	Medi
 ARRHYTHMIA_NOISE_SEGMENTS	arrhythmiaNoiseSegments	Arrhythmia Noise Segments	Medical Metrics	count	{#}	summary	provider_daily	provider_value			00:00				Number of noise segments	1.4.0
 ARRHYTHMIA_AFIB_DURATION	arrhythmiaAfibDuration	Arrhythmia Afib Duration	Medical Metrics	s	s	summary	provider_daily	provider_value			00:00				Total duration of atrial fibrillation	1.4.0
 ARRHYTHMIA_AFIB_PERCENTAGE	arrhythmiaAfibPercentage	Arrhythmia Afib Percentage	Medical Metrics	%	%	summary	provider_daily	provider_value			00:00				Percentage of atrial fibrillation time	1.4.0
-SKIN_TEMPERATURE	skinTemperature	Skin Temperature	Vital Signs	°C	Cel	series	instant	last	61008-9	unverified	00:00				Skin surface temperature measurement	1.4.0
+SKIN_TEMPERATURE	skinTemperature	Skin Temperature	Vital Signs	°C	Cel	series	instant	last	61008-9	unverified	00:00		last		Skin surface temperature measurement	1.4.0
 SLEEP_ANALYSIS_ASLEEP_CORE	sleepAnalysis_Asleep(Core)	Sleep Analysis Asleep Core	Sleep Metrics	ms	ms	series	session	duration_union	93830-8	unverified	18:00				Core sleep stage duration in sleep analysis	1.4.0
 SLEEP_ANALYSIS_ASLEEP_DEEP	sleepAnalysis_Asleep(Deep)	Sleep Analysis Asleep Deep	Sleep Metrics	ms	ms	series	session	duration_union	93831-6	confident	18:00				Deep sleep stage duration in sleep analysis	1.4.0
 SLEEP_ANALYSIS_ASLEEP_REM	sleepAnalysis_Asleep(REM)	Sleep Analysis Asleep REM	Sleep Metrics	ms	ms	series	session	duration_union	93829-0	confident	18:00				REM sleep stage duration in sleep analysis	1.4.0
@@ -146,17 +146,17 @@ SLEEP_ASLEEP_CORE	sleepAnalysis_Asleep(Core)	Sleep Asleep Core	Sleep Metrics	ms	
 SLEEP_ASLEEP_DEEP	sleepAnalysis_Asleep(Deep)	Sleep Asleep Deep	Sleep Metrics	ms	ms	series	session	duration_union	93831-6	confident	18:00				Deep sleep time	1.4.0
 SLEEP_ASLEEP_REM	sleepAnalysis_Asleep(REM)	Sleep Asleep REM	Sleep Metrics	ms	ms	series	session	duration_union	93829-0	confident	18:00				REM sleep time	1.4.0
 SLEEP_AWAKE	sleepAnalysis_Awake	Sleep Awake	Sleep Metrics	ms	ms	series	session	duration_union	103210-1	unverified	18:00				Awake time during sleep period	1.4.0
-SLEEP_CONSISTENCY	sleepConsistency	Sleep Consistency	Sleep Metrics	%	%	series	instant	last			18:00				Sleep consistency percentage measuring sleep routine regularity	1.4.0
+SLEEP_CONSISTENCY	sleepConsistency	Sleep Consistency	Sleep Metrics	%	%	series	instant	last			18:00		last		Sleep consistency percentage measuring sleep routine regularity	1.4.0
 SLEEP_DISTURBANCES	sleepDisturbances	Sleep Disturbances	Sleep Metrics	count	{#}	series	instant	last	103211-9	confident	18:00		total		Number of disturbances and awakenings during sleep	1.4.0
 SLEEP_DURATION	sleepDuration	Sleep Duration	Sleep Metrics	hours	h	series	instant	last			18:00				Total sleep time	1.4.0
 SLEEP_EFFICIENCY	sleepEfficiency	Sleep Efficiency	Sleep Metrics	%	%	series	instant	last			18:00		avg		Percentage of actual sleep time relative to time in bed	1.4.0
 SLEEP_IN_BED	sleepAnalysis_InBed	Sleep In Bed	Sleep Metrics	ms	ms	series	session	duration_union	103213-5	confident	18:00		total,sleep_onset_latency	sleep_onset_latency	Total time in bed	1.4.0
 SLEEP_LATENCY	sleepLatency	Sleep Latency	Sleep Metrics	seconds	s	series	session	duration_union			18:00				Time from lying down to falling asleep	1.4.0
 SLEEP_NAP	napDuration	Sleep Nap	Sleep Metrics	ms	ms	series	instant	last			18:00				Short daytime nap duration	1.4.0
-SLEEP_PERFORMANCE	sleepPerformance	Sleep Performance	Sleep Metrics	%	%	series	instant	last			18:00				Sleep performance score percentage based on actual vs needed sleep time	1.4.0
+SLEEP_PERFORMANCE	sleepPerformance	Sleep Performance	Sleep Metrics	%	%	series	instant	last			18:00		last		Sleep performance score percentage based on actual vs needed sleep time	1.4.0
 SLEEP_QUALITY	sleepQuality	Sleep Quality	Sleep Metrics	%	%	series	instant	last			18:00				Sleep quality score	1.4.0
 SLEEP_UNSPECIFIED	sleepAnalysis_Asleep(Unspecified)	Sleep Unspecified	Sleep Metrics	ms	ms	series	interval	duration_union	93832-4	confident	18:00				Unclassified sleep time	1.4.0
-SPEED	speeds	Speed	Activity Metrics	m/s	m/s	series	instant	last			00:00				Exercise speed	1.4.0
+SPEED	speeds	Speed	Activity Metrics	m/s	m/s	series	instant	last			00:00		last		Exercise speed	1.4.0
 WALKING_SPEED	walkingSpeeds	Walking Speed	Activity Metrics	m/s	m/s	series	instant	mean_min_max			00:00		avg,max		Walking speed	1.4.0
 STEPS	steps	Steps	Activity Metrics	count	{#}	series	cumulative	sum_delta	55423-8	confident	00:00		total		Walking step count	1.4.0
 STEP_DURATION	stepDuration	Step Duration	Activity Metrics	ms	ms	series	instant	last			00:00				Walking step duration	1.4.0
@@ -183,14 +183,14 @@ STRESS_LEVEL	stressLevel	Stress Level	Performance Metrics	%	%	mix	instant	last		
 STRESS_HIGH_DURATION	stressHighDuration	Stress High Duration	Performance Metrics	min	min	summary	provider_daily	provider_value			00:00				Duration of high stress state per day (Oura daily_stress.stress_high, seconds→minutes)	1.4.0
 RECOVERY_HIGH_DURATION	recoveryHighDuration	Recovery High Duration	Performance Metrics	min	min	summary	provider_daily	provider_value			00:00				Duration of high recovery state per day (Oura daily_stress.recovery_high, seconds→minutes)	1.4.0
 SUBCUTANEOUS_FAT	bodySubFat	Subcutaneous Fat	Body Composition	%	%	mix	instant	last			00:00	body_composition			Subcutaneous fat percentage	1.4.0
-TEMPERATURE_DELTA	temperatureDelta	Temperature Delta	Vital Signs	°C	Cel	series	instant	last			00:00				Body temperature change during sleep	1.4.0
+TEMPERATURE_DELTA	temperatureDelta	Temperature Delta	Vital Signs	°C	Cel	series	instant	last			00:00		last		Body temperature change during sleep	1.4.0
 TOTAL_SLEEP	sleepAnalysis_Asleep(Total)	Total Sleep	Sleep Metrics	ms	ms	series	interval	duration_union			18:00		total		Total actual sleep time	1.4.0
 TOTAL_SLEEP_TIME	totalSleepTime	Total Sleep Time	Sleep Metrics	seconds	s	series	instant	last			18:00				Total actual sleep time	1.4.0
 TRAINING_LOAD	trainingLoad	Training Load	Performance Metrics	score	{score}	series	instant	last	103223-4	unverified	00:00				Training intensity and load score	1.4.0
 DAILY_TRAINING_LOAD	dailyTrainingLoad	Daily Training Load	Performance Metrics	score	{score}	summary	provider_daily	provider_value			00:00				Training intensity and load score	1.4.0
 USER_GENDER	userGender	User Gender	Lifestyle	enum	enum	mix	instant	last			00:00				User gender information	1.4.0
 USER_SEX	userSex	User Sex	Lifestyle	enum	enum	series	instant	last			00:00				User biological sex	1.4.0
-UV_EXPOSURE	uvExposures	Uv Exposure	Lifestyle	count	{#}	series	instant	last			00:00				UV exposure index	1.4.0
+UV_EXPOSURE	uvExposures	Uv Exposure	Lifestyle	count	{#}	series	instant	last			00:00		last		UV exposure index	1.4.0
 VISCERAL_FAT	bodyVisFat	Visceral Fat	Body Composition	%	%	mix	instant	last			00:00	body_composition			Visceral fat level around organs	1.4.0
 VO2_MAX	vo2Maxs	VO2 Max	Performance Metrics	mL/min/kg	mL/min/kg	mix	instant	last	94122-9	unverified	00:00		avg,max		Maximum oxygen uptake capacity	1.4.0
 WAIST_CIRCUMFERENCE	waistCircumferences	Waist Circumference	Body Composition	m	m	series	instant	last	8280-0	unverified	00:00		last		Waist circumference	1.4.0
@@ -203,7 +203,7 @@ WORKOUT_DURATION_HIGH	workoutDurationHigh	Workout Duration High	Performance Metr
 WORKOUT_DURATION_LOW	workoutDurationLow	Workout Duration Low	Performance Metrics	min	min	series	cumulative	sum_delta			00:00				Low-intensity workout duration	1.4.0
 WORKOUT_DURATION_MEDIUM	workoutDurationMedium	Workout Duration Medium	Performance Metrics	min	min	series	cumulative	sum_delta			00:00				Medium-intensity workout duration	1.4.0
 WORKOUT_STRAIN	workoutStrain	Workout Strain	Performance Metrics	score	{score}	summary	provider_daily	provider_value			00:00				Body stress score for single workout	1.4.0
-WRIST_TEMPERATURE	wristTemperatures	Wrist Temperature	Vital Signs	°C	Cel	series	instant	last	61008-9	unverified	00:00				Wrist skin temperature	1.4.0
+WRIST_TEMPERATURE	wristTemperatures	Wrist Temperature	Vital Signs	°C	Cel	series	instant	last	61008-9	unverified	00:00		last		Wrist skin temperature	1.4.0
 DAILY_DEEP_SLEEP_PERCENTAGE	dailyDeepSleepPercentage	Daily Deep Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value			00:00				Deep sleep percentage of total sleep	1.4.0
 DAILY_LIGHT_SLEEP_PERCENTAGE	dailyLightSleepPercentage	Daily Light Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value			00:00				Light sleep percentage of total sleep	1.4.0
 DAILY_REM_SLEEP_PERCENTAGE	dailyRemSleepPercentage	Daily REM Sleep Percentage	Sleep Metrics	%	%	summary	provider_daily	provider_value			00:00				REM sleep percentage of total sleep	1.4.0
@@ -304,16 +304,16 @@ BODY_MUSCLE_MASS	bodyMuscleMass	Muscle Mass	Body Composition	kg	kg	mix	instant	l
 BODY_SKELETAL_MUSCLE_MASS	bodySkeletalMuscleMass	Skeletal Muscle Mass	Body Composition	kg	kg	mix	instant	last			00:00	body_composition			Skeletal muscle mass	1.4.0
 BODY_VISCERAL_FAT_LEVEL	bodyVisFatLevel	Visceral Fat Level	Body Composition	count	{#}	mix	instant	last			00:00	body_composition			Visceral fat as a scale level (device index), distinct from the visceral fat percentage	1.4.0
 BODY_WATER_MASS	bodyWaterMass	Body Water Mass	Body Composition	kg	kg	mix	instant	last	101683-1	confident	00:00	body_composition			Absolute body water mass; distinct from the water percentage	1.4.0
-HRV_SDNN	hrvSDNN	HRV SDNN	Vital Signs	ms	ms	series	instant	mean_min_max	112429-6	confident	00:00				Heart rate variability as the standard deviation of NN intervals	1.5.0
+HRV_SDNN	hrvSDNN	HRV SDNN	Vital Signs	ms	ms	series	instant	mean_min_max	112429-6	confident	00:00		avg,min,max		Heart rate variability as the standard deviation of NN intervals	1.5.0
 APNEA_HYPOPNEA_INDEX	apneaHypopneaIndex	Apnea Hypopnea Index	Medical Metrics	count/hour	/h	summary	provider_daily	provider_value	69990-0	confident	00:00				Apnea and hypopnea events per hour of sleep	1.5.0
 OBSTRUCTIVE_APNEA_INDEX	obstructiveApneaIndex	Obstructive Apnea Index	Medical Metrics	count/hour	/h	summary	provider_daily	provider_value	70002-1	confident	00:00				Obstructive apnea events per hour of sleep	1.5.0
 PULSE_WAVE_VELOCITY	pulseWaveVelocity	Pulse Wave Velocity	Medical Metrics	m/s	m/s	series	instant	last	77196-4	confident	00:00				Arterial pulse wave velocity	1.5.0
-PERFUSION_INDEX	perfusionIndex	Perfusion Index	Vital Signs	%	%	series	instant	last	61006-3	confident	00:00				Peripheral perfusion index by pulse oximetry	1.5.0
-WALKING_DOUBLE_SUPPORT_PERCENTAGE	walkingDoubleSupportPercentage	Walking Double Support	Performance Metrics	%	%	series	instant	last	112434-6	confident	00:00				Share of the gait cycle with both feet on the ground	1.5.0
-WALKING_ASYMMETRY_PERCENTAGE	walkingAsymmetryPercentage	Walking Asymmetry	Performance Metrics	%	%	series	instant	last	112432-0	unverified	00:00				Share of walking time with asymmetric steps	1.5.0
-STAIR_ASCENT_SPEED	stairAscentSpeed	Stair Ascent Speed	Performance Metrics	m/s	m/s	series	instant	last	112431-2	confident	00:00				Vertical speed climbing stairs	1.5.0
-STAIR_DESCENT_SPEED	stairDescentSpeed	Stair Descent Speed	Performance Metrics	m/s	m/s	series	instant	last	112430-4	confident	00:00				Vertical speed descending stairs	1.5.0
-SIX_MINUTE_WALK_DISTANCE	sixMinuteWalkDistance	Six Minute Walk Distance	Performance Metrics	m	m	series	instant	last	64098-7	confident	00:00				Distance covered in the six-minute walk test	1.5.0
+PERFUSION_INDEX	perfusionIndex	Perfusion Index	Vital Signs	%	%	series	instant	last	61006-3	confident	00:00		last		Peripheral perfusion index by pulse oximetry	1.5.0
+WALKING_DOUBLE_SUPPORT_PERCENTAGE	walkingDoubleSupportPercentage	Walking Double Support	Performance Metrics	%	%	series	instant	last	112434-6	confident	00:00		last		Share of the gait cycle with both feet on the ground	1.5.0
+WALKING_ASYMMETRY_PERCENTAGE	walkingAsymmetryPercentage	Walking Asymmetry	Performance Metrics	%	%	series	instant	last	112432-0	unverified	00:00		last		Share of walking time with asymmetric steps	1.5.0
+STAIR_ASCENT_SPEED	stairAscentSpeed	Stair Ascent Speed	Performance Metrics	m/s	m/s	series	instant	last	112431-2	confident	00:00		last		Vertical speed climbing stairs	1.5.0
+STAIR_DESCENT_SPEED	stairDescentSpeed	Stair Descent Speed	Performance Metrics	m/s	m/s	series	instant	last	112430-4	confident	00:00		last		Vertical speed descending stairs	1.5.0
+SIX_MINUTE_WALK_DISTANCE	sixMinuteWalkDistance	Six Minute Walk Distance	Performance Metrics	m	m	series	instant	last	64098-7	confident	00:00		last		Distance covered in the six-minute walk test	1.5.0
 BONE_PERCENTAGE	bonePercentage	Bone Percentage	Body Composition	%	%	mix	instant	last	101686-4	confident	00:00	body_composition			Bone mass as a share of body weight; distinct from the bone mass	1.5.1
 ALANINE_AMINOTRANSFERASE	alanineAminotransferase	Alanine aminotransferase	Medical Metrics	U/L	U/L	series	instant	last	1742-6	confident	00:00		last		Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma	1.4.0
 ASPARTATE_AMINOTRANSFERASE	aspartateAminotransferase	Aspartate aminotransferase	Medical Metrics	U/L	U/L	series	instant	last	1920-8	confident	00:00		last		Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma	1.4.0
