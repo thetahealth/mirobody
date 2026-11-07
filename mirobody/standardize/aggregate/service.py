@@ -134,7 +134,8 @@ class AggregateIndicatorService:
         are retracted (`observations.retract_unproduced`). A reading whose zone
         changed otherwise left its old day's figure beside its new day's. The
         pass reads a day either side, so that every zone's day in the range,
-        ±14 hours and the 18:00 window included, is read whole.
+        ±14 hours and the 18:00 window included, is read whole. A failed
+        calculation returns an error before any figures are written or retracted.
         """
         if sweep_source and user_id is None:
             return {"status": "error", "error": "sweep_source needs a user_id"}
@@ -158,11 +159,17 @@ class AggregateIndicatorService:
         )
 
         pad = timedelta(days=1) if sweep_source else timedelta(0)
-        all_summaries = await self.aggregator.calculate_time_range_aggregations(
-            start_date=start_date - pad,
-            end_date=end_date + pad,
-            user_id=user_id
-        )
+        aggregator = SQLAggregator(require_complete=True) if sweep_source else self.aggregator
+        try:
+            all_summaries = await aggregator.calculate_time_range_aggregations(
+                start_date=start_date - pad,
+                end_date=end_date + pad,
+                user_id=user_id
+            )
+        except Exception as e:
+            logger.error("historical aggregation failed: user_id=%s error_type=%s", user_id, type(e).__name__,
+                         exc_info=not is_driver_exception(e))
+            return {"status": "error", "error": "Failed to calculate summary data", "error_type": type(e).__name__}
 
         if all_summaries:
             save_success = await self.db_service.batch_save_summary_data(all_summaries)

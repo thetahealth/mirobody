@@ -76,7 +76,7 @@ what it means is another.
 
 <p align="center">
   <img src="images/upload-demo.gif"
-       alt="Dropping a lab-report PDF on the Data page; its analytes extracted, each linked to its source file" width="880">
+       alt="Uploading a lab-report PDF on the Data page; once it is processed, the Indicators list names each test plainly, and one test's drawer shows its specimen, what it measures and its LOINC code" width="880">
 </p>
 
 **3 · ② Standardize.** Its analytes come out as readings once the model has read

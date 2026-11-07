@@ -53,12 +53,16 @@ th_day_authority
   task's cursor; with no cursor, those updated in the last 24 hours. The task advances the cursor to the newest
   `update_time` it processed.
 * **A date range** (`recalculate_date_range`): one person over any span, or
-  everyone over at most 30 days; longer spans run in 30-day chunks.
+  everyone over at most 30 days; longer spans run in 30-day chunks. The
+  calendar days are inclusive and each chunk starts at midnight, so a first
+  sample at noon cannot hide the next chunk's early-morning samples.
   `ingest/services/repair_reconcile.py` uses it after a repair sweep. With
   `sweep_source`, one person's figures from that source dated in the range
   that the pass does not write again are retracted
   (`observations.retract_unproduced`): `mirobody import apple --into` uses it,
-  so a reading whose zone changed does not leave its old day's figure.
+  so a reading whose zone changed does not leave its old day's figure. This
+  pass requires complete computation before writing or retracting figures;
+  a failed calculation returns an error and leaves the old figures visible.
 
 ## The methods
 
@@ -77,8 +81,9 @@ indicator (`rule_generator.py`); each method becomes `daily{Method}{Indicator}`
 
 `value` is text. Every cast goes through `_num()`, which reads a value that
 is not a number as NULL, so one stray point does not fail the statement. A
-person-day that fails anyway is logged and skipped; the rest of the pass
-goes on. Points stored under `task_id = "filtered_out_of_range"` (outside
+person-day that fails anyway is logged and skipped in an incremental pass;
+a sweeping recalculation aborts instead, including on a custom derived
+method's failure. Points stored under `task_id = "filtered_out_of_range"` (outside
 their plausible range, `collect/ingest/services/upload_health.py`) are never
 aggregated.
 

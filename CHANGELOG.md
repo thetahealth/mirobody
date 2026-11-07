@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 1.6.0
+
 ### Added
 
 - **The docs say how a printed reading becomes a comparable one.** The public
@@ -98,6 +100,22 @@
   missing sample evidence retains the existing ranking. Reproduce with a
   morning export and afternoon push for the same metric and day: the later
   measurements publish their own value (see `docs/apple-health.md`).
+- **An Apple re-import keeps its published daily figures when recalculation
+  fails.** A person-day or custom derived computation could fail and return
+  partial results; the subsequent sweep retracted the figures it had not
+  computed and the import reported success. A sweeping recalculation now
+  requires every computation to succeed before writing or retracting figures,
+  and reports failure to the importer. The incremental worker still isolates
+  one person's failure so other records can progress. How to tell: interrupt
+  a re-import's aggregation query, then retry; the old daily figures remain
+  visible until the retry finishes the timezone repair.
+- **Apple imports cover every day across 30-day calculation chunks.** The
+  first sample's time of day carried into each next chunk and skipped its
+  first day's earlier samples; the sweep could then retract valid summaries.
+  Date-range calculations now read complete, consecutive calendar days.
+  How to tell: import and re-import 35 days whose first sample is at noon
+  and later samples at 01:00; all 35 days retain their daily figures and
+  the unchanged re-import writes nothing.
 - **A coded reading is named for a person, in the reader's language.** A
   report that printed 低密度脂蛋白胆固醇 was standardized and then listed as
   `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
@@ -148,6 +166,17 @@
   hemoglobin row with `"label": "血红蛋白"` and
   `"facets": {"specimen": "全血", "property": "质量浓度"}`; open its drawer on a
   中文 page.
+- **A page opened in English asks for English, whatever the browser's
+  language.** The web client read `?lang=` once to draw the page and again on
+  every request for `X-Language`. Once an in-app link dropped the query, a
+  page opened as `/login?lang=en` in a browser set to Chinese stayed English
+  but asked the server for Chinese: the indicator list read 体重 and 总胆固醇
+  under English headings, and every later request, the chat included, said
+  the reader's language was Chinese. A request now asks for the language the
+  page is drawn in, which both language switches set (`frontend/`, rebuilt
+  from thetahealth/mirobody-web `1047eb1`). How to tell: in a browser set to
+  Chinese, open `/login?lang=en`, sign in and open Indicators; the names read
+  `Body weight`, `Cholesterol, Blood`.
 - **The web client can be read in dark mode.** With the system (or the
   browser, or an embedded view) set to dark, the page painted no background,
   so near-black showed through behind the cream design's near-black text:
@@ -275,6 +304,14 @@
   names and units". The Chinese guides also broke lines mid-sentence, which
   GitHub and the docs site render as a space between two characters; those
   lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+- **The walkthrough's upload demo shows the list as it reads now.** It ended
+  on test names in LOINC's long form (`Cholesterol in HDL [Moles/volume] in
+  Serum or Plasma`), the Chinese GIF included. It is re-recorded in English,
+  Chinese and, for the Japanese walkthrough, which showed the English one,
+  Japanese: the upload, the list by plain names, and total cholesterol's
+  drawer with its two readings, specimen, what it measures and its code.
+  To tell: `docs/images/upload-demo.ja.gif` exists and `docs/walkthrough.ja.md`
+  shows it.
 
 - **Hematocrit printed as `0.45 L/L` and as `45 %` is one series.** `L/L`,
   the SI spelling of a volume fraction, was not a unit the engine knew, so a
