@@ -187,12 +187,15 @@ Mirobody 不做诊断、不开处方，回答不构成医疗建议。
 | --- | --- |
 | 在 Claude Code、Codex、Cursor 或 Gemini CLI 里查询你的记录 | 在运行中的应用里打开**设置 → MCP 链接**（默认 10 天有效），再按[各客户端的一行配置](https://docs.mirobody.ai/zh/tools/mcp-integration) |
 | 不运行应用，把离线引擎作为工具交给任意 MCP 客户端 | 通过 stdio 运行 `uvx --python 3.12 mirobody mcp`（[客户端配置](https://docs.mirobody.ai/zh/tools/mcp-integration#通过-stdio-使用本地术语工具)） |
+| 在 DeepSeek Harness 里使用 Mirobody | 社区插件 [dsh-plugin-mirobody](https://github.com/zwbao/dsh-plugin-mirobody)（作者 zwbao）：离线引擎和你记录的只读工具，外加一个 Mirobody 标签页 |
 | 在自己的代码里解析名称和单位 | `pip install mirobody`：离线、无需 Key，只依赖 numpy（[库的用法](docs/quickstart.zh-CN.md#a--the-library)） |
 | 让你的编码 agent 学会这套流程 | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | 新增设备 provider 或工具 | 把文件放进 `mirobody/collect/providers/` 或 `mirobody/agent/tools/`（[CONTRIBUTING](CONTRIBUTING.md)） |
 | 不部署，先体验应用 | [Mirobody 网页演示](https://chat.mirobody.cn/demo?ref=github-readme&lang=zh-cn)，使用同一套[合成演示文件](demo/README.md) |
 
 通过 MCP，整套服务提供的工具都限定在当前登录者的范围内：四个读取你的记录（读数、用药、基因型、药物基因组），三个解析名称和单位；部署配置了医学资料来源时，另有两个查医学资料的工具。
+
+每次发版，stdio 服务都会以 `ai.thetahealth/mirobody` 发布到官方 MCP Registry。读取这个注册表的目录也会收录它，例如 [mcprush](https://mcprush.com/thetahealth/mirobody-mcp)，以及在沙箱里实际运行它的 [AddonAudit](https://addonaudit.com/addon/ai-thetahealth-mirobody/)。各个目录按自己的节奏同步新版本，安装命令请以本 README 为准。
 
 运行 `pip install mirobody` 后，在 Python 中调用同一个引擎：
 

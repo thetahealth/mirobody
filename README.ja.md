@@ -179,12 +179,15 @@ Mirobody は診断や処方を行わず、回答は医学的な助言ではあ�
 | --- | --- |
 | Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | 動いているアプリで **設定 → MCP リンク**（既定で10日間有効）を開き、[クライアントごとの1行設定](https://docs.mirobody.ai/ja/tools/mcp-integration) |
 | アプリを動かさずに、オフラインのエンジンを MCP クライアントのツールとして使う | stdio で `uvx --python 3.12 mirobody mcp`（[クライアント設定](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)） |
+| DeepSeek Harness の中で Mirobody を使う | コミュニティプラグイン [dsh-plugin-mirobody](https://github.com/zwbao/dsh-plugin-mirobody)（作者 zwbao）：オフラインのエンジンと記録の読み取り専用ツールに、Mirobody タブが付きます |
 | 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.ja.md#a--the-library)） |
 | コーディングエージェントにこの手順を教える | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | デバイスのプロバイダーやツールを追加する | `mirobody/collect/providers/` か `mirobody/agent/tools/` にファイルを置く（[CONTRIBUTING](CONTRIBUTING.md)） |
 | デプロイせずにアプリを試す | [Mirobody Web デモ](https://chat.mirobody.ai/demo?ref=github-readme&lang=ja)。同じ[合成デモファイル](demo/README.md)を使っています |
 
 MCP で使えるツールは、どれもログイン中の本人の範囲に限られます。4つは記録を読み（測定値、服薬、遺伝子型、ファーマコゲノミクス）、3つは名称と単位を解決します。医学資料の情報源が設定されたデプロイでは、さらに2つのツールで医学資料を検索できます。
+
+stdio サーバーはリリースごとに `ai.thetahealth/mirobody` として公式 MCP Registry に公開されます。このレジストリを読むディレクトリにも掲載されます。たとえば [mcprush](https://mcprush.com/thetahealth/mirobody-mcp) や、サンドボックスで実際に動かして検査する [AddonAudit](https://addonaudit.com/addon/ai-thetahealth-mirobody/) です。新しいバージョンが反映される時期はディレクトリごとに違うので、インストールコマンドはこの README のものを使ってください。
 
 `pip install mirobody` のあと、同じエンジンを Python から使えます：
 

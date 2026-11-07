@@ -1,5 +1,20 @@
 ## Unreleased
 
+### Changed
+
+- **MCP directories have less to get wrong.** Directories that mirror the MCP
+  Registry describe the stdio server from its own text. AddonAudit's sandbox
+  could not say whether `normalize_unit` and `convert_unit` run offline,
+  because their descriptions did not say so; both now do. mcprush gives
+  `uvx 'mirobody[agent]' mcp` (about 93 packages) as the install line, and
+  `examples/README.md` was the only page pairing that extra with MCP: its row
+  for example 04 now says the extra is for the MCP SDK the script loads, and
+  that `mirobody mcp` needs only `pip install mirobody`. The READMEs (English,
+  Chinese, Japanese) name the registry entry and two directories that list it,
+  say to take the install line from the README, and add the community DeepSeek
+  Harness plugin to "Build on Mirobody". How to tell: `tools/list` from
+  `mirobody mcp` says "offline" in all three terminology tools.
+
 ## 1.6.0
 
 ### Added
