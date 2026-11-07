@@ -12,8 +12,11 @@
   that `mirobody mcp` needs only `pip install mirobody`. The READMEs (English,
   Chinese, Japanese) name the registry entry and two directories that list it,
   say to take the install line from the README, and add the community DeepSeek
-  Harness plugin to "Build on Mirobody". How to tell: `tools/list` from
-  `mirobody mcp` says "offline" in all three terminology tools.
+  Harness plugin to "Build on Mirobody". Glama, which the awesome-mcp-servers
+  list requires an entry to pass first, did not index the repository; a
+  root `glama.json` now names the maintainer, which is how Glama lets an
+  organization's repository claim its listing. How to tell: `tools/list`
+  from `mirobody mcp` says "offline" in all three terminology tools.
 
 ## 1.6.0
 
