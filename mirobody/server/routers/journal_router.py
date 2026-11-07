@@ -39,6 +39,7 @@ from mirobody.server.auth import subject_for, verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse
 from mirobody.user.care_circle import shared_with_me
 from mirobody.utils import execute_query
+from mirobody.utils.req_ctx import request_language
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +220,7 @@ async def log_entry(
     # report a code the row does not carry.
     stored = await execute_query(_SELECT_ONE, {"id": report.ids[0], "user_id": owner})
     row = (stored or [{}])[0]
-    return StandardResponse(data={
+    return StandardResponse(data=_named({
         "id": report.ids[0],
         "text": entry.text,
         "kind": entry.kind,
@@ -230,11 +231,29 @@ async def log_entry(
         "series_id": row.get("series_id"),
         "reason": row.get("reason") or "",
         "release": row.get("release"),
-    })
+    }))
+
+
+def _named(out: dict) -> dict:
+    """`out` with `label`, the name a person reads in the request's language,
+    when it is coded to LOINC: the same name the indicator list gives the
+    same code (`collect.query._identity`, #231). A reading typed as
+    血压150/95 was listed as `Systolic blood pressure` on a Chinese page.
+
+    `display` stays the classification's own name. An ICPC-3 entry gets no
+    `label` in any language: the bundle holds no Chinese ICPC-3 to take one
+    from, and CC BY-ND forbids writing our own (`res/icpc3/icpc3.NOTICE`), so
+    头疼 keeps WONCA's `Headache`. A LOINC code with no name for that reader
+    (LOINC gives vital signs no English consumer name) gets none either."""
+    if out.get("code_system") == standardize.LOINC_SYSTEM and out.get("code"):
+        names = standardize.names_for(out["code"], request_language())
+        if names is not None and names.display:
+            out["label"] = names.display
+    return out
 
 
 def _entry(row: dict) -> dict:
-    return {
+    return _named({
         "id": row["id"],
         "kind": row["kind"],
         "at": row["observed_start"].isoformat() if row["observed_start"] else None,
@@ -248,7 +267,7 @@ def _entry(row: dict) -> dict:
         "coded": row["outcome"] == "coded",
         "reason": row["reason"] or "",
         "note": row["note_text"] or "",
-    }
+    })
 
 
 @router.post("/journal/sentence")
@@ -344,7 +363,8 @@ async def list_entries(
     """The log, newest first, grouped by the day it was felt.
 
     Each entry carries both names: `text` is what the person wrote and
-    `display` is what the classification calls it. An entry the vocabulary
+    `display` is what the classification calls it, with `label` beside it
+    when the reader's language has a plainer name (`_named`). An entry the vocabulary
     could not place keeps its words and reports why, because dropping it from
     the list would hide the half of the log that most needs a person's eye.
     """
