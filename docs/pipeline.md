@@ -177,6 +177,14 @@ The reference application's aggregation worker keeps its SQL for the twenty-odd
 statistics it computes (percentiles, time-in-range, CGM event detection); the
 kernel owns the day boundary, the shapes and the policies.
 
+A range recalculation reads complete, consecutive calendar days, including
+across 30-day chunks. An Apple re-import may retract figures no longer
+supported after a timezone repair, so that pass requires every computation to
+succeed before writing or retracting any daily figure. A computation failure
+leaves the published figures visible and makes the import fail; retrying
+finishes the repair. The incremental worker still isolates failures by person
+and day so one bad record does not stall other people.
+
 *What changed:* the trigger queries split their input with `LOWER(indicator)
 LIKE '%sleep%'`. That matched 58 `daily…Sleep…` metrics which are
 `provider_daily` — the vendor's own figure, already dated — and re-anchoring

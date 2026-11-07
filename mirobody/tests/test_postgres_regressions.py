@@ -480,6 +480,76 @@ async def test_apple_reimport_moves_readings_and_retracts_the_days_they_left(dat
     assert await database("SELECT count(*) AS n FROM th_observation", log_sql=False) == before
 
 
+@pytest.mark.parametrize("method", ["_aggregate_person_day", "_execute_single_sql_aggregation"])
+@pytest.mark.parametrize("failed_call", [1, 2], ids=["first-day", "after-partial-results"])
+async def test_apple_reimport_preserves_daily_figures_when_calculation_fails(
+    database, monkeypatch, tmp_path, caplog, method, failed_call,
+):
+    import psycopg
+    from mirobody import cli
+    from mirobody.standardize.aggregate.aggregators.sql_aggregator import SQLAggregator
+    from mirobody.utils.config import Config
+
+    export = _hrv_export(tmp_path)
+    await _import_as_before(export)
+    select = "SELECT id, value_text, tz FROM v_observation WHERE source_ref = 'aggregate:apple_health_export' ORDER BY id"
+    before = await database(select, log_sql=False)
+    assert len(before) == 9
+    original = getattr(SQLAggregator, method)
+    calls = 0
+    message = "synthetic driver message containing bound health data"
+
+    async def fail_one_day(self, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == failed_call:
+            raise psycopg.OperationalError(message)
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    with monkeypatch.context() as patch:
+        patch.setattr(SQLAggregator, method, fail_one_day)
+        with pytest.raises(SystemExit, match="Failed to calculate summary data") as error:
+            await cli._store_export(_import_args(export))
+    assert calls == failed_call
+    assert message not in str(error.value) and message not in caplog.text
+    assert await database(select, log_sql=False) == before
+    # The raw points were stored before recalculation failed; retrying must
+    # finish the zone repair rather than leave either day's summaries missing.
+    result = await cli._store_export(_import_args(export))
+    days, rows = await _hrv_days(database)
+    assert days == _SHANGHAI_DAYS and len(rows) == 9
+    assert result["moved"] == 3
+
+
+@pytest.mark.parametrize("days_count", [29, 35, 65])
+async def test_apple_import_and_reimport_cover_every_day_across_chunks(database, monkeypatch, tmp_path, days_count):
+    from datetime import timedelta
+    from mirobody import cli
+    from mirobody.utils.config import Config
+
+    first = datetime(2026, 1, 1)
+    records = []
+    for day in range(days_count):
+        # Keeping the first sample's noon clock across 30-day chunks skipped
+        # each next chunk's 01:00 sample, even with the sweep's padded range.
+        at = (first + timedelta(days=day, hours=12 if day == 0 else 1)).strftime("%Y-%m-%d %H:%M:%S")
+        records.append('<Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" '
+                       f'unit="ms" startDate="{at} +0000" endDate="{at} +0000" value="50"/>')
+    export = tmp_path / "synthetic-export.xml"
+    export.write_text("<HealthData>" + "".join(records) + "</HealthData>")
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    await cli._store_export(_import_args(export))
+    days, rows = await _hrv_days(database)
+    assert days == {(first + timedelta(days=day)).date().isoformat(): (50, 50, 50) for day in range(days_count)}
+    assert len(rows) == 3 * days_count
+    before = await database("SELECT count(*) AS n FROM th_observation", log_sql=False)
+    result = await cli._store_export(_import_args(export))
+    assert result["added"] == result["moved"] == 0
+    assert await _hrv_days(database) == (days, rows)
+    assert await database("SELECT count(*) AS n FROM th_observation", log_sql=False) == before
+
+
 async def test_a_phone_zone_and_an_export_offset_for_one_day_write_it_once(database, monkeypatch, tmp_path):
     """A phone pushes `Asia/Shanghai`, the export reads `UTC+08:00`: one day.
     Computed once per spelling, each pass wrote each day's figure under the
