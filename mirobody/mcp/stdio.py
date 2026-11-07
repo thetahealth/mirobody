@@ -141,7 +141,7 @@ TOOLS: list[dict[str, Any]] = [
         "title": "Normalize units to UCUM",
         "description": (
             "Normalize units as printed (mg/dL, 毫摩尔每升, 次/分) to canonical UCUM and their LOINC property "
-            "family. An empty `ucum` means unrecognized. The family does not decide convertibility; "
+            "family, offline. An empty `ucum` means unrecognized. The family does not decide convertibility; "
             "convert_unit does."
         ),
         "inputSchema": {
@@ -156,7 +156,7 @@ TOOLS: list[dict[str, Any]] = [
         "name": "convert_unit",
         "title": "Convert a value between units",
         "description": (
-            "Convert one value between units before comparing readings recorded differently. Crossing mass "
+            "Convert one value between units, offline, before comparing readings recorded differently. Crossing mass "
             "and substance concentration (mg/dL and mmol/L) needs the reading's LOINC code for the molar "
             "mass. A null `converted` is an answer: the units measure different things, so report the "
             "readings separately."

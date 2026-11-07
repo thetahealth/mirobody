@@ -179,12 +179,15 @@ Device vendors see data only after you link one. Before this reaches a network y
 | --- | --- |
 | Your record in Claude Code, Codex, Cursor or Gemini CLI | In the running app, **Settings → MCP link** (valid for 10 days by default), then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
 | The offline engine as tools in any MCP client, with no app | `uvx --python 3.12 mirobody mcp` over stdio ([client setup](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)) |
+| Mirobody inside DeepSeek Harness | [dsh-plugin-mirobody](https://github.com/zwbao/dsh-plugin-mirobody), a community plugin by zwbao: the offline engine and your record's read-only tools, with a Mirobody tab |
 | Names and units resolved in your own code | `pip install mirobody`: offline, no key, numpy the only dependency ([library guide](docs/quickstart.md#a--the-library)) |
 | Your coding agent taught the workflow | `npx skills add thetahealth/mirobody --skill standardize-health-data` ([skills](skills/README.md)) |
 | A new device provider or tool | Drop a file into `mirobody/collect/providers/` or `mirobody/agent/tools/` ([CONTRIBUTING](CONTRIBUTING.md)) |
 | Try the app without deploying | [Mirobody Web demo](https://chat.mirobody.ai/demo?ref=github-readme&lang=en), using the same [synthetic demo files](demo/README.md) |
 
 Over MCP the stack serves tools scoped to the signed-in person: four read your record (readings, medications, genotypes, pharmacogenomics), three resolve names and units, and two search medical reference material when the deployment has a knowledge source.
+
+The stdio server is published to the official MCP Registry as `ai.thetahealth/mirobody` with every release. Directories that read the registry list it too, such as [mcprush](https://mcprush.com/thetahealth/mirobody-mcp) and [AddonAudit](https://addonaudit.com/addon/ai-thetahealth-mirobody/), which runs it in a sandbox. Each picks up a new version on its own schedule, so take the install line from this README.
 
 After `pip install mirobody`, use the same engine from Python:
 
