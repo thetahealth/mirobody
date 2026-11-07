@@ -150,9 +150,11 @@ class SQLAggregator:
     finds the person-days that changed (or a date range), then aggregates each
     one in a single statement, with a query of its own for the methods that
     cannot be a GROUP BY (CGM events, GMI, the custom heart-rate and sleep
-    methods)."""
+    methods). `require_complete` propagates computation failures: a caller
+    retracting unproduced figures must never receive a partial result."""
 
-    def __init__(self):
+    def __init__(self, *, require_complete: bool = False):
+        self._require_complete = require_complete
         self.MAX_DAYS_PER_MONTH = 30
 
         # Regex patterns for parameterized threshold methods
@@ -267,8 +269,14 @@ class SQLAggregator:
         When user_id is provided, processes that single user.
         When user_id is None, processes all users whose series_data falls in the range.
 
-        Splits ranges > 30 days into chunks and recurses.
+        Both calendar days are inclusive. Splits ranges > 30 days into chunks
+        and recurses.
         """
+        # An import starts at its first sample's clock time. Carrying that
+        # time into the next chunk skipped its first day's earlier samples;
+        # a subsequent sweep then retracted their still-supported figures.
+        start_date = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = end_date.replace(hour=0, minute=0, second=0, microsecond=0)
         days_diff = (end_date - start_date).days + 1
 
         if days_diff > self.MAX_DAYS_PER_MONTH:
@@ -420,11 +428,14 @@ class SQLAggregator:
             # zone kept, which is the one every summary row is written in.
             user_tasks = list({(t.source_indicator, t.target_indicator, t.aggregation_type): replace(t, timezone=timezone)
                                for t in grouped}.values())
-            # One person's failure is theirs: raised, it failed the pass, and
-            # the cursor stayed put, so every later pass failed on the same row.
+            # The incremental worker isolates a person's failure so its cursor
+            # can advance. A sweeping recalculation needs every result before
+            # it can distinguish a stale figure from one that failed to compute.
             try:
                 all_summaries.extend(await self._aggregate_person_day(user_id, timezone, user_tasks, data_begin_utc))
             except Exception as e:
+                if self._require_complete:
+                    raise
                 logger.error("aggregation failed for one person-day: user_id=%s error_type=%s", user_id,
                              type(e).__name__, exc_info=not is_driver_exception(e))
 
@@ -1096,6 +1107,8 @@ class SQLAggregator:
                 })
 
             except Exception as e:
+                if self._require_complete:
+                    raise
                 logger.warning("custom derived aggregation failed: method=%s user_id=%s error_type=%s",
                                task.aggregation_type, user_id, type(e).__name__,
                                exc_info=not is_driver_exception(e))

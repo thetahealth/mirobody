@@ -170,3 +170,41 @@ async def test_two_spellings_of_one_zone_are_one_day(monkeypatch):
     # Shanghai and +08:00 end the day at the same instant: one computation,
     # under the IANA name. Tokyo's day ends an hour earlier: its own.
     assert sorted(calls) == [("1", "Asia/Shanghai", ["Asia/Shanghai"], 1), ("1", "Asia/Tokyo", ["Asia/Tokyo"], 1)]
+
+
+async def test_an_incremental_failure_still_allows_other_subjects(monkeypatch):
+    pytest.importorskip("sqlalchemy")
+    from mirobody.standardize.aggregate.aggregators.sql_aggregator import SQLAggregator
+    from mirobody.standardize.aggregate.models import CalculationTask
+
+    async def aggregate(self, user_id, timezone, tasks, begin):
+        if user_id == "1":
+            raise RuntimeError("synthetic computation failure")
+        return [{"user_id": user_id}]
+
+    monkeypatch.setattr(SQLAggregator, "_aggregate_person_day", aggregate)
+    tasks = [CalculationTask(user_id=user, source_indicator="hrvSDNN", target_indicator="dailyAvgHrvSDNN",
+                             aggregation_type="avg", data_begin_utc=datetime(2026, 1, 1),
+                             timezone="UTC", update_time=None) for user in ("1", "2")]
+    assert await SQLAggregator().calculate_batch_aggregations(tasks) == [{"user_id": "2"}]
+
+
+@pytest.mark.parametrize("require_complete", [False, True])
+async def test_a_derived_failure_aborts_only_a_complete_recalculation(monkeypatch, require_complete):
+    pytest.importorskip("sqlalchemy")
+    from mirobody.standardize.aggregate.aggregators.sql_aggregator import SQLAggregator
+    from mirobody.standardize.aggregate.models import CalculationTask
+
+    async def fail(*args):
+        raise RuntimeError("synthetic derived computation failure")
+
+    monkeypatch.setattr(SQLAggregator, "_execute_morning_hr_jump", fail)
+    aggregator = SQLAggregator(require_complete=require_complete)
+    tasks = [CalculationTask(user_id="1", source_indicator="heartRates", target_indicator="morningHrJump",
+                             aggregation_type="morning_hr_jump", data_begin_utc=datetime(2026, 1, 1),
+                             timezone="UTC", update_time=None)]
+    if require_complete:
+        with pytest.raises(RuntimeError, match="synthetic derived computation failure"):
+            await aggregator._process_custom_derived_tasks("1", tasks, datetime(2026, 1, 1))
+    else:
+        assert await aggregator._process_custom_derived_tasks("1", tasks, datetime(2026, 1, 1)) == []

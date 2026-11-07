@@ -1,5 +1,24 @@
 ## Unreleased
 
+### Fixed
+
+- **An Apple re-import keeps its published daily figures when recalculation
+  fails.** A person-day or custom derived computation could fail and return
+  partial results; the subsequent sweep retracted the figures it had not
+  computed and the import reported success. A sweeping recalculation now
+  requires every computation to succeed before writing or retracting figures,
+  and reports failure to the importer. The incremental worker still isolates
+  one person's failure so other records can progress. How to tell: interrupt
+  a re-import's aggregation query, then retry; the old daily figures remain
+  visible until the retry finishes the timezone repair.
+- **Apple imports cover every day across 30-day calculation chunks.** The
+  first sample's time of day carried into each next chunk and skipped its
+  first day's earlier samples; the sweep could then retract valid summaries.
+  Date-range calculations now read complete, consecutive calendar days.
+  How to tell: import and re-import 35 days whose first sample is at noon
+  and later samples at 01:00; all 35 days retain their daily figures and
+  the unchanged re-import writes nothing.
+
 ## 1.6.0
 
 ### Added

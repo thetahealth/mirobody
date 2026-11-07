@@ -29,7 +29,7 @@ the ones that need FastAPI or the MCP SDK and skip without them
 collection (59) and plugin-directory (22) regressions, the Apple record day
 (8), the trend service (6), the confirmation route checks (5), the citation
 endpoint (4), the Chinese names (2) and the chat turn's citation repair (1).
-The 143 database cases skip on every install
+The 150 database cases skip on every install
 until `MIROBODY_TEST_POSTGRES_DSN` names a database (see below); CI supplies
 one. The skills module also ships in the wheel as inspectable release
 evidence, but skips when the wheel is installed without the repository-root
@@ -44,6 +44,13 @@ published modules under `tests/`, finds 1612). The table counts
 `mirobody/tests` only; the published Python-analysis checks below live in
 `tests/`. `pytest` in a checkout with the remaining maintainers' local
 suite collects additional tests.</sub>
+
+The Apple re-import safety regressions added on 2026-11-07 contribute ten
+cases beyond that snapshot: seven database cases (computation failure,
+retry and complete day coverage across chunks), plus three application
+cases for incremental error isolation and custom derived failures. With
+`[app]`, the current checkout collects 1352 tests here and 1622 including
+the published modules under `tests/`.
 
 The published Python-analysis evidence adds 24 tests in
 [`tests/test_code_tool_capability.py`](../tests/test_code_tool_capability.py)
