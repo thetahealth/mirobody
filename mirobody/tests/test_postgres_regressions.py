@@ -770,6 +770,38 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert set(found) == series
 
 
+@pytest.mark.parametrize("view", ["stats", "day", "hour", "trend"])
+async def test_an_aggregate_of_a_device_series_is_named_as_the_catalogue_names_it(database, view):
+    """An aggregate row's name came from the LOINC catalogue alone, which has
+    nothing for a device series or an uncoded lab line: sleep-stage
+    percentages in `view=stats` were rows of `%` with an empty name, and a
+    `local:` series, which has no code either, was told apart by nothing. The
+    catalogue fell back to the printed name; stats, both bucket statements and
+    trend now do too."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    names = ("dailyDeepSleepPercentage", "Synthetic recovery share")
+    sources = (observations.Provenance("device-sensed", "device", "synthetic-sleep", vendor="synthetic-research"),
+               observations.Provenance("lab-report", "file", "th_files:synthetic-share"))
+    for i, (name, source) in enumerate(zip(names, sources, strict=True)):
+        drafts = [observations.Draft(name_text=name, value_text=str(10 * (i + 1) + day), unit_text="%",
+                                     observed_start=datetime(2026, 1, day, 8, tzinfo=UTC)) for day in (1, 2, 3)]
+        await observations.ingest("1", drafts, source, user_tz="UTC")
+    stored = await database("SELECT DISTINCT series_id, display, code FROM v_observation", log_sql=False)
+    # The premise: neither series has a catalogue display, and one has no code.
+    assert len(stored) == 2 and not any(r["display"] for r in stored)
+    assert {r["series_id"].split(":")[0] for r in stored} == {"mirobody-device", "local"}
+
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+    assert {r["indicator"] for r in (await service.envelope({"user_id": "1"})).data} == set(names)
+    envelope = await service.envelope({"user_id": "1"}, indicators=list(names), view=view)
+    assert envelope.data and {r["indicator"] for r in envelope.data} == set(names)
+    assert all(name in render_compact(envelope) for name in names)
+
+
 def test_trend_citation_definition_tracks_its_actual_daily_input_without_values():
     from mirobody.collect.citations import aggregate_definition, aggregate_key
 
