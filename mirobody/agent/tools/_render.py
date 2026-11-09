@@ -95,6 +95,26 @@ def _method_of(first: Mapping[str, Any]) -> str:
     return ""
 
 
+def _blocks(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> list[str]:
+    """One compact table per indicator when a result mixes several.
+
+    A mixed result keeps ``indicator``, ``unit``, ``system``, ``code`` and
+    ``file`` on every row because they differ ACROSS indicators, yet each of
+    them is constant WITHIN one. ``query.compact`` can only hoist per table, so
+    the mixed table pays for those columns on every row. Measured on a paired
+    benchmark (same questions, same model, only the table changes) that
+    repeated-but-task-irrelevant text costs a 2 B model ~10 pp of accuracy, and
+    it is pure token cost for a larger one. Grouping lets each block hoist its
+    own constants; the information is unchanged.
+    """
+    order: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        order.setdefault(str(row.get("indicator")), []).append(row)
+    if len(order) <= 1:
+        return [query.compact(rows, columns)]
+    return [query.compact(group, columns) for group in order.values()]
+
+
 def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
     """A readings result as one table, and what the person reported as a
     second one under its own heading: one table would put a blank value
@@ -109,7 +129,7 @@ def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
         shown = columns[method] if method else tuple(group[0].keys())
         if any(r.get("rid") for r in group):
             shown = ("rid", *shown)  # the handle an answer cites (kernel.citations)
-        table = query.compact(group, shown)
+        table = "\n\n".join(_blocks(group, shown))
         parts.append(f"{heading}\n{table}" if heading else table)
     return "\n\n".join(parts)
 
