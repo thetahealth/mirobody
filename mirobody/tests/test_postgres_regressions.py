@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
+import re
 import statistics
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -207,6 +208,7 @@ async def test_confirmed_unit_preserves_original_and_both_readings_enter_statist
 
 
 async def test_a_mixed_unit_mean_keeps_its_precision_and_a_single_basis(database):
+    from mirobody import units
     from mirobody.collect import observations
     from mirobody.collect.query import PostgresHealthQuery
     from mirobody.kernel import query
@@ -219,24 +221,90 @@ async def test_a_mixed_unit_mean_keeps_its_precision_and_a_single_basis(database
                                                                    source_ref="th_files:synthetic-units"), user_tz="UTC")
     store, window = PostgresHealthQuery(), query.Window(0, 0, "UTC")
     creatinine, albumin = query.Selection(indicators=("2160-0",)), query.Selection(indicators=("1751-7",))
-    # 0.9 mg/dL is 79.56 umol/L; rounded to four places in mol/L the mean read 0.0001.
+    # One reading in each unit, so the series reads in the newer, mg/dL: 80 umol/L
+    # is 0.905 mg/dL. In mol/L, rounded to four places, the mean once read 0.0001.
     [stats] = await store.stats("1", creatinine, window)
     [month] = await store.buckets("1", creatinine, window, resolution="month", limit=10)
-    for row in (stats, month):
-        assert row["unit"] == "mol/L"
-        assert row["avg"] == pytest.approx(79.7808e-6, rel=1e-5)
-    canonical = [float(r["value_canonical"]) for r in await database(
+    factor = units.canonicalize(1.0, "mg/dL", loinc_code="2160-0").value
+    in_mg_dl = [float(r["value_canonical"]) / factor for r in await database(
         "SELECT value_canonical FROM v_observation WHERE series_id=:series",
         {"series": stats["series"]}, log_sql=False)]
-    assert stats["median"] == pytest.approx(statistics.median(canonical), rel=1e-12)
-    assert stats["stddev"] == pytest.approx(statistics.stdev(canonical), rel=1e-12)
-    # No molar mass joins g/L to mol/L, so there is no mean to give.
+    for row in (stats, month):
+        assert row["unit"] == "mg/dL"
+        assert row["avg"] == pytest.approx(statistics.mean(in_mg_dl), rel=1e-9)
+    assert stats["median"] == pytest.approx(statistics.median(in_mg_dl), rel=1e-9)
+    assert stats["stddev"] == pytest.approx(statistics.stdev(in_mg_dl), rel=1e-6)
+    assert (stats["first"], stats["last"], stats["change"]) == ("0.905", "0.9", pytest.approx(-0.005, abs=1e-3))
+    # No molar mass joins g/L to umol/L: the series reads in the newer umol/L,
+    # and 40 g/L is left out of every number rather than averaged in.
     [stats] = await store.stats("1", albumin, window)
     [month] = await store.buckets("1", albumin, window, resolution="month", limit=10)
-    assert stats["count"] == 2 and stats["mixed_units"]
-    assert stats["median"] is None and stats["stddev"] is None
+    assert (stats["count"], stats["unconverted"], stats["mixed_units"]) == (2, 1, True)
+    assert stats["median"] == 600.0 and stats["stddev"] is None
     for row in (stats, month):
-        assert (row["min"], row["max"], row["avg"], row["unit"]) == (None, None, None, "")
+        assert (row["min"], row["max"], row["avg"], row["unit"]) == (600.0, 600.0, 600.0, "umol/L")
+
+
+
+async def test_a_series_printed_in_two_units_is_answered_in_one(database):
+    """Issue #271: total cholesterol and LDL from a US lab in mg/dL and a
+    Chinese lab in mmol/L. Each pair is one series, and the web chart drew a
+    fall from 212 to 4.9 while the stats row answered in mol/L, which a small
+    model called incomparable. Every view now answers in one unit, mmol/L here
+    (one reading each, the newer wins), with the range converted too; what the
+    report printed rides in `printed` for the web's source view and never
+    reaches the model."""
+    from mirobody.agent.tools._render import render_compact, render_rest
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    labs = {
+        "th_files:synthetic-us-lab": (datetime(2025, 3, 10, tzinfo=UTC), (
+            ("Cholesterol, Total", "212", "mg/dL", "<200"), ("LDL Cholesterol", "138", "mg/dL", "<100"))),
+        "th_files:synthetic-cn-lab": (datetime(2026, 6, 20, tzinfo=UTC), (
+            ("总胆固醇", "4.90", "mmol/L", "3.0-5.18"), ("低密度脂蛋白胆固醇", "3.10", "mmol/L", "<3.37"))),
+    }
+    for ref, (day, rows) in labs.items():
+        await observations.ingest("1", [observations.Draft(name_text=n, value_text=v, unit_text=u, ref_text=r,
+                                                           observed_start=day) for n, v, u, r in rows],
+                                  observations.Provenance("lab-report", "file", ref), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(reported=False))
+
+    async def ask(**args):
+        return await service.envelope({"user_id": "1"}, **args)
+
+    raw = await ask(indicators=["2093-3"])
+    newest, older = raw.data
+    assert [(r["value"], r["unit"], r["ref"]) for r in raw.data] == [("4.90", "mmol/L", "3.0-5.18"),
+                                                                      ("5.48", "mmol/L", "<5.17")]
+    assert older["converted"] and older["printed"] == {"value": "212", "unit": "mg/dL", "ref": "<200",
+                                                       "code": "2093-3"}
+    # A value in mmol/L is the [Moles/volume] measurement, whatever code its report got.
+    assert older["code"] == newest["code"] == "14647-2"
+    assert render_rest(raw)["rows"][1]["printed"]["value"] == "212"
+
+    [stats] = (await ask(indicators=["2093-3"], view="stats")).data
+    assert (stats["unit"], stats["first"], stats["last"]) == ("mmol/L", "5.48", "4.90")
+    assert (stats["min"], stats["max"]) == (pytest.approx(4.9), pytest.approx(5.483, abs=1e-3))
+    assert stats["change"] == pytest.approx(-0.583, abs=1e-3) and stats["unconverted"] == 0
+    [latest] = (await ask(indicators=["2093-3"], view="latest")).data
+    assert (latest["value"], latest["unit"]) == ("4.90", "mmol/L")
+    months = (await ask(indicators=["2093-3"], view="month")).data
+    assert [(m["unit"], round(m["avg"], 3)) for m in months] == [("mmol/L", 5.483), ("mmol/L", 4.9)]
+    catalog = {r["code"]: r for r in (await ask()).data}
+    assert (catalog["14647-2"]["latest_value"], catalog["14647-2"]["unit"]) == ("4.90", "mmol/L")
+    [ldl, _] = (await ask(indicators=["LDL Cholesterol"])).data[::-1]
+    assert (ldl["value"], ldl["unit"], ldl["ref"]) == ("3.57", "mmol/L", "<2.59")
+
+    # What the model reads: one unit, and nothing the report printed in the other.
+    for args in ({"indicators": ["2093-3", "13457-7"]}, {"indicators": ["2093-3"], "view": "stats"},
+                 {"indicators": ["2093-3"], "view": "latest"}, {"indicators": ["2093-3"], "view": "month"}, {}):
+        text = render_compact(await ask(**args))
+        for printed in ("mg/dL", "212", "138", "<200", "<100", "mixed_units"):
+            assert printed not in text, (args, printed)
+        assert not re.search(r"(?<![mµu])mol/L", text), args
+    assert "5.48" in render_compact(raw)
 
 
 @pytest.mark.parametrize("values", [("1", "2", "9"), ("1", "3"), ("0",), ("4", "4")])
@@ -864,10 +932,9 @@ async def test_trend_citation_members_use_the_actual_capped_input_span(database)
 
 
 async def test_a_value_band_counts_readings_and_days_on_the_rows_own_basis(database):
-    """The band is compared as min/max/avg are: printed values for one unit,
-    canonical values for a shared canonical unit, nothing otherwise.
-    Compared on printed values, 80 umol/L counted and 0.9 mg/dL (79.56
-    umol/L, the same creatinine) did not, in a row reported in mol/L."""
+    """The band is in the series' unit, the unit min/max/avg are in. Compared
+    on printed values, 80 umol/L counted and 0.9 mg/dL (79.56 umol/L, the same
+    creatinine) did not. A reading whose unit does not convert is not counted."""
     from mirobody.collect import observations
     from mirobody.collect.query import PostgresHealthQuery
     from mirobody.kernel import query
@@ -890,14 +957,18 @@ async def test_a_value_band_counts_readings_and_days_on_the_rows_own_basis(datab
     [plain] = await store.stats("1", query.Selection(indicators=("ALT",)), window)
     assert plain["count_in_range"] is None and plain["days_in_range"] is None
 
+    # One reading in each unit: the tie goes to the newer, mg/dL; 80 umol/L is 0.904 mg/dL.
     creatinine = query.Selection(indicators=("2160-0",))
-    [both] = await store.stats("1", creatinine, window, value_min=79e-6)
-    assert both["unit"] == "mol/L" and both["count_in_range"] == 2
-    [neither] = await store.stats("1", creatinine, window, value_min=50)
+    [both] = await store.stats("1", creatinine, window, value_min=0.89)
+    assert both["unit"] == "mg/dL" and both["count_in_range"] == 2
+    [neither] = await store.stats("1", creatinine, window, value_min=0.95)
     assert neither["count_in_range"] == 0
 
+    # No molar mass joins g/L to umol/L: the series reads in the newer umol/L,
+    # and 40 g/L is neither counted in the band nor in any statistic.
     [albumin] = await store.stats("1", query.Selection(indicators=("1751-7",)), window, value_min=1)
-    assert albumin["mixed_units"] and albumin["count_in_range"] is None
+    assert albumin["mixed_units"] and albumin["unit"] == "umol/L"
+    assert (albumin["count_in_range"], albumin["unconverted"], albumin["min"]) == (1, 1, 600.0)
 
 
 async def test_a_value_band_is_not_counted_over_steps_stored_as_increments(database):

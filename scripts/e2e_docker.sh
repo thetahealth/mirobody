@@ -86,6 +86,34 @@ BAD=$(curl -s -H "$AUTH" --get --data-urlencode "indicators=$FIRST" --data-urlen
 check "$([ "$(echo "$BAD" | jqp "d['code']")" != "0" ] && echo 0 || echo 1)" \
       "an unknown view is refused, not defaulted"
 
+# ── 2b. a series printed in two units answers in one (#271) ──────────────────
+# The seeded mom record holds an older panel in mg/dL beside one in mmol/L
+# (`server/demo.py`). Before this, the web chart drew 212 mg/dL and 4.90 mmol/L
+# as a fall from 212 to 4.9, and the model was handed both units. Every
+# reading must come back in one unit, a converted one keeping what its report
+# printed, and nothing the model reads may carry the mg/dL side.
+MOM_EMAIL="${MOM_EMAIL:-mom@mirobody.ai}"
+curl -s -X POST "$BASE/email/login" -H 'Content-Type: application/json' \
+     -d "{\"email\":\"$MOM_EMAIL\",\"code\":\"$CODE\"}" >/dev/null
+MOM_TOKEN=$(curl -s -X POST "$BASE/email/verify" -H 'Content-Type: application/json' \
+            -d "{\"email\":\"$MOM_EMAIL\",\"code\":\"$CODE\"}" | jqp "d['data']['access_token']")
+TC=$(curl -s -H "Authorization: Bearer ${MOM_TOKEN:-none}" --get --data-urlencode "indicators=2093-3" \
+     "$BASE/api/v1/health-indicators")
+if [ "$(echo "$TC" | jqp "len(d['data']['rows'])" 2>/dev/null || echo 0)" -ge 2 ] 2>/dev/null; then
+  UNITS=$(echo "$TC" | jqp "','.join(sorted({r['unit'] for r in d['data']['rows']}))")
+  check "$([ "$UNITS" = "mmol/L" ] && echo 0 || echo 1)" \
+        "total cholesterol printed in mg/dL and mmol/L reads in one unit" "units: $UNITS"
+  KEPT=$(echo "$TC" | jqp "sum(1 for r in d['data']['rows'] if r.get('converted') and r['printed']['unit'] == 'mg/dL')")
+  check "$([ "${KEPT:-0}" -ge 1 ] && echo 0 || echo 1)" \
+        "the converted reading keeps what its report printed" "converted mg/dL rows: $KEPT"
+  MODEL=$(curl -s -X POST "$BASE/mcp" -H "Authorization: Bearer $MOM_TOKEN" -H 'Content-Type: application/json' \
+          -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"query_health_indicators","arguments":{"indicators":["2093-3"],"view":"stats"}}}')
+  check "$(echo "$MODEL" | grep -q '"isError":false' && ! echo "$MODEL" | grep -q 'mg/dL' && echo 0 || echo 1)" \
+        "what the model reads carries one unit and no mg/dL" "$(echo "$MODEL" | head -c 200)"
+else
+  printf '  skip  %s\n' "a series in two units: no seeded record for $MOM_EMAIL (SEED_DEMO_DATA)"
+fi
+
 # ── 3. the MCP surface an external client sees ───────────────────────────────
 #
 # TWO surfaces, and they are deliberately different.

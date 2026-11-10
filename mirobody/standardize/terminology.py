@@ -64,7 +64,7 @@ def normalize_units(units: list[str]) -> dict[str, Any]:
 
 def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "") -> dict[str, Any]:
     """One value between two units; `converted` is None when they do not convert."""
-    from mirobody.units import convert_value, normalize_unit, scale, unit_family
+    from mirobody.units import MOLAR_MASS, convert_value, needs_molar_mass, normalize_unit, scale, unit_family
 
     src = normalize_unit(from_unit) or from_unit
     dst = normalize_unit(to_unit) or to_unit
@@ -87,7 +87,22 @@ def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "
         # table, not two different things. Both parsed means the dimensions
         # differ: `kg/m2` and `mg/dL` share `MCnc` and do not convert.
         family = unit_family(src)
-        if family and family == unit_family(dst) and (scale(src) is None or scale(dst) is None):
+        code = (loinc_code or "").strip()
+        if needs_molar_mass(src, dst) and not code:
+            # Not "these do not convert": the call left out the one input that
+            # converts them, and a model told so reported 212 mg/dL and
+            # 4.90 mmol/L of one cholesterol as incomparable (#271).
+            reason = (
+                f"{from_unit} and {to_unit} convert through the analyte's molar mass, which "
+                "needs its LOINC code: call again with loinc_code set to the reading's code "
+                "(the `code` its row carries, e.g. 2093-3 for total cholesterol)."
+            )
+        elif needs_molar_mass(src, dst) and code not in MOLAR_MASS:
+            reason = (
+                f"{from_unit} and {to_unit} convert through the analyte's molar mass, and this "
+                f"engine carries none for LOINC {code}. Report the readings separately."
+            )
+        elif family and family == unit_family(dst) and (scale(src) is None or scale(dst) is None):
             reason = (
                 f"Both units measure the same kind of quantity (LOINC property {family}), "
                 "but this engine has no conversion factor between them yet. Report the "
@@ -95,10 +110,9 @@ def convert_unit(value: float, from_unit: str, to_unit: str, loinc_code: str = "
             )
         else:
             reason = (
-                "These units are not interconvertible. Either they measure "
-                "different things (a percentage is not an absolute count), "
-                "or the conversion needs a molar mass this engine does not "
-                "carry for that code. Report the readings separately."
+                "These units are not interconvertible: they measure different "
+                "things (a percentage is not an absolute count). Report the "
+                "readings separately."
             )
         return {
             "success": True,

@@ -130,6 +130,32 @@ def test_comma_separated_competing_units_are_refused():
         assert _convert(printed, "mg/dL", 90.0, "2339-0")["converted"] is None
 
 
+
+def test_a_molar_conversion_without_a_code_asks_for_the_code():
+    """212 mg/dL and 4.90 mmol/L of cholesterol convert, through its molar
+    mass. Called without `loinc_code`, the refusal said "not interconvertible,
+    report the readings separately", and a small model told the person their
+    two results could not be compared (#271). It names the missing input."""
+    from mirobody.units import needs_molar_mass
+
+    assert needs_molar_mass("mg/dL", "mmol/L") and needs_molar_mass("umol/L", "g/L")
+    assert not needs_molar_mass("mg/dL", "g/L") and not needs_molar_mass("%", "mmol/L")
+    assert not needs_molar_mass("kg/m2", "mmol/L")
+
+    bare = _convert("mg/dL", "mmol/L", 212.0, "")
+    assert bare["converted"] is None and "loinc_code" in bare["reason"], bare
+    assert "separately" not in bare["reason"], bare
+    coded = _convert("mg/dL", "mmol/L", 212.0, "2093-3")
+    assert abs(coded["converted"] - 5.483) < 0.001, coded
+    # The moles code of the same analyte bridges as well: the mmol/L reading's row carries it.
+    assert abs(_convert("mmol/L", "mg/dL", 4.9, "14647-2")["converted"] - 189.46) < 0.01
+
+    unknown = _convert("mg/dL", "mmol/L", 1.0, "718-7")
+    assert unknown["converted"] is None and "718-7" in unknown["reason"], unknown
+    assert "loinc_code" not in unknown["reason"], unknown
+    # Units that no molar mass bridges keep the plain refusal.
+    assert "loinc_code" not in _convert("%", "mmol/mol", 6.5, "")["reason"]
+
 if __name__ == "__main__":  # runs without pytest, same as the axis test
     failures = 0
     for name, fn in sorted(globals().items()):
