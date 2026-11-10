@@ -1,5 +1,27 @@
 ## Unreleased
 
+## 1.6.1
+
+### Upgrade notes
+
+- **Nothing to migrate or re-import.** The two schema changes are made at the
+  first start: the `th_upload` table that tracks an upload in flight (#279),
+  and a default for `tokens_valid_after` that applies to accounts created from
+  then on (#282); existing accounts and their sessions are untouched. Every
+  other change is in how stored readings are read and named, so a series
+  printed in two units, a device metric's name and the journal's names are
+  right as soon as the new image runs. Upgrade a Docker install with `git pull` and `./deploy.sh`, with the
+  same `COMPOSE_PROFILES` it was started with (`COMPOSE_PROFILES=local-cpu
+  ./deploy.sh` for the local stack); it pulls
+  `thetahealth4mirobody/mirobody:1.6.1`.
+- **A file 1.6.0 listed 已处理 with no readings stays that way** (#275): the
+  upgrade does not read it again. Once the setup page shows the model ready,
+  choose 重新处理 on its row in 数据 › 文件 (`POST /api/v1/data/reprocess-file`),
+  which reads it again from the stored file. Uploading it again works too: the
+  text cache keeps only text that was read, and no reading was written. A
+  report 1.6.0 read with a scanner's settings among its readings (#235) keeps
+  them until it is read again the same way.
+
 ### Changed
 
 - **MCP directories have less to get wrong.** Directories that mirror the MCP
