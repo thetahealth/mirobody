@@ -59,23 +59,6 @@
 
 ### Fixed
 
-- **A reinstalled stack neither locks out its first account nor lets an old
-  token into it.** A stack started again on a new database (`docker compose
-  down -v`, then `./deploy.sh`) keeps `.env`, and so its signing key, and
-  numbers accounts from 1 again. A browser still holding a token from before
-  had two outcomes. If it asked before anyone signed up, the server found no
-  such account and remembered the id as closed for as long as it ran; the
-  next person to sign up got that id, and every token they were given was
-  refused: sign-up answered ok and the page went back to the sign-in form,
-  with a 401 in the console. If it asked after, the old token opened the new
-  account. Found while testing 1.6.1 on a reinstalled local stack. Now a new
-  account refuses every token minted before it existed (`tokens_valid_after`
-  defaults to its creation, less the minute `iat` allows for clock skew), and
-  an id with no account is looked up again on the next request; an account
-  closed in Settings is still refused for good. Accounts that already exist
-  are unchanged. How to tell: with the old page open, run `docker compose
-  down -v` and `./deploy.sh`, then sign up; the data page opens, and the old
-  page's token is refused.
 - **A scanner's settings and a record's history headings are no longer
   readings** (part of #235). Chinese check-up PDFs left `AO%`, `D`, `DR`,
   `FR`, `Frd`, `Frq`, `Gn`, `PAT TIS` and `S/A` in the indicator list. These
@@ -197,6 +180,23 @@
   catalogue and the raw readings already did, and stats rows sort by it. How
   to tell: `view=stats` over two device metrics lists both by name, the same
   names the catalogue shows.
+- **A reinstalled stack neither locks out its first account nor lets an old
+  token into it.** A stack started again on a new database (`docker compose
+  down -v`, then `./deploy.sh`) keeps `.env`, and so its signing key, and
+  numbers accounts from 1 again. A browser still holding a token from before
+  had two outcomes. If it asked before anyone signed up, the server found no
+  such account and remembered the id as closed for as long as it ran; the
+  next person to sign up got that id, and every token they were given was
+  refused: sign-up answered ok and the page went back to the sign-in form,
+  with a 401 in the console. If it asked after, the old token opened the new
+  account. Found while testing 1.6.1 on a reinstalled local stack. Now a new
+  account refuses every token minted before it existed (`tokens_valid_after`
+  defaults to its creation, less the minute `iat` allows for clock skew), and
+  an id with no account is looked up again on the next request; an account
+  closed in Settings is still refused for good. Accounts that already exist
+  are unchanged. How to tell: with the old page open, run `docker compose
+  down -v` and `./deploy.sh`, then sign up; the data page opens, and the old
+  page's token is refused.
 
 ## 1.6.0
 
