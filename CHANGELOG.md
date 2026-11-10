@@ -32,12 +32,25 @@
   ready"; a model the router reports as failed to load is named as such, with
   where to look. Once one upload has waited out the window, the next is told
   at once instead of waiting again. The web file list shows a failed file's
-  reason under 处理失败, where it showed only the status. A load the upload
+  reason under 处理失败, where it showed only the status. The reason is in
+  the language the page is set to: a Chinese page read "图片处理失败: could
+  not read the document: ..." with only the first words translated, and a
+  reason was written once, in the upload's language. The file row now keeps
+  the reason as phrases (`error_phrases`) and the files list says them in
+  the language of the request reading it, so switching the page's language
+  switches the reasons with it; the web fetches the list again on a switch.
+  These reasons, a vision model that read nothing, an empty provider
+  response and an upload that was not stored are translated (English,
+  Chinese, Japanese, French, Spanish); a missing model key keeps its English
+  sentence, since it names configuration keys, and a row written before this
+  keeps its text. Each upload message also states the page's language for
+  the messages sent while it runs, where the upload socket used the
+  browser's. A load the upload
   itself starts (the router reports the model unloaded) still waits for the
   router's own limit, and the file reads 已处理 until the readings fail.
   How to tell: start the local stack, upload a report before the setup page
   shows the model ready, and the file fails within two minutes with that
-  sentence.
+  sentence; switch the language in Settings and the sentence follows.
 - **A series printed in two units is answered in one** (#271). One person's
   total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
   one, is one series, and every raw row carried its canonical pair, but each

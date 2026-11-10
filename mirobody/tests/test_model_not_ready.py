@@ -91,6 +91,66 @@ def test_the_upload_shows_the_reason_not_the_type():
     assert "failed to load" in failure_reason(served.ModelNotReady("glm-ocr", failed=True))
 
 
+@pytest.mark.parametrize(("language", "loading", "failed"), [
+    ("zh-CN", "本地模型 glm-ocr 还在下载或加载中", "本地模型 glm-ocr 加载失败"),
+    ("ja", "ローカルモデル glm-ocr はまだダウンロード中", "ローカルモデル glm-ocr の読み込みに失敗しました"),
+])
+def test_a_reason_is_said_in_the_language_it_is_read_in(language, loading, failed):
+    """The file list read "图片处理失败: ... the local model glm-ocr failed to
+    load ..." under a Chinese page. A reason is kept as phrases, which carry no
+    language, and said in the reader's."""
+    from mirobody.collect.files.errors import reason_phrases, say
+    from mirobody.utils.llm import ImageNotRead, NoResponse
+
+    assert say(reason_phrases(served.ModelNotReady("glm-ocr")), language).startswith(loading)
+    assert say(reason_phrases(served.ModelNotReady("glm-ocr", failed=True)), language).startswith(failed)
+    assert "UTILS_VISION_MODEL" in say(reason_phrases(ImageNotRead()), language)
+    assert say(reason_phrases(ImageNotRead()), language) != str(ImageNotRead())
+    assert say(reason_phrases(NoResponse("m")), language) != str(NoResponse("m"))
+    assert str(served.ModelNotReady("glm-ocr")).startswith("the local model glm-ocr"), "logs and APIs read English"
+
+
+def test_a_reason_without_a_translation_is_said_as_written():
+    from mirobody.collect.files.errors import UploadError, reason_phrases, say, stored_reason
+
+    assert say([{"key": "document_not_read"}, *reason_phrases(KeyError("x"))], "zh") == "无法读取文档：KeyError"
+    assert reason_phrases(UploadError("No vision model available: set a key")) == [
+        {"text": "No vision model available: set a key"}]
+    old = {"error": "PDF processing failed: InternalServerError"}
+    assert stored_reason(old, "zh") == old["error"]
+    assert stored_reason({**old, "error_phrases": ["not a phrase"]}, "zh") == old["error"]
+    assert stored_reason({**old, "error_phrases": [{"key": "document_not_read"}]}, "ja") == (
+        "ドキュメントを読み取れませんでした")
+
+
+def test_every_new_reason_is_in_every_language_with_the_same_placeholders():
+    import json
+    import string
+    from pathlib import Path
+
+    import mirobody.utils.i18n as i18n
+
+    bundle = json.loads((Path(i18n.__file__).with_name("locales") / "file_processor.json").read_text("utf-8"))
+    keys = ["with_reason", "document_not_read", "indicator_extraction_failed", "model_still_loading",
+            "model_failed_to_load", "model_returned_error", "image_not_read", "empty_response"]
+    for key in keys:
+        fields = {name for _, name, _, _ in string.Formatter().parse(bundle[key]["en"]) if name}
+        for language in ("en", "zh", "fr", "ja", "es"):
+            text = bundle[key][language]
+            assert {name for _, name, _, _ in string.Formatter().parse(text) if name} == fields, (key, language)
+
+
+def test_an_upload_message_states_the_pages_language():
+    pytest.importorskip("fastapi")
+    from mirobody.server.routers.file_router import _stated_language
+
+    ctx = {"trace_id": "t", "language": "zh-CN"}
+    assert _stated_language(ctx, {"language": "ja"}) == {"trace_id": "t", "language": "ja"}
+    assert _stated_language(ctx, {}) is ctx
+    assert _stated_language(ctx, {"language": " "}) is ctx
+    assert _stated_language(ctx, {"language": ["ja"]}) is ctx
+
+
 async def test_vision_waits_then_names_the_model(monkeypatch, router):
     from mirobody.utils.llm.file_processors import dispatch
 
@@ -156,8 +216,22 @@ async def test_extraction_fails_with_the_reason_instead_of_waiting(monkeypatch, 
     monkeypatch.setattr(handler, "_push_upload_event", nothing)
     await handler._async_extract_indicators(original_text="Glucose 5.2 mmol/L", user_id=1, file_name="r.pdf",
                                             file_key="web_uploads/r.pdf")
-    assert "minicpm5-2b is still downloading or loading" in written["failed_reason"]
+    assert written["failed_reason"] == ("indicator extraction failed: the local model minicpm5-2b is still "
+                                        "downloading or loading; upload the file again once the setup page "
+                                        "shows it ready")
     assert written["indicators_count"] == 0
+
+    from mirobody.collect.files.errors import say
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    with set_req_ctx({"language": "zh-CN"}):
+        await handler._async_extract_indicators(original_text="Glucose 5.2 mmol/L", user_id=1, file_name="r.pdf",
+                                                file_key="web_uploads/r.pdf")
+    # Stored without a language: the Japanese page reading the row later is
+    # answered in Japanese although the upload asked in Chinese.
+    assert written["failed_phrases"] == [{"key": "indicator_extraction_failed"},
+                                         {"key": "model_still_loading", "params": {"model": "minicpm5-2b"}}]
+    assert say(written["failed_phrases"], "ja").startswith("指標の抽出に失敗しました：ローカルモデル minicpm5-2b")
 
 
 async def test_the_summary_is_skipped_while_the_text_model_loads(monkeypatch, router):
@@ -176,3 +250,17 @@ async def test_the_summary_is_skipped_while_the_text_model_loads(monkeypatch, ro
     handler = Handler(abstract_extractor=Abstracts())
     ctx = SimpleNamespace(filename="r.pdf", message_id="m1", extraction_error=None)
     assert await handler._abstract(ctx, "Glucose 5.2 mmol/L", "zh") == ("fallback for r.pdf", "r.pdf")
+
+
+async def test_an_unreadable_document_files_its_reason_as_phrases():
+    """The upload-time failure: OCR could not load its model, so the row's
+    reason is "could not read the document" and why, as phrases."""
+    from mirobody.collect.files.errors import UploadError, reason_phrases, say
+
+    base, Handler = _handler()
+    phrases = [{"key": "document_not_read"}, *reason_phrases(served.ModelNotReady("glm-ocr", failed=True))]
+    ctx = SimpleNamespace(filename="r.png", message_id="m1")
+    answer = await Handler()._handle_error(ctx, UploadError(say(phrases), phrases), "web_uploads/r.png")
+    assert answer["error_phrases"] == [{"key": "document_not_read"},
+                                       {"key": "model_failed_to_load", "params": {"model": "glm-ocr"}}]
+    assert answer["message"].startswith("PDF processing failed: could not read the document: the local model")

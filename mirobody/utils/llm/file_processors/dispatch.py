@@ -41,11 +41,16 @@ class ImageNotRead(RuntimeError):
     model does that through some gateways (OpenRouter, measured 2026-09-09)
     where the vendor's own endpoint answers 400; a model that reads the image
     and finds no text says so (`documents.ocr.NO_TEXT`). The message is the
-    fix, for the person who uploaded the image."""
+    fix, for the person who uploaded the image (in English here; in the
+    reader's language through `collect.files.errors.reason_phrases`)."""
+
+    locale_key = "image_not_read"
+    locale_params: dict[str, str] = {}
 
     def __init__(self) -> None:
-        super().__init__("The vision model returned no text for the image, which is how a model that cannot "
-                         "read images answers: point UTILS_VISION_MODEL at an entry with supports_image: true.")
+        from mirobody.utils.i18n import localize
+
+        super().__init__(localize(self.locale_key, "en", "file_processor"))
 
 
 def vision_route(provider: str | None = None, model: str | None = None) -> RouteSpec:

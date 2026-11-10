@@ -213,18 +213,17 @@ _gave_up: dict[tuple[str, str], float] = {}
 
 class ModelNotReady(RuntimeError):
     """A local model the router is still downloading or loading, or could not
-    load. The message names the model and the fix, for the person whose
-    upload needed it."""
+    load. The message names the model and the fix, in English; the file
+    row keeps its locale key (`collect.files.errors.reason_phrases`), said
+    in the language of whoever reads the row."""
 
     def __init__(self, model: str, *, failed: bool = False) -> None:
-        if failed:
-            message = (f"the local model {model} failed to load: its download did not finish or the file is "
-                       "damaged (the model server's log says which); upload the file again once it loads")
-        else:
-            message = (f"the local model {model} is still downloading or loading; upload the file again once "
-                       "the setup page shows it ready")
-        super().__init__(message)
+        from mirobody.utils.i18n import localize
+
         self.model = model
+        self.locale_key = "model_failed_to_load" if failed else "model_still_loading"
+        self.locale_params = {"model": model}
+        super().__init__(localize(self.locale_key, "en", "file_processor", **self.locale_params))
 
 
 def still_loading(spec: Any) -> bool:
