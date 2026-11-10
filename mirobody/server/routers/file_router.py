@@ -209,6 +209,22 @@ async def serve_storage_file(
 
 
 # === WebSocket Routes ===
+
+#: The upload messages, by the manager method that handles each.
+_UPLOAD_HANDLERS = {"upload_start": "handle_upload_start", "upload_chunk": "handle_file_chunk",
+                    "upload_end": "handle_upload_end"}
+
+
+def _stated_language(ctx: dict, message: dict) -> dict:
+    """`ctx` with the language an upload message states, if it states one.
+    The handshake's Accept-Language is the browser's, and the web switches
+    language without reopening the socket, so what the server said while an
+    upload ran (progress, an immediate failure) came back in a language the
+    page was not drawn in (#275)."""
+    stated = message.get("language")
+    return {**ctx, "language": stated} if isinstance(stated, str) and stated.strip() else ctx
+
+
 @router.websocket("/ws/upload-health-report")
 async def websocket_upload_health_report(
     websocket: WebSocket, 
@@ -314,16 +330,12 @@ async def websocket_upload_health_report(
 
                         # Handle different types of messages
                         # Note: use connection_id for WebSocket operations, but pass user_id for business logic
-                        if message_type == "upload_start":
+                        if message_type in _UPLOAD_HANDLERS:
                             # Add real user_id to message_data for file storage
                             message_data["_real_user_id"] = str(user_id)
-                            await websocket_file_upload_manager.handle_upload_start(connection_id, message_data)
-                        elif message_type == "upload_chunk":
-                            message_data["_real_user_id"] = str(user_id)
-                            await websocket_file_upload_manager.handle_file_chunk(connection_id, message_data)
-                        elif message_type == "upload_end":
-                            message_data["_real_user_id"] = str(user_id)
-                            await websocket_file_upload_manager.handle_upload_end(connection_id, message_data)
+                            handler = getattr(websocket_file_upload_manager, _UPLOAD_HANDLERS[message_type])
+                            with set_req_ctx(_stated_language(ctx, message_data)):
+                                await handler(connection_id, message_data)
                         elif message_type == "ping":
                             # Send pong directly via current websocket, not through manager
                             # This avoids issues when user is not in active_connections

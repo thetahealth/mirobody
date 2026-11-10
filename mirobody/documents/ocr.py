@@ -125,6 +125,12 @@ def table_ocr():
         return None
 
     async def tables(image: bytes, mime: str) -> str:
+        # Optional, and its page has text already: no waiting out a load for
+        # it, which `vision_extract` would do (#275). `pdf_text` logs the page.
+        from mirobody.utils.config.served import ModelNotReady, still_loading
+
+        if await asyncio.to_thread(still_loading, spec):
+            raise ModelNotReady(spec.model)
         return (await _ocr_pass(image, mime, spec.ocr_prompts["tables"], spec.alias)).strip()
 
     return tables

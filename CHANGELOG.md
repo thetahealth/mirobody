@@ -17,6 +17,20 @@
   root `glama.json` now names the maintainer, which is how Glama lets an
   organization's repository claim its listing. How to tell: `tools/list`
   from `mirobody mcp` says "offline" in all three terminology tools.
+- **A result that mixes series states each series' constants once** (#269).
+  The table the model and an MCP client read hoisted only what was constant
+  across the whole result, so a month of glucose and LDL repeated the
+  indicator, unit, range, system, code and file on every row; on a paired
+  benchmark a repeated, task-irrelevant column cost a 2 B model 10 points.
+  Such a result is now one block per series, each with its own
+  `(constants: …)` line over a `rid|time|value` table. A series with one row
+  stays in a table shared with the others like it, and the blocks are used
+  only when shorter than the one table, so a catalogue, stats or latest view
+  (one row per series) renders as before: blocking those made them 31% to
+  326% longer. Rows are grouped by series, not by name, so two series an
+  aggregate row names with a blank indicator stay apart. How to tell: ask
+  `query_health_indicators` for raw readings of two indicators over a month
+  and each gets its own block, about half the tokens of the one table.
 - **`query_health_indicators` names each series once and writes each number
   one way.** A raw row carried three names for one series: LOINC's long name
   (`Cholesterol in LDL [Moles/volume] in Serum or Plasma`), the label
@@ -37,13 +51,45 @@
   figures, as trend's already did, and a reading's float noise is cut to
   the same. The REST rows change the same way; `indicator` is still LOINC's
   long name there, the handle the web's drawer selects by. On a fixture of
-  two lab panels and device sleep data the model's text is 19% shorter for
-  the catalogue, 22% for raw readings, 26% for stats and 46% for months. How
+  two lab panels and device sleep data, over the per-series blocks above, the
+  model's text is 19% shorter for the catalogue, 18% for raw readings, 25%
+  for latest, 26% for stats and 45% for months. How
   to tell: `view=raw` over a mixed panel shows `LDL cholesterol, Blood` and no
   `LDL Cholesterol`, and `view=stats` has no number longer than six figures.
 
 ### Fixed
 
+- **An upload made while a local model is still loading says so** (#275).
+  On a local stack whose llama.cpp router had not finished downloading the
+  text model, a text PDF waited 307 s on its summary, was listed 已处理 with
+  no readings and no reason, waited as long again on the readings and then
+  failed with "returned an error"; with the OCR model unable to load, a scan
+  failed with "InternalServerError". The upload now asks the router first.
+  While the model is loading it skips the summary, waits up to two minutes for
+  the load, then fails the file with "the local model minicpm5-2b is still
+  downloading or loading; upload the file again once the setup page shows it
+  ready"; a model the router reports as failed to load is named as such, with
+  where to look. Once one upload has waited out the window, the next is told
+  at once instead of waiting again. The web file list shows a failed file's
+  reason under 处理失败, where it showed only the status. The reason is in
+  the language the page is set to: a Chinese page read "图片处理失败: could
+  not read the document: ..." with only the first words translated, and a
+  reason was written once, in the upload's language. The file row now keeps
+  the reason as phrases (`error_phrases`) and the files list says them in
+  the language of the request reading it, so switching the page's language
+  switches the reasons with it; the web fetches the list again on a switch.
+  These reasons, a vision model that read nothing, an empty provider
+  response and an upload that was not stored are translated (English,
+  Chinese, Japanese, French, Spanish); a missing model key keeps its English
+  sentence, since it names configuration keys, and a row written before this
+  keeps its text. Each upload message also states the page's language for
+  the messages sent while it runs, where the upload socket used the
+  browser's. A load the upload
+  itself starts (the router reports the model unloaded) still waits for the
+  router's own limit, and the file reads 已处理 until the readings fail.
+  How to tell: start the local stack, upload a report before the setup page
+  shows the model ready, and the file fails within two minutes with that
+  sentence; switch the language in Settings and the sentence follows.
 - **A series printed in two units is answered in one** (#271). One person's
   total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
   one, is one series, and every raw row carried its canonical pair, but each

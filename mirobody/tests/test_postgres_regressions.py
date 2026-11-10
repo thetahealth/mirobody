@@ -924,7 +924,7 @@ async def test_the_model_reads_each_series_once_and_nothing_the_report_printed(d
         listed = (await service.envelope({"user_id": "1"})).data
         shown = query.shown_names(listed)
         assert len(listed) == 3 and len(set(shown.values())) == 3
-        assert shown[next(r["series"] for r in listed if r["system"] == "mirobody-device")] == (
+        assert shown[("series", next(r["series"] for r in listed if r["system"] == "mirobody-device"))] == (
             "REM睡眠比例" if language == "zh-CN" else "Daily REM Sleep Percentage")
         for view in ("raw", "latest", "stats", "day", "month", "trend"):
             envelope = await service.envelope({"user_id": "1"}, indicators=every, view=view)
@@ -937,7 +937,7 @@ async def test_the_model_reads_each_series_once_and_nothing_the_report_printed(d
                          for r in envelope.data if r["series"] == sid}
                 assert len(named) == 1, (view, named)
         # The name read is a name to ask by.
-        for sid, name in shown.items():
+        for (_kind, sid), name in shown.items():
             again = (await service.envelope({"user_id": "1"}, indicators=[name], view="stats")).data
             assert [r["series"] for r in again] == [sid], name
     raw = (await service.envelope({"user_id": "1"}, indicators=["2093-3"])).data
@@ -1321,3 +1321,41 @@ async def test_a_cite_names_its_reading_in_the_readers_language(database):
     assert aggregate["label"] == "收缩压" and aggregate["indicator"] == row["display"]
     for cited in await citations.resolve_rids("synthetic-cite-names", "1", [rids[k] for k in keys]):
         assert "label" not in cited
+
+
+async def test_a_failed_files_reason_is_said_in_the_language_of_the_page_reading_it(database):
+    """#275: a failed file's reason was written once, in the language of the
+    upload; switching the page to another language left it as written. The
+    row keeps the reason as phrases and the files list says them in the
+    reading request's language; a row from before phrases keeps its text."""
+    from mirobody.collect.files.services.file_db_service import FileDbService
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    model_failed = [{"key": "document_not_read"}, {"key": "model_failed_to_load", "params": {"model": "glm-ocr"}}]
+    await FileDbService.insert_file("1", "web_uploads/scan.png", "scan.png", "image/png", {
+        "status": "failed", "error": "图片处理失败：无法读取文档：本地模型 glm-ocr 加载失败", "error_phrases": model_failed,
+    }, created_source="test")
+    # Extraction fails after the upload filed the row `completed` (#239).
+    await FileDbService.insert_file("1", "web_uploads/lab.pdf", "lab.pdf", "application/pdf",
+                                    {"status": "completed"}, created_source="test")
+    await FileDbService.update_file_content("web_uploads/lab.pdf", {
+        "status": "failed", "error": "indicator extraction failed: ...", "error_phrases": [
+            {"key": "indicator_extraction_failed"}, {"key": "model_still_loading", "params": {"model": "minicpm5-2b"}}],
+    })
+    await FileDbService.insert_file("1", "web_uploads/old.pdf", "old.pdf", "application/pdf",
+                                    {"status": "failed", "error": "PDF processing failed: InternalServerError"},
+                                    created_source="test")
+
+    async def reasons(language):
+        with set_req_ctx({"language": language}):
+            listed = await FileDbService.get_files_paginated("1")
+        return {f["file_key"]: f["error"] for f in listed["files"]}
+
+    english, chinese, japanese = await reasons("en"), await reasons("zh-CN"), await reasons("ja")
+    assert english["web_uploads/scan.png"].startswith("could not read the document: the local model glm-ocr failed")
+    assert chinese["web_uploads/scan.png"].startswith("无法读取文档：本地模型 glm-ocr 加载失败")
+    assert japanese["web_uploads/scan.png"].startswith("ドキュメントを読み取れませんでした：ローカルモデル glm-ocr")
+    assert chinese["web_uploads/lab.pdf"].startswith("指标提取失败：本地模型 minicpm5-2b 还在下载或加载中")
+    assert japanese["web_uploads/lab.pdf"].startswith("指標の抽出に失敗しました：ローカルモデル minicpm5-2b")
+    assert {english["web_uploads/old.pdf"], chinese["web_uploads/old.pdf"]} == {
+        "PDF processing failed: InternalServerError"}

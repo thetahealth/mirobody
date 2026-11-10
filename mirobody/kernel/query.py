@@ -363,30 +363,37 @@ def compact(
     return "\n".join(out)
 
 
-def shown_names(rows: Sequence[Mapping[str, object]]) -> dict[str, str]:
+def series_key(row: Mapping[str, object]) -> tuple[str, ...]:
+    """Which series a row belongs to: its series id, or without one its
+    indicator, system and code. Not the indicator alone: it is a display name,
+    and an aggregate row of a series with no LOINC display has had a blank one,
+    which would merge every such series into one."""
+    series_id = str(row.get("series") or "")
+    if series_id:
+        return ("series", series_id)
+    return ("identity", *(str(row.get(k) or "") for k in ("indicator", "system", "code")))
+
+
+def shown_names(rows: Sequence[Mapping[str, object]]) -> dict[tuple[str, ...], str]:
     """The one name each series in `rows` is shown under (`shown_name`): its
     `label`, the name a person reads, or its `indicator` when it has none.
     Two series one label would name alike (whole-blood and serum glucose are
     both 葡萄糖) keep their indicators, which tell them apart. The table and
     every note that names a series read this, so the two cannot disagree."""
-    by_label: dict[str, set[str]] = {}
+    by_label: dict[str, set[tuple[str, ...]]] = {}
     for r in rows:
         if r.get("label"):
-            by_label.setdefault(str(r["label"]), set()).add(_series_key(r))
-    names: dict[str, str] = {}
+            by_label.setdefault(str(r["label"]), set()).add(series_key(r))
+    names: dict[tuple[str, ...], str] = {}
     for r in rows:
         label = str(r.get("label") or "")
-        names.setdefault(_series_key(r), label if label and len(by_label[label]) == 1 else str(r.get("indicator") or ""))
+        names.setdefault(series_key(r), label if label and len(by_label[label]) == 1 else str(r.get("indicator") or ""))
     return names
 
 
-def shown_name(row: Mapping[str, object], names: Mapping[str, str]) -> str:
+def shown_name(row: Mapping[str, object], names: Mapping[tuple[str, ...], str]) -> str:
     """`row`'s name from `shown_names`, else its indicator."""
-    return names.get(_series_key(row)) or str(row.get("indicator") or row.get("name") or "")
-
-
-def _series_key(row: Mapping[str, object]) -> str:
-    return str(row.get("series") or row.get("indicator") or "")
+    return names.get(series_key(row)) or str(row.get("indicator") or row.get("name") or "")
 
 
 #: Significant figures a computed number is shown with, the rule `trend_rows`
@@ -491,10 +498,7 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
     """
     grouped: dict[tuple[str, ...], list[Mapping[str, object]]] = {}
     for row in daily:
-        series_id = str(row.get("series") or "")
-        key = (("series", series_id) if series_id else
-               ("identity", *(str(row.get(k) or "") for k in ("indicator", "system", "code"))))
-        grouped.setdefault(key, []).append(row)
+        grouped.setdefault(series_key(row), []).append(row)
 
     out: list[dict[str, object]] = []
     for source in grouped.values():

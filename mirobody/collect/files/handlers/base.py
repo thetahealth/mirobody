@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from mirobody.collect.files.services.report_date import resolve_report_date
 import abc
+import asyncio
 import hashlib
 import logging
 import uuid
@@ -22,9 +23,11 @@ if TYPE_CHECKING:
     from mirobody.collect.files.services.file_uploader import FileUploader
     from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
     from mirobody.collect.files.services.temp_file_manager import TempFileManager
-from mirobody.collect.files.errors import UploadError, failure_reason
+from mirobody.collect.files.errors import UploadError, failure_reason, reason_phrases, say
 from mirobody.documents.extract import PartialText
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.config.llm import no_provider_message, resolve_route
+from mirobody.utils.config.served import ModelNotReady, still_loading, wait_until_loaded
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 from mirobody.utils.tasks import spawn
@@ -46,6 +49,8 @@ class FileProcessingContext:
     #: `_extract_original_text`, read by `process`. A report photo with no
     #: vision provider used to pass through here as a success with empty text.
     extraction_error: str = ""
+    #: The same reason as phrases, for the file row (`errors.Phrases`).
+    extraction_phrases: list | None = None
     
     @property
     def target_user_id(self) -> str:
@@ -60,19 +65,19 @@ class FileProcessingContext:
         return self.file.content_type
 
 
-def _no_answer_reason() -> str:
-    """Why no model answered an extraction: no text entry is routable (the
-    sentence names the key to set), or the routed one's call failed. ONE route
+def _no_answer_reason() -> list:
+    """Why no model answered an extraction, as `errors.Phrases`: no text
+    entry is routable (the sentence names the key to set), the routed local
+    model is still loading, or the routed one's call failed. ONE route
     is tried, never a second: config.llm.yaml states it ("selection happens
     once; a failed call is reported, never retried elsewhere")."""
-    from mirobody.utils.config.llm import no_provider_message, resolve_route
-
     route = resolve_route("text")
     if route is None:
-        return no_provider_message("text")
-    return (f"indicator extraction failed: {route.alias} ({route.model}) returned an error, and a failed call "
-            "is not retried on another provider (see the server log for the provider's message); re-upload "
-            "after fixing it, or point UTILS_TEXT_MODEL elsewhere")
+        return [{"text": no_provider_message("text")}]
+    if still_loading(route):
+        return [{"key": "indicator_extraction_failed"}, *reason_phrases(ModelNotReady(route.model))]
+    return [{"key": "indicator_extraction_failed"},
+            {"key": "model_returned_error", "params": {"alias": route.alias, "model": route.model}}]
 
 
 class BaseFileHandler(abc.ABC):
@@ -96,7 +101,7 @@ class BaseFileHandler(abc.ABC):
             
             await ctx.file.seek(0)
             if not await ctx.file.read(1):
-                raise UploadError(localize("file_empty", language, "temp_file_manager"))
+                raise UploadError.phrase("file_empty", "temp_file_manager")
 
             # 1. Generate unique filename if needed
             unique_filename = self._get_unique_filename(ctx)
@@ -114,7 +119,9 @@ class BaseFileHandler(abc.ABC):
                 # we know why. Reporting success here rendered "indicators:
                 # none" over a working-looking upload (#68); the failure and
                 # its reason belong on the upload itself.
-                raise UploadError(f"could not read the document: {ctx.extraction_error}")
+                phrases = [{"key": "document_not_read"},
+                           *(ctx.extraction_phrases or [{"text": ctx.extraction_error}])]
+                raise UploadError(say(phrases, language), phrases)
             if original_text and original_text.strip() and self.indicator_extractor:
                 self._start_background_indicator_extraction(
                     original_text=original_text,
@@ -205,6 +212,7 @@ class BaseFileHandler(abc.ABC):
             logger.error("text extraction failed: message_id=%s error_type=%s", ctx.message_id, type(e).__name__,
                          exc_info=not is_driver_exception(e))
             ctx.extraction_error = failure_reason(e)
+            ctx.extraction_phrases = reason_phrases(e)
             return None, None
 
     async def _abstract(self, ctx: FileProcessingContext, original_text: str | None, language: str) -> tuple[str, str]:
@@ -214,6 +222,11 @@ class BaseFileHandler(abc.ABC):
         file_abstract, file_name = "", ctx.filename
         try:
             if original_text and original_text.strip():
+                if await asyncio.to_thread(still_loading, resolve_route("text")):
+                    # The summary is a nicety; waiting on a model the router
+                    # is still downloading held the upload 307 s (#275).
+                    logger.info("abstract skipped: the text model is still loading: message_id=%s", ctx.message_id)
+                    return self.abstract_extractor.fallback_abstract(ctx.filename, self.get_type_name()), ctx.filename
                 file_abstract, file_name = await self.abstract_extractor.abstract_from_text(
                     original_text, ctx.filename, language)
             elif self.get_type_name() == "image" and not ctx.extraction_error:
@@ -297,18 +310,20 @@ class BaseFileHandler(abc.ABC):
         these keys"). The reason is `failure_reason`'s, never a driver's or a
         vendor's message."""
         language = request_language()
-        reason = failure_reason(e)
+        phrases = reason_phrases(e)
+        reason = say(phrases, language)
         logger.error("file processing failed: message_id=%s file_key=%s error_type=%s", ctx.message_id, file_key,
                      type(e).__name__, exc_info=not is_driver_exception(e))
 
         user_message = localize(f"{self.get_type_name()}_processing_failed", language, "file_processor")
         return {
             "success": False,
-            "message": f"{user_message}: {reason}",
+            "message": localize("with_reason", language, "file_processor", what=user_message, reason=reason),
             "status": "error",
             "message_id": ctx.message_id,
             "filename": ctx.filename,
             "error": reason,
+            "error_phrases": phrases,
             "type": self.get_type_name(),
             "raw": f"Processing failed: {ctx.filename}",
             "file_key": file_key or "",  # Include file_key even on failure
@@ -415,8 +430,12 @@ class BaseFileHandler(abc.ABC):
 
         filed = None
         formatted_raw = original_text
-        failed_reason = ""
+        failed: list | None = None
         try:
+            # A model the router is still downloading: say so after a load's
+            # length rather than wait out a download on each of the two calls
+            # below, the row reading 已处理 with no readings meanwhile (#275).
+            await wait_until_loaded(resolve_route("text"))
             probed = await self.indicator_extractor.probe_report_date(original_text)
             probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
             probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
@@ -437,7 +456,7 @@ class BaseFileHandler(abc.ABC):
             #   2. a provider was selected and its call failed: see the log
             #   3. a model read the document and found none: normal
             if filed.answer is None:
-                failed_reason = _no_answer_reason()
+                failed = _no_answer_reason()
             elif filed.indicators:
                 formatted_raw = ContentFormatter.format_parsed_content(
                     file_results=[{"type": self.get_type_name(), "raw": original_text}],
@@ -449,12 +468,13 @@ class BaseFileHandler(abc.ABC):
             # The fourth kind, and the one that got away: extraction RAISED
             # (a write that stored nothing, the bytearray bug #B-1) and the
             # row was written `status: completed` over an empty list.
-            failed_reason = f"indicator extraction failed: {failure_reason(e)}"
+            failed = [{"key": "indicator_extraction_failed"}, *reason_phrases(e)]
             logger.error("indicator extraction failed: file_key=%s error_type=%s", file_key, type(e).__name__,
                          exc_info=not is_driver_exception(e))
 
         stored_count = filed.stored if filed else 0
-        status = "failed" if failed_reason else "completed"
+        failed_reason = say(failed) if failed else ""
+        status = "failed" if failed else "completed"
         report = filed.report if filed else None
         await FileDbService.rows_ready(message_id)
         await self._update_file_indicators(
@@ -462,6 +482,7 @@ class BaseFileHandler(abc.ABC):
             formatted_raw=formatted_raw,
             indicators_count=stored_count,
             failed_reason=failed_reason,
+            failed_phrases=failed,
             report=report,
         )
         await self._push_upload_event(message_id, {
@@ -514,6 +535,7 @@ class BaseFileHandler(abc.ABC):
         indicators_count: int,
         failed_reason: str = "",
         report: dict[str, str] | None = None,
+        failed_phrases: list | None = None,
     ):
         """Update th_files with indicator extraction results.
 
@@ -540,6 +562,9 @@ class BaseFileHandler(abc.ABC):
             }
             if failed_reason:
                 updates["error"] = failed_reason
+                # Said in the reader's language by the files list; None
+                # clears an earlier failure's phrases, which would win.
+                updates["error_phrases"] = failed_phrases
             if report:
                 updates.update(report)
 

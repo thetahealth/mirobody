@@ -485,12 +485,9 @@ class MirobodyAgent:
         then waits for the load with no sign of life: 14 minutes, measured on
         a 4-core CPU on the first start (2026-10-07). An `unloaded` model is
         left to the request, which is what starts its load."""
-        from mirobody.utils.config.served import served_status
+        from mirobody.utils.config.served import still_loading
 
-        spec = _route(model)
-        if spec is None or not (spec.base_url_env and spec.base_url):
-            return False
-        return served_status(spec.base_url, spec.model) == "loading"
+        return still_loading(_route(model))
 
     #: Tokens a local server's context keeps free beside the input window and
     #: the reply: the chat template, and a short utility call in the other slot.

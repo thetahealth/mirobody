@@ -12,9 +12,10 @@ from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from mirobody.collect.files.errors import stored_reason
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
-from mirobody.utils.req_ctx import request_timezone
+from mirobody.utils.req_ctx import request_language, request_timezone
 
 from mirobody.utils.coerce import safe_json_dumps, safe_json_loads
 from mirobody.utils.db import extract_first_record
@@ -241,6 +242,7 @@ class FileDbService:
                 # Status fields - track upload/processing status
                 "status": file_info.get("status", "completed"),  # uploading, processing, completed, failed
                 "error": file_info.get("error", ""),  # Error message if failed
+                "error_phrases": file_info.get("error_phrases"),  # errors.Phrases, said when read
                 "progress": file_info.get("progress", 100),  # Progress percentage (0-100)
             }
             
@@ -490,7 +492,7 @@ class FileDbService:
                     # to a zero-key deployment read "processing failed" with the
                     # one-sentence fix sitting in the database (#68). Empty
                     # otherwise. `status`/`progress` stay internal.
-                    "error": file_content.get("error", "") if upload_status == "failed" else "",
+                    "error": stored_reason(file_content, request_language()) if upload_status == "failed" else "",
                 }
                 files.append(file_info)
             

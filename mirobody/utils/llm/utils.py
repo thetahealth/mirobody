@@ -25,11 +25,17 @@ class NoResponse(RuntimeError):
     is the provider's failure, not a request this code got wrong. The text
     surfaces turn it into their None; vision, whose contract is that a failed
     request raises, raises this, with a message written for the person whose
-    upload failed (`collect/files/errors.failure_reason`)."""
+    upload failed: in English here, in the reader's language through
+    `collect/files/errors.reason_phrases`."""
+
+    locale_key = "empty_response"
 
     def __init__(self, model: str) -> None:
-        super().__init__(f"{model} sent back an empty response, which an overloaded provider does; "
-                         "try again later, or point the route at another model.")
+        from mirobody.utils.i18n import localize
+
+        self.model = model
+        self.locale_params = {"model": model}
+        super().__init__(localize(self.locale_key, "en", "file_processor", **self.locale_params))
 
 
 def _max_tokens_param(spec: RouteSpec) -> str:
