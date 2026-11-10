@@ -158,6 +158,7 @@ structured extraction, images and OCR.
 | --- | --- |
 | No model server found | Start it on port 8080. On Linux, check the host networking note below. |
 | The first question waits | Models may still be downloading. Check `docker compose logs -f llama_cpu`, or `llama` for the GPU service. |
+| An upload fails with "still downloading or loading" | The model server has not finished loading that model. Wait until the setup page shows it ready, then upload the file again. "Failed to load" means the download did not finish or the file is damaged; the model server's log says which. |
 | Docker runs out of memory | Allocate at least 8 GB in Docker Desktop, or use `colima start --memory 8`. CPU deployments use `docker/local-models-cpu.ini`; GPU deployments use `docker/local-models.ini`. |
 | The log says `Is a directory` for the model preset | Check Docker can access the checkout. Colima shares the home directory by default; move the checkout there or add its path to `mounts`. |
 | Downloads cannot reach Hugging Face | Set `HF_ENDPOINT=https://<mirror>` in `.env` for Compose, or in the shell that starts `llama-server`. |

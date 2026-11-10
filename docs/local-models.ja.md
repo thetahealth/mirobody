@@ -129,6 +129,7 @@ docker compose exec mirobody mirobody doctor --probe
 | --- | --- |
 | モデルサーバーが見つからない | ポート 8080 で起動してください。Linux では下記のホストネットワークの注意点を確認します。 |
 | 最初の質問で待たされる | モデルがまだダウンロード中の可能性があります。`docker compose logs -f llama_cpu`（GPU サービスでは `llama`）を確認してください。 |
+| アップロードが "still downloading or loading" で失敗する | モデルサーバーがそのモデルをまだ読み込み終えていません。セットアップページで準備完了と表示されてから、もう一度アップロードしてください。"failed to load" はダウンロードが完了していないかファイルが壊れていることを示し、どちらかはモデルサーバーのログでわかります。 |
 | Docker のメモリ不足 | Docker Desktop で 8 GB 以上を割り当てるか、`colima start --memory 8` を使います。CPU デプロイは `docker/local-models-cpu.ini`、GPU デプロイは `docker/local-models.ini` を使います。 |
 | ログがモデルプリセットについて `Is a directory` と表示する | Docker がチェックアウトにアクセスできるか確認してください。Colima は既定でホームディレクトリを共有します。チェックアウトをその中に置くか、パスを `mounts` に追加してください。 |
 | ダウンロードが Hugging Face に届かない | Compose では `.env` に、直接起動する場合は `llama-server` を起動するシェルに `HF_ENDPOINT=https://<mirror>` を設定してください。 |
