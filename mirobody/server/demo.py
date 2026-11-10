@@ -10,14 +10,20 @@ seat in the same circle, so a deployment that added its own accounts is not
 looking at an empty demo.
 
 What the database gets directly is ONE set per account: a year of device
-readings and one lab panel. Everything else arrives the way a real record grows,
-through the upload page, from `demo/upload/`: a PDF, a phone photo of a printed
-slip, a spreadsheet and a CSV, none of them seeded. Uploading one walks the
-whole chain rather than being a no-op. ① Collect stores the file, ② Standardize
-turns its analytes into readings in the catalogue's unit, ③ Agent answers over
-both panels at once and charts them against the device series. The seeded panel
-prints mg/dL where the uploaded one prints mmol/L, on purpose: what makes the
-two one series is the conversion.
+readings and one lab panel, and for `mom` a second, older one. Everything else
+arrives the way a real record grows, through the upload page, from
+`demo/upload/`: a PDF, a phone photo of a printed slip, a spreadsheet and a CSV,
+none of them seeded. Uploading one walks the whole chain rather than being a
+no-op. ① Collect stores the file, ② Standardize turns its analytes into
+readings in the catalogue's unit, ③ Agent answers over both panels at once and
+charts them against the device series.
+
+Mom's older panel is from a US clinic and prints glucose and cholesterol in
+mg/dL, where every other demo document prints mmol/L, on purpose: the two are
+one series only through the molar conversion, and every view answers it in one
+unit. This docstring said so before any seeded panel did; with every demo
+file in mmol/L, no demo walk-through, screenshot or review ever showed a series
+printed in two units, and the chart's fall from 212 to 4.9 shipped (#271).
 
 Nothing here ships in the wheel: demo data inside the package would be dead
 weight for everyone who installs the library. The files live in the repo-root
@@ -145,6 +151,11 @@ _PROFILES: dict[str, dict] = {
             ("Fasting Blood Glucose-FBG", 5.6, "mmol/L", "3.9-6.1", ""),
             ("Total Cholesterol-TC", 5.30, "mmol/L", "3.0-5.18", "high"),
         )),
+        "earlier_lab": ("2025-05-14", "mom_lab_2025-05.md", (
+            ("Glycated Hemoglobin-HbA1c", 5.6, "%", "4.0-5.6", ""),
+            ("Fasting Blood Glucose-FBG", 97, "mg/dL", "70-99", ""),
+            ("Total Cholesterol-TC", 198, "mg/dL", "<200", ""),
+        )),
         "uploads": ("mom_physical_2026-06.jpg", "mom_clinic_visit_2026-07.xlsx"),
     },
 }
@@ -164,19 +175,30 @@ def profile_for(email: str) -> dict:
     return _PROFILES[profile_key(email)]
 
 
-def documents_for(email: str) -> list[dict]:
-    """The seeded document this address owns, read from `demo/seed/`.
+def panels_for(email: str) -> list[tuple]:
+    """This address's seeded panels as `(day, document, rows)`, oldest first:
+    `earlier_lab` when the profile has one, then `lab`."""
+    profile = profile_for(email)
+    return [panel for panel in (profile.get("earlier_lab"), profile["lab"]) if panel]
 
-    One document, not two. The second panel is a real file in `demo/upload/`
-    that a reader uploads, which is the only way the demo can show ① Collect
-    and ② Standardize doing anything.
+
+def documents_for(email: str) -> list[dict]:
+    """The seeded documents this address owns, read from `demo/seed/`, one per
+    panel, each with the day it was collected and its panel.
+
+    Every panel the uploads add is a real file in `demo/upload/` that a reader
+    uploads, which is the only way the demo can show ① Collect and
+    ② Standardize doing anything.
     """
-    name = profile_for(email)["lab"][1]
-    path = SEED_DIR / name
-    if not path.is_file():
-        logger.warning("demo seed: no seeded document on disk (set DEMO_DATA_DIR)")
-        return []
-    return [{"name": name, "scene": "report", "body": path.read_text(encoding="utf-8")}]
+    documents = []
+    for day, name, panel in panels_for(email):
+        path = SEED_DIR / name
+        if not path.is_file():
+            logger.warning("demo seed: no seeded document on disk (set DEMO_DATA_DIR)")
+            continue
+        documents.append({"name": name, "scene": "report", "body": path.read_text(encoding="utf-8"),
+                          "day": day, "panel": panel})
+    return documents
 
 
 def _between(first: float, last: float, step: int, steps: int) -> float:
@@ -185,7 +207,7 @@ def _between(first: float, last: float, step: int, steps: int) -> float:
 
 
 def _member_series(member_id: str, email: str) -> list[dict]:
-    """A year of device readings plus one lab panel, for one account.
+    """A year of device readings plus its lab panels, for one account.
 
     Generated rather than vendored: the fixture this replaced was a 207 KB blob
     whose provenance needed three paragraphs, and a year of daily readings is a
@@ -262,17 +284,17 @@ def _member_series(member_id: str, email: str) -> list[dict]:
             rows.append(row("dailyTotalSleepTime", round(hours, 1), day, "hours",
                             "Watch, self-tracked", time="07:00:00"))
 
-    # The seeded panel, last, under the names a lab report PRINTS rather than
+    # The seeded panels, last, under the names a lab report PRINTS rather than
     # the device catalogue's: `collect.query` resolves the NAME to a LOINC code
     # at read time, and `GlycatedHemoglobin-HbA1c` does not resolve while
     # `Glycated Hemoglobin-HbA1c` is 4548-4; and the file this account uploads
     # prints the same names, so the upload lands on this series. With the range
     # and flag the document prints, in the words an upload stores (`H` -> `high`):
     # without them an answer had to open the file to say whether one was in range.
-    lab_day, document, panel = profile["lab"]
-    for indicator, value, unit, ref, flag in panel:
-        rows.append(row(indicator, value, lab_day, unit, "Lab draw",
-                        time="09:15:00", document=document, ref=ref, flag=flag))
+    for lab_day, document, panel in panels_for(email):
+        for indicator, value, unit, ref, flag in panel:
+            rows.append(row(indicator, value, lab_day, unit, "Lab draw",
+                            time="09:15:00", document=document, ref=ref, flag=flag))
     rows[-1]["comment"] = PHI_CANARY
     return rows
 
@@ -299,7 +321,7 @@ async def _put_blob(file_key: str, text: str) -> None:
 
 
 async def _seed_account(execute_query, member_id: str, email: str) -> int:
-    """Give one account its year of readings and its one document."""
+    """Give one account its year of readings and its documents."""
     # Imported here, not at module top: the sibling `_member_series` test runs
     # on a bare `pip install mirobody`, and `collect.observations` pulls in `utils`.
     from mirobody.collect import observations
@@ -309,9 +331,8 @@ async def _seed_account(execute_query, member_id: str, email: str) -> int:
 
     # The file key here is the one `_member_series` wrote into the lab rows'
     # `source_table_id`, so a reading opens the document it was read off.
-    lab_day, _, panel = profile_for(email)["lab"]
     for document in documents_for(email):
-        body = document["body"]
+        body, lab_day, panel = document["body"], document["day"], document["panel"]
         file_key = f"demo/{email}/{document['name']}"
         await execute_query(
             _UPSERT_FILE,
@@ -403,12 +424,14 @@ async def seed(member_emails: list[str]) -> None:
             viewer_count += 1
 
     upload_count = sum(len(p["uploads"]) for p in _PROFILES.values())
+    document_count = sum(len(panels_for(email)) for email, _ in accounts)
     logger.info(
-        "demo seed: %d account(s), %d readings, one document each; one record is "
+        "demo seed: %d account(s), %d readings, %d document(s); one record is "
         "shared view-only with %d of them, and demo/upload/ holds %d file(s) the "
         "seed deliberately leaves out",
         len(accounts),
         reading_count,
+        document_count,
         viewer_count,
         upload_count,
     )

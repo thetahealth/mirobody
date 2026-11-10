@@ -487,7 +487,9 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
             continue
         first_unit = str(numeric[0][0].get("unit") or "")
         target = units.normalize_unit(first_unit) or first_unit
-        result["unit"] = target
+        # Reported as the rows spell it: the store labels a series `bpm`, and
+        # the trend row said `/min` beside a stats row saying `bpm`.
+        result["unit"] = first_unit
         values: list[float] = []
         for row, value in numeric:
             raw_unit = str(row.get("unit") or "")

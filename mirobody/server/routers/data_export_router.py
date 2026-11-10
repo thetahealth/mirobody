@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
 
-from mirobody.collect import RECORD_EXPORT_COLUMNS, PostgresHealthQuery
+from mirobody.collect import RECORD_EXPORT_COLUMNS, PostgresHealthQuery, export_row
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.server.auth import verify_token
 from mirobody.server.envelope import ErrorResponse, StandardResponse, failed
@@ -50,7 +50,7 @@ def _line(payload: dict) -> bytes:
 
 
 def _row(row: dict) -> dict:
-    return {k: row.get(k) for k in RECORD_EXPORT_COLUMNS}
+    return export_row(row)
 
 
 def _manifest(rows: int, *, offset: int, truncated: bool, next_offset: int) -> dict:

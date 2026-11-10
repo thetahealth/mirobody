@@ -20,6 +20,41 @@
 
 ### Fixed
 
+- **A series printed in two units is answered in one** (#271). One person's
+  total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
+  one, is one series, and every raw row carried its canonical pair, but each
+  view chose its own unit. The web chart plotted the printed numbers and drew a
+  fall from 212 to 4.9, its tooltip reading "212 mmol/L · range <200"; a stats
+  row answered `min=0.0049, max=0.00548, unit=mol/L, first=212, last=4.90`;
+  the trend view used the oldest reading's unit and raw rows each their own,
+  and a small model handed both told the person three times that the two
+  results could not be compared. Now the read authority picks one unit per
+  series, the one this person's reports print most often (the newer on a tie,
+  `units.pick_display_unit`, over the whole record so every view and window
+  agree), labelled as the reports spell it (`bpm`, where buckets and stats
+  said `/min`). A reading in another unit is converted through its canonical
+  pair with the factor `units.canonicalize` wrote it with, its range is
+  converted with it (`<200` is `<5.17`), and it is named by the code of the
+  unit it is now in (14647-2, not the [Mass/volume] 2093-3). Statistics,
+  buckets, trends and value bands read that one number. What the report
+  printed rides in `printed` for the web's source column and chart tooltip and
+  in the export (`printed_value`, `printed_unit`, `printed_ref`); it never
+  reaches the model, and neither does `mixed_units`. A reading whose unit does
+  not convert (albumin in g/L and umol/L) keeps its unit, is marked
+  `unit_differs` and is counted by no statistic, where before the whole
+  series had no min, max or mean. Correcting a reading in the drawer edits
+  what the report printed, in its unit. `convert_unit(212, "mg/dL",
+  "mmol/L")` without a `loinc_code` answered "not interconvertible, report
+  the readings separately"; it now says to call again with the reading's code.
+  The chart tooltip also escapes the unit and range it reads off a document,
+  which it set as HTML. `GET /api/data` still returns each record as written.
+  The demo now shows the case: mom's seeded record gained an older US panel in
+  mg/dL (`demo/seed/mom_lab_2025-05.md`), as `server/demo.py` had long said it
+  had; with every demo file in mmol/L no walk-through ever showed a series in
+  two units. How to tell: sign in as `you`, open mom's total cholesterol, and
+  the line runs 5.12 to 5.30 mmol/L with "As printed: 198 mg/dL" in the source
+  column; `scripts/e2e_docker.sh` checks it (step 2b), and
+  `demo/e2e/` holds the issue's two files for an upload run.
 - **Statistics, charts and trends name every series.** In
   `query_health_indicators`, the `stats`, `trend` and minute…month views took
   a row's name from the LOINC catalogue alone. A device series and a reading

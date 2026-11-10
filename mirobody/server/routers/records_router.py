@@ -383,11 +383,13 @@ async def read_records(
         {
             "id": row["row_id"],
             "indicator": row["name"],
-            "value": row["value"],
-            "unit": row["unit"] or None,
+            # As written: this is the read-back of what a developer wrote, so
+            # the value is theirs, not the series' (`printed`, `collect/query.py`).
+            "value": row.get("printed", {}).get("value", row["value"]),
+            "unit": row.get("printed", {}).get("unit", row["unit"]) or None,
             "parsed_value": None if row["value_num"] is None else str(row["value_num"]),
             "parsed_unit": row["unit_ucum"] or None,
-            "loinc_code": row["code"] or None,
+            "loinc_code": row.get("printed", {}).get("code", row["code"]) or None,
             "series": row["series"],
             "time": row["observed_start"] or None,
             "end_time": row["observed_end"] or None,

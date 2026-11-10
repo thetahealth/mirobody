@@ -73,6 +73,27 @@ jobs:
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # The Docker tag is also the Python package's version, which must be
+          # PEP 440. `1.6.0-fix.1` passed the check above and then failed in
+          # `pip install` (InvalidVersion). A suffix PEP 440 does not know
+          # becomes a local version, `1.6.0+fix.1`; every other tag is kept.
+          python_version=$(python3 - "$tag" <<'PY'
+          import re
+          import sys
+          from pip._vendor.packaging.version import InvalidVersion, Version
+
+          tag = sys.argv[1]
+          try:
+              Version(tag)
+              print(tag)
+          except InvalidVersion:
+              base, _, rest = tag.partition("-")
+              local = base + "+" + re.sub(r"[^A-Za-z0-9]+", ".", rest).strip(".")
+              Version(local)
+              print(local)
+          PY
+          )
+          echo "python_version=$python_version" >> "$GITHUB_OUTPUT"
           # A pre-release suffix (1.5.3-rc1) is not a bare X.Y.Z, so it never
           # moves the `latest` tag onto a release that is not final.
           tags="$IMAGE:$tag"
@@ -99,7 +120,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.release.outputs.tags }}
-          build-args: MIROBODY_VERSION=${{ steps.release.outputs.tag }}
+          build-args: MIROBODY_VERSION=${{ steps.release.outputs.python_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
