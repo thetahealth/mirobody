@@ -12,7 +12,7 @@ from mirobody.utils.i18n import localize
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.collect.files.services.file_db_service import FileDbService
 from mirobody.collect.files.services import genotype_format
-from mirobody.collect.files.services.genetic_store import GenotypeStore
+from mirobody.collect.files.services.genetic_store import GenotypeStore, delete_genetic_data_by_source
 from mirobody.standardize.genotype import NORMALIZER_VERSION, infer_sex, normalize
 from mirobody.standardize.genotype_sites import SiteCatalog
 
@@ -340,6 +340,12 @@ async def process_genetic_file(
 
         # Every status below is written to the upload's th_files row.
         await FileDbService.rows_ready(message_id)
+        # A deleted or cancelled upload loads nothing, and a delete that lands
+        # during the load takes the set it made: the delete's own erase ran
+        # before the set existed (#241).
+        if file_key and await FileDbService.gone(file_key, message_id):
+            logger.info("genotype file deleted before its load, nothing loaded: message_id=%s", message_id)
+            return {"success": False, "message": "deleted", "type": "genetic", "file_key": file_key}
 
         loader = GeneticDataLoader(message_id, language, user_id, display_filename, display_file_size, file_key)
         if file_key:
@@ -349,6 +355,10 @@ async def process_genetic_file(
             str(temp_file_path),
             source_table_id=source_table_id,
         )
+        if file_key and await FileDbService.gone(file_key, message_id):
+            await delete_genetic_data_by_source(str(data_owner_user_id), "th_files", source_table_id or file_key)
+            logger.info("genotype file deleted during its load, its set erased: message_id=%s", message_id)
+            return {"success": False, "message": "deleted", "type": "genetic", "file_key": file_key}
 
         if file_key:
             final_content = localize(

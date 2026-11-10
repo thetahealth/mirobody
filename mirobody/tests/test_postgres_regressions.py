@@ -1359,3 +1359,252 @@ async def test_a_failed_files_reason_is_said_in_the_language_of_the_page_reading
     assert japanese["web_uploads/lab.pdf"].startswith("指標の抽出に失敗しました：ローカルモデル minicpm5-2b")
     assert {english["web_uploads/old.pdf"], chinese["web_uploads/old.pdf"]} == {
         "PDF processing failed: InternalServerError"}
+
+
+class _Storage:
+    """The object store an upload writes to, kept in a dict."""
+
+    def __init__(self, objects=None):
+        self.objects = dict(objects or {})
+        self.deleted = []
+
+    async def get(self, key):
+        return (self.objects[key], None) if key in self.objects else (None, "not found")
+
+    async def delete(self, key):
+        self.deleted.append(key)
+        self.objects.pop(key, None)
+        return None
+
+
+def _upload_manager(monkeypatch, storage, file_keys):
+    """A WebSocket upload manager whose processing stores `file_keys` and
+    reads each as a report still being extracted, with no socket."""
+    from mirobody.collect.files import file_upload_manager
+    from mirobody.collect.files.services import file_processing_service
+
+    monkeypatch.setattr(file_processing_service, "get_storage_client", lambda: storage)
+    manager = file_upload_manager.WebSocketFileUploadManager()
+    outcomes = iter([{"success": True, "type": "pdf", "file_key": key, "file_name": key.rsplit("/", 1)[-1],
+                      "full_url": f"/files/{key}", "original_text": "Glucose 5.1 mmol/L", "extracting": True}
+                     for key in file_keys])
+
+    class Processor:
+        async def process_single_file(self, **_):
+            return next(outcomes)
+
+    manager._file_processor = Processor()
+    # The profile rebuilt after an upload is another subsystem's, and its task
+    # would outlive this test's schema.
+    monkeypatch.setattr(manager, "_start_profile_refresh", AsyncMock())
+    return manager
+
+
+def _sent_upload(name):
+    return {"filename": name, "content": b"%PDF-1.4 synthetic", "content_type": "application/pdf", "size": 18}
+
+
+async def test_deleting_an_upload_before_it_is_filed_cancels_it(database, monkeypatch):
+    """#240: a delete of an upload still in flight matched no row, answered
+    success with nothing deleted, and the upload was filed minutes later as a
+    second copy. The delete now cancels it: nothing is filed, its stored
+    object goes, and a delete that matches neither a file nor an upload is
+    not a success."""
+    from mirobody.collect.files.services import upload_state
+    from mirobody.collect.files.services.file_processing_service import delete_all_files_from_message
+
+    assert (await delete_all_files_from_message("m-none", "1"))["success"] is False
+
+    storage = _Storage({"web_uploads/a.pdf": b"%PDF"})
+    manager = _upload_manager(monkeypatch, storage, ["web_uploads/a.pdf"])
+    manager.upload_sessions["m-1"] = {"user_id": "1", "session_id": "s-1", "query": ""}
+    await upload_state.register("1", "m-1")
+    # Another account naming the same message id cancels nothing of this one.
+    assert (await delete_all_files_from_message("m-1", "2"))["success"] is False
+    deleted = await delete_all_files_from_message("m-1", "1")
+    assert deleted["success"] is True and deleted["cancelled"] is True and deleted["deleted_files"] == []
+
+    await manager.process_files_async("c-1", "m-1", [_sent_upload("a.pdf")], "", "", False, "1")
+
+    assert await database("SELECT file_key FROM th_files WHERE created_source_id = 'm-1'", log_sql=False) == []
+    assert await database("SELECT * FROM th_upload", log_sql=False) == []
+    assert storage.deleted == ["web_uploads/a.pdf"]
+    assert manager.upload_sessions["m-1"]["status"] == "cancelled"
+
+
+async def test_a_cancel_that_lands_while_the_rows_go_in_removes_them(database, monkeypatch):
+    """The filing reads the cancel before inserting and again after: a delete
+    that arrives between the two finds the rows inserted so far, and the
+    cancel removes every one, the rows inserted after it included."""
+    from mirobody.collect.files.services import upload_state
+    from mirobody.collect.files.services.file_db_service import FileDbService
+    from mirobody.collect.files.services.file_processing_service import delete_all_files_from_message
+
+    keys = ["web_uploads/p1.pdf", "web_uploads/p2.pdf"]
+    storage = _Storage(dict.fromkeys(keys, b"%PDF"))
+    manager = _upload_manager(monkeypatch, storage, keys)
+    manager.upload_sessions["m-2"] = {"user_id": "1", "session_id": "s-2", "query": ""}
+    await upload_state.register("1", "m-2")
+    insert = FileDbService.insert_file
+
+    async def insert_then_delete_midway(*args, **kwargs):
+        file_id = await insert(*args, **kwargs)
+        if kwargs.get("file_key") == keys[0]:
+            assert (await delete_all_files_from_message("m-2", "1"))["cancelled"] is True
+        return file_id
+
+    monkeypatch.setattr(FileDbService, "insert_file", insert_then_delete_midway)
+    await manager.process_files_async("c-2", "m-2", [_sent_upload("p1.pdf"), _sent_upload("p2.pdf")], "", "",
+                                      False, "1")
+
+    rows = await database("SELECT file_key, is_del FROM th_files WHERE created_source_id = 'm-2' ORDER BY file_key",
+                          log_sql=False)
+    assert [(r["file_key"], r["is_del"]) for r in rows] == [(keys[0], True), (keys[1], True)]
+    assert await database("SELECT * FROM th_upload", log_sql=False) == []
+    assert sorted(set(storage.deleted)) == keys
+
+
+async def test_a_file_reads_processing_until_its_readings_are_extracted(database, monkeypatch):
+    """#239/#275: a file was filed `completed` before extraction ran, so the
+    Data page read 已处理 with no readings until extraction finished or
+    failed, ten minutes behind a local model still loading. It is filed
+    `processing`; extraction's result turns it complete or failed, and a row
+    a dead task left `processing` reads failed with why once it has sat
+    untouched for an hour."""
+    from mirobody.collect.files.handlers.pdf import PDFHandler
+    from mirobody.collect.files.services.file_db_service import FileDbService
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    keys = ["web_uploads/r1.pdf", "web_uploads/r2.pdf"]
+    manager = _upload_manager(monkeypatch, _Storage(), keys)
+    manager.upload_sessions["m-3"] = {"user_id": "1", "session_id": "s-3", "query": ""}
+    await manager.process_files_async("c-3", "m-3", [_sent_upload("r1.pdf"), _sent_upload("r2.pdf")], "", "",
+                                      False, "1")
+
+    async def listed():
+        with set_req_ctx({"language": "en"}):
+            files = (await FileDbService.get_files_paginated("1"))["files"]
+        return {f["file_key"]: (f["upload_status"], f["error"]) for f in files}
+
+    assert await listed() == dict.fromkeys(keys, ("processing", ""))
+    await PDFHandler()._update_file_indicators(keys[0], "", 3)
+    await database("UPDATE th_files SET updated_at = now() - interval '2 hours' WHERE file_key = :k",
+                   {"k": keys[1]}, log_sql=False)
+    status = await listed()
+    assert status[keys[0]] == ("complete", "")
+    assert status[keys[1]][0] == "failed" and status[keys[1]][1].startswith("processing stopped before it finished")
+
+
+class _Extractor:
+    """Indicator extraction that writes one reading for the file it reads,
+    running `during` while the model would be reading it."""
+
+    def __init__(self, during=None):
+        self.during = during
+        self.extracted = False
+
+    async def probe_report_date(self, original_text):
+        return "2026-03-01"
+
+    async def extract_indicators_from_text(self, original_text, user_id, file_key, report_date=None):
+        from mirobody.collect import observations
+        from mirobody.collect.files.services.indicator_extractor import Filed
+        from mirobody.collect.files.services.report_date import file_source_ref
+
+        self.extracted = True
+        if self.during:
+            await self.during()
+        report = await observations.ingest(str(user_id), [observations.Draft(
+            name_text="Glucose", value_text="5.1", unit_text="mmol/L", observed_start=datetime(2026, 3, 1, tzinfo=UTC),
+        )], observations.Provenance("lab-report", "file", file_source_ref(file_key)), user_tz="UTC")
+        return Filed(indicators=[{"original_indicator": "Glucose"}], answer={"indicators": []},
+                     stored=report.inserted, report=None)
+
+
+async def test_no_reading_outlives_a_file_deleted_while_it_was_extracted(database, monkeypatch):
+    """#241: deleting a filed file erased its readings once, in the
+    background, and extraction then wrote its own without checking that the
+    file still existed, so they outlived it. Extraction checks before
+    writing and again after: a file deleted before is not read, and one
+    deleted while the model read it loses what was written."""
+    from mirobody.collect.files.handlers import base
+    from mirobody.collect.files.handlers.pdf import PDFHandler
+    from mirobody.collect.files.services.file_db_service import FileDbService
+    from mirobody.collect.files.services.file_processing_service import delete_files_from_message, erase_extracted
+
+    monkeypatch.setattr(base, "wait_until_loaded", AsyncMock())
+    for key in ("web_uploads/before.pdf", "web_uploads/during.pdf", "web_uploads/kept.pdf"):
+        await FileDbService.insert_file("1", key, key, "application/pdf", {"status": "processing"},
+                                        created_source="data", created_source_id="m-4")
+
+    async def delete(key):
+        # The delete's background erase, awaited: it runs before the write.
+        monkeypatch.setattr("mirobody.collect.files.services.file_processing_service._start_background_cascade_delete",
+                            lambda message_id, deleted: None)
+        await delete_files_from_message("m-4", [key], "1")
+        await erase_extracted("m-4", [({"file_key": key, "scene": "report"}, "1")])
+
+    monkeypatch.setattr("mirobody.collect.files.services.file_processing_service.get_storage_client", lambda: _Storage())
+    await delete("web_uploads/before.pdf")
+    before = _Extractor()
+    await PDFHandler(indicator_extractor=before)._async_extract_indicators("Glucose 5.1", 1, "before.pdf",
+                                                                           "web_uploads/before.pdf")
+    during = _Extractor(during=lambda: delete("web_uploads/during.pdf"))
+    await PDFHandler(indicator_extractor=during)._async_extract_indicators("Glucose 5.1", 1, "during.pdf",
+                                                                           "web_uploads/during.pdf")
+    kept = _Extractor()
+    await PDFHandler(indicator_extractor=kept)._async_extract_indicators("Glucose 5.1", 1, "kept.pdf",
+                                                                         "web_uploads/kept.pdf")
+
+    assert before.extracted is False and during.extracted is True
+    rows = await database("SELECT source_ref FROM th_observation", log_sql=False)
+    assert [r["source_ref"] for r in rows] == ["th_files:web_uploads/kept.pdf"]
+    kept_row = await FileDbService.get_file_by_key("web_uploads/kept.pdf")
+    assert kept_row["file_content"]["status"] == "completed"
+
+
+async def test_reprocessing_a_file_replaces_its_readings(database, monkeypatch):
+    """#239: a failed file could only be deleted and uploaded again. Reprocess
+    erases what was read from it, turns the row `processing` and reads the
+    stored bytes again; it refuses a file still being processed, a genotype
+    file, and one whose stored object is gone."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services import file_processing_service as fps
+    from mirobody.collect.files.services.file_db_service import FileDbService
+    from mirobody.utils import tasks
+
+    storage = _Storage({"web_uploads/failed.pdf": b"%PDF-1.4 synthetic"})
+    monkeypatch.setattr(fps, "get_storage_client", lambda: storage)
+    started = []
+
+    async def read_again(**kwargs):
+        started.append(kwargs)
+
+    monkeypatch.setattr(fps, "process_files_async", read_again)
+    monkeypatch.setattr(tasks, "spawn", lambda coroutine, **_: started.append(coroutine))
+    await FileDbService.insert_file("1", "web_uploads/failed.pdf", "failed.pdf", "application/pdf", {
+        "status": "failed", "error": "indicator extraction failed", "content_type": "application/pdf",
+        "original_filename": "failed.pdf", "date_source": "manual", "report_date": "2026-02-01 00:00:00",
+    }, created_source="data", created_source_id="m-5")
+    await observations.ingest("1", [observations.Draft(name_text="Glucose", value_text="9.9", unit_text="mmol/L",
+                                                       observed_start=datetime(2026, 2, 1, tzinfo=UTC))],
+                              observations.Provenance("lab-report", "file", "th_files:web_uploads/failed.pdf"),
+                              user_tz="UTC")
+
+    row = await FileDbService.get_file_by_key("web_uploads/failed.pdf")
+    assert await fps.reprocess_file(row, "1") is None
+    await started.pop(0)
+    [call] = started
+    assert call["msg_id"] == "reprocess:web_uploads/failed.pdf" and call["user_id"] == "1"
+    assert call["files_data"][0]["content_bytes"] == b"%PDF-1.4 synthetic"
+    assert call["files_data"][0]["file_name"] == "failed.pdf"
+    assert await database("SELECT id FROM th_observation", log_sql=False) == []
+    content = (await FileDbService.get_file_by_key("web_uploads/failed.pdf"))["file_content"]
+    assert (content["status"], content["error"], content["date_source"]) == ("processing", "", "manual")
+
+    row = await FileDbService.get_file_by_key("web_uploads/failed.pdf")
+    assert await fps.reprocess_file(row, "1") == "processing"
+    assert await fps.reprocess_file({**row, "scene": "genetic"}, "1") == "genetic"
+    storage.objects.clear()
+    await FileDbService.update_file_content("web_uploads/failed.pdf", {"status": "failed"})
+    assert await fps.reprocess_file(await FileDbService.get_file_by_key("web_uploads/failed.pdf"), "1") == "missing"

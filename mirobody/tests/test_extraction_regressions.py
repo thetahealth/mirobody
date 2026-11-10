@@ -15,6 +15,7 @@ pytest.importorskip("openai")
 from mirobody.agent.tools.health_indicators_service import _envelope_for
 from mirobody.collect import observations
 from mirobody.collect.files.services import indicator_store
+from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
 from mirobody.collect.query import _bucket_row, _catalog_row, _stats_row
 from mirobody.kernel import query
 
@@ -130,3 +131,81 @@ def test_every_answer_view_warns_about_its_unverified_inputs(method, view, unver
     assert bool(warnings) is unverified
     if warnings:
         assert "ALT" in warnings[0]
+
+
+# The printed names #235 reports from Chinese check-up PDFs; every value is
+# synthetic. `ＦＲ` and `既往史：` are the same labels as a full-width OCR or a
+# model that kept the colon would print them.
+_NOT_READINGS_235 = ["AO%", "D", "DR", "FR", "Frd", "Frq", "Gn", "PAT TIS", "S/A", "ＦＲ",
+                     "既往史", "既往史：", "其他"]
+_ANALYTES = [("K", "4.1", "mmol/L"), ("Na", "140", "mmol/L"), ("Ca", "2.31", "mmol/L"),
+             ("HR", "72", "bpm"), ("RV5", "1.85", "mV"), ("SV1", "0.92", "mV"),
+             ("AO", "28", "mm"), ("E/A", "1.3", ""), ("MAP", "93", "mmHg")]
+_FINDINGS_235 = ["双肾", "双肾彩超", "双肾结晶", "心影", "两肺纹理", "气管及诸纵隔", "牙周", "义齿"]
+
+
+def _row(name, value, unit="", method="laboratory"):
+    return {"original_indicator": name, "value": value, "unit": unit, "reference_range": "",
+            "detection_method": method, "status": "normal", "notes": "", "date_time": ""}
+
+
+async def test_scanner_settings_and_record_headings_are_not_readings(monkeypatch):
+    """Symptoms A and B of #235, through the model's reader: the scanner's
+    settings and a record's history heading are dropped, the short analytes
+    and the ECG amplitudes stay, and so does every organ finding."""
+    rows = [_row(name, str(10 + i), "Hz") for i, name in enumerate(_NOT_READINGS_235)]
+    rows += [_row(name, value, unit, "Physiological" if name in ("HR", "RV5", "SV1") else "laboratory")
+             for name, value, unit in _ANALYTES]
+    rows += [_row(name, f"synthetic finding {i}", method="Imaging") for i, name in enumerate(_FINDINGS_235)]
+    answer = {"content_type": "medical_report", "content_info": {"date_time": "2026-03-04 08:00:00"},
+              "indicators": rows}
+    monkeypatch.setattr(IndicatorExtractor, "_llm_extract", AsyncMock(return_value=answer))
+
+    reading = await IndicatorExtractor.read_indicators("A synthetic check-up page with no table in it.")
+
+    kept = [r["original_indicator"] for r in reading.rows]
+    assert kept == [name for name, _, _ in _ANALYTES] + _FINDINGS_235
+    assert len(reading.answer["indicators"]) == len(rows)
+
+
+async def test_the_table_rules_rows_pass_the_same_gate(monkeypatch):
+    """The table rules read a scanner's `FR | 25 | Hz` as a laboratory row, so
+    the gate is on what both readers found, not on the model's rows alone."""
+    text = "\n".join([
+        "| 项目 | 结果 | 单位 | 参考范围 |",
+        "|---|---|---|---|",
+        "| K | 4.1 | mmol/L | 3.5-5.3 |",
+        "| Na | 140 | mmol/L | 137-147 |",
+        "| FR | 25 | Hz | |",
+        "| Frq | 3.5 | MHz | |",
+        "| D | 16 | cm | |",
+        "| Gn | 50 | | |",
+    ])
+    model = AsyncMock(return_value=None)
+    monkeypatch.setattr(IndicatorExtractor, "_llm_extract", model)
+
+    reading = await IndicatorExtractor.read_indicators(text)
+
+    model.assert_not_awaited()
+    assert [r["original_indicator"] for r in reading.rows] == ["K", "Na"]
+
+
+@pytest.mark.parametrize("name,method,kind", [
+    ("心影", "Imaging", observations.KIND_FINDING),
+    ("双肾结晶", "Imaging", observations.KIND_FINDING),
+    ("HR", "Physiological", observations.KIND_MEASUREMENT),
+    ("K", "laboratory", observations.KIND_MEASUREMENT),
+])
+async def test_an_imaging_row_is_stored_as_a_finding(monkeypatch, name, method, kind):
+    """Symptom B's organ rows are findings by design: the prompt asks for one
+    per organ, and an Imaging row is stored with `kind='finding'`. What lists
+    them beside lab analytes is the client, which does not read `kind`."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-235-user", [_row(name, "synthetic", method=method)],
+        datetime(2026, 3, 4), "extracted", "synthetic-235.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert drafts[0].kind == kind

@@ -8,7 +8,7 @@ nothing from outside the project.
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -36,6 +36,23 @@ SOURCE_ASK = "ask"
 #: finished first found no row, and its report date, counts and status were lost.
 _ROWS_PENDING: dict[str, asyncio.Event] = {}
 ROW_WAIT_SECONDS = 600
+
+#: A file still `processing` this long after its row last changed was dropped
+#: by the process reading it (a restart kills the background task, and nothing
+#: else writes the row's final status). The files list says so, worked out
+#: when it is read, so the page offers to reprocess instead of a spinner
+#: that never stops. The slowest step that leaves the row untouched is one
+#: extraction call to a local CPU model, minutes, not an hour.
+PROCESSING_ABANDONED_AFTER = timedelta(hours=1)
+
+
+def processing_abandoned(content: dict[str, Any], updated_at: datetime | None) -> bool:
+    """Whether a row reading `processing` was left that way by a task that died."""
+    if content.get("status") != "processing" or updated_at is None:
+        return False
+    if updated_at.tzinfo is None:
+        updated_at = updated_at.replace(tzinfo=UTC)
+    return datetime.now(UTC) - updated_at > PROCESSING_ABANDONED_AFTER
 
 
 class FileDbService:
@@ -67,6 +84,29 @@ class FileDbService:
             await asyncio.wait_for(event.wait(), ROW_WAIT_SECONDS)
         except TimeoutError:
             logger.warning("th_files rows still pending after %ds: message_id=%s", ROW_WAIT_SECONDS, message_id)  # phi: ok a constant
+
+    @staticmethod
+    async def gone(file_key: str, message_id: str | None = None) -> bool:
+        """Whether the file was deleted, or its upload cancelled before it was
+        filed: what a background task reading the file asks before it writes
+        what it read, and again after. Extraction outlived a delete and wrote
+        its readings into the record with no file left to delete them by
+        (#241).
+
+        A file whose upload has not filed its rows yet is not gone: the
+        filing reads a cancel itself (`upload_state`). A database error
+        answers "not gone", the behavior before this check.
+        """
+        if message_id and message_id in _ROWS_PENDING:
+            return False
+        try:
+            rows = await execute_query("SELECT is_del FROM th_files WHERE file_key = :file_key",
+                                       {"file_key": file_key}, log_sql=False)
+        except Exception as e:
+            logger.warning("file state not read, treated as live: file_key=%s error_type=%s", file_key,
+                           type(e).__name__, exc_info=not is_driver_exception(e))
+            return False
+        return not rows or bool(rows[0].get("is_del"))
 
     # ============== INSERT Operations ==============
     
@@ -444,6 +484,9 @@ class FileDbService:
                 content_type = stored_content_type if stored_content_type else guess_mime(row.get("file_name", ""))
                 
                 # Determine upload_status from status field
+                if processing_abandoned(file_content, row.get("updated_at")):
+                    file_content = {**file_content, "status": "failed", "error": "",
+                                    "error_phrases": [{"key": "processing_interrupted"}]}
                 status = file_content.get("status", "completed")
                 if status == "completed":
                     upload_status = "complete"
@@ -638,10 +681,12 @@ class FileDbService:
         original_text: str = "",
         text_length: int = 0,
         content_hash: str = "",
+        extracting: bool = False,
     ) -> bool:
         """Record a processed file: what it was read as, its abstract and the
         name a model gave it. The readings and their count are not this
-        update's: the indicator extraction writes them when it finishes.
+        update's: the indicator extraction writes them when it finishes, and
+        while it runs (`extracting`) the file stays `processing`.
 
         Args:
             file_key: File key
@@ -666,9 +711,9 @@ class FileDbService:
             current_content.update({
                 "raw": raw,
                 "file_abstract": file_abstract,
-                "processed": True,
+                "processed": not extracting,
                 "processed_at": datetime.now(UTC).isoformat(),
-                "status": "completed",
+                "status": "processing" if extracting else "completed",
                 "error": "",
                 "progress": 100,
             })

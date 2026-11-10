@@ -90,6 +90,7 @@ _EXPORTS = {
     "FileUploadData": "files.services.file_processing_service",
     "delete_all_files_from_message": "files.services.file_processing_service",
     "delete_files_from_message": "files.services.file_processing_service",
+    "reprocess_file": "files.services.file_processing_service",
     "upload_files_to_storage": "files.services.file_processing_service",
     "process_files_async": "files.services.file_processing_service",
     "get_uploaded_files_paginated": "files.services.drive_listing",
@@ -154,6 +155,7 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
         delete_all_files_from_message,
         delete_files_from_message,
         process_files_async,
+        reprocess_file,
         upload_files_to_storage,
     )
     from .files.services.list_my_data import get_user_data_distribution

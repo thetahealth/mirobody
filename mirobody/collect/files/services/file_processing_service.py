@@ -102,6 +102,7 @@ async def process_files_async(
                     original_text=result.get("original_text", ""),
                     text_length=result.get("text_length", 0),
                     content_hash=result.get("content_hash", ""),
+                    extracting=bool(result.get("extracting")),
                 )
             else:
                 await FileDbService.update_file_content(file_key, {
@@ -115,6 +116,60 @@ async def process_files_async(
         logger.info("attachments processed: msg_id=%s count=%d failed=%d", msg_id, len(results), failed_count)
     finally:
         FileDbService.rows_written(msg_id)
+
+
+async def reprocess_file(row: dict[str, Any], owner: str) -> str | None:
+    """Read a filed document again from its stored bytes, in place of what was
+    read from it before; None once started, else why not: "processing" (it
+    still is), "genetic" (a genotype file is loaded, not read) or "missing"
+    (its stored object is gone).
+
+    A failed file could only be deleted and uploaded again (#239). The
+    readings go first: extraction writes "skip on conflict" keyed on name,
+    time and source, so a second read on top of the first drops a corrected
+    value and files a reading whose date moved beside the old one. The row
+    turns `processing` and `process_files_async` writes the outcome, the way
+    it does for a chat attachment; the text is read again only when the row
+    has none, since a stored text is found by the bytes' hash.
+
+    `row` is `FileDbService.get_file_by_key`'s; `owner` is the record the
+    readings belong to, whose write grant the caller has checked.
+    """
+    from mirobody.collect import observations
+
+    from .file_db_service import FileDbService, processing_abandoned
+
+    content = row.get("file_content") or {}
+    if row.get("scene") == "genetic":
+        return "genetic"
+    if content.get("status") == "processing" and not processing_abandoned(content, row.get("updated_at")):
+        return "processing"
+    file_key = str(row["file_key"])
+    try:
+        data, err = await get_storage_client().get(file_key)
+    except Exception as e:
+        logger.warning("reading a stored file failed: file_key=%s error_type=%s", file_key, type(e).__name__,
+                       exc_info=not is_driver_exception(e))
+        data, err = None, "unreadable"
+    if not data or err:
+        return "missing"
+
+    erased_count = await observations.erase(str(owner), source_ref=file_source_ref(file_key))
+    await FileDbService.update_file_content(file_key, {
+        "status": "processing", "processed": False, "progress": 0, "indicators_count": 0,
+        "error": "", "error_phrases": None,
+    })
+    name = content.get("original_filename") or row.get("file_name") or file_key.rsplit("/", 1)[-1]
+    from mirobody.utils.tasks import spawn
+
+    # Its own id: `FileDbService.rows_ready` waits on it, and the upload's
+    # message id may still name a batch in flight.
+    spawn(process_files_async(files_data=[{
+        "file_key": file_key, "file_name": name, "content_bytes": data,
+        "content_type": content.get("content_type") or row.get("file_type") or "application/octet-stream",
+    }], user_id=str(owner), msg_id=f"reprocess:{file_key}"), name="file-reprocess")
+    logger.info("file reprocessing: file_key=%s erased_count=%d", file_key, erased_count)
+    return None
 
 
 async def _invalidate_derived_profile(owner_id: str) -> None:
@@ -271,33 +326,45 @@ async def delete_all_files_from_message(
     user_id: str
 ) -> dict[str, Any]:
     """`delete_files_from_message` for every file of `message_id` the caller
-    owns.
+    owns, and a cancel of the upload `message_id` if it is still in flight.
+
+    The cancel comes first and runs even when rows are found: a delete that
+    lands while a batch is being filed finds only the rows inserted so far,
+    and the cancel is what removes the rest (`upload_state.settle`). Matching
+    neither is not a success: it answered success with nothing deleted, the
+    page dropped the row, and the upload was filed minutes later (#240).
 
     Args:
         message_id: The source ID (created_source_id in th_files)
         user_id: User ID for authorization
 
     Returns:
-        Dict containing deletion results
+        Dict containing deletion results; `cancelled` says whether an upload
+        in flight was cancelled.
     """
     from .file_db_service import FileDbService
+    from .upload_state import cancel
 
     try:
+        cancelled = await cancel(user_id, message_id)
         files = await FileDbService.get_files_by_source(user_id=user_id, created_source_id=message_id)
         file_keys = [f.get("file_key") for f in files if f.get("file_key")]
         if not file_keys:
+            if cancelled:
+                logger.info("upload cancelled before it was filed: message_id=%s", message_id)
             return {
-                "success": True,
+                "success": cancelled,
+                "cancelled": cancelled,
                 "message_id": message_id,
                 "deleted_files": [],
                 "failed_deletions": [],
-                "note": "No files found"
             }
-        return await delete_files_from_message(
+        result = await delete_files_from_message(
             message_id=message_id,
             file_keys=file_keys,
             user_id=user_id
         )
+        return {**result, "success": bool(result.get("success")) or cancelled, "cancelled": cancelled}
 
     except Exception as e:
         logger.error("deleting a message's files failed: message_id=%s error_type=%s", message_id,
@@ -309,12 +376,13 @@ async def delete_all_files_from_message(
         }
 
 
-async def _background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
+async def erase_extracted(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
     """Erase what was extracted from each deleted file, under the owner of
     the record it was filed in: a genotype file's sets, any other file's
     observations (their coding and frozen extraction go with them). This is
     the privacy path: one file whose erase fails does not stop the others,
-    and the failure is logged as one."""
+    and the failure is logged as one. Each entry is `(file, owner)`, the file
+    a dict with `file_key` and `scene`."""
     from mirobody.collect import observations
 
     failed_count = 0
@@ -336,12 +404,12 @@ async def _background_cascade_delete(message_id: str, deleted: list[tuple[dict[s
 
 
 def _start_background_cascade_delete(message_id: str, deleted: list[tuple[dict[str, Any], str]]) -> None:
-    """Start `_background_cascade_delete` under `spawn`: a bare
+    """Start `erase_extracted` under `spawn`: a bare
     `asyncio.create_task` left the task GC-collectable mid-delete (the exact
     failure mode utils/tasks.py documents)."""
     from mirobody.utils.tasks import spawn
 
-    spawn(_background_cascade_delete(message_id, deleted), name=f"cascade-delete-{message_id}")
+    spawn(erase_extracted(message_id, deleted), name=f"cascade-delete-{message_id}")
 
 
 async def upload_files_to_storage(

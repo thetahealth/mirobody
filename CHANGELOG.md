@@ -65,9 +65,8 @@
   8480-6`: `GET /api/v1/journal` and `POST /api/v1/journal/sentence` sent only
   `display`, LOINC's long name, so the journal stayed English after 1.6.0 named
   the same code 收缩压 in the indicator list (#231). Now a LOINC-coded entry in
-  both answers carries `label` from `standardize.names_for` in the request's
-  language, exactly as
-  `GET /api/v1/health-indicators` does, and the web client shows it with
+  both answers carries `label` from `standardize.label_for` in the request's
+  language, the one name `GET /api/v1/health-indicators` gives the same code, and the web client shows it with
   `display` as its tooltip, falling back to `display`; a language switch
   reloads the feed. An English page reads as before: LOINC gives vital signs
   no English consumer name, so they keep `Systolic blood pressure`, and a code
@@ -78,6 +77,26 @@
   side is thetahealth/mirobody-web #27, already in `frontend/`. To tell: with
   `X-Language: zh-CN`, a journal entry coded 8480-6 answers
   `"label": "收缩压"`; with `X-Language: en` it has no `label`.
+- **A scanner's settings and a record's history headings are no longer
+  readings** (part of #235). Chinese check-up PDFs left `AO%`, `D`, `DR`,
+  `FR`, `Frd`, `Frq`, `Gn`, `PAT TIS` and `S/A` in the indicator list. These
+  are the settings an ultrasound scanner prints beside its image, and the
+  table rules read `FR | 25 | Hz` as a lab row, as the model can.
+  `既往史` and `其他` were stored too. Both readers' rows now pass one gate, a
+  closed list of labels (`indicator_extractor.NOT_READINGS`) that also holds
+  the other admission-record history headings (主诉, 现病史, 个人史, 婚育史,
+  月经史, 家族史). The gate tests the label, not its length: `K`, `Na`, `Ca`
+  and the ECG's `HR`, `RV5` and `SV1` are still stored. So are an
+  echocardiogram's `AO` and `E/A` and `MAP`, which look like scanner
+  settings. The vocabulary could not have told them apart, because it
+  resolves `K` and `FR` alike, to nothing. Organ rows such as `心影`,
+  `两肺纹理` and `双肾` are not affected. They are findings by design (an
+  Imaging row is stored with `kind='finding'`), and the web client lists
+  them beside lab analytes because it does not read `kind`. That half of
+  symptom B is not fixed here (`docs/roadmap.md`). A report read before this
+  keeps those rows until it is read again (`POST /api/v1/data/reprocess-file`
+  erases its readings first). How to tell: upload a report whose ultrasound
+  page prints `Frq`, `Gn` and `FR`. None of them is listed, and its `K` is.
 - **An upload made while a local model is still loading says so** (#275).
   On a local stack whose llama.cpp router had not finished downloading the
   text model, a text PDF waited 307 s on its summary, was listed 已处理 with
@@ -105,10 +124,33 @@
   the messages sent while it runs, where the upload socket used the
   browser's. A load the upload
   itself starts (the router reports the model unloaded) still waits for the
-  router's own limit, and the file reads 已处理 until the readings fail.
+  router's own limit; the file reads 处理中 meanwhile (see the next entry).
   How to tell: start the local stack, upload a report before the setup page
   shows the model ready, and the file fails within two minutes with that
   sentence; switch the language in Settings and the sentence follows.
+- **A deleted upload stays deleted, and a file says when it is still being
+  read** (#241, #240, #239). Deleting an upload still in flight sent only its
+  message id; it had no file row yet, so the server answered success with
+  nothing deleted, the page dropped the row, and minutes later the upload was
+  filed anyway as a second copy of the report with its own extraction. A
+  delete during extraction erased the file's readings once, and extraction
+  then wrote its own, which outlived the file. And a file was filed 已处理
+  before extraction ran, then flipped to 处理失败 with no way to retry. Now
+  the upload is recorded while in flight (`th_upload`, keyed by its message
+  id) and a delete cancels it: nothing of it is filed and its stored object
+  is deleted, the answer says `cancelled`, and a delete that matches neither
+  a file nor an upload is a 404. Extraction, and a genotype load, check that
+  the file still exists before writing and again after, erasing what they
+  wrote if it went in between. A file is filed `processing` until its
+  readings are in, then `complete` or `failed`; one still `processing` an
+  hour after it last changed, left by a restart, is listed failed with
+  "processing stopped before it finished". `POST /api/v1/data/reprocess-file`
+  reads a filed document again from its stored object, erasing the readings
+  taken from it first, since extraction skips a reading it already has.
+  Readings are no longer written for a file whose row was never filed.
+  How to tell: start an upload with a slow model, delete the row while it
+  says 处理中, and no file appears afterwards; the file list shows a new
+  upload as 处理中 until its readings are counted.
 - **A series printed in two units is answered in one** (#271). One person's
   total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
   one, is one series, and every raw row carried its canonical pair, but each
