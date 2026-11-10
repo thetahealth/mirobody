@@ -350,6 +350,19 @@ fix is here.
   only right one. Narrative imaging findings are not lab observations; the
   resolver should decline them (`!unresolved`) rather than reach for an enzyme
   that merely shares the organ name.
+- **Findings are listed among lab analytes** (#235, symptom B). An Imaging or
+  Pathological row is stored as `kind='finding'`, and every catalogue row
+  carries `kind`. The web client's Indicators tab does not read it, so
+  `心影`, `两肺纹理` and `双肾` are listed with the lab analytes. That fix
+  belongs to the client. A second gap sits here: `kind` comes from the
+  model's `detection_method` alone, and none of the schema's five methods
+  fits a physical or dental examination. A `牙周` or `义齿` row is therefore a
+  finding only when the model calls it Imaging. Adding a method would need a
+  guard that keeps a number a measurement. Otherwise a `身高 170 cm` the model
+  tagged that way would be stored as a finding, and a finding's record
+  carries its text, never a number. Still open: one ultrasound sentence came out as three
+  rows (`双肾彩超`, `双肾`, `双肾结晶`). Scanner settings and history headings
+  are closed: `indicator_extractor.NOT_READINGS`.
 - **Indicator extraction fails on a long report and nothing surfaces.**
   `async_get_structured_output` ran 175s against a 12-page panel and came back
   with truncated JSON (`Unterminated string`); with only one provider configured

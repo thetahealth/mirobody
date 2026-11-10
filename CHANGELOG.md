@@ -59,6 +59,26 @@
 
 ### Fixed
 
+- **A scanner's settings and a record's history headings are no longer
+  readings** (part of #235). Chinese check-up PDFs left `AO%`, `D`, `DR`,
+  `FR`, `Frd`, `Frq`, `Gn`, `PAT TIS` and `S/A` in the indicator list. These
+  are the settings an ultrasound scanner prints beside its image, and the
+  table rules read `FR | 25 | Hz` as a lab row, as the model can.
+  `既往史` and `其他` were stored too. Both readers' rows now pass one gate, a
+  closed list of labels (`indicator_extractor.NOT_READINGS`) that also holds
+  the other admission-record history headings (主诉, 现病史, 个人史, 婚育史,
+  月经史, 家族史). The gate tests the label, not its length: `K`, `Na`, `Ca`
+  and the ECG's `HR`, `RV5` and `SV1` are still stored. So are an
+  echocardiogram's `AO` and `E/A` and `MAP`, which look like scanner
+  settings. The vocabulary could not have told them apart, because it
+  resolves `K` and `FR` alike, to nothing. Organ rows such as `心影`,
+  `两肺纹理` and `双肾` are not affected. They are findings by design (an
+  Imaging row is stored with `kind='finding'`), and the web client lists
+  them beside lab analytes because it does not read `kind`. That half of
+  symptom B is not fixed here (`docs/roadmap.md`). A report read before this
+  keeps those rows until it is read again (`POST /api/v1/data/reprocess-file`
+  erases its readings first). How to tell: upload a report whose ultrasound
+  page prints `Frq`, `Gn` and `FR`. None of them is listed, and its `K` is.
 - **An upload made while a local model is still loading says so** (#275).
   On a local stack whose llama.cpp router had not finished downloading the
   text model, a text PDF waited 307 s on its summary, was listed 已处理 with
