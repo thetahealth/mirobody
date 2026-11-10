@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS health_app_user (
     password_hash text,                                 -- bcrypt via pgcrypto crypt(); NULL = no password
     managed_by    INTEGER REFERENCES health_app_user(id),
     email_verified_at  TIMESTAMPTZ,                     -- last time a code sent to `email` came back
-    tokens_valid_after TIMESTAMPTZ                      -- tokens minted before this are refused
+    tokens_valid_after TIMESTAMPTZ DEFAULT now() - interval '1 minute'  -- tokens minted before this are refused
 );
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS ethnicity VARCHAR(128);
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE;
@@ -49,6 +49,11 @@ ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS managed_by INTEGER REFERENC
 -- signs out every session minted before it (user.prove_address).
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
 ALTER TABLE health_app_user ADD COLUMN IF NOT EXISTS tokens_valid_after TIMESTAMPTZ;
+-- A new account refuses every token minted before it existed. A database made
+-- again (`docker compose down -v`) numbers accounts from 1 again under the
+-- same JWT_KEY, so a browser's token for the old id 3 opened the new id 3.
+-- The minute is ISSUED_AT_SKEW: the database's clock may run ahead of the app's.
+ALTER TABLE health_app_user ALTER COLUMN tokens_valid_after SET DEFAULT now() - interval '1 minute';
 
 CREATE        INDEX IF NOT EXISTS idx_health_app_user_apple_sub ON health_app_user USING btree (apple_sub);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_uni_health_app_user_email_active ON health_app_user USING btree (email) WHERE (is_del = false);
