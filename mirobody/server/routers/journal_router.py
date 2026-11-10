@@ -235,20 +235,19 @@ async def log_entry(
 
 
 def _named(out: dict) -> dict:
-    """`out` with `label`, the name a person reads in the request's language,
-    when it is coded to LOINC: the same name the indicator list gives the
-    same code (`collect.query._identity`, #231). A reading typed as
-    血压150/95 was listed as `Systolic blood pressure` on a Chinese page.
+    """`out` with `label`, the name a person reads in the request's language:
+    the one name the indicator list gives the same code (`standardize.label_for`,
+    #231). A reading typed as 血压150/95 was listed as `Systolic blood pressure`
+    on a Chinese page.
 
     `display` stays the classification's own name. An ICPC-3 entry gets no
     `label` in any language: the bundle holds no Chinese ICPC-3 to take one
     from, and CC BY-ND forbids writing our own (`res/icpc3/icpc3.NOTICE`), so
     头疼 keeps WONCA's `Headache`. A LOINC code with no name for that reader
     (LOINC gives vital signs no English consumer name) gets none either."""
-    if out.get("code_system") == standardize.LOINC_SYSTEM and out.get("code"):
-        names = standardize.names_for(out["code"], request_language())
-        if names is not None and names.display:
-            out["label"] = names.display
+    label = standardize.label_for(out.get("code_system") or "", out.get("code") or "", request_language())
+    if label:
+        out["label"] = label
     return out
 
 
