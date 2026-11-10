@@ -7,7 +7,7 @@ at boot:
 | --- | --- |
 | `00_prolog.sql` | extensions; the encryption functions every other file relies on |
 | `10_accounts.sql` | the account, passkeys, the generated profile, care circles (and the one-way migration from the tables they replaced) |
-| `20_files.sql` | uploaded documents |
+| `20_files.sql` | uploaded documents, and the uploads still in flight that a delete can cancel |
 | `30_observations.sql` | every reading as one row of `th_observation`, its coding beside it; the legacy genotype table |
 | `31_medications.sql` | medications as an entity: plan, course, dose event, override |
 | `32_genomics.sql` | genotype sets, normalized sites, and versioned pharmacogenomic results |

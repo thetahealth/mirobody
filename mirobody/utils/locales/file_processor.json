@@ -167,6 +167,13 @@
     "ja": "ビジョンモデルが画像から何もテキストを返しませんでした。画像を読めないモデルはこのように応答します。UTILS_VISION_MODEL を supports_image: true のエントリに向けてください。",
     "es": "El modelo de visión no devolvió texto para la imagen, que es como responde un modelo que no puede leer imágenes: apunta UTILS_VISION_MODEL a una entrada con supports_image: true."
   },
+  "processing_interrupted": {
+    "en": "processing stopped before it finished, most likely because the server restarted; reprocess the file",
+    "zh": "处理在完成前中断了，多半是服务器重启过；请重新处理这个文件",
+    "fr": "le traitement s'est arrêté avant la fin, très probablement parce que le serveur a redémarré ; relancez le traitement du fichier",
+    "ja": "処理が完了する前に止まりました。サーバーが再起動したためと考えられます。ファイルを再処理してください",
+    "es": "el procesamiento se detuvo antes de terminar, probablemente porque el servidor se reinició; vuelve a procesar el archivo"
+  },
   "empty_response": {
     "en": "{model} sent back an empty response, which an overloaded provider does; try again later, or point the route at another model.",
     "zh": "{model} 返回了空响应，服务商过载时会这样；请稍后重试，或把该路由指向其他模型。",

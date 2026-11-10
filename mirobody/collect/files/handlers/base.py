@@ -123,7 +123,7 @@ class BaseFileHandler(abc.ABC):
                            *(ctx.extraction_phrases or [{"text": ctx.extraction_error}])]
                 raise UploadError(say(phrases, language), phrases)
             if original_text and original_text.strip() and self.indicator_extractor:
-                self._start_background_indicator_extraction(
+                result_data["extracting"] = self._start_background_indicator_extraction(
                     original_text=original_text,
                     user_id=int(ctx.target_user_id),
                     file_name=ctx.filename,
@@ -359,8 +359,9 @@ class BaseFileHandler(abc.ABC):
         file_name: str,
         file_key: str,
         message_id: str | None = None,
-    ):
-        """Start indicator extraction in the background.
+    ) -> bool:
+        """Start indicator extraction in the background; whether it started,
+        which is whether the file is filed `processing` rather than done.
 
         `message_id` is the upload session the file arrived in; it is how the
         task's two progress events find the client's WebSocket (see
@@ -369,7 +370,7 @@ class BaseFileHandler(abc.ABC):
         """
         if not self._indicator_extraction_enabled():
             logger.info("indicator extraction off (ENABLE_INDICATOR_EXTRACTION=0): file_key=%s", file_key)
-            return
+            return False
 
         # `spawn` holds the task: the handler is discarded once `process`
         # returns, and a task only it referenced could be collected mid-run.
@@ -384,6 +385,7 @@ class BaseFileHandler(abc.ABC):
             name="indicator-extraction",
         )
         logger.info("indicator extraction started: file_key=%s", file_key)
+        return True
 
     @staticmethod
     async def _push_upload_event(message_id: str | None, event: dict[str, Any]) -> None:
@@ -443,6 +445,9 @@ class BaseFileHandler(abc.ABC):
             # (set_file_report_date) reads and writes this row, and the
             # readings that land later look here for a manual date.
             await FileDbService.rows_ready(message_id)
+            if await FileDbService.gone(file_key, message_id):
+                logger.info("file deleted before extraction, nothing written: file_key=%s", file_key)
+                return
             await FileDbService.update_file_content(file_key, probe_report)
             await self._push_upload_event(message_id, {
                 "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
@@ -450,6 +455,18 @@ class BaseFileHandler(abc.ABC):
 
             filed = await self.indicator_extractor.extract_indicators_from_text(
                 original_text, user_id, file_key, report_date=(probe_dt, probe_source))
+            if await FileDbService.gone(file_key, message_id):
+                # Deleted while the model read it: the delete erased the
+                # file's readings before these were written, so they go here.
+                # Checked after writing, not only before, so a delete landing
+                # between a check and the write cannot leave them behind.
+                from mirobody.collect import observations
+                from mirobody.collect.files.services.report_date import file_source_ref
+
+                erased_count = await observations.erase(str(user_id), source_ref=file_source_ref(file_key))
+                logger.info("file deleted during extraction, its readings erased: file_key=%s count=%d", file_key,
+                            erased_count)
+                return
             # Three kinds of "zero indicators", told apart (#68). The file is
             # stored either way, but the UI must not render 1 and 2 like 3.
             #   1. no provider can do structured extraction: configuration

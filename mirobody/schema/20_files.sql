@@ -36,3 +36,20 @@ CREATE INDEX IF NOT EXISTS idx_th_files_created_at               ON th_files (cr
 CREATE INDEX IF NOT EXISTS idx_th_files_content_hash             ON th_files (content_hash);
 
 COMMENT ON COLUMN th_files.content_hash IS 'SHA256 of raw file bytes; dedup key for original_text extraction';
+
+-- th_upload: an upload the Data page is still sending or processing, keyed by
+-- the message id the client names it by. Its files get th_files rows only when
+-- the whole batch is processed, so a delete that arrived before then matched
+-- nothing, answered success, and the upload was filed minutes later as a
+-- second copy (#240). The delete marks the upload `cancelled` here, in the
+-- database because it can land on another process than the one running the
+-- upload; the filing reads the mark and removes the row once it has filed.
+-- `state`: uploading | cancelled.
+CREATE TABLE IF NOT EXISTS th_upload (
+    user_id     varchar(50)   NOT NULL,                -- the uploader, who may delete it
+    message_id  varchar(100)  NOT NULL,                -- th_files.created_source_id once filed
+    state       varchar(20)   NOT NULL,
+    created_at  timestamptz   NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_th_upload_created_at ON th_upload (created_at);
