@@ -187,8 +187,8 @@ async def del_user(
 #-----------------------------------------------------------------------------
 
 #: How long a live account is taken on trust before it is looked up again. A
-#: token outlives the account, or a revocation, by at most this long; a closed
-#: account is final and is remembered for good.
+#: token outlives the account, or a revocation, by at most this long; an
+#: account closed here is final and is remembered for good.
 _ACTIVE_TTL = 30.0
 _active: dict[int, float] = {}
 _closed: set[int] = set()
@@ -218,7 +218,9 @@ async def is_active_account(user_id: int | str, minted_at: float | None = None) 
             logger.warning("account lookup failed; token accepted: error_type=%s", type(e).__name__)
             return True
         if row is None:
-            _closed.add(uid)
+            # Not remembered as closed: a database made again (`down -v`)
+            # numbers its accounts from 1 again, so a stale browser token for
+            # id 3 shut the next account to sign up out until a restart.
             return False
         _active[uid] = now + _ACTIVE_TTL
         _valid_after[uid] = float(row.get("tokens_valid_after") or 0)

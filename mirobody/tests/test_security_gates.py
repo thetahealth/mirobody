@@ -1182,3 +1182,25 @@ def test_every_handler_config_init_installs_drops_a_value_bearing_extra(monkeypa
     line = log_file.read_text(encoding="utf-8")
     assert "reading stored" in line and '"row_count":1' in line
     assert "HbA1c" not in line and "_phi_seen" not in line
+
+
+def test_a_token_for_an_account_not_there_yet_does_not_shut_it_out(monkeypatch):
+    """A database made again (`docker compose down -v`) numbers its accounts
+    from 1 again. A browser still holding a token for id 3 asked first, found
+    no account, and id 3 was remembered as closed: the next person to sign up
+    was id 3 and every token they got was refused until a restart (1.6.0)."""
+    from mirobody.user import user as user_module
+
+    rows: dict[int, dict] = {}
+
+    async def get_user(user_id):
+        return rows.get(int(user_id))
+
+    monkeypatch.setattr(user_module, "get_user", get_user)
+    monkeypatch.setattr(user_module, "_active", {})
+    monkeypatch.setattr(user_module, "_closed", set())
+    monkeypatch.setattr(user_module, "_valid_after", {})
+
+    assert asyncio.run(user_module.is_active_account(3)) is False  # the stale token, before sign-up
+    rows[3] = {"tokens_valid_after": 0}
+    assert asyncio.run(user_module.is_active_account(3)) is True  # the account that signed up as id 3
