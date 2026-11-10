@@ -243,8 +243,13 @@ def export_row(row: dict) -> dict:
 
 #: The identity a group reports: that of its most recent row, so a series
 #: holding two codes (mass and molar cholesterol) names one consistent pair.
+#: The name falls back to the printed one, as the catalogue's does: `display`
+#: is the LOINC catalogue's, which a device series and an uncoded `local:`
+#: reading lack, so their aggregate rows came back nameless (22 of 29 series
+#: in one evaluation database, 2026-11-09). Each `base` selects `name_text`.
 _LATEST_IDENTITY = (
-    "(ARRAY_AGG(display ORDER BY at DESC))[1] AS display,"
+    "COALESCE((ARRAY_AGG(display ORDER BY at DESC))[1],"
+    " (ARRAY_AGG(name_text ORDER BY at DESC))[1]) AS display,"
     " (ARRAY_AGG(code_system ORDER BY at DESC))[1] AS code_system,"
     " (ARRAY_AGG(code ORDER BY at DESC))[1] AS code"
 )
@@ -796,7 +801,7 @@ class PostgresHealthQuery:
         return await execute_query(
             f"""
             WITH base AS (
-                SELECT o.series_id, o.display, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
+                SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
                        date_trunc('{trunc}', {_LOCAL_TS}) AS at
                   FROM v_observation o{_SERIES_UNIT_JOIN}
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
@@ -863,8 +868,8 @@ class PostgresHealthQuery:
 #: alone where the write side elected one, every reading otherwise.
 _STATS_CTE = f"""
 WITH day_rows AS (
-    SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.local_date, o.value_text,
-           o.value_num, o.unit_ucum, {_VALUE_STD}, o.elected, o.kind = ANY(:reported) AS reported,
+    SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, o.observed_start AS at, o.local_date,
+           o.value_text, o.value_num, o.unit_ucum, {_VALUE_STD}, o.elected, o.kind = ANY(:reported) AS reported,
            {_UNVERIFIED_ROW},
            bool_or(o.elected) OVER (PARTITION BY o.series_id, o.local_date) AS day_elected
       FROM v_observation o{_SERIES_UNIT_JOIN}
@@ -888,8 +893,9 @@ _BUCKET_BUDGET = (
 _DAY_AUTHORITY_CTE = f"""
 WITH base AS (
     SELECT DISTINCT ON (o.series_id, o.local_date)
-           o.id, o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
-           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
+           o.id, o.series_id, o.display, o.name_text, o.code_system, o.code, o.local_date::timestamp AS at,
+           o.value_text, o.value_num, o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected,
+           o.kind = ANY(:reported) AS reported,
            {_UNVERIFIED_ROW}
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {{where}}

@@ -838,6 +838,49 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert set(found) == series
 
 
+@pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
+async def test_every_view_names_a_series_as_the_catalogue_does(database, view):
+    """A series' name is written out in each statement that reads one, and the
+    aggregate ones took it from the LOINC catalogue alone. Only a coded series
+    has a catalogue name, and every aggregate test held coded series, so a
+    device series and an uncoded `local:` lab line came back nameless from
+    stats, trend and every bucket view while the catalogue named them: four
+    sleep-stage percentages in `view=stats` were four rows of `%`. Whichever
+    statement a view runs, every row names its series as the catalogue does."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    series = {
+        "Cholesterol, Total": (observations.Provenance("lab-report", "file", "th_files:synthetic-panel"), "mmol/L", 4),
+        "dailyDeepSleepPercentage": (observations.Provenance("device-sensed", "device", "synthetic-sleep",
+                                                             vendor="synthetic-research"), "%", 20),
+        "Synthetic recovery share": (observations.Provenance("lab-report", "file", "th_files:synthetic-share"), "%", 30),
+    }
+    for name, (source, unit, base) in series.items():
+        drafts = [observations.Draft(name_text=name, value_text=str(base + day / 10), unit_text=unit,
+                                     observed_start=datetime(2026, 1, day, 8, tzinfo=UTC)) for day in (1, 2, 3)]
+        await observations.ingest("1", drafts, source, user_tz="UTC")
+    stored = await database("SELECT DISTINCT series_id, display, code FROM v_observation", log_sql=False)
+    # The premise: one series of each kind. Only the coded one has a catalogue
+    # name, and the `local:` one has no code either.
+    assert len(stored) == 3 and sum(bool(r["display"]) for r in stored) == 1
+    by_kind = {r["series_id"].split(":")[0]: r for r in stored}
+    assert {"mirobody-device", "local"} <= set(by_kind) and not by_kind["local"]["code"]
+    coded = next(r for r in stored if r["display"])
+
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+    catalogue = {r["series"]: r["indicator"] for r in (await service.envelope({"user_id": "1"})).data}
+    assert set(catalogue) == {r["series_id"] for r in stored} and all(catalogue.values())
+    # A coded series keeps the catalogue's name, not the one its report printed.
+    assert catalogue[coded["series_id"]] == coded["display"] != "Cholesterol, Total"
+
+    envelope = await service.envelope({"user_id": "1"}, indicators=list(series), view=view)
+    assert {(r["series"], r["indicator"]) for r in envelope.data} == set(catalogue.items())
+    assert all(name in render_compact(envelope) for name in catalogue.values())
+
+
 def test_trend_citation_definition_tracks_its_actual_daily_input_without_values():
     from mirobody.collect.citations import aggregate_definition, aggregate_key
 

@@ -100,6 +100,18 @@
   the line runs 5.12 to 5.30 mmol/L with "As printed: 198 mg/dL" in the source
   column; `scripts/e2e_docker.sh` checks it (step 2b), and
   `demo/e2e/` holds the issue's two files for an upload run.
+- **Statistics, charts and trends name every series.** In
+  `query_health_indicators`, the `stats`, `trend` and minute…month views took
+  a row's name from the LOINC catalogue alone. A device series and a reading
+  that could not be coded have no catalogue name, so their rows came back with
+  an empty `indicator`. A device series still showed its own name in `code`.
+  A `local:` series has no code either, so nothing in the row said what it
+  was: four sleep-stage percentages asked for `view=stats` came back as four
+  rows of `%`. 22 of the 29 series in one evaluation database have no
+  catalogue name. Those views now fall back to the printed name, as the
+  catalogue and the raw readings already did, and stats rows sort by it. How
+  to tell: `view=stats` over two device metrics lists both by name, the same
+  names the catalogue shows.
 
 ## 1.6.0
 
