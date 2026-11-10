@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from mirobody import standardize
 from mirobody.collect.files.errors import UploadError
 from mirobody.collect.files.services.indicator_store import save_indicators_to_db
 from mirobody.collect.files.services.prompts.file_indicator_extract import (
@@ -88,6 +89,25 @@ REMAINDER_NOTE = (
     "It is health content: extract every measured value it still contains, and return no "
     "indicators only if none is left."
 )
+
+
+#: Printed labels that are never a reading of the person, compared folded
+#: (`standardize.name_key`: `ＦＲ`, `既往史：`); each was stored from Chinese
+#: check-up PDFs (#235). By label, not length: `K`, `Na` and `Ca` are analytes,
+#: and the vocabulary resolves `K`, `HR` and `FR` alike, to nothing. First the
+#: settings an ultrasound scanner prints beside its image (gain, depth, frame
+#: rate); never add their look-alikes, which are readings: an echocardiogram's
+#: `AO` and `E/A`, and `MAP`. Then the history headings of an admission record
+#: (《病历书写基本规范》, 2010) and a form's catch-all `其他`.
+NOT_READINGS = frozenset(standardize.name_key(label) for label in (
+    "AO%", "D", "DR", "FR", "Frd", "Frq", "Gn", "PAT TIS", "S/A",
+    "主诉", "现病史", "既往史", "个人史", "婚育史", "月经史", "家族史", "其他", "其它",
+))
+
+
+def names_a_reading(name: str) -> bool:
+    """Whether a printed row label can be a reading's name (`NOT_READINGS`)."""
+    return standardize.name_key(name) not in NOT_READINGS
 
 
 def answer_budget(text: str) -> int:
@@ -270,12 +290,16 @@ class IndicatorExtractor:
         if not answer:
             logger.warning("indicator extraction: no model answered: rule_row_count=%d", len(rules))
             return Reading([], None, extractor, "")
-        indicators = answer.get("indicators") or []
+        # Both readers' rows: the table rules read a scanner's `FR | 25 | Hz`
+        # as they read `K | 4.1 | mmol/L`. The answer keeps them, as read.
+        read = answer.get("indicators") or []
+        indicators = [i for i in read if names_a_reading(str(i.get("original_indicator") or ""))]
+        not_a_reading_count = len(read) - len(indicators)
         date = (answer.get("content_info") or {}).get("date_time", "") or _latest_row_date(indicators)
         rows = IndicatorExtractor._deduplicate_indicators(_row_dates_in_a_log_only(indicators))
         duration_ms = int((time.monotonic() - started) * 1000)
-        logger.info("indicators read: row_count=%d rule_row_count=%d unread_row_count=%d duration_ms=%d",
-                    len(rows), len(rules), unread_count, duration_ms)
+        logger.info("indicators read: row_count=%d rule_row_count=%d unread_row_count=%d not_a_reading_count=%d "
+                    "duration_ms=%d", len(rows), len(rules), unread_count, not_a_reading_count, duration_ms)
         return Reading(rows, answer, extractor, date)
 
     @staticmethod
