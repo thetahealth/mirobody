@@ -35,7 +35,9 @@ async def test_public_stats_tool_exposes_median_and_available_sample_spread(medi
     if stddev is None:
         assert "stddev=" not in answer["result"]
     else:
-        assert f"stddev={float(stddev)}" in answer["result"]
+        # Written as every computed number is (`query.presentable`): 4.3589, not 4.358898943540674.
+        shown = query.presentable([{"stddev": float(stddev)}])[0]["stddev"]
+        assert f"stddev={shown}" in answer["result"] and len(str(shown)) <= query.SHOWN_DIGITS + 2
     assert "unit=kg" in answer["result"]
     subject, selection, _window = hq.stats.call_args.args
     assert subject == "synthetic" and selection.indicators == ("Synthetic metric",)

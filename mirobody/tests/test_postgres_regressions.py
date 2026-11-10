@@ -278,8 +278,8 @@ async def test_a_series_printed_in_two_units_is_answered_in_one(database):
     newest, older = raw.data
     assert [(r["value"], r["unit"], r["ref"]) for r in raw.data] == [("4.90", "mmol/L", "3.0-5.18"),
                                                                       ("5.48", "mmol/L", "<5.17")]
-    assert older["converted"] and older["printed"] == {"value": "212", "unit": "mg/dL", "ref": "<200",
-                                                       "code": "2093-3"}
+    assert older["converted"] and older["printed"] == {"name": "Cholesterol, Total", "value": "212", "unit": "mg/dL",
+                                                       "ref": "<200", "code": "2093-3"}
     # A value in mmol/L is the [Moles/volume] measurement, whatever code its report got.
     assert older["code"] == newest["code"] == "14647-2"
     assert render_rest(raw)["rows"][1]["printed"]["value"] == "212"
@@ -836,6 +836,112 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert len(series) == 2  # a device reading keeps its own namespace, not the lab's LOINC
     found = await PostgresHealthQuery()._by_keywords("1", ("glucose",), None)
     assert set(found) == series
+
+
+@pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
+async def test_every_view_names_a_series_as_the_catalogue_does(database, view):
+    """A series' name is written out in each statement that reads one, and the
+    aggregate ones took it from the LOINC catalogue alone. Only a coded series
+    has a catalogue name, and every aggregate test held coded series, so a
+    device series and an uncoded `local:` lab line came back nameless from
+    stats, trend and every bucket view while the catalogue named them: four
+    sleep-stage percentages in `view=stats` were four rows of `%`. Whichever
+    statement a view runs, every row names its series as the catalogue does."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    series = {
+        "Cholesterol, Total": (observations.Provenance("lab-report", "file", "th_files:synthetic-panel"), "mmol/L", 4),
+        "dailyDeepSleepPercentage": (observations.Provenance("device-sensed", "device", "synthetic-sleep",
+                                                             vendor="synthetic-research"), "%", 20),
+        "Synthetic recovery share": (observations.Provenance("lab-report", "file", "th_files:synthetic-share"), "%", 30),
+    }
+    for name, (source, unit, base) in series.items():
+        drafts = [observations.Draft(name_text=name, value_text=str(base + day / 10), unit_text=unit,
+                                     observed_start=datetime(2026, 1, day, 8, tzinfo=UTC)) for day in (1, 2, 3)]
+        await observations.ingest("1", drafts, source, user_tz="UTC")
+    stored = await database("SELECT DISTINCT series_id, display, code FROM v_observation", log_sql=False)
+    # The premise: one series of each kind. Only the coded one has a catalogue
+    # name, and the `local:` one has no code either.
+    assert len(stored) == 3 and sum(bool(r["display"]) for r in stored) == 1
+    by_kind = {r["series_id"].split(":")[0]: r for r in stored}
+    assert {"mirobody-device", "local"} <= set(by_kind) and not by_kind["local"]["code"]
+    coded = next(r for r in stored if r["display"])
+
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+    catalogue = {r["series"]: r["indicator"] for r in (await service.envelope({"user_id": "1"})).data}
+    assert set(catalogue) == {r["series_id"] for r in stored} and all(catalogue.values())
+    # A coded series keeps the catalogue's name, not the one its report printed.
+    assert catalogue[coded["series_id"]] == coded["display"] != "Cholesterol, Total"
+
+    envelope = await service.envelope({"user_id": "1"}, indicators=list(series), view=view)
+    assert {(r["series"], r["indicator"]) for r in envelope.data} == set(catalogue.items())
+    # What the model reads names each series one way too, the catalogue's way.
+    listed = (await service.envelope({"user_id": "1"})).data
+    shown = query.shown_names(listed)
+    assert len(set(shown.values())) == 3 and all(shown.values())
+    assert all(name in render_compact(envelope) for name in shown.values())
+
+
+@pytest.mark.parametrize("language", ["en", "zh-CN"])
+async def test_the_model_reads_each_series_once_and_nothing_the_report_printed(database, language):
+    """A raw row carried three names for one series (LOINC's long name, the
+    label, the report's own spelling), and a statistic of a converted reading
+    read 5.482994956679169 beside the 5.48 of its raw row. Now each series is
+    named once, by the name a person reads; what a report printed is the
+    source's (`printed`), never the model's; a computed number carries no float
+    noise; and the name the model reads selects the series it names."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    labs = {
+        "th_files:synthetic-us-panel": (datetime(2025, 3, 10, tzinfo=UTC), (
+            ("Cholesterol, Total", "212", "mg/dL", "<200"), ("LDL Cholesterol", "138", "mg/dL", "<100"))),
+        "th_files:synthetic-cn-panel": (datetime(2026, 6, 20, tzinfo=UTC), (
+            ("总胆固醇", "4.90", "mmol/L", "3.0-5.18"), ("低密度脂蛋白胆固醇", "3.10", "mmol/L", "<3.37"))),
+    }
+    for ref, (day, rows) in labs.items():
+        await observations.ingest("1", [observations.Draft(name_text=n, value_text=v, unit_text=u, ref_text=r,
+                                                           observed_start=day) for n, v, u, r in rows],
+                                  observations.Provenance("lab-report", "file", ref), user_tz="UTC")
+    # A device export writes floats: 20.583333333333332.
+    await observations.ingest("1", [observations.Draft(name_text="dailyRemSleepPercentage", value_text=str(20.25 + d / 3),
+                                                       unit_text="%", observed_start=datetime(2026, 6, d, 7, tzinfo=UTC))
+                                    for d in range(1, 6)],
+                              observations.Provenance("device-sensed", "device", "synthetic-watch",
+                                                      vendor="synthetic-research"), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(reported=False), outside_note=False)
+    every = ["2093-3", "13457-7", "dailyRemSleepPercentage"]
+    printed = ("Cholesterol, Total", "LDL Cholesterol", "mg/dL", "212", "138", "<200", "<100")
+    with set_req_ctx({"language": language}):
+        listed = (await service.envelope({"user_id": "1"})).data
+        shown = query.shown_names(listed)
+        assert len(listed) == 3 and len(set(shown.values())) == 3
+        assert shown[("series", next(r["series"] for r in listed if r["system"] == "mirobody-device"))] == (
+            "REM睡眠比例" if language == "zh-CN" else "Daily REM Sleep Percentage")
+        for view in ("raw", "latest", "stats", "day", "month", "trend"):
+            envelope = await service.envelope({"user_id": "1"}, indicators=every, view=view)
+            text = render_compact(envelope)
+            assert all(name in text for name in shown.values()), view
+            assert not any(word in text for word in printed), view
+            assert not re.search(r"\d\.\d{7,}", text), view
+            for sid in {r["series"] for r in envelope.data}:
+                named = {(r["indicator"], r.get("label"), r["system"], r["code"])
+                         for r in envelope.data if r["series"] == sid}
+                assert len(named) == 1, (view, named)
+        # The name read is a name to ask by.
+        for (_kind, sid), name in shown.items():
+            again = (await service.envelope({"user_id": "1"}, indicators=[name], view="stats")).data
+            assert [r["series"] for r in again] == [sid], name
+    raw = (await service.envelope({"user_id": "1"}, indicators=["2093-3"])).data
+    assert {r["printed"]["name"] for r in raw} == {"Cholesterol, Total", "总胆固醇"}
 
 
 def test_trend_citation_definition_tracks_its_actual_daily_input_without_values():

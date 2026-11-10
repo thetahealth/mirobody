@@ -243,8 +243,13 @@ def export_row(row: dict) -> dict:
 
 #: The identity a group reports: that of its most recent row, so a series
 #: holding two codes (mass and molar cholesterol) names one consistent pair.
+#: The name falls back to the printed one, as the catalogue's does: `display`
+#: is the LOINC catalogue's, which a device series and an uncoded `local:`
+#: reading lack, so their aggregate rows came back nameless (22 of 29 series
+#: in one evaluation database, 2026-11-09). Each `base` selects `name_text`.
 _LATEST_IDENTITY = (
-    "(ARRAY_AGG(display ORDER BY at DESC))[1] AS display,"
+    "COALESCE((ARRAY_AGG(display ORDER BY at DESC))[1],"
+    " (ARRAY_AGG(name_text ORDER BY at DESC))[1]) AS display,"
     " (ARRAY_AGG(code_system ORDER BY at DESC))[1] AS code_system,"
     " (ARRAY_AGG(code ORDER BY at DESC))[1] AS code"
 )
@@ -682,7 +687,10 @@ class PostgresHealthQuery:
         return []
 
     async def _by_names(self, subject_id: str, names: list[str]) -> list[str]:
-        """Exact selectors: a series id, a code, a display name or a printed name."""
+        """Exact selectors: a series id, a code, a display name, a printed name,
+        or the name a reader is shown (`label`, in the request's language or in
+        English). The model reads the label and asks again by it, so a label
+        that selected nothing would make the answer it just read unreachable."""
         params: dict[str, Any] = {
             "uid": str(subject_id),
             "names": names,
@@ -692,7 +700,7 @@ class PostgresHealthQuery:
         kinds = self._kinds(params)
         rows = await execute_query(
             f"""
-            SELECT DISTINCT o.series_id
+            SELECT DISTINCT o.series_id, o.code, lower(o.display) AS display, o.name_key
               FROM v_observation o
              WHERE o.user_id = :uid{kinds}
                AND (o.series_id = ANY(:names) OR o.code = ANY(:names)
@@ -701,25 +709,34 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [str(r["series_id"]) for r in rows]
+        found = [str(r["series_id"]) for r in rows]
+        answered = {str(r[k]) for r in rows for k in ("series_id", "code", "display", "name_key") if r[k]}
+        rest = {n.lower() for n in names
+                if not {n, n.lower(), standardize.name_key(n)} & answered}
+        if rest:
+            found += [sid for label, sid in await self._labels(subject_id, None) if label.lower() in rest]
+        return list(dict.fromkeys(found))
 
     async def _labels(self, subject_id: str, window: query.Window | None) -> list[tuple[str, str]]:
-        """`(label, series_id)` for every display and printed name."""
+        """`(label, series_id)` for every name a series answers to: the printed
+        ones, the catalogue's display, and the label a reader is shown, in the
+        request's language and in English (`standardize.label_for`)."""
         params: dict[str, Any] = {"uid": str(subject_id)}
         where = self._kinds(params) + _window_clause(params, window)
         rows = await execute_query(
-            f"SELECT o.series_id, o.name_text, o.display FROM v_observation o"
+            f"SELECT o.series_id, o.name_text, o.display, o.code_system, o.code FROM v_observation o"
             f" WHERE o.user_id = :uid {where}"
-            f" GROUP BY o.series_id, o.name_text, o.display",
+            f" GROUP BY o.series_id, o.name_text, o.display, o.code_system, o.code",
             params,
             log_sql=False,
         ) or []
+        languages = dict.fromkeys((request_language(), "en"))
         out: list[tuple[str, str]] = []
         for r in rows:
             sid = str(r["series_id"])
-            out.append((str(r["name_text"]), sid))
-            if r["display"]:
-                out.append((str(r["display"]), sid))
+            names = [r["name_text"], r["display"],
+                     *(standardize.label_for(r["code_system"] or "", r["code"] or "", lang) for lang in languages)]
+            out += [(str(n), sid) for n in dict.fromkeys(names) if n]
         return out
 
     async def _by_keywords(self, subject_id: str, keywords: tuple[str, ...], window: query.Window | None) -> list[str]:
@@ -796,7 +813,7 @@ class PostgresHealthQuery:
         return await execute_query(
             f"""
             WITH base AS (
-                SELECT o.series_id, o.display, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
+                SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
                        date_trunc('{trunc}', {_LOCAL_TS}) AS at
                   FROM v_observation o{_SERIES_UNIT_JOIN}
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
@@ -863,8 +880,8 @@ class PostgresHealthQuery:
 #: alone where the write side elected one, every reading otherwise.
 _STATS_CTE = f"""
 WITH day_rows AS (
-    SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.local_date, o.value_text,
-           o.value_num, o.unit_ucum, {_VALUE_STD}, o.elected, o.kind = ANY(:reported) AS reported,
+    SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, o.observed_start AS at, o.local_date,
+           o.value_text, o.value_num, o.unit_ucum, {_VALUE_STD}, o.elected, o.kind = ANY(:reported) AS reported,
            {_UNVERIFIED_ROW},
            bool_or(o.elected) OVER (PARTITION BY o.series_id, o.local_date) AS day_elected
       FROM v_observation o{_SERIES_UNIT_JOIN}
@@ -888,8 +905,9 @@ _BUCKET_BUDGET = (
 _DAY_AUTHORITY_CTE = f"""
 WITH base AS (
     SELECT DISTINCT ON (o.series_id, o.local_date)
-           o.id, o.series_id, o.display, o.code_system, o.code, o.local_date::timestamp AS at, o.value_text, o.value_num,
-           o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
+           o.id, o.series_id, o.display, o.name_text, o.code_system, o.code, o.local_date::timestamp AS at,
+           o.value_text, o.value_num, o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected,
+           o.kind = ANY(:reported) AS reported,
            {_UNVERIFIED_ROW}
       FROM v_observation o
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {{where}}
@@ -917,10 +935,11 @@ def _date_of(ms: int, tz: str) -> date:
 def _identity(r: dict, facets: bool = False) -> dict:
     """`indicator` is LOINC's long name and stays what callers select by: two
     series can share one plain name (serum and whole-blood glucose are both
-    葡萄糖). A LOINC-coded row also gets, in the request's language
-    (`standardize.names`), `label`, the name a person reads (血红蛋白, `Hemoglobin,
-    Blood`), and with `facets` what the code measures, axis by axis (specimen 全血,
-    property 质量浓度): the long name's content without its brackets. Only a
+    葡萄糖). A coded row also gets, in the request's language, `label`, the name
+    a person reads (`standardize.label_for`: 血红蛋白, `Hemoglobin, Blood`, and for
+    a device metric 深睡比例 rather than `dailyDeepSleepPercentage`). With
+    `facets`, a LOINC row says what the code measures, axis by axis (specimen
+    全血, property 质量浓度): the long name's content without its brackets. Only a
     catalogue row asks for those: they describe the code, so on every one of 200
     readings they would be the same dict 200 times."""
     out = {
@@ -929,13 +948,13 @@ def _identity(r: dict, facets: bool = False) -> dict:
         "system": r.get("code_system") or "",
         "code": r.get("code") or "",
     }
-    if out["system"] == standardize.LOINC_SYSTEM and out["code"]:
+    label = standardize.label_for(out["system"], out["code"], request_language())
+    if label:
+        out["label"] = label
+    if facets and out["system"] == standardize.LOINC_SYSTEM and out["code"]:
         names = standardize.names_for(out["code"], request_language())
-        if names is not None:
-            if names.display:
-                out["label"] = names.display
-            if facets and names.facets:
-                out["facets"] = dict(names.facets)
+        if names is not None and names.facets:
+            out["facets"] = dict(names.facets)
     return out
 
 
@@ -946,6 +965,7 @@ def _reported(r: dict) -> dict:
         return {}
     coded = r.get("outcome", "coded") == "coded"
     return {
+        "name": r.get("name_text") or "",
         "kind": r.get("kind") or "",
         "reason": "" if coded else (r.get("reason") or ""),
         "note": _text(r.get("note")),
@@ -981,8 +1001,11 @@ def _catalog_row(r: dict, su: SeriesUnit | None = None) -> dict:
 def _reading_row(r: dict, su: SeriesUnit | None = None) -> dict:
     shown = _in_series_unit(r, su)
     return {
-        **_identity(_as_series(r, su) if shown.get("converted") else r),
-        "name": r.get("name_text") or "",
+        # Every reading of a series names it one way, the way its other views
+        # do: a sibling code (another method, the mass twin) is the series'
+        # here and the reading's own in `printed`. Only a reading whose unit
+        # does not convert keeps its code, which says what that unit measures.
+        **_identity(r if shown.get("unit_differs") else _as_series(r, su)),
         "time": _text(r.get("local_time")),
         "date": _text(r.get("local_date")),
         # `value`, `unit` and `ref` are in the series' unit; what the report
@@ -1171,8 +1194,9 @@ def _unit_params(found: dict[str, SeriesUnit]) -> dict[str, list]:
 
 def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
     """`value`, `unit` and `ref` of one reading in its series' unit, and
-    `printed`, the three as the report printed them and the code they were
-    coded with.
+    `printed`, the name and those three as the report printed them and the
+    code they were coded with: what a source view shows and the model never
+    reads.
 
     A reading printed in the series' unit, or with no unit, keeps its printed
     value ("4.90" stays "4.90"). One in another unit is converted, its range
@@ -1180,8 +1204,8 @@ def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
     `converted`: "212 mg/dL, <200" of a series read in mmol/L is "5.48",
     "<5.17". One that does not convert keeps its own unit and range and is
     marked `unit_differs`; no statistic counts it."""
-    printed = {"value": _shown(r.get("value_text"), r.get("unit_text")), "unit": r.get("unit_text") or "",
-               "ref": r.get("ref_text") or "", "code": r.get("code") or ""}
+    printed = {"name": r.get("name_text") or "", "value": _shown(r.get("value_text"), r.get("unit_text")),
+               "unit": r.get("unit_text") or "", "ref": r.get("ref_text") or "", "code": r.get("code") or ""}
     ucum = r.get("unit_ucum") or ""
     if su is None or ucum == su.ucum or not (ucum or printed["unit"]):
         return {"value": printed["value"], "unit": su.label if su else printed["unit"], "ref": printed["ref"],
@@ -1249,7 +1273,13 @@ def _record_row(r: dict, su: SeriesUnit | None = None) -> dict:
     row = _reading_row(r, su)
     row.pop("total", None)
     kind = r.get("kind") or KIND_MEASUREMENT
+    # A record is the read-back of what was written: it keeps the code it was
+    # coded with and the name it was printed under, where a query names the
+    # series one way.
+    row.pop("label", None)
+    row.update(_identity(_as_series(r, su) if row.get("converted") else r))
     row.update({
+        "name": r.get("name_text") or "",
         "kind": kind,
         "source_kind": r.get("source_kind") or "",
         "created_at": _iso(r.get("period_start")),

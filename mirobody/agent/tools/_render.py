@@ -8,7 +8,8 @@ what a browser gets: arrays of objects it can sort and paginate.
 Both are generic over an envelope, so readings, medications and genetics all
 render through them; each tool says which columns its rows have (`columns`), or
 lets the readings shapes be derived. A readings result renders what the person
-reported as a second table (`_readings_table`). Underscore-prefixed so the tool loader
+reported as a second table (`_readings_table`), and a result that mixes series
+as one block per series when that is shorter (`_blocks`). Underscore-prefixed so the tool loader
 never publishes anything in here.
 """
 
@@ -41,25 +42,28 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 #: for a value it had just printed as 5.4 mmol/L. Both, never one: a
 #: device-namespace row carries the indicator's own name in `code`.
 
-#: `label` is the reading's name in the request's language (`standardize.names`):
-#: the Chinese display name, or LOINC's English consumer name. A row without one
-#: leaves the cell empty, and `query.compact` drops a column that is empty
-#: throughout. `facets` stays out: the model has the code, and the code says it.
+#: A measured row is named once (`query.shown_names`): `indicator` reads as the
+#: name a person reads, in the request's language (`label`: 低密度脂蛋白胆固醇,
+#: `LDL cholesterol, Blood`, 深睡比例), and as LOINC's long name only where a
+#: series has no label or shares its label with another in the same answer.
+#: A raw row used to carry three names (long name, label, the report's own
+#: spelling) for one series. Selecting by the label reaches the series
+#: (`collect/query.py`, `_by_names`). `facets` stays out: the code says it.
 
 #: `value`, `unit` and `ref` are in the series' one unit (`collect/query.py`,
-#: "Units"). `printed`, what the report printed, stays out, and so does
-#: `mixed_units`: a series printed in mg/dL and mmol/L reached the model in
-#: both, and the model called its two readings incomparable (#271).
+#: "Units"). `printed`, what the report printed, name included, stays out, and
+#: so does `mixed_units`: a series printed in mg/dL and mmol/L reached the
+#: model in both, and the model called its two readings incomparable (#271).
 _COLUMNS: dict[str, tuple[str, ...]] = {
-    "catalog": ("indicator", "label", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "label", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
-    "buckets": ("indicator", "label", "period", "avg", "min", "max", "n", "unit", "system", "code"),
-    "trend": ("indicator", "label", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
+    "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
+    "readings": ("indicator", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
+    "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
               "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
-    "stats": ("indicator", "label", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
+    "stats": ("indicator", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
               "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "system", "code"),
-    "latest": ("indicator", "label", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "latest": ("indicator", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the
@@ -105,13 +109,45 @@ def _method_of(first: Mapping[str, Any]) -> str:
     return ""
 
 
+def _blocks(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> str:
+    """A result that mixes series as one table per series, when that is shorter.
+
+    ``query.compact`` hoists what is constant across the whole table, but
+    ``indicator``, ``unit``, ``ref``, ``system``, ``code`` and ``file`` are
+    constant only within a series, so a mixed table repeats them on every row.
+    On a paired benchmark (#269: same questions, only the table changes) a
+    repeated, task-irrelevant column cost a 2 B model 10 pp (60% to 50%,
+    p=0.021). A block per series hoists them once each.
+
+    A block pays only where its series has rows to share it. Applied to every
+    series, a catalogue, stats or latest view (one row per series) came out 31%
+    to 326% longer in tokens, every value relabelled a constant. So a series
+    with one row stays in a table shared with the others like it, and the
+    blocks are kept only when shorter than the one table.
+    """
+    groups: dict[tuple[str, ...], list[Mapping[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault(query.series_key(row), []).append(row)
+    single = query.compact(rows, columns)
+    shared = [group[0] for group in groups.values() if len(group) == 1]
+    if len(groups) == 1 or len(shared) == len(groups):
+        return single
+    blocks = [query.compact(group, columns) for group in groups.values() if len(group) > 1]
+    if shared:
+        blocks.append(query.compact(shared, columns))
+    blocked = "\n\n".join(blocks)
+    return blocked if len(blocked) < len(single) else single
+
+
 def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
-    """A readings result as one table, and what the person reported as a
-    second one under its own heading: one table would put a blank value
+    """A readings result as one table (or a block per series, `_blocks`), and
+    what the person reported under its own heading: one table would put a blank value
     beside every symptom and let a self-reported diagnosis read as a result."""
     measured = [r for r in rows if r.get("provenance") != tools.PROVENANCE_REPORTED]
     reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
     parts: list[str] = []
+    names = query.shown_names(measured)
+    measured = [{**r, "indicator": query.shown_name(r, names)} for r in measured]
     for group, columns, heading in ((measured, _COLUMNS, ""), (reported, _REPORTED_COLUMNS, _REPORTED_HEADING)):
         if not group:
             continue
@@ -119,7 +155,7 @@ def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
         shown = columns[method] if method else tuple(group[0].keys())
         if any(r.get("rid") for r in group):
             shown = ("rid", *shown)  # the handle an answer cites (kernel.citations)
-        table = query.compact(group, shown)
+        table = _blocks(group, shown)
         parts.append(f"{heading}\n{table}" if heading else table)
     return "\n\n".join(parts)
 

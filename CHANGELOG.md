@@ -17,6 +17,45 @@
   root `glama.json` now names the maintainer, which is how Glama lets an
   organization's repository claim its listing. How to tell: `tools/list`
   from `mirobody mcp` says "offline" in all three terminology tools.
+- **A result that mixes series states each series' constants once** (#269).
+  The table the model and an MCP client read hoisted only what was constant
+  across the whole result, so a month of glucose and LDL repeated the
+  indicator, unit, range, system, code and file on every row; on a paired
+  benchmark a repeated, task-irrelevant column cost a 2 B model 10 points.
+  Such a result is now one block per series, each with its own
+  `(constants: …)` line over a `rid|time|value` table. A series with one row
+  stays in a table shared with the others like it, and the blocks are used
+  only when shorter than the one table, so a catalogue, stats or latest view
+  (one row per series) renders as before: blocking those made them 31% to
+  326% longer. Rows are grouped by series, not by name, so two series an
+  aggregate row names with a blank indicator stay apart. How to tell: ask
+  `query_health_indicators` for raw readings of two indicators over a month
+  and each gets its own block, about half the tokens of the one table.
+- **`query_health_indicators` names each series once and writes each number
+  one way.** A raw row carried three names for one series: LOINC's long name
+  (`Cholesterol in LDL [Moles/volume] in Serum or Plasma`), the label
+  (`LDL cholesterol, Blood`) and what each report printed (`LDL Cholesterol`,
+  `低密度脂蛋白胆固醇`), the last one data that is only the source's. A device
+  series had no label and read as its key, `dailyDeepSleepPercentage`.
+  Numbers came out unrounded: a converted reading was 5.48 in raw rows and
+  5.482994956679169 in a month, and a device export's
+  `20.583333333333332` passed through. Now the model reads one name per
+  series, the label in the request's language (device metrics included:
+  深睡比例, `Daily Deep Sleep Percentage`), or LOINC's long name where there
+  is no label or two series in one answer share one; the notes use the same
+  name, and asking again by it reaches the same series. Every reading of a
+  series carries the series' code, its own in `printed`. The printed name
+  moves into `printed` beside the printed value, unit and range; the records
+  list and export keep it as `name`. Computed values (min, max, mean, median,
+  spread, change, a sum that is not a whole number) have six significant
+  figures, as trend's already did, and a reading's float noise is cut to
+  the same. The REST rows change the same way; `indicator` is still LOINC's
+  long name there, the handle the web's drawer selects by. On a fixture of
+  two lab panels and device sleep data, over the per-series blocks above, the
+  model's text is 19% shorter for the catalogue, 18% for raw readings, 25%
+  for latest, 26% for stats and 45% for months. How
+  to tell: `view=raw` over a mixed panel shows `LDL cholesterol, Blood` and no
+  `LDL Cholesterol`, and `view=stats` has no number longer than six figures.
 
 ### Fixed
 
@@ -109,6 +148,18 @@
   the line runs 5.12 to 5.30 mmol/L with "As printed: 198 mg/dL" in the source
   column; `scripts/e2e_docker.sh` checks it (step 2b), and
   `demo/e2e/` holds the issue's two files for an upload run.
+- **Statistics, charts and trends name every series.** In
+  `query_health_indicators`, the `stats`, `trend` and minute…month views took
+  a row's name from the LOINC catalogue alone. A device series and a reading
+  that could not be coded have no catalogue name, so their rows came back with
+  an empty `indicator`. A device series still showed its own name in `code`.
+  A `local:` series has no code either, so nothing in the row said what it
+  was: four sleep-stage percentages asked for `view=stats` came back as four
+  rows of `%`. 22 of the 29 series in one evaluation database have no
+  catalogue name. Those views now fall back to the printed name, as the
+  catalogue and the raw readings already did, and stats rows sort by it. How
+  to tell: `view=stats` over two device metrics lists both by name, the same
+  names the catalogue shows.
 
 ## 1.6.0
 
