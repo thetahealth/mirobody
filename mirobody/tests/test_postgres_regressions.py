@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import os
+import re
 import statistics
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -207,6 +208,7 @@ async def test_confirmed_unit_preserves_original_and_both_readings_enter_statist
 
 
 async def test_a_mixed_unit_mean_keeps_its_precision_and_a_single_basis(database):
+    from mirobody import units
     from mirobody.collect import observations
     from mirobody.collect.query import PostgresHealthQuery
     from mirobody.kernel import query
@@ -219,24 +221,90 @@ async def test_a_mixed_unit_mean_keeps_its_precision_and_a_single_basis(database
                                                                    source_ref="th_files:synthetic-units"), user_tz="UTC")
     store, window = PostgresHealthQuery(), query.Window(0, 0, "UTC")
     creatinine, albumin = query.Selection(indicators=("2160-0",)), query.Selection(indicators=("1751-7",))
-    # 0.9 mg/dL is 79.56 umol/L; rounded to four places in mol/L the mean read 0.0001.
+    # One reading in each unit, so the series reads in the newer, mg/dL: 80 umol/L
+    # is 0.905 mg/dL. In mol/L, rounded to four places, the mean once read 0.0001.
     [stats] = await store.stats("1", creatinine, window)
     [month] = await store.buckets("1", creatinine, window, resolution="month", limit=10)
-    for row in (stats, month):
-        assert row["unit"] == "mol/L"
-        assert row["avg"] == pytest.approx(79.7808e-6, rel=1e-5)
-    canonical = [float(r["value_canonical"]) for r in await database(
+    factor = units.canonicalize(1.0, "mg/dL", loinc_code="2160-0").value
+    in_mg_dl = [float(r["value_canonical"]) / factor for r in await database(
         "SELECT value_canonical FROM v_observation WHERE series_id=:series",
         {"series": stats["series"]}, log_sql=False)]
-    assert stats["median"] == pytest.approx(statistics.median(canonical), rel=1e-12)
-    assert stats["stddev"] == pytest.approx(statistics.stdev(canonical), rel=1e-12)
-    # No molar mass joins g/L to mol/L, so there is no mean to give.
+    for row in (stats, month):
+        assert row["unit"] == "mg/dL"
+        assert row["avg"] == pytest.approx(statistics.mean(in_mg_dl), rel=1e-9)
+    assert stats["median"] == pytest.approx(statistics.median(in_mg_dl), rel=1e-9)
+    assert stats["stddev"] == pytest.approx(statistics.stdev(in_mg_dl), rel=1e-6)
+    assert (stats["first"], stats["last"], stats["change"]) == ("0.905", "0.9", pytest.approx(-0.005, abs=1e-3))
+    # No molar mass joins g/L to umol/L: the series reads in the newer umol/L,
+    # and 40 g/L is left out of every number rather than averaged in.
     [stats] = await store.stats("1", albumin, window)
     [month] = await store.buckets("1", albumin, window, resolution="month", limit=10)
-    assert stats["count"] == 2 and stats["mixed_units"]
-    assert stats["median"] is None and stats["stddev"] is None
+    assert (stats["count"], stats["unconverted"], stats["mixed_units"]) == (2, 1, True)
+    assert stats["median"] == 600.0 and stats["stddev"] is None
     for row in (stats, month):
-        assert (row["min"], row["max"], row["avg"], row["unit"]) == (None, None, None, "")
+        assert (row["min"], row["max"], row["avg"], row["unit"]) == (600.0, 600.0, 600.0, "umol/L")
+
+
+
+async def test_a_series_printed_in_two_units_is_answered_in_one(database):
+    """Issue #271: total cholesterol and LDL from a US lab in mg/dL and a
+    Chinese lab in mmol/L. Each pair is one series, and the web chart drew a
+    fall from 212 to 4.9 while the stats row answered in mol/L, which a small
+    model called incomparable. Every view now answers in one unit, mmol/L here
+    (one reading each, the newer wins), with the range converted too; what the
+    report printed rides in `printed` for the web's source view and never
+    reaches the model."""
+    from mirobody.agent.tools._render import render_compact, render_rest
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+
+    labs = {
+        "th_files:synthetic-us-lab": (datetime(2025, 3, 10, tzinfo=UTC), (
+            ("Cholesterol, Total", "212", "mg/dL", "<200"), ("LDL Cholesterol", "138", "mg/dL", "<100"))),
+        "th_files:synthetic-cn-lab": (datetime(2026, 6, 20, tzinfo=UTC), (
+            ("总胆固醇", "4.90", "mmol/L", "3.0-5.18"), ("低密度脂蛋白胆固醇", "3.10", "mmol/L", "<3.37"))),
+    }
+    for ref, (day, rows) in labs.items():
+        await observations.ingest("1", [observations.Draft(name_text=n, value_text=v, unit_text=u, ref_text=r,
+                                                           observed_start=day) for n, v, u, r in rows],
+                                  observations.Provenance("lab-report", "file", ref), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(reported=False))
+
+    async def ask(**args):
+        return await service.envelope({"user_id": "1"}, **args)
+
+    raw = await ask(indicators=["2093-3"])
+    newest, older = raw.data
+    assert [(r["value"], r["unit"], r["ref"]) for r in raw.data] == [("4.90", "mmol/L", "3.0-5.18"),
+                                                                      ("5.48", "mmol/L", "<5.17")]
+    assert older["converted"] and older["printed"] == {"name": "Cholesterol, Total", "value": "212", "unit": "mg/dL",
+                                                       "ref": "<200", "code": "2093-3"}
+    # A value in mmol/L is the [Moles/volume] measurement, whatever code its report got.
+    assert older["code"] == newest["code"] == "14647-2"
+    assert render_rest(raw)["rows"][1]["printed"]["value"] == "212"
+
+    [stats] = (await ask(indicators=["2093-3"], view="stats")).data
+    assert (stats["unit"], stats["first"], stats["last"]) == ("mmol/L", "5.48", "4.90")
+    assert (stats["min"], stats["max"]) == (pytest.approx(4.9), pytest.approx(5.483, abs=1e-3))
+    assert stats["change"] == pytest.approx(-0.583, abs=1e-3) and stats["unconverted"] == 0
+    [latest] = (await ask(indicators=["2093-3"], view="latest")).data
+    assert (latest["value"], latest["unit"]) == ("4.90", "mmol/L")
+    months = (await ask(indicators=["2093-3"], view="month")).data
+    assert [(m["unit"], round(m["avg"], 3)) for m in months] == [("mmol/L", 5.483), ("mmol/L", 4.9)]
+    catalog = {r["code"]: r for r in (await ask()).data}
+    assert (catalog["14647-2"]["latest_value"], catalog["14647-2"]["unit"]) == ("4.90", "mmol/L")
+    [ldl, _] = (await ask(indicators=["LDL Cholesterol"])).data[::-1]
+    assert (ldl["value"], ldl["unit"], ldl["ref"]) == ("3.57", "mmol/L", "<2.59")
+
+    # What the model reads: one unit, and nothing the report printed in the other.
+    for args in ({"indicators": ["2093-3", "13457-7"]}, {"indicators": ["2093-3"], "view": "stats"},
+                 {"indicators": ["2093-3"], "view": "latest"}, {"indicators": ["2093-3"], "view": "month"}, {}):
+        text = render_compact(await ask(**args))
+        for printed in ("mg/dL", "212", "138", "<200", "<100", "mixed_units"):
+            assert printed not in text, (args, printed)
+        assert not re.search(r"(?<![mµu])mol/L", text), args
+    assert "5.48" in render_compact(raw)
 
 
 @pytest.mark.parametrize("values", [("1", "2", "9"), ("1", "3"), ("0",), ("4", "4")])
@@ -480,6 +548,76 @@ async def test_apple_reimport_moves_readings_and_retracts_the_days_they_left(dat
     assert await database("SELECT count(*) AS n FROM th_observation", log_sql=False) == before
 
 
+@pytest.mark.parametrize("method", ["_aggregate_person_day", "_execute_single_sql_aggregation"])
+@pytest.mark.parametrize("failed_call", [1, 2], ids=["first-day", "after-partial-results"])
+async def test_apple_reimport_preserves_daily_figures_when_calculation_fails(
+    database, monkeypatch, tmp_path, caplog, method, failed_call,
+):
+    import psycopg
+    from mirobody import cli
+    from mirobody.standardize.aggregate.aggregators.sql_aggregator import SQLAggregator
+    from mirobody.utils.config import Config
+
+    export = _hrv_export(tmp_path)
+    await _import_as_before(export)
+    select = "SELECT id, value_text, tz FROM v_observation WHERE source_ref = 'aggregate:apple_health_export' ORDER BY id"
+    before = await database(select, log_sql=False)
+    assert len(before) == 9
+    original = getattr(SQLAggregator, method)
+    calls = 0
+    message = "synthetic driver message containing bound health data"
+
+    async def fail_one_day(self, *args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == failed_call:
+            raise psycopg.OperationalError(message)
+        return await original(self, *args, **kwargs)
+
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    with monkeypatch.context() as patch:
+        patch.setattr(SQLAggregator, method, fail_one_day)
+        with pytest.raises(SystemExit, match="Failed to calculate summary data") as error:
+            await cli._store_export(_import_args(export))
+    assert calls == failed_call
+    assert message not in str(error.value) and message not in caplog.text
+    assert await database(select, log_sql=False) == before
+    # The raw points were stored before recalculation failed; retrying must
+    # finish the zone repair rather than leave either day's summaries missing.
+    result = await cli._store_export(_import_args(export))
+    days, rows = await _hrv_days(database)
+    assert days == _SHANGHAI_DAYS and len(rows) == 9
+    assert result["moved"] == 3
+
+
+@pytest.mark.parametrize("days_count", [29, 35, 65])
+async def test_apple_import_and_reimport_cover_every_day_across_chunks(database, monkeypatch, tmp_path, days_count):
+    from datetime import timedelta
+    from mirobody import cli
+    from mirobody.utils.config import Config
+
+    first = datetime(2026, 1, 1)
+    records = []
+    for day in range(days_count):
+        # Keeping the first sample's noon clock across 30-day chunks skipped
+        # each next chunk's 01:00 sample, even with the sweep's padded range.
+        at = (first + timedelta(days=day, hours=12 if day == 0 else 1)).strftime("%Y-%m-%d %H:%M:%S")
+        records.append('<Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" '
+                       f'unit="ms" startDate="{at} +0000" endDate="{at} +0000" value="50"/>')
+    export = tmp_path / "synthetic-export.xml"
+    export.write_text("<HealthData>" + "".join(records) + "</HealthData>")
+    monkeypatch.setattr(Config, "init", AsyncMock())
+    await cli._store_export(_import_args(export))
+    days, rows = await _hrv_days(database)
+    assert days == {(first + timedelta(days=day)).date().isoformat(): (50, 50, 50) for day in range(days_count)}
+    assert len(rows) == 3 * days_count
+    before = await database("SELECT count(*) AS n FROM th_observation", log_sql=False)
+    result = await cli._store_export(_import_args(export))
+    assert result["added"] == result["moved"] == 0
+    assert await _hrv_days(database) == (days, rows)
+    assert await database("SELECT count(*) AS n FROM th_observation", log_sql=False) == before
+
+
 async def test_a_phone_zone_and_an_export_offset_for_one_day_write_it_once(database, monkeypatch, tmp_path):
     """A phone pushes `Asia/Shanghai`, the export reads `UTC+08:00`: one day.
     Computed once per spelling, each pass wrote each day's figure under the
@@ -700,6 +838,112 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert set(found) == series
 
 
+@pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
+async def test_every_view_names_a_series_as_the_catalogue_does(database, view):
+    """A series' name is written out in each statement that reads one, and the
+    aggregate ones took it from the LOINC catalogue alone. Only a coded series
+    has a catalogue name, and every aggregate test held coded series, so a
+    device series and an uncoded `local:` lab line came back nameless from
+    stats, trend and every bucket view while the catalogue named them: four
+    sleep-stage percentages in `view=stats` were four rows of `%`. Whichever
+    statement a view runs, every row names its series as the catalogue does."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    series = {
+        "Cholesterol, Total": (observations.Provenance("lab-report", "file", "th_files:synthetic-panel"), "mmol/L", 4),
+        "dailyDeepSleepPercentage": (observations.Provenance("device-sensed", "device", "synthetic-sleep",
+                                                             vendor="synthetic-research"), "%", 20),
+        "Synthetic recovery share": (observations.Provenance("lab-report", "file", "th_files:synthetic-share"), "%", 30),
+    }
+    for name, (source, unit, base) in series.items():
+        drafts = [observations.Draft(name_text=name, value_text=str(base + day / 10), unit_text=unit,
+                                     observed_start=datetime(2026, 1, day, 8, tzinfo=UTC)) for day in (1, 2, 3)]
+        await observations.ingest("1", drafts, source, user_tz="UTC")
+    stored = await database("SELECT DISTINCT series_id, display, code FROM v_observation", log_sql=False)
+    # The premise: one series of each kind. Only the coded one has a catalogue
+    # name, and the `local:` one has no code either.
+    assert len(stored) == 3 and sum(bool(r["display"]) for r in stored) == 1
+    by_kind = {r["series_id"].split(":")[0]: r for r in stored}
+    assert {"mirobody-device", "local"} <= set(by_kind) and not by_kind["local"]["code"]
+    coded = next(r for r in stored if r["display"])
+
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+    catalogue = {r["series"]: r["indicator"] for r in (await service.envelope({"user_id": "1"})).data}
+    assert set(catalogue) == {r["series_id"] for r in stored} and all(catalogue.values())
+    # A coded series keeps the catalogue's name, not the one its report printed.
+    assert catalogue[coded["series_id"]] == coded["display"] != "Cholesterol, Total"
+
+    envelope = await service.envelope({"user_id": "1"}, indicators=list(series), view=view)
+    assert {(r["series"], r["indicator"]) for r in envelope.data} == set(catalogue.items())
+    # What the model reads names each series one way too, the catalogue's way.
+    listed = (await service.envelope({"user_id": "1"})).data
+    shown = query.shown_names(listed)
+    assert len(set(shown.values())) == 3 and all(shown.values())
+    assert all(name in render_compact(envelope) for name in shown.values())
+
+
+@pytest.mark.parametrize("language", ["en", "zh-CN"])
+async def test_the_model_reads_each_series_once_and_nothing_the_report_printed(database, language):
+    """A raw row carried three names for one series (LOINC's long name, the
+    label, the report's own spelling), and a statistic of a converted reading
+    read 5.482994956679169 beside the 5.48 of its raw row. Now each series is
+    named once, by the name a person reads; what a report printed is the
+    source's (`printed`), never the model's; a computed number carries no float
+    noise; and the name the model reads selects the series it names."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    labs = {
+        "th_files:synthetic-us-panel": (datetime(2025, 3, 10, tzinfo=UTC), (
+            ("Cholesterol, Total", "212", "mg/dL", "<200"), ("LDL Cholesterol", "138", "mg/dL", "<100"))),
+        "th_files:synthetic-cn-panel": (datetime(2026, 6, 20, tzinfo=UTC), (
+            ("总胆固醇", "4.90", "mmol/L", "3.0-5.18"), ("低密度脂蛋白胆固醇", "3.10", "mmol/L", "<3.37"))),
+    }
+    for ref, (day, rows) in labs.items():
+        await observations.ingest("1", [observations.Draft(name_text=n, value_text=v, unit_text=u, ref_text=r,
+                                                           observed_start=day) for n, v, u, r in rows],
+                                  observations.Provenance("lab-report", "file", ref), user_tz="UTC")
+    # A device export writes floats: 20.583333333333332.
+    await observations.ingest("1", [observations.Draft(name_text="dailyRemSleepPercentage", value_text=str(20.25 + d / 3),
+                                                       unit_text="%", observed_start=datetime(2026, 6, d, 7, tzinfo=UTC))
+                                    for d in range(1, 6)],
+                              observations.Provenance("device-sensed", "device", "synthetic-watch",
+                                                      vendor="synthetic-research"), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(reported=False), outside_note=False)
+    every = ["2093-3", "13457-7", "dailyRemSleepPercentage"]
+    printed = ("Cholesterol, Total", "LDL Cholesterol", "mg/dL", "212", "138", "<200", "<100")
+    with set_req_ctx({"language": language}):
+        listed = (await service.envelope({"user_id": "1"})).data
+        shown = query.shown_names(listed)
+        assert len(listed) == 3 and len(set(shown.values())) == 3
+        assert shown[("series", next(r["series"] for r in listed if r["system"] == "mirobody-device"))] == (
+            "REM睡眠比例" if language == "zh-CN" else "Daily REM Sleep Percentage")
+        for view in ("raw", "latest", "stats", "day", "month", "trend"):
+            envelope = await service.envelope({"user_id": "1"}, indicators=every, view=view)
+            text = render_compact(envelope)
+            assert all(name in text for name in shown.values()), view
+            assert not any(word in text for word in printed), view
+            assert not re.search(r"\d\.\d{7,}", text), view
+            for sid in {r["series"] for r in envelope.data}:
+                named = {(r["indicator"], r.get("label"), r["system"], r["code"])
+                         for r in envelope.data if r["series"] == sid}
+                assert len(named) == 1, (view, named)
+        # The name read is a name to ask by.
+        for (_kind, sid), name in shown.items():
+            again = (await service.envelope({"user_id": "1"}, indicators=[name], view="stats")).data
+            assert [r["series"] for r in again] == [sid], name
+    raw = (await service.envelope({"user_id": "1"}, indicators=["2093-3"])).data
+    assert {r["printed"]["name"] for r in raw} == {"Cholesterol, Total", "总胆固醇"}
+
+
 def test_trend_citation_definition_tracks_its_actual_daily_input_without_values():
     from mirobody.collect.citations import aggregate_definition, aggregate_key
 
@@ -794,10 +1038,9 @@ async def test_trend_citation_members_use_the_actual_capped_input_span(database)
 
 
 async def test_a_value_band_counts_readings_and_days_on_the_rows_own_basis(database):
-    """The band is compared as min/max/avg are: printed values for one unit,
-    canonical values for a shared canonical unit, nothing otherwise.
-    Compared on printed values, 80 umol/L counted and 0.9 mg/dL (79.56
-    umol/L, the same creatinine) did not, in a row reported in mol/L."""
+    """The band is in the series' unit, the unit min/max/avg are in. Compared
+    on printed values, 80 umol/L counted and 0.9 mg/dL (79.56 umol/L, the same
+    creatinine) did not. A reading whose unit does not convert is not counted."""
     from mirobody.collect import observations
     from mirobody.collect.query import PostgresHealthQuery
     from mirobody.kernel import query
@@ -820,14 +1063,18 @@ async def test_a_value_band_counts_readings_and_days_on_the_rows_own_basis(datab
     [plain] = await store.stats("1", query.Selection(indicators=("ALT",)), window)
     assert plain["count_in_range"] is None and plain["days_in_range"] is None
 
+    # One reading in each unit: the tie goes to the newer, mg/dL; 80 umol/L is 0.904 mg/dL.
     creatinine = query.Selection(indicators=("2160-0",))
-    [both] = await store.stats("1", creatinine, window, value_min=79e-6)
-    assert both["unit"] == "mol/L" and both["count_in_range"] == 2
-    [neither] = await store.stats("1", creatinine, window, value_min=50)
+    [both] = await store.stats("1", creatinine, window, value_min=0.89)
+    assert both["unit"] == "mg/dL" and both["count_in_range"] == 2
+    [neither] = await store.stats("1", creatinine, window, value_min=0.95)
     assert neither["count_in_range"] == 0
 
+    # No molar mass joins g/L to umol/L: the series reads in the newer umol/L,
+    # and 40 g/L is neither counted in the band nor in any statistic.
     [albumin] = await store.stats("1", query.Selection(indicators=("1751-7",)), window, value_min=1)
-    assert albumin["mixed_units"] and albumin["count_in_range"] is None
+    assert albumin["mixed_units"] and albumin["unit"] == "umol/L"
+    assert (albumin["count_in_range"], albumin["unconverted"], albumin["min"]) == (1, 1, 600.0)
 
 
 async def test_a_value_band_is_not_counted_over_steps_stored_as_increments(database):
@@ -1074,3 +1321,41 @@ async def test_a_cite_names_its_reading_in_the_readers_language(database):
     assert aggregate["label"] == "收缩压" and aggregate["indicator"] == row["display"]
     for cited in await citations.resolve_rids("synthetic-cite-names", "1", [rids[k] for k in keys]):
         assert "label" not in cited
+
+
+async def test_a_failed_files_reason_is_said_in_the_language_of_the_page_reading_it(database):
+    """#275: a failed file's reason was written once, in the language of the
+    upload; switching the page to another language left it as written. The
+    row keeps the reason as phrases and the files list says them in the
+    reading request's language; a row from before phrases keeps its text."""
+    from mirobody.collect.files.services.file_db_service import FileDbService
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    model_failed = [{"key": "document_not_read"}, {"key": "model_failed_to_load", "params": {"model": "glm-ocr"}}]
+    await FileDbService.insert_file("1", "web_uploads/scan.png", "scan.png", "image/png", {
+        "status": "failed", "error": "图片处理失败：无法读取文档：本地模型 glm-ocr 加载失败", "error_phrases": model_failed,
+    }, created_source="test")
+    # Extraction fails after the upload filed the row `completed` (#239).
+    await FileDbService.insert_file("1", "web_uploads/lab.pdf", "lab.pdf", "application/pdf",
+                                    {"status": "completed"}, created_source="test")
+    await FileDbService.update_file_content("web_uploads/lab.pdf", {
+        "status": "failed", "error": "indicator extraction failed: ...", "error_phrases": [
+            {"key": "indicator_extraction_failed"}, {"key": "model_still_loading", "params": {"model": "minicpm5-2b"}}],
+    })
+    await FileDbService.insert_file("1", "web_uploads/old.pdf", "old.pdf", "application/pdf",
+                                    {"status": "failed", "error": "PDF processing failed: InternalServerError"},
+                                    created_source="test")
+
+    async def reasons(language):
+        with set_req_ctx({"language": language}):
+            listed = await FileDbService.get_files_paginated("1")
+        return {f["file_key"]: f["error"] for f in listed["files"]}
+
+    english, chinese, japanese = await reasons("en"), await reasons("zh-CN"), await reasons("ja")
+    assert english["web_uploads/scan.png"].startswith("could not read the document: the local model glm-ocr failed")
+    assert chinese["web_uploads/scan.png"].startswith("无法读取文档：本地模型 glm-ocr 加载失败")
+    assert japanese["web_uploads/scan.png"].startswith("ドキュメントを読み取れませんでした：ローカルモデル glm-ocr")
+    assert chinese["web_uploads/lab.pdf"].startswith("指标提取失败：本地模型 minicpm5-2b 还在下载或加载中")
+    assert japanese["web_uploads/lab.pdf"].startswith("指標の抽出に失敗しました：ローカルモデル minicpm5-2b")
+    assert {english["web_uploads/old.pdf"], chinese["web_uploads/old.pdf"]} == {
+        "PDF processing failed: InternalServerError"}

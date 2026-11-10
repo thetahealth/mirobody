@@ -109,6 +109,7 @@ async def process_files_async(
                     "processed": False,
                     "progress": 0,
                     "error": result.get("error") or result.get("message") or "Processing failed",
+                    "error_phrases": result.get("error_phrases"),
                 })
         failed_count = sum(1 for r in results if not r.get("success"))
         logger.info("attachments processed: msg_id=%s count=%d failed=%d", msg_id, len(results), failed_count)

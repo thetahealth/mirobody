@@ -35,7 +35,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from mirobody.collect import RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX, PostgresHealthQuery
+from mirobody.collect import (RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX,
+                              PostgresHealthQuery, export_row)
 from mirobody.agent.tools._render import render_rest
 from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
 from mirobody.server.auth import subject_for, verify_token
@@ -216,7 +217,7 @@ async def export_health_indicators(
         return ErrorResponse(code=400, msg=str(exc))
     except Exception as exc:
         return failed("health export", exc, "This export could not complete.")
-    rows = [{k: r.get(k) for k in RECORD_EXPORT_COLUMNS} for r in page["rows"][:EXPORT_MAX]]
+    rows = [export_row(r) for r in page["rows"][:EXPORT_MAX]]
     truncated = len(page["rows"]) > EXPORT_MAX
     if format == "json":
         return StandardResponse(data={

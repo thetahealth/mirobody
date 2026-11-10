@@ -40,6 +40,7 @@ import statistics
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from importlib import resources
 from typing import Protocol
 
@@ -362,6 +363,73 @@ def compact(
     return "\n".join(out)
 
 
+def series_key(row: Mapping[str, object]) -> tuple[str, ...]:
+    """Which series a row belongs to: its series id, or without one its
+    indicator, system and code. Not the indicator alone: it is a display name,
+    and an aggregate row of a series with no LOINC display has had a blank one,
+    which would merge every such series into one."""
+    series_id = str(row.get("series") or "")
+    if series_id:
+        return ("series", series_id)
+    return ("identity", *(str(row.get(k) or "") for k in ("indicator", "system", "code")))
+
+
+def shown_names(rows: Sequence[Mapping[str, object]]) -> dict[tuple[str, ...], str]:
+    """The one name each series in `rows` is shown under (`shown_name`): its
+    `label`, the name a person reads, or its `indicator` when it has none.
+    Two series one label would name alike (whole-blood and serum glucose are
+    both 葡萄糖) keep their indicators, which tell them apart. The table and
+    every note that names a series read this, so the two cannot disagree."""
+    by_label: dict[str, set[tuple[str, ...]]] = {}
+    for r in rows:
+        if r.get("label"):
+            by_label.setdefault(str(r["label"]), set()).add(series_key(r))
+    names: dict[tuple[str, ...], str] = {}
+    for r in rows:
+        label = str(r.get("label") or "")
+        names.setdefault(series_key(r), label if label and len(by_label[label]) == 1 else str(r.get("indicator") or ""))
+    return names
+
+
+def shown_name(row: Mapping[str, object], names: Mapping[tuple[str, ...], str]) -> str:
+    """`row`'s name from `shown_names`, else its indicator."""
+    return names.get(series_key(row)) or str(row.get("indicator") or row.get("name") or "")
+
+
+#: Significant figures a computed number is shown with, the rule `trend_rows`
+#: already used. Unrounded, a mean of 3.57 and 3.10 read 3.33455967929652 and
+#: the same reading was 5.48 in raw rows and 5.482994956679169 in a month.
+SHOWN_DIGITS = 6
+
+#: Computed fields, rounded to `SHOWN_DIGITS`. A `sum` that is a whole number
+#: is not: 1,234,567 steps is a count, and six figures would make it 1,234,570.
+_COMPUTED = ("min", "max", "avg", "median", "stddev", "change", "sum")
+#: Fields that are a reading's text. A device export writes floats
+#: (`20.583333333333332`); a report never prints more than six decimals.
+_READ = ("value", "first", "last", "latest_value")
+_NOISY = re.compile(r"-?\d+\.\d{7,}")
+
+
+def presentable(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
+    """`rows` with every number written once, the same way in every view:
+    computed values to `SHOWN_DIGITS` significant figures, a whole-number sum
+    as it is, and a reading's float noise to `SHOWN_DIGITS`. Applied after the
+    rows are complete, so a trend reads its daily values unrounded."""
+    out = []
+    for r in rows:
+        row = dict(r)
+        for key in _COMPUTED:
+            value = row.get(key)
+            if isinstance(value, float) and not (key == "sum" and value.is_integer()):
+                row[key] = _significant(value, SHOWN_DIGITS)
+        for key in _READ:
+            text = row.get(key)
+            if isinstance(text, str) and _NOISY.fullmatch(text):
+                row[key] = format(Decimal(repr(_significant(float(text), SHOWN_DIGITS))), "f")
+        out.append(row)
+    return out
+
+
 def _significant(value: float, digits: int = 6) -> float:
     """A float kept to `digits` significant figures, so small scales survive rounding."""
     if value == 0 or value != value:
@@ -430,10 +498,7 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
     """
     grouped: dict[tuple[str, ...], list[Mapping[str, object]]] = {}
     for row in daily:
-        series_id = str(row.get("series") or "")
-        key = (("series", series_id) if series_id else
-               ("identity", *(str(row.get(k) or "") for k in ("indicator", "system", "code"))))
-        grouped.setdefault(key, []).append(row)
+        grouped.setdefault(series_key(row), []).append(row)
 
     out: list[dict[str, object]] = []
     for source in grouped.values():
@@ -460,6 +525,8 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
         reported = any(row.get("provenance") == "reported" for row in source)
         result: dict[str, object] = {
             **{k: str(latest.get(k) or "") for k in ("indicator", "series", "system", "code")},
+            # The name a person reads, as the series' other views carry it.
+            **({"label": str(latest["label"])} if latest.get("label") else {}),
             "n": len(numeric), "source_days": len(source), "total_days": max(totals),
             "input_truncated": max(totals) > len(source),
             "missing_numeric_days": len(source) - len(numeric),
@@ -487,7 +554,9 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
             continue
         first_unit = str(numeric[0][0].get("unit") or "")
         target = units.normalize_unit(first_unit) or first_unit
-        result["unit"] = target
+        # Reported as the rows spell it: the store labels a series `bpm`, and
+        # the trend row said `/min` beside a stats row saying `bpm`.
+        result["unit"] = first_unit
         values: list[float] = []
         for row, value in numeric:
             raw_unit = str(row.get("unit") or "")
@@ -811,6 +880,7 @@ __all__ = [
     "Rows",
     "SEMANTICS_DATE_PADDED",
     "SEMANTICS_TZ_EXACT",
+    "SHOWN_DIGITS",
     "SYNONYMS",
     "Selection",
     "TOOL_NAME",
@@ -821,11 +891,14 @@ __all__ = [
     "normalize_list_arg",
     "parse_bound",
     "parse_request",
+    "presentable",
     "rank_catalog",
     "reject_bounds",
     "reject_dates",
     "reject_unknown",
     "resolve_window",
+    "shown_name",
+    "shown_names",
     "trend_rows",
     "validate_request",
 ]

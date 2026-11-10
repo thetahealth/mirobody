@@ -314,10 +314,25 @@ Two rules about it are load-bearing:
 
 `render_compact` for the model: a pipe table with constant columns hoisted into
 one `(constants: unit=mmol/L)` line, because a third-party MCP client pays per
-token for the unit repeated on 200 rows. `render_rest` for the browser: arrays
+token for the unit repeated on 200 rows. A result that mixes series is one such
+table per series, since its name, unit, code and file are constant only within
+one; a series with one row shares a table with the others like it, and the
+blocks are used only when shorter than the single table, so a catalogue still
+reads as one. `render_rest` for the browser: arrays
 of objects it can sort and paginate. Re-parsing a pipe table in JavaScript to
 rebuild the dicts that existed two calls earlier is not a serialisation
 strategy.
+
+Both read rows in which each series is described once: one identity (every
+row of a series carries the same name, code and unit, in every view), and
+every number written by one rule (`query.presentable`: a computed value to
+six significant figures, a reading as printed or converted). What a report
+printed (its name for the test, its value, unit and range) rides in
+`printed`, for the source column and the export, and never reaches the model.
+The model reads one name per series (`query.shown_names`): the label a
+person reads (`LDL cholesterol, Blood`, 深睡比例), or LOINC's long name where
+there is no label or two series in one answer share it. That name is also
+a selector: asking again by it reaches the same series.
 
 ---
 

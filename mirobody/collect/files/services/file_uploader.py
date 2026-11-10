@@ -23,8 +23,6 @@ if TYPE_CHECKING:
     from fastapi import UploadFile
 from mirobody.collect.files.errors import UploadError
 from mirobody.utils.config.storage import get_storage_client
-from mirobody.utils.i18n import localize
-from mirobody.utils.req_ctx import request_language
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +80,8 @@ class FileUploader:
         """Store `file_content` under the key `filename` and return its URL,
         good for `expires` seconds. Raises `UploadError` with a sentence for
         the person who uploaded the file when it was not stored."""
-        language = request_language()
         if not file_content:
-            raise UploadError(localize("file_empty", language, "file_uploader"))
+            raise UploadError.phrase("file_empty", "file_uploader")
         storage = get_storage_client()
         # 30 s up to 10 MB, 60 s above.
         upload_timeout = 30 if len(file_content) <= 10 * 1024 * 1024 else 60
@@ -95,10 +92,10 @@ class FileUploader:
             )
         except TimeoutError:
             logger.error("upload timed out: file_key=%s size_bytes=%d", filename, len(file_content))
-            raise UploadError(localize("file_upload_timeout", language, "file_uploader")) from None
+            raise UploadError.phrase("file_upload_timeout", "file_uploader") from None
         if error or not full_url:
             logger.error("upload not stored: file_key=%s", filename)
-            raise UploadError(localize("file_upload_failed", language, "file_uploader"))
+            raise UploadError.phrase("file_upload_failed", "file_uploader")
         # The key, never the URL: it is a presigned link, good for 30 hours.
         logger.info("upload stored: storage=%s file_key=%s size_bytes=%d", storage.get_storage_type(), filename,
                     len(file_content))

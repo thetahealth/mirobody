@@ -689,6 +689,7 @@ class WebSocketFileUploadManager:
                 else:
                     status = "failed"
                     error_message = file_entry.get("error", "Processing failed")
+                error_phrases = None if is_success else file_entry.get("error_phrases")
                 
                 # Extract original filename for display
                 original_filename = file_entry.get("filename", "")
@@ -720,6 +721,7 @@ class WebSocketFileUploadManager:
                     "query": return_info.get("query", ""),  # Store user query if provided
                     "status": status,  # uploading, processing, completed, failed
                     "error": error_message,  # Error message if failed
+                    "error_phrases": error_phrases,  # the same, said in the reader's language
                     "progress": 100 if is_success else 0,  # Progress percentage
                 }
                 files_info.append(file_info)
@@ -975,6 +977,7 @@ class WebSocketFileUploadManager:
                     "file_size": size,
                     "file_key": outcome.get("file_key", ""),
                     "error": outcome.get("message") or "File processing failed",
+                    "error_phrases": outcome.get("error_phrases"),
                     "success": False,
                 })
                 continue

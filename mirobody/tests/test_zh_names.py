@@ -186,17 +186,28 @@ def test_identity_carries_the_readers_name_and_a_catalogue_row_its_facets():
     assert "label" not in uncoded and "facets" not in uncoded
 
 
-def test_the_model_reads_a_label_column_only_when_rows_carry_one():
+def test_the_model_reads_one_name_per_series():
+    """The label where there is one, LOINC's long name where there is none or
+    where two series in one answer share a label: never both, so a row does not
+    name its series twice."""
     pytest.importorskip("fastapi")
     from mirobody.agent.tools._render import render_compact
     from mirobody.kernel import tools
 
-    base = {"indicator": "Cholesterol in LDL [Moles/volume] in Serum or Plasma", "system": LOINC_SYSTEM,
-            "code": "22748-8", "count": 3, "first_date": "2026-01-01", "last_date": "2026-07-23"}
-    english = render_compact(tools.Envelope(status="ok", data=[base]))
-    chinese = render_compact(tools.Envelope(status="ok", data=[{**base, "label": "低密度脂蛋白胆固醇"}]))
-    assert "label" not in english
-    assert "低密度脂蛋白胆固醇" in chinese
+    long = "Cholesterol in LDL [Moles/volume] in Serum or Plasma"
+    base = {"indicator": long, "series": "synthetic:ldl", "system": LOINC_SYSTEM, "code": "22748-8", "count": 3,
+            "first_date": "2026-01-01", "last_date": "2026-07-23"}
+    unlabelled = render_compact(tools.Envelope(status="ok", data=[base]))
+    labelled = render_compact(tools.Envelope(status="ok", data=[{**base, "label": "低密度脂蛋白胆固醇"}]))
+    assert long in unlabelled and "label" not in unlabelled
+    assert "低密度脂蛋白胆固醇" in labelled and long not in labelled and "label" not in labelled
+
+    glucose = [{"indicator": f"Glucose [Moles/volume] in {specimen}", "series": f"synthetic:{specimen}",
+                "label": "葡萄糖", "system": LOINC_SYSTEM, "code": code, "count": 1, "first_date": "2026-01-01",
+                "last_date": "2026-01-01"}
+               for specimen, code in (("Blood", "15074-8"), ("Serum or Plasma", "14749-6"))]
+    shared = render_compact(tools.Envelope(status="ok", data=glucose))
+    assert "in Blood" in shared and "in Serum or Plasma" in shared and "葡萄糖" not in shared
 
 
 def _journal():

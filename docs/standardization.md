@@ -194,10 +194,18 @@ LOINC code: 2.48 mmol/L is 0.00248 mol/L, 96 mg/dL is 0.002483 mol/L and
 
 ### 7. Read it back (`collect/query.py`)
 
-The catalogue lists series, not printed names. A statistic runs over the
-printed values when the series has one unit, over the canonical values when
-every reading has one canonical unit, and is withheld otherwise (albumin in
-g/L and umol/L has no molar mass to bridge them). Raw rows carry both values.
+The catalogue lists series, not printed names, and every view answers a
+series in ONE unit: the one this person's reports print most often for it,
+the newer on a tie, labelled as the reports spell it (`bpm`, not `/min`). A
+reading printed in another unit is converted through its canonical pair, its
+range with it, and named by the code of the unit it is now in: 212 mg/dL with
+`<200` in a series read in mmol/L is 5.48 mmol/L with `<5.17`, coded 14647-2.
+Statistics, buckets, trends and bands all read that one number. What the
+report printed rides beside it as `printed`, for the places that show a
+source (the drawer's source column, a chart tooltip, an export), and never in
+what the model reads. A reading whose unit does not convert (albumin in g/L
+and umol/L, with no molar mass) keeps its own unit, is marked `unit_differs`
+and is counted by no statistic.
 Answers cite the rows they rest on ([answers.md](answers.md),
 `kernel/citations.py`).
 

@@ -26,6 +26,7 @@ from mirobody.utils.config.llm import (
     resolve_named,
     resolve_route,
 )
+from mirobody.utils.config.served import ModelNotReady, failed_to_load, wait_until_loaded
 from mirobody.utils.llm import backends_anthropic
 from mirobody.utils.llm_output import strip_code_fence
 
@@ -40,11 +41,16 @@ class ImageNotRead(RuntimeError):
     model does that through some gateways (OpenRouter, measured 2026-09-09)
     where the vendor's own endpoint answers 400; a model that reads the image
     and finds no text says so (`documents.ocr.NO_TEXT`). The message is the
-    fix, for the person who uploaded the image."""
+    fix, for the person who uploaded the image (in English here; in the
+    reader's language through `collect.files.errors.reason_phrases`)."""
+
+    locale_key = "image_not_read"
+    locale_params: dict[str, str] = {}
 
     def __init__(self) -> None:
-        super().__init__("The vision model returned no text for the image, which is how a model that cannot "
-                         "read images answers: point UTILS_VISION_MODEL at an entry with supports_image: true.")
+        from mirobody.utils.i18n import localize
+
+        super().__init__(localize(self.locale_key, "en", "file_processor"))
 
 
 def vision_route(provider: str | None = None, model: str | None = None) -> RouteSpec:
@@ -90,10 +96,14 @@ async def vision_extract(
 
     Raises `NoProviderError` (a ValueError) naming the fix when no entry is
     routable, `ValueError` for a named provider that is unknown or keyless,
-    `ImageNotRead` for an empty answer, and whatever the endpoint raises for
-    a failed request.
+    `ImageNotRead` for an empty answer, `ModelNotReady` for a local model the
+    router is still loading or could not load, and whatever the endpoint
+    raises for a failed request.
     """
     spec = vision_route(provider, model)
+    # A local router still downloading the model held this request open for
+    # minutes and then answered 500 (#275): wait a load's length, then say so.
+    await wait_until_loaded(spec)
     ready = await asyncio.to_thread(model_ready, image, mime)
     final_prompt = json_prompt(prompt) if json_mode else prompt
     logger.info("vision extraction: model=%s json_mode=%s", spec.model, json_mode)
@@ -107,6 +117,8 @@ async def vision_extract(
     except Exception as e:
         logger.error("vision extraction failed: model=%s error_type=%s", spec.model, type(e).__name__,
                      exc_info=not is_driver_exception(e))
+        if failed_to_load(spec, e):
+            raise ModelNotReady(spec.model, failed=True) from e
         raise
     if not answer.strip():
         logger.error("vision extraction answered nothing: model=%s", spec.model)

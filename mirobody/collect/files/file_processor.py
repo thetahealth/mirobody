@@ -6,7 +6,7 @@ Integrates various atomic services to provide complete file processing functiona
 
 from __future__ import annotations
 
-from mirobody.collect.files.errors import failure_reason
+from mirobody.collect.files.errors import reason_phrases, say
 from mirobody.kernel.ops import is_driver_exception
 import logging
 from typing import Any
@@ -121,14 +121,17 @@ class FileProcessor:
 
         except Exception as e:
             language = request_language()
-            reason = failure_reason(e)
+            phrases = reason_phrases(e)
+            reason = say(phrases, language)
             logger.error("file processing failed: message_id=%s error_type=%s", message_id, type(e).__name__,
                          exc_info=not is_driver_exception(e))
 
             return {
                 "success": False,
-                "message": f"{localize('file_upload_failed', language, 'file_processor')}: {reason}",
+                "message": localize("with_reason", language, "file_processor",
+                                    what=localize("file_upload_failed", language, "file_processor"), reason=reason),
                 "status": "error",
                 "message_id": message_id,
+                "error_phrases": phrases,
             }
 

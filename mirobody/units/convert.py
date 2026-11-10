@@ -322,6 +322,21 @@ def conversion_factor(from_unit: str, to_unit: str, *, loinc_code: str = "") -> 
     return None
 
 
+def needs_molar_mass(from_unit: str, to_unit: str) -> bool:
+    """Whether the two units are mass and substance concentration (`mg/dL`
+    and `mmol/L`): convertible by an analyte's molar mass, and only by it.
+
+    Lets a refusal say which input was missing. Asked to convert 212 mg/dL to
+    mmol/L without a code, `convert_unit` used to answer "not interconvertible,
+    report the readings separately", and a small model told the person three
+    times that their two cholesterol results could not be compared (#271).
+    """
+    src, dst = scale(from_unit), scale(to_unit)
+    if src is None or dst is None:
+        return False
+    return {src[0], dst[0]} == {_MASS_PER_VOLUME, _SUBSTANCE_PER_VOLUME}
+
+
 def convertible(from_unit: str, to_unit: str, *, loinc_code: str = "") -> bool:
     """Whether :func:`convert_value` converts between the two units: T1, T2, or
     two temperature scales."""
