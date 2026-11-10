@@ -671,7 +671,9 @@ def _out_of_range(row: dict) -> str:
     """`high` or `low` as printed, else as the printed range reads the value, else empty."""
     if row.get("flag"):
         return row["flag"]
-    low, high = parse_range(row.get("ref") or "")
+    # `value_num` is the number as printed, so the range is the printed one:
+    # `ref` is in the series' unit, 5.17 for a report's <200 mg/dL.
+    low, high = parse_range((row.get("printed") or {}).get("ref", row.get("ref")) or "")
     value = row.get("value_num")
     if value is None:
         return ""

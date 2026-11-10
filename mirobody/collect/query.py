@@ -23,13 +23,22 @@ a name as printed on a report, so a model can copy any of them back.
 
 ## Units
 
-A series may hold readings in two units (5.6 mmol/L and 100 mg/dL are one
-series). A statistic over such a series is computed over the canonical
-values, in the canonical unit, and says so; over a single-unit series it is
-computed in that unit. When the readings share no canonical unit (albumin in
-g/L and umol/L, with no molar mass to convert by), there is no min, max or
-average. Raw rows always carry both the value as printed and its canonical
-pair.
+A series may hold readings printed in two units (5.6 mmol/L and 100 mg/dL
+are one series), and every view answers it in ONE: the unit this person's
+reports print most often for it, the newest on a tie
+(`units.pick_display_unit`, over the whole record, so every view and window
+agree), labelled with that unit's newest printed spelling (`bpm`, not
+`/min`). A reading printed in another unit is placed by its canonical pair,
+divided by the series unit's own factor (`units.canonicalize`, the function
+that wrote the pair, so the conversion is exact); its range is converted with
+it. A raw row keeps what the report printed in `printed`, for the places that
+show a source; the model's columns never carry it. A reading whose unit does
+not convert (albumin in g/L and umol/L, with no molar mass) keeps its own
+unit, is marked `unit_differs`, and is left out of every statistic.
+
+Before this, the web chart plotted 212 mg/dL and 4.90 mmol/L of one
+cholesterol as a fall from 212 to 4.9, and a stats row answered in mol/L,
+which a small model read as "these cannot be compared" (#271).
 
 ## Election
 
@@ -45,10 +54,12 @@ agreeing.
 from __future__ import annotations
 
 import logging
+import math
+import re
 from datetime import date, datetime
-from typing import Any
+from typing import Any, NamedTuple
 
-from mirobody import standardize
+from mirobody import standardize, units
 from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
@@ -91,56 +102,44 @@ _LOCAL_TS = (
 # instant. Keep PostgreSQL's microseconds without padding whole-second rows.
 _LOCAL_TIME = f"rtrim(rtrim(to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS.US'), '0'), '.')"
 
-#: The number a statistic runs over, per group: the printed values when the
-#: group has one unit, the canonical values when every numeric reading has
-#: one in a single canonical unit, and none otherwise. With no molar mass,
-#: albumin in g/L and umol/L stays g/L and mol/L, and 40 g/L with 600 umol/L
-#: averaged to 20.0003 "mol/L".
-_COMMON_CANONICAL = "COUNT(DISTINCT unit_canonical) = 1 AND COUNT(value_canonical) = COUNT(value_num)"
-_STAT_VALUE = (
-    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN {agg}(value_num)"
-    f" WHEN {_COMMON_CANONICAL} THEN {{agg}}(value_canonical) END"
-)
-_STAT_UNIT = (
-    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN (ARRAY_AGG(unit_ucum ORDER BY at DESC))[1]"
-    f" WHEN {_COMMON_CANONICAL} THEN MAX(unit_canonical) END"
-)
-#: The mean, rounded to four places in a printed unit only. Canonical values
-#: are base units, where four places turned creatinine at 80 umol/L and
-#: 0.9 mg/dL into 0.0001 mol/L (100 umol/L) and bilirubin into 0.0.
-#: The average, kept at full precision. It used to be rounded to four decimals here, which for
-#: a concentration of 1e-5 g/L rounded every daily value to zero before the trend code ever saw
-#: it - a series that was rising became `flat` with zero delta. Display rounding belongs to the
-#: renderer, which knows how wide the answer is.
-_STAT_AVG = (
-    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN AVG(value_num)"
-    f" WHEN {_COMMON_CANONICAL} THEN AVG(value_canonical) END"
+#: Each series' unit (`SeriesUnit`), joined to its readings: four parallel
+#: arrays from `_unit_params`, so one statement reads every series in its own
+#: unit.
+_SERIES_UNIT_JOIN = (
+    " LEFT JOIN unnest(CAST(:su_ids AS text[]), CAST(:su_ucum AS text[]), CAST(:su_base AS text[]),"
+    " CAST(:su_factor AS double precision[])) AS su(series_id, ucum, base, factor) ON su.series_id = o.series_id"
 )
 
-#: A spread or median must use the mean's unit basis too: raw mg/dL and
-#: mmol/L values cannot be compared before conversion to a shared unit.
-_STAT_MEDIAN = (
-    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN PERCENTILE_CONT(0.5)"
-    " WITHIN GROUP (ORDER BY value_num)"
-    f" WHEN {_COMMON_CANONICAL} THEN PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value_canonical) END"
-)
-_STAT_STDDEV = (
-    "CASE WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN STDDEV_SAMP(value_num)"
-    f" WHEN {_COMMON_CANONICAL} THEN STDDEV_SAMP(value_canonical) END"
+#: A reading's number in its series' unit, the one number every statistic,
+#: bucket and band reads: as printed when it was printed in that unit (or in
+#: none), its canonical value over the unit's factor when it converts, NULL
+#: when it does not. Statistics over printed values averaged 212 mg/dL with
+#: 4.90 mmol/L; over canonical ones they answered in mol/L, which a small
+#: model called incomparable (#271); with no molar mass, 40 g/L and 600 umol/L
+#: of albumin averaged to 20.0003 "mol/L". The full precision is kept: four
+#: decimals once rounded a 1e-5 g/L daily mean to zero before the trend code
+#: saw it.
+_VALUE_STD = (
+    "CASE WHEN o.value_num IS NULL THEN NULL"
+    " WHEN su.ucum IS NULL OR COALESCE(o.unit_ucum, '') IN ('', su.ucum) THEN o.value_num::double precision"
+    " WHEN su.factor IS NOT NULL AND o.unit_canonical = su.base THEN o.value_canonical::double precision / su.factor"
+    " END AS value_std"
 )
 
-#: A reading inside `:vmin`..`:vmax`, either end open, compared on the basis
-#: the row's min/max/avg use, so the band is in the unit the row reports.
-#: Compared on printed values, 80 umol/L counted and 0.9 mg/dL did not, the
-#: same creatinine, in a row that reported both in mol/L. NULL when no band
-#: was asked for, or when the readings share no unit to compare in.
-_IN_BAND = ("(CAST(:vmin AS DOUBLE PRECISION) IS NULL OR {v} >= CAST(:vmin AS DOUBLE PRECISION))"
-            " AND (CAST(:vmax AS DOUBLE PRECISION) IS NULL OR {v} <= CAST(:vmax AS DOUBLE PRECISION))")
+#: A count over the readings inside `:vmin`..`:vmax`, either end open, in the
+#: series' unit, which is the unit the row reports. NULL when no band was
+#: asked for. Compared on printed values, 80 umol/L counted and 0.9 mg/dL did
+#: not, the same creatinine.
 _STAT_BAND = (
     "CASE WHEN CAST(:vmin AS DOUBLE PRECISION) IS NULL AND CAST(:vmax AS DOUBLE PRECISION) IS NULL THEN NULL"
-    " WHEN COUNT(DISTINCT unit_ucum) <= 1 THEN {agg} FILTER (WHERE " + _IN_BAND.format(v="value_num") + ")"
-    " WHEN " + _COMMON_CANONICAL + " THEN {agg} FILTER (WHERE " + _IN_BAND.format(v="value_canonical") + ") END"
+    " ELSE {agg} FILTER (WHERE value_std IS NOT NULL"
+    " AND (CAST(:vmin AS DOUBLE PRECISION) IS NULL OR value_std >= CAST(:vmin AS DOUBLE PRECISION))"
+    " AND (CAST(:vmax AS DOUBLE PRECISION) IS NULL OR value_std <= CAST(:vmax AS DOUBLE PRECISION))) END"
 )
+
+#: Spread and centre, over `value_std` like every other statistic.
+_STAT_MEDIAN = "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value_std)"
+_STAT_STDDEV = "STDDEV_SAMP(value_std)"
 
 # Propagate the evidence status of the rows actually used by each result:
 # an out-of-window or unelected reading must not taint an unrelated answer.
@@ -230,9 +229,18 @@ RECORDS_PAGE_MAX = 200
 #: download until it is named here.
 RECORD_EXPORT_COLUMNS = (
     "row_id", "kind", "indicator", "name", "code", "system", "series", "time", "date",
-    "value", "unit", "value_canonical", "unit_canonical", "modality", "source_kind",
-    "file", "file_key", "created_at", "provenance", "text",
+    "value", "unit", "ref", "printed_value", "printed_unit", "printed_ref", "value_canonical", "unit_canonical",
+    "modality", "source_kind", "file", "file_key", "created_at", "provenance", "text",
 )
+
+
+def export_row(row: dict) -> dict:
+    """One records row as `RECORD_EXPORT_COLUMNS`: the reading in its series'
+    unit, and beside it what the report printed, flattened for a CSV."""
+    printed = row.get("printed") or {}
+    flat = {**row, "printed_value": printed.get("value", ""), "printed_unit": printed.get("unit", ""),
+            "printed_ref": printed.get("ref", "")}
+    return {k: flat.get(k) for k in RECORD_EXPORT_COLUMNS}
 
 
 #: The identity a group reports: that of its most recent row, so a series
@@ -311,7 +319,8 @@ class PostgresHealthQuery:
             page = "OFFSET :offset"
         comment = ", decrypt_content(o.note_text) AS comment" if notes else ""
         columns = f"""o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
-                   o.ref_text, o.flag_text, o.value_num, o.unit_ucum, o.value_canonical, o.unit_canonical,
+                   o.ref_text, o.ref_low, o.ref_high, o.flag_text, o.value_num, o.comparator, o.unit_ucum,
+                   o.value_canonical, o.unit_canonical,
                    {_LOCAL_TIME} AS local_time,
                    o.observed_start, o.observed_end,
                    o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
@@ -353,8 +362,9 @@ class PostgresHealthQuery:
         if not rows and params["offset"]:
             # Past the end: the window count went with the rows, so ask once.
             total = await self._records_total(where, params, since=created_since is not None)
+        unit_of = await self.series_units(subject_id, [r["series_id"] for r in rows])
         return {
-            "rows": [_record_row(r) for r in rows],
+            "rows": [_record_row(r, unit_of.get(r["series_id"])) for r in rows],
             "total": total,
             "has_more": params["offset"] + len(rows) < total,
         }
@@ -425,6 +435,37 @@ class PostgresHealthQuery:
         and never the session's: a window is the person's day."""
         return await user_tz(subject_id)
 
+    async def series_units(self, subject_id: str, series_ids: list[str]) -> dict[str, SeriesUnit]:
+        """The one unit each series is read in (module docstring, "Units"),
+        from every numeric reading the person has in it: never the window's,
+        so a series reads in one unit in every view and every window. A series
+        with no unit at all is absent."""
+        wanted = sorted({s for s in series_ids if s})
+        if not wanted:
+            return {}
+        rows = await execute_query(
+            """
+            SELECT series_id, unit_ucum, MAX(unit_canonical) AS base, COUNT(*) AS n,
+                   MAX(observed_start) AS latest,
+                   (ARRAY_AGG(unit_text ORDER BY observed_start DESC, id DESC))[1] AS label,
+                   (ARRAY_AGG(code_system ORDER BY observed_start DESC, id DESC))[1] AS code_system,
+                   (ARRAY_AGG(code ORDER BY observed_start DESC, id DESC))[1] AS code,
+                   (ARRAY_AGG(display ORDER BY observed_start DESC, id DESC))[1] AS display,
+                   (ARRAY_AGG(code ORDER BY observed_start DESC, id DESC)
+                        FILTER (WHERE code_system = :loinc))[1] AS loinc
+              FROM v_observation
+             WHERE user_id = :uid AND series_id = ANY(:sids)
+               AND value_num IS NOT NULL AND COALESCE(unit_ucum, '') <> ''
+             GROUP BY series_id, unit_ucum
+            """,
+            {"uid": str(subject_id), "sids": wanted, "loinc": standardize.LOINC_SYSTEM},
+            log_sql=False,
+        ) or []
+        groups: dict[str, list[dict]] = {}
+        for r in rows:
+            groups.setdefault(r["series_id"], []).append(r)
+        return {sid: _series_unit(found) for sid, found in groups.items()}
+
     async def on_read(self, subject_id: str) -> None:
         """The read-time refresh seam: a no-op here, because this deployment
         aggregates in a background worker. It stays on the port for a
@@ -457,6 +498,11 @@ class PostgresHealthQuery:
                    to_char(MAX(o.local_date), 'YYYY-MM-DD') AS last_date,
                    (ARRAY_AGG(o.value_text ORDER BY o.observed_start DESC))[1] AS latest_value,
                    (ARRAY_AGG(o.unit_text ORDER BY o.observed_start DESC))[1] AS unit,
+                   (ARRAY_AGG(o.unit_ucum ORDER BY o.observed_start DESC))[1] AS latest_ucum,
+                   (ARRAY_AGG(o.value_num ORDER BY o.observed_start DESC))[1] AS latest_num,
+                   (ARRAY_AGG(o.comparator ORDER BY o.observed_start DESC))[1] AS latest_comparator,
+                   (ARRAY_AGG(o.value_canonical ORDER BY o.observed_start DESC))[1] AS latest_canonical,
+                   (ARRAY_AGG(o.unit_canonical ORDER BY o.observed_start DESC))[1] AS latest_base,
                    MAX(o.reason) AS reason,
                    bool_or(o.modality = '{MODALITY_UNVERIFIED}') AS unverified,
                    bool_or(o.kind = ANY(:reported)) AS reported
@@ -469,7 +515,8 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [_catalog_row(r) for r in rows]
+        unit_of = await self.series_units(subject_id, [r["series_id"] for r in rows])
+        return [_catalog_row(r, unit_of.get(r["series_id"])) for r in rows]
 
     async def readings(
         self, subject_id: str, sel: query.Selection, window: query.Window, *, limit: int
@@ -489,7 +536,8 @@ class PostgresHealthQuery:
             f"""
             SELECT * FROM (
                 SELECT o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text,
-                       o.ref_text, o.flag_text, o.value_num, o.value_canonical, o.unit_canonical, o.comparator,
+                       o.ref_text, o.ref_low, o.ref_high, o.flag_text, o.value_num, o.unit_ucum,
+                       o.value_canonical, o.unit_canonical, o.comparator,
                        {_LOCAL_TIME} AS local_time,
                        o.tz, o.local_date, o.modality, o.code_system, o.code, o.elected, o.outcome,
                        {_REPORTED_COLUMNS},
@@ -506,7 +554,8 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [_reading_row(r) for r in rows]
+        unit_of = await self.series_units(subject_id, names)
+        return [_reading_row(r, unit_of.get(r["series_id"])) for r in rows]
 
     async def buckets(
         self, subject_id: str, sel: query.Selection, window: query.Window, *, resolution: str, limit: int
@@ -517,11 +566,12 @@ class PostgresHealthQuery:
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
+        unit_of = await self.series_units(subject_id, names)
         if resolution in _SUBDAY_TRUNC:
-            rows = await self._subday_buckets(subject_id, names, window, resolution, limit)
+            rows = await self._subday_buckets(subject_id, names, window, resolution, limit, unit_of)
         else:
-            rows = await self._day_buckets(subject_id, names, window, resolution, limit)
-        return [_bucket_row(r) for r in rows]
+            rows = await self._day_buckets(subject_id, names, window, resolution, limit, unit_of)
+        return [_bucket_row(r, unit_of.get(r["series_id"])) for r in rows]
 
     async def stats(self, subject_id: str, sel: query.Selection, window: query.Window, *,
                     value_min: float | None = None, value_max: float | None = None) -> list[dict]:
@@ -549,8 +599,9 @@ class PostgresHealthQuery:
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
+        unit_of = await self.series_units(subject_id, names)
         params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS,
-                                  "vmin": value_min, "vmax": value_max}
+                                  "vmin": value_min, "vmax": value_max, **_unit_params(unit_of)}
         where = _window_clause(params, window)
         source = _STATS_CTE.format(where=where)
         rows = await execute_query(
@@ -560,23 +611,25 @@ class PostgresHealthQuery:
                    {_LATEST_IDENTITY},
                    COUNT(*) AS count,
                    COUNT(value_num) AS numeric_count,
+                   COUNT(value_num) - COUNT(value_std) AS unconverted,
                    {_STAT_BAND.format(agg="COUNT(*)")} AS count_in_range,
                    COUNT(DISTINCT local_date) AS days,
                    {_STAT_BAND.format(agg="COUNT(DISTINCT local_date)")} AS days_in_range,
-                   {_STAT_VALUE.format(agg="MIN")} AS min,
-                   {_STAT_VALUE.format(agg="MAX")} AS max,
-                   {_STAT_AVG} AS avg,
+                   MIN(value_std) AS min,
+                   MAX(value_std) AS max,
+                   AVG(value_std) AS avg,
                    {_STAT_MEDIAN} AS median,
                    {_STAT_STDDEV} AS stddev,
-                   {_STAT_VALUE.format(agg="SUM")} AS sum,
+                   SUM(value_std) AS sum,
                    (ARRAY_AGG(value_text ORDER BY at ASC))[1] AS first,
+                   (ARRAY_AGG(value_std ORDER BY at ASC))[1] AS first_std,
+                   (ARRAY_AGG(unit_ucum ORDER BY at ASC))[1] AS first_ucum,
                    to_char((ARRAY_AGG(local_date ORDER BY at ASC))[1], 'YYYY-MM-DD') AS first_date,
                    (ARRAY_AGG(value_text ORDER BY at DESC))[1] AS last,
+                   (ARRAY_AGG(value_std ORDER BY at DESC))[1] AS last_std,
+                   (ARRAY_AGG(unit_ucum ORDER BY at DESC))[1] AS last_ucum,
                    to_char((ARRAY_AGG(local_date ORDER BY at DESC))[1], 'YYYY-MM-DD') AS last_date,
-                   {_STAT_UNIT} AS unit,
                    COUNT(DISTINCT unit_ucum) > 1 AS mixed_units,
-                   (ARRAY_AGG(value_num ORDER BY at ASC))[1] AS first_num,
-                   (ARRAY_AGG(value_num ORDER BY at DESC))[1] AS last_num,
                    bool_or(unverified) AS unverified,
                    bool_or(reported) AS reported
               FROM base
@@ -586,7 +639,7 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [_stats_row(r) for r in rows]
+        return [_stats_row(r, unit_of.get(r["series_id"])) for r in rows]
 
     async def latest(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
         """The most recent value per series INSIDE the window: the newest
@@ -602,7 +655,8 @@ class PostgresHealthQuery:
         rows = await execute_query(
             f"""
             SELECT DISTINCT ON (o.series_id)
-                   o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.flag_text, o.value_num,
+                   o.id, o.series_id, o.display, o.name_text, o.value_text, o.unit_text, o.ref_text, o.ref_low,
+                   o.ref_high, o.flag_text, o.value_num, o.comparator, o.unit_ucum,
                    o.value_canonical, o.unit_canonical, o.code_system, o.code, o.local_date, o.elected, o.modality,
                    o.outcome, {_REPORTED_COLUMNS},
                    {_FILE_KEY} AS file_key, {_FILE_NAME},
@@ -615,7 +669,8 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
-        return [_latest_row(r) for r in rows]
+        unit_of = await self.series_units(subject_id, names)
+        return [_latest_row(r, unit_of.get(r["series_id"])) for r in rows]
 
     # --- helpers -------------------------------------------------------------
 
@@ -733,27 +788,27 @@ class PostgresHealthQuery:
         return named
 
     async def _subday_buckets(
-        self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int
+        self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int,
+        unit_of: dict[str, SeriesUnit],
     ) -> list[dict]:
-        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit))}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
+                                  **_unit_params(unit_of)}
         where = _window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
         return await execute_query(
             f"""
             WITH base AS (
-                SELECT o.series_id, o.display, o.code_system, o.code, o.value_num, o.value_canonical,
-                       o.unit_ucum, o.unit_canonical, {_UNVERIFIED_ROW},
+                SELECT o.series_id, o.display, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
                        date_trunc('{trunc}', {_LOCAL_TS}) AS at
-                  FROM v_observation o
+                  FROM v_observation o{_SERIES_UNIT_JOIN}
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
             ), grouped AS (
                 SELECT series_id, {_LATEST_IDENTITY},
                        to_char(at, 'YYYY-MM-DD HH24:MI') AS period,
                        COUNT(*) AS n,
-                       {_STAT_AVG} AS avg,
-                       {_STAT_VALUE.format(agg="MIN")} AS min,
-                       {_STAT_VALUE.format(agg="MAX")} AS max,
-                       {_STAT_UNIT} AS unit,
+                       AVG(value_std) AS avg,
+                       MIN(value_std) AS min,
+                       MAX(value_std) AS max,
                        false AS elected,
                        bool_or(unverified) AS unverified,
                        {_BUCKET_BUDGET.format(bucket="at")}
@@ -767,32 +822,35 @@ class PostgresHealthQuery:
         ) or []
 
     async def _day_buckets(
-        self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int
+        self, subject_id: str, names: list[str], window: query.Window, resolution: str, limit: int,
+        unit_of: dict[str, SeriesUnit],
     ) -> list[dict]:
         """Day and coarser: one row per (series, bucket), from the day
         authority where one has been elected and the newest reading of the
         day otherwise, which `provenance` reports."""
         params: dict[str, Any] = {
             "uid": str(subject_id), "names": names, "reported": REPORTED_KINDS, "limit": max(1, int(limit)),
+            **_unit_params(unit_of),
         }
         where = _window_clause(params, window)
         trunc = _DAY_TRUNC[resolution]
         bucket = f"date_trunc('{trunc}', at::timestamp)"
         return await execute_query(
             f"""
-            {_DAY_AUTHORITY_CTE.format(where=where)}, grouped AS (
+            {_DAY_AUTHORITY_CTE.format(where=where)}, std AS (
+                SELECT o.*, {_VALUE_STD} FROM base o{_SERIES_UNIT_JOIN}
+            ), grouped AS (
                 SELECT series_id, {_LATEST_IDENTITY},
                        to_char({bucket}, 'YYYY-MM-DD') AS period,
                        COUNT(*) AS n,
-                       {_STAT_AVG} AS avg,
-                       {_STAT_VALUE.format(agg="MIN")} AS min,
-                       {_STAT_VALUE.format(agg="MAX")} AS max,
-                       {_STAT_UNIT} AS unit,
+                       AVG(value_std) AS avg,
+                       MIN(value_std) AS min,
+                       MAX(value_std) AS max,
                        bool_or(elected) AS elected,
                        bool_or(unverified) AS unverified,
                        bool_or(reported) AS reported,
                        {_BUCKET_BUDGET.format(bucket=bucket)}
-                  FROM base
+                  FROM std
                  GROUP BY series_id, {bucket}
             )
             SELECT * FROM grouped WHERE rn <= :limit ORDER BY series_id, period
@@ -808,10 +866,10 @@ class PostgresHealthQuery:
 _STATS_CTE = f"""
 WITH day_rows AS (
     SELECT o.series_id, o.display, o.code_system, o.code, o.observed_start AS at, o.local_date, o.value_text,
-           o.value_num, o.value_canonical, o.unit_ucum, o.unit_canonical, o.elected, o.kind = ANY(:reported) AS reported,
+           o.value_num, o.unit_ucum, {_VALUE_STD}, o.elected, o.kind = ANY(:reported) AS reported,
            {_UNVERIFIED_ROW},
            bool_or(o.elected) OVER (PARTITION BY o.series_id, o.local_date) AS day_elected
-      FROM v_observation o
+      FROM v_observation o{_SERIES_UNIT_JOIN}
      WHERE o.user_id = :uid AND o.series_id = ANY(:names) {{where}}
 ), base AS (
     SELECT * FROM day_rows WHERE elected OR NOT day_elected
@@ -897,15 +955,21 @@ def _reported(r: dict) -> dict:
     }
 
 
-def _catalog_row(r: dict) -> dict:
+def _catalog_row(r: dict, su: SeriesUnit | None = None) -> dict:
+    latest = _in_series_unit({
+        "value_text": r.get("latest_value"), "unit_text": r.get("unit"), "unit_ucum": r.get("latest_ucum"),
+        "value_num": r.get("latest_num"), "comparator": r.get("latest_comparator"),
+        "value_canonical": r.get("latest_canonical"), "unit_canonical": r.get("latest_base"),
+        "code": r.get("code"), "code_system": r.get("code_system"),
+    }, su)
     return {
-        **_identity(r, facets=True),
+        **_identity(r if latest.get("unit_differs") else _as_series(r, su), facets=True),
         "standard": bool(r.get("standard")),
         "name": r.get("name") or "",
         "kind": r.get("kind") or "",
         "count": int(r.get("count") or 0),
-        "unit": r.get("unit") or "",
-        "latest_value": _shown(r.get("latest_value"), r.get("unit")),
+        "unit": latest["unit"],
+        "latest_value": latest["value"],
         "first_date": r.get("first_date") or "",
         "last_date": r.get("last_date") or "",
         "total": int(r.get("total") or 0),
@@ -916,19 +980,19 @@ def _catalog_row(r: dict) -> dict:
     }
 
 
-def _reading_row(r: dict) -> dict:
+def _reading_row(r: dict, su: SeriesUnit | None = None) -> dict:
+    shown = _in_series_unit(r, su)
     return {
-        **_identity(r),
+        **_identity(_as_series(r, su) if shown.get("converted") else r),
         "name": r.get("name_text") or "",
         "time": _text(r.get("local_time")),
         "date": _text(r.get("local_date")),
-        "value": _shown(r.get("value_text"), r.get("unit_text")),
-        "unit": r.get("unit_text") or "",
-        # The range as printed, empty when the report printed none: without
-        # it a model judged against a range it remembered (1.5.4 local runs).
-        # The flag is high or low as the report printed it, else empty
-        # (`collect/files/services/indicator_store.value_and_flag`).
-        "ref": r.get("ref_text") or "",
+        # `value`, `unit` and `ref` are in the series' unit; what the report
+        # printed is `printed` (`_in_series_unit`). The range is there because
+        # without one a model judged against a range it remembered (1.5.4
+        # local runs). The flag is high or low as the report printed it, else
+        # empty (`collect/files/services/indicator_store.value_and_flag`).
+        **shown,
         "flag": r.get("flag_text") or "",
         "value_canonical": _number(r.get("value_canonical")),
         "unit_canonical": r.get("unit_canonical") or "",
@@ -946,15 +1010,15 @@ def _reading_row(r: dict) -> dict:
     }
 
 
-def _bucket_row(r: dict) -> dict:
+def _bucket_row(r: dict, su: SeriesUnit | None = None) -> dict:
     return {
-        **_identity(r),
+        **_identity(_as_series(r, su)),
         "period": r.get("period") or "",
         "avg": _number(r.get("avg")),
         "min": _number(r.get("min")),
         "max": _number(r.get("max")),
         "n": int(r.get("n") or 0),
-        "unit": r.get("unit") or "",
+        "unit": su.label if su else (r.get("unit") or ""),
         "total": int(r.get("total") or 0),
         "day_known": True,
         "provenance": "elected:day_authority" if r.get("elected") else "measured",
@@ -967,11 +1031,26 @@ def _count(value: Any) -> int | None:
     return None if value is None else int(value)
 
 
-def _stats_row(r: dict) -> dict:
+def _end(r: dict, end: str, su: SeriesUnit | None) -> str:
+    """A stats row's `first` or `last`, in the row's unit: as printed when it
+    was printed in that unit, else converted. They were the printed values
+    beside min..max in mol/L: `first=212, last=4.90, unit=mol/L` was the fall
+    from 212 to 4.9 the web chart drew as well (#271). A text result
+    ("Negative") stays as printed."""
+    text, std, ucum = r.get(end), _number(r.get(f"{end}_std")), r.get(f"{end}_ucum") or ""
+    if su is None or std is None or not ucum or ucum == su.ucum:
+        return _shown(text, su.label if su else r.get("unit"))
+    return _like(std, _text(text))
+
+
+def _stats_row(r: dict, su: SeriesUnit | None = None) -> dict:
     out = {
-        **_identity(r),
+        **_identity(_as_series(r, su)),
         "count": int(r.get("count") or 0),
         "numeric_count": int(r.get("numeric_count") or 0),
+        # Readings whose unit does not convert to the series' and that no
+        # statistic below counted (`unit_differs` on a raw row).
+        "unconverted": int(r.get("unconverted") or 0),
         # A day count answers "how many days" exactly, which `count` does not:
         # a heart-rate series has many readings a day, and 392 of PHIA's 4,000
         # objective questions ask how many days something happened.
@@ -986,29 +1065,30 @@ def _stats_row(r: dict) -> dict:
         "median": _number(r.get("median")),
         "stddev": _number(r.get("stddev")),
         "sum": _number(r.get("sum")),
-        "first": _shown(r.get("first"), r.get("unit")),
+        "first": _end(r, "first", su),
         "first_date": r.get("first_date") or "",
-        "last": _shown(r.get("last"), r.get("unit")),
+        "last": _end(r, "last", su),
         "last_date": r.get("last_date") or "",
-        "unit": r.get("unit") or "",
+        "unit": su.label if su else (r.get("unit") or ""),
+        # Printed in more than one unit; every number above is in `unit`.
         "mixed_units": bool(r.get("mixed_units")),
         "day_known": True,
         "unverified": bool(r.get("unverified")),
         "provenance": PROVENANCE_REPORTED if r.get("reported") else "computed",
     }
-    # `change` only when both ends are numbers in one unit: a delta across
-    # mg/dL and mmol/L, or across "Positive" and "Negative", is not a delta.
-    first, last = _number(r.get("first_num")), _number(r.get("last_num"))
-    if first is not None and last is not None and not out["mixed_units"]:
+    # `change` only when both ends are numbers: across "Positive" and
+    # "Negative" there is no delta. Both are in the series' unit.
+    first, last = _number(r.get("first_std")), _number(r.get("last_std"))
+    if first is not None and last is not None:
         out["change"] = round(last - first, 4)
     return out
 
 
-def _latest_row(r: dict) -> dict:
+def _latest_row(r: dict, su: SeriesUnit | None = None) -> dict:
     """A reading row without the paging total: the latest value is the answer
     asked for most, and it carries the same range, flag and document. It keeps
     `row_id`, which an answer citing it resolves to (`collect/citations.py`)."""
-    row = _reading_row(r)
+    row = _reading_row(r, su)
     del row["total"]
     return row
 
@@ -1041,7 +1121,125 @@ def _number(value: object) -> float | None:
         return None
 
 
-def _record_row(r: dict) -> dict:
+class SeriesUnit(NamedTuple):
+    """The one unit a series is read in (module docstring, "Units"). `ucum`
+    chooses and compares; `label` is what a reader sees, the newest printed
+    spelling of that unit, because UCUM spells a heart rate `/min`, a pressure
+    `mm[Hg]` and a count `{#}`. A reading in another unit is its canonical
+    value over `factor`, when its canonical unit is `base`.
+
+    `code_system`, `code` and `display` are the identity of the newest reading
+    in that unit. A value in mmol/L is a [Moles/volume] measurement: a
+    converted reading, and a statistic over the series, is named by it, not by
+    the [Mass/volume] code its report was coded with, the mismatch that once
+    had a model give 1558-6 beside 5.4 mmol/L (`agent/tools/_render.py`)."""
+
+    ucum: str
+    label: str
+    base: str
+    factor: float | None
+    code_system: str = ""
+    code: str = ""
+    display: str = ""
+
+
+def _series_unit(groups: list[dict]) -> SeriesUnit:
+    """One series' `SeriesUnit` from its (unit, count, newest) groups. The
+    factor comes from `units.canonicalize`, the function that wrote every
+    stored canonical pair, with the code a reading in that unit was coded
+    with, so a value converted through it is exact."""
+    ucum = units.pick_display_unit((g["unit_ucum"], int(g["n"]), g["latest"]) for g in groups)
+    chosen = next(g for g in groups if g["unit_ucum"] == ucum)
+    base = chosen.get("base") or ""
+    folded = units.canonicalize(1.0, ucum, loinc_code=chosen.get("loinc") or "")
+    factor = folded.value if base and folded.unit == base and folded.value else None
+    return SeriesUnit(ucum, chosen.get("label") or ucum, base, factor,
+                      chosen.get("code_system") or "", chosen.get("code") or "", chosen.get("display") or "")
+
+
+def _as_series(r: dict, su: SeriesUnit | None) -> dict:
+    """`r` named by its series' unit (`SeriesUnit`), when that unit has a code."""
+    if su is None or not su.code:
+        return r
+    return {**r, "code_system": su.code_system, "code": su.code, "display": su.display or r.get("display")}
+
+
+def _unit_params(found: dict[str, SeriesUnit]) -> dict[str, list]:
+    """`found` as the four arrays `_SERIES_UNIT_JOIN` unnests."""
+    ids = list(found)
+    return {"su_ids": ids, "su_ucum": [found[i].ucum for i in ids], "su_base": [found[i].base for i in ids],
+            "su_factor": [found[i].factor for i in ids]}
+
+
+def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
+    """`value`, `unit` and `ref` of one reading in its series' unit, and
+    `printed`, the three as the report printed them and the code they were
+    coded with.
+
+    A reading printed in the series' unit, or with no unit, keeps its printed
+    value ("4.90" stays "4.90"). One in another unit is converted, its range
+    with it (`ref_low`/`ref_high`, parsed when it was written), and marked
+    `converted`: "212 mg/dL, <200" of a series read in mmol/L is "5.48",
+    "<5.17". One that does not convert keeps its own unit and range and is
+    marked `unit_differs`; no statistic counts it."""
+    printed = {"value": _shown(r.get("value_text"), r.get("unit_text")), "unit": r.get("unit_text") or "",
+               "ref": r.get("ref_text") or "", "code": r.get("code") or ""}
+    ucum = r.get("unit_ucum") or ""
+    if su is None or ucum == su.ucum or not (ucum or printed["unit"]):
+        return {"value": printed["value"], "unit": su.label if su else printed["unit"], "ref": printed["ref"],
+                "printed": printed}
+    ratio = _ratio(r, ucum, su)
+    value = _number(r.get("value_num"))
+    if ratio is None or value is None:
+        return {"value": printed["value"], "unit": printed["unit"], "ref": printed["ref"], "printed": printed,
+                "unit_differs": True}
+    return {"value": _text(r.get("comparator")) + _like(value * ratio, printed["value"]), "unit": su.label,
+            "ref": _range_in(r, ratio), "printed": printed, "converted": True}
+
+
+def _ratio(r: dict, ucum: str, su: SeriesUnit) -> float | None:
+    """What one of `ucum` is in the series' unit: through the canonical unit
+    both fold to, with the reading's own code for its molar mass. None when
+    they do not fold to one."""
+    if not su.factor or r.get("unit_canonical") != su.base:
+        return None
+    code = r.get("code") if r.get("code_system") == standardize.LOINC_SYSTEM else ""
+    folded = units.canonicalize(1.0, ucum, loinc_code=code or "")
+    return folded.value / su.factor if folded.unit == su.base else None
+
+
+def _range_in(r: dict, ratio: float) -> str:
+    """The printed range, its bounds times `ratio`, with the bound sign the
+    report used. A range that is words ("阴性") stays as printed."""
+    text = r.get("ref_text") or ""
+    low, high = _number(r.get("ref_low")), _number(r.get("ref_high"))
+    lo = _like(low * ratio, text) if low is not None else ""
+    hi = _like(high * ratio, text) if high is not None else ""
+    if lo and hi:
+        return f"{lo}-{hi}"
+    if hi:
+        return ("≤" if re.search(r"≤|<=|＜=", text) else "<") + hi
+    if lo:
+        return ("≥" if re.search(r"≥|>=|＞=", text) else ">") + lo
+    return text
+
+
+_FIRST_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+
+
+def _like(value: float, printed: str) -> str:
+    """`value` written with as many significant figures as the first number in
+    `printed`, three at least, and never fewer whole digits than it has:
+    212 mg/dL is 5.48 mmol/L and 4.90 mmol/L is 189 mg/dL."""
+    found = _FIRST_NUMBER.search(printed or "")
+    digits = max(3, len(found.group().replace(".", "").lstrip("0")) if found else 0)
+    if value == 0 or not math.isfinite(value):
+        return f"{value:g}"
+    decimals = max(0, digits - 1 - math.floor(math.log10(abs(value))))
+    return f"{value:.{min(decimals, 12)}f}"
+
+
+def _record_row(r: dict, su: SeriesUnit | None = None) -> dict:
     """One row of the records list: a reading row's fields (the same names the
     Indicators table and the tools read), plus what kind of entry it is, where
     it came from, `created_at`, the start of its current visible period, and
@@ -1050,7 +1248,7 @@ def _record_row(r: dict) -> dict:
 
     An entry that is not a measurement carries no value and no unit, never a
     made-up one; what the person wrote is `text`."""
-    row = _reading_row(r)
+    row = _reading_row(r, su)
     row.pop("total", None)
     kind = r.get("kind") or KIND_MEASUREMENT
     row.update({
@@ -1065,8 +1263,10 @@ def _record_row(r: dict) -> dict:
     if "comment" in r:
         row["comment"] = _text(r["comment"])
     if kind != KIND_MEASUREMENT:
-        row.update({"value": "", "unit": "", "value_num": None, "unit_ucum": "", "value_canonical": None,
+        row.update({"value": "", "unit": "", "ref": "", "value_num": None, "unit_ucum": "", "value_canonical": None,
                     "unit_canonical": ""})
+        for key in ("printed", "converted", "unit_differs"):
+            row.pop(key, None)
         row["text"] = _text(r.get("note")) or _text(r.get("value_text"))
     return row
 
@@ -1081,6 +1281,8 @@ __all__ = [
     "PostgresHealthQuery",
     "RECORDS_PAGE_MAX",
     "RECORD_EXPORT_COLUMNS",
+    "SeriesUnit",
+    "export_row",
     "REPORTED_KINDS",
     "REST_CATALOG_MAX",
     "REST_ROW_MAX",

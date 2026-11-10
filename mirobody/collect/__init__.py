@@ -81,6 +81,7 @@ _EXPORTS = {
     "REST_ROW_MAX": "query",
     "RECORDS_PAGE_MAX": "query",
     "RECORD_EXPORT_COLUMNS": "query",
+    "export_row": "query",
     # Files, shared by server and agent.
     "get_websocket_file_upload_manager": "files.file_upload_manager",
     "FileDbService": "files.services.file_db_service",
@@ -139,7 +140,8 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     from .providers._platform.startup import start_theta_pull_scheduler
     from .core.models import ConnectInfoField
     from .providers.installed import installed_provider_slugs
-    from .query import PostgresHealthQuery, RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX
+    from .query import (PostgresHealthQuery, RECORD_EXPORT_COLUMNS, RECORDS_PAGE_MAX, REST_CATALOG_MAX, REST_ROW_MAX,
+                        export_row)
     from .meds import PostgresDoseLogStore, PostgresMedicationStore, apply_medication_mentions, realign_dose_slots
     from .citations import aggregate_definition, aggregate_key, forget_rids, genotype_key, mint_rids, reading_key, resolve_rids
     from .files.file_upload_manager import get_websocket_file_upload_manager

@@ -92,6 +92,16 @@ _DAY_VALUE_NOTE = (
     "view=stats counts every reading of such a day"
 )
 
+#: Said of the readings a series' unit cannot reach. Every other reading
+#: reaches the model in that one unit, and what the report printed never does:
+#: handed 212 mg/dL beside 4.90 mmol/L, or min..max in mol/L, MiniCPM5-2B told
+#: the person three times that their two cholesterol results could not be
+#: compared (#271).
+_UNIT_DIFFERS_NOTE = (
+    "{names}: {count} reading(s) are in a unit that does not convert to the rest of the series; "
+    "they are listed with their own unit and left out of every statistic"
+)
+
 
 class HealthIndicatorsService(RecordTool):
     """The tool body.
@@ -381,6 +391,14 @@ def _envelope_for(
             f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
             f"call again with indicators copied from it and view={request.view}"
         )
+    apart = {}
+    for r in rows:
+        count = int(r.get("unconverted") or 0) if method == "stats" else int(bool(r.get("unit_differs")))
+        if count:
+            name = str(r.get("indicator") or r.get("name") or "")
+            apart[name] = apart.get(name, 0) + count
+    if apart:
+        assumptions.append(_UNIT_DIFFERS_NOTE.format(names=", ".join(sorted(apart)), count=sum(apart.values())))
     if method == "stats" and request.banded:
         assumptions.extend(_band_notes(request, rows))
     elif request.band_unapplied and method != "catalog":
@@ -518,11 +536,6 @@ def _band_notes(request: query.QueryRequest, rows: Sequence[Mapping[str, Any]]) 
         notes.append("no band was counted for " + ", ".join(pieces) + ": each reading is a piece of a day "
                      "(an increment or a segment), not the day's value; ask the daily series instead, "
                      "such as dailySteps for steps")
-    unitless = sorted({str(r.get("indicator") or "") for r in rows
-                       if r.get("mixed_units") and r.get("count_in_range") is None and not _in_pieces(r)} - {""})
-    if unitless:
-        notes.append("no band was counted for " + ", ".join(unitless) + ": its readings share no unit to "
-                     "compare the band in")
     return notes
 
 
