@@ -1608,3 +1608,26 @@ async def test_reprocessing_a_file_replaces_its_readings(database, monkeypatch):
     storage.objects.clear()
     await FileDbService.update_file_content("web_uploads/failed.pdf", {"status": "failed"})
     assert await fps.reprocess_file(await FileDbService.get_file_by_key("web_uploads/failed.pdf"), "1") == "missing"
+
+
+async def test_a_new_account_refuses_a_token_minted_before_it_existed(database, monkeypatch):
+    """A database made again (`docker compose down -v`) numbers its accounts
+    from 1 again, and `.env` keeps the JWT key. A browser's token for the old
+    id was accepted for the new account that took that id; and the server,
+    asked for it before anyone signed up, remembered the id as closed and
+    refused the new account's own tokens until a restart (1.6.0)."""
+    import time
+
+    from mirobody.user import user as user_module
+
+    monkeypatch.setattr(user_module, "_active", {})
+    monkeypatch.setattr(user_module, "_closed", set())
+    monkeypatch.setattr(user_module, "_valid_after", {})
+    before = time.time() - 3600  # a token from the install before
+    [row] = await database("SELECT COALESCE(MAX(id), 0) + 1 AS id FROM health_app_user", log_sql=False)
+    assert await user_module.is_active_account(int(row["id"]), before) is False  # nobody has that id yet
+    [account] = await database("INSERT INTO health_app_user(is_del,email,tz) VALUES (false,'new@example.invalid','UTC')"
+                               " RETURNING id", log_sql=False)
+    assert int(account["id"]) == int(row["id"])
+    assert await user_module.is_active_account(account["id"], before) is False
+    assert await user_module.is_active_account(account["id"], time.time()) is True
