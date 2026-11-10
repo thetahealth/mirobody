@@ -18,6 +18,20 @@ from mirobody.utils.config.llm import RouteSpec, no_provider_message, resolve_na
 logger = logging.getLogger(__name__)
 
 
+class NoResponse(RuntimeError):
+    """The endpoint answered and the answer held no completion. The OpenAI
+    client returns None, without raising, for an HTTP 200 whose body is JSON
+    `null` (measured on openai 3.28, also after leading blank lines), so this
+    is the provider's failure, not a request this code got wrong. The text
+    surfaces turn it into their None; vision, whose contract is that a failed
+    request raises, raises this, with a message written for the person whose
+    upload failed (`collect/files/errors.failure_reason`)."""
+
+    def __init__(self, model: str) -> None:
+        super().__init__(f"{model} sent back an empty response, which an overloaded provider does; "
+                         "try again later, or point the route at another model.")
+
+
 def _max_tokens_param(spec: RouteSpec) -> str:
     """OpenAI's current models reject `max_tokens` in favour of
     `max_completion_tokens`; every other OpenAI-compatible endpoint still
@@ -140,6 +154,13 @@ async def async_get_structured_output(
             messages=messages,
             **params,
         )
+        # The client returns None for a 200 whose body is `null` (`NoResponse`):
+        # on 1.5.10 a 587 s call did, during a provider's 503 outage, and the
+        # attribute access below raised AttributeError, which the log blamed
+        # on this file. None is already this function's "no model answered".
+        if response is None:
+            logger.warning("structured output: no response: model=%s", spec.model)
+            return None
         result = response.choices[0].message.to_dict()
         if result.get("refusal") is not None:
             logger.warning("structured output refused: model=%s", spec.model)
@@ -168,14 +189,22 @@ async def async_get_structured_output(
         return None
 
 
+def text_was_cut(spec: RouteSpec, max_tokens: Any, completion_tokens: Any, duration_ms: int) -> None:
+    """Log a reply cut at `max_tokens`, which used to pass as a whole answer.
+    Both backends report a cut through here, so the two cannot disagree."""
+    logger.warning("text completion hit max_tokens: model=%s max_tokens=%s completion_tokens=%s duration_ms=%d",
+                   spec.model, max_tokens, completion_tokens, duration_ms)
+
+
 async def async_get_text_completion(
     messages: list[dict],
     model_name: str | None = None,
     provider: str | None = None,
     **kwargs: Any,
 ) -> str | None:
-    """Plain text (titles, summaries, profile prose) from the `UTILS_TEXT_MODEL`
-    route, or the named `provider`. None when no model answered."""
+    """Plain text (titles, summaries, the profile's scenario) from the
+    `UTILS_TEXT_MODEL` route, or the named `provider`. None when no model
+    answered; a reply cut at `max_tokens` is logged and returned as far as it got."""
     from .clients import client_manager
 
     start = time.monotonic()
@@ -189,16 +218,26 @@ async def async_get_text_completion(
     logger.info("text completion: model=%s", spec.model)
     try:
         client = client_manager.for_spec(spec)
+        params = _request_kwargs(spec, kwargs)
         response = await client.chat.completions.create(
             model=spec.model,
             messages=messages,
-            **_request_kwargs(spec, kwargs),
+            **params,
         )
-        duration_ms = _ms(start)
-        logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
-        return response.choices[0].message.content
+        if response is None:
+            # The same empty 200 as `async_get_structured_output` meets.
+            logger.warning("text completion: no response: model=%s", spec.model)
+            return None
+        choice = response.choices[0]
+        content, cut = choice.message.content, choice.finish_reason == "length"
     except Exception as e:
         duration_ms = _ms(start)
         logger.error("text completion failed: model=%s error_type=%s duration_ms=%d", spec.model,
                      type(e).__name__, duration_ms, exc_info=not is_driver_exception(e))
         return None
+    duration_ms = _ms(start)
+    if cut:
+        usage = getattr(response, "usage", None)
+        text_was_cut(spec, params.get(_max_tokens_param(spec)), getattr(usage, "completion_tokens", None), duration_ms)
+    logger.info("text completion: model=%s duration_ms=%d", spec.model, duration_ms)
+    return content

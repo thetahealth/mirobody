@@ -18,7 +18,7 @@ from collections.abc import Callable
 from typing import Any
 
 from mirobody.kernel.series import Fact
-from ._common import dig, fact, number, parse_ts_smart
+from ._common import dig, fact, local_day_window, number, parse_ts_smart
 
 _KJ_PER_KCAL = 4.184
 _MS_PER_MIN = 60_000
@@ -41,19 +41,23 @@ Entry = tuple[str, Callable[[float], float]]  # (metric, converter into the cata
 MAPPING: dict[str, dict[str, Entry]] = {
     "sleep": {
         "score.stage_summary.total_in_bed_time_milli": ("sleepAnalysis_InBed", _same),
-        "score.stage_summary.total_awake_time_milli": ("sleepAnalysis_Awake", _same),
-        "score.stage_summary.total_light_sleep_time_milli": ("sleepAnalysis_Asleep(Core)", _same),
-        "score.stage_summary.total_slow_wave_sleep_time_milli": ("sleepAnalysis_Asleep(Deep)", _same),
-        "score.stage_summary.total_rem_sleep_time_milli": ("sleepAnalysis_Asleep(REM)", _same),
+        "score.stage_summary.total_awake_time_milli": ("dailyAwakeTime", _same),
+        "score.stage_summary.total_light_sleep_time_milli": ("dailyLightSleep", _same),
+        # Slow-wave sleep (SWS) is WHOOP's name for deep sleep (N3).
+        "score.stage_summary.total_slow_wave_sleep_time_milli": ("dailyDeepSleep", _same),
+        "score.stage_summary.total_rem_sleep_time_milli": ("dailyRemSleep", _same),
         "score.sleep_efficiency_percentage": ("sleepEfficiency", _same),
-        "score.respiratory_rate": ("respiratoryRates", _same),
+        "score.respiratory_rate": ("dailySleepRespiratoryRate", _same),
         "score.sleep_performance_percentage": ("sleepPerformance", _same),
         "score.sleep_consistency_percentage": ("sleepConsistency", _same),
         "score.stage_summary.disturbance_count": ("sleepDisturbances", _same),
     },
     "cycle": {
-        "score.average_heart_rate": ("heartRates", _same),
-        "score.max_heart_rate": ("heartRateMax", _same),
+        # "during the cycle": one figure for the whole cycle, as Garmin's
+        # dailies average and maximum are; as heart-rate readings they were
+        # averaged in with the workouts' own.
+        "score.average_heart_rate": ("dailyHeartRateAvg", _same),
+        "score.max_heart_rate": ("dailyHeartRateMax", _same),
         # A cycle's energy is the whole day's, basal included; as active
         # calories it was summed with the day's workouts and counted twice.
         "score.kilojoule": ("dailyTotalCalories", kj_to_kcal),
@@ -69,7 +73,8 @@ MAPPING: dict[str, dict[str, Entry]] = {
     "workout": {
         "score.average_heart_rate": ("heartRates", _same),
         "score.max_heart_rate": ("heartRateMax", _same),
-        "score.distance_meter": ("walkingRunningDistances", _same),
+        # Any sport: walkingRunningDistances is walking or running only.
+        "score.distance_meter": ("exerciseDistances", _same),
         "score.kilojoule": ("activeCalories", kj_to_kcal),
         "score.altitude_gain_meter": ("altitudeGain", _same),
         "score.altitude_change_meter": ("altitudeChange", _same),
@@ -82,7 +87,10 @@ MAPPING: dict[str, dict[str, Entry]] = {
 }
 
 #: Heart-rate zones are summed in pairs into the catalogue's three workout
-#: intensity durations; per-zone facts would double-count the workout.
+#: intensity durations. Each is minutes counted inside the workout, so it
+#: keeps the workout's span as the workout's calories and distance do, and the
+#: catalogue sums it: a union of that span read every zone as the whole
+#: workout (20, 10 and 1 minutes of a 60 minute workout each became 60).
 ZONES = (
     ("workoutDurationLow", ("zone_zero_milli", "zone_one_milli")),
     ("workoutDurationMedium", ("zone_two_milli", "zone_three_milli")),
@@ -91,6 +99,27 @@ ZONES = (
 
 SCORED = frozenset({"sleep", "cycle", "workout", "recovery"})
 DATA_TYPES: tuple[str, ...] = tuple(MAPPING)
+
+#: The sleep fields that are the night's figure: totals over the whole sleep,
+#: not spans, so a duration union of the sleep's start..end read every stage
+#: as the whole night. Filed on the local day the sleep ends, as a night is
+#: on the day the person wakes, and never from a nap: a ``daily…`` summary
+#: keeps one value a day, and a nap's would replace the night's.
+NIGHTLY: frozenset[str] = frozenset({
+    "score.stage_summary.total_awake_time_milli", "score.stage_summary.total_light_sleep_time_milli",
+    "score.stage_summary.total_slow_wave_sleep_time_milli", "score.stage_summary.total_rem_sleep_time_milli",
+    "score.respiratory_rate",
+})
+
+#: One sleep's scores, filed with the sleep's own span and never from a nap.
+#: WHOOP scores a nap under the same four fields and a nap falls in the
+#: night's 18:00 day, so a night of 91 % and a nap of 80 % averaged to 85.5 in
+#: ``dailyAvgSleepEfficiency`` and the nap's 80 was the day's last score. The
+#: catalogue has no nap score to file it under; ``napDuration`` is a duration.
+SCORES: frozenset[str] = frozenset({
+    "score.sleep_efficiency_percentage", "score.sleep_performance_percentage",
+    "score.sleep_consistency_percentage", "score.stage_summary.disturbance_count",
+})
 
 
 def window_ms(data_type: str, item: dict, tz: str, pulled_at_ms: int) -> tuple[int, int]:
@@ -132,9 +161,11 @@ def decode(
     if not start:
         return []
     out: list[Fact] = []
+    night = local_day_window(end, tz) if data_type == "sleep" and item.get("nap") is not True else None
 
-    def emit(metric: str, value: float) -> None:
-        out.append(fact(metric, value, start, end, source_record_id=source_record_id, ingested_at_ms=ingested_at_ms))
+    def emit(metric: str, value: float, span: tuple[int, int] | None = None) -> None:
+        s, e = span or (start, end)
+        out.append(fact(metric, value, s, e, source_record_id=source_record_id, ingested_at_ms=ingested_at_ms))
 
     if data_type == "workout":
         zones: Any = dig(item, "score.zone_durations")
@@ -144,8 +175,10 @@ def decode(
                 if total > 0:
                     emit(metric, ms_to_min(total))
     for path, (metric, conv) in mapping.items():
+        if data_type == "sleep" and night is None and (path in NIGHTLY or path in SCORES):
+            continue
         v = number(dig(item, path))
         if v is None:
             continue
-        emit(metric, float(conv(v)))
+        emit(metric, float(conv(v)), night if data_type == "sleep" and path in NIGHTLY else None)
     return out

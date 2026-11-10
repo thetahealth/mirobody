@@ -105,7 +105,8 @@ class WebAuthnService:
         self._ephemeral = ephemeral
 
         self._rp_id = rp_id
-        self._rp_name = rp_name or "Theta Health"
+        # The name a browser shows when it offers to save a passkey for this server.
+        self._rp_name = rp_name or "Mirobody"
         self._origin = origin
         self._mfa_ticket_ttl = mfa_ticket_ttl
         self._second_factor_cache: dict[int, tuple[bool, float]] = {}

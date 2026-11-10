@@ -75,12 +75,15 @@ or `query_pharmacogenomics`. A chat turn gets the four record tools, not the
 three terminology tools: the readings tool already resolves names and units, so
 those serve only a client holding readings of its own
 (`agent/tool_loader.py::_MCP_ONLY_TOOLS`). Beside them: the harness's `ls`,
-`read_file`, `glob`, `grep`, the local `python_exec` calculator, and `ask_user`.
+`read_file`, `glob`, `grep`, `ask_user` and the `code_exec` calculator
+([python-analysis.md](python-analysis.md)).
 `ask_user` is never an MCP tool — an MCP client has no widget to answer a
 question with.
 
-The calculator consumes original artifacts rather than display tables;
-[Local Python analysis](python-analysis.md) describes data access and setup.
+The calculator consumes original artifacts rather than display tables: in
+JavaScript in the app for a cloud model, in Python in a local container for a
+model on this machine. [Calculation in chat](python-analysis.md) describes
+data access and setup.
 
 The local suite asserts both lists exactly.
 
@@ -98,6 +101,19 @@ query_pharmacogenomics (drugs | genes)
 No parameter names a person. A call reads the account it is authenticated as:
 the MCP token or URL, or the record a chat turn was opened on, which the chat
 layer authorises before the model runs. One call, one person's data.
+
+A personal link is one URL for one record, and that is deliberate: a person who
+manages someone else mints a second link for that member — `POST /personal/mcp`
+with `{"user_id": …}`, authorised through the care circle — and registers it as
+a second MCP server. In the web client that is Settings → MCP link, which has a
+row for each record the circle lets you read. The link belongs to the pair
+(creator, subject) and lives 10 days from when it is made, unextended by use
+(`MCP_URL_TTL_DAYS`). Stopping the share, leaving the circle, or the member
+taking the account over and choosing not to share revokes it, and sharing again
+does not revive the old URL; deleting either account ends it at once. A member
+who takes the account over by signing in to one they already had merges the
+two, and the link moves with the record to the account they keep, under the
+same rules. A link never outlives the access that allowed it.
 
 Genetic region queries accept `build=GRCh37|GRCh38|raw`. The explicit `raw`
 choice reads the file's original coordinates without asserting an assembly;
@@ -117,9 +133,9 @@ query_health_indicators(kind="medications", view="day")
 `query_medications` reads the window per view: `plan` and `history` mean "in
 effect at some point in the window" (so "what was I taking in March" is a
 window on the plan view), `log` means "recorded in the window" and defaults to
-the last 30 days. Every `plan` answer carries the note that a plan is intent,
-not an intake record; every `log` answer, that a missing dose is not evidence
-it was not taken.
+the last 30 days, today and the 29 before it. Every `plan` answer carries the
+note that a plan is intent, not an intake record; every `log` answer, that a
+missing dose is not evidence it was not taken.
 
 And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 
@@ -128,7 +144,7 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 | `raw` | readings, newest first, at most 50 per indicator (`query.ROW_CAP`) |
 | `minute` / `hour` | one point per bucket, the newest 92 per indicator (`query.BUCKET_CAP`) |
 | `day` / `week` / `month` | the same, from the day authority: each day counts once |
-| `stats` | count/min/max/avg/sum/first/last/change over the window |
+| `stats` | count/min/max/avg/median/stddev (sample)/sum/first/last/change over the window |
 | `trend` | numeric direction and shape from the newest 400 elected daily values, with coverage |
 | `latest` | the most recent value per indicator |
 | any, with no `keywords` or `indicators` | the catalogue, and a note that the view waits for names |
@@ -246,7 +262,10 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
 
 ## Windows
 
-* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive.
+* Both `start` and `end` are local dates in the SUBJECT's zone, inclusive,
+  so "the last N days" starts N-1 days before today. The schema says so
+  with a worked example: given "inclusive" alone, a model wrote the last
+  60 days as today minus 60 and read 61 (2026-10-31).
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.
@@ -314,7 +333,7 @@ A chat answer cites what it rests on, in the LongCite form
 * **Row ids.** Every row a record tool shows in a conversation carries a short
   id (`r1`, `r2`, …), minted the first time that conversation sees the row and
   stored in `th_chat_citation`. The id stores which row it is, never its value:
-  `GET /api/citations` reads the row live, so an id still names the same
+  `/api/citations` reads the row live, so an id still names the same
   reading after a restart, and a reading the person has deleted resolves to
   "gone".
 * **Three kinds of cite.** A row (`r3`), a reference passage
@@ -342,8 +361,23 @@ operators are recognized outside the matched metric name, so `Mean corpuscular
 volume` is a metric and `Vitamin D` does not request a minimum. Trend threshold
 comparisons use relative tolerance rather than an absolute decimal cutoff.
 
-The web client draws each cite as a numbered chip; clicking it shows the
-reading, its date and range, and the file it came from.
+Before an answer is kept, `citations.normalize` spells its markup the way
+the format does: a misspelt cite (`<xcite>[r4]`) is corrected, a `</cite>`
+that closes nothing is dropped, a cite left open ends after its ids, and a
+cite written just after `</statement>` moves inside it. Stray letters count
+as a cite only where ids follow, so prose (`<excite>`, a `<cite>` around a
+title) and fenced blocks stay as written. An automatic cite is not added
+where the model already cited the value, after a space or later in the same
+claim.
+
+The web client draws no numbers. Adjacent cites are one group, drawn as a
+dotted underline under the values of the claim they close (its statement,
+else its clause, else its sentence when the clause holds fewer values than
+the readings cited); a claim with no value (a guideline, a line of a note)
+is underlined itself, and a cite in a table's flag, verdict or
+reference-range cell moves to the row's result. Clicking opens every source of the group, readings of one
+indicator listed together, with date, range, flag and file. A shared page
+draws no marks at all: a visitor has no source to open.
 
 ## What the person sees while it works
 

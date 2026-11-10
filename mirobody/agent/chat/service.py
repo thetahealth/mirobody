@@ -144,7 +144,7 @@ class ChatService:
             ("/api/history_by_person",  self.personal_history_handler,          ["GET"]),
             ("/api/history/delete",     self.history_delete_handler,            ["POST"]),
             ("/api/rating",             self.rating_handler,                    ["POST"]),
-            ("/api/citations",          self.citations_handler,                 ["GET"]),
+            ("/api/citations",          self.citations_handler,                 ["GET", "POST"]),
 
             ("/api/chat",               self.chat_handler,                      ["POST"]),
 
@@ -268,9 +268,29 @@ class ChatService:
 
     @requires_auth
     async def citations_handler(self, request: Request, user_id: str) -> Response:
-        """`?session_id=…&rids=r1,r2`: what each cited row is now (`resolve_citations`)."""
-        session_id = request.query_params.get("session_id", "")
-        rids = [r.strip() for r in request.query_params.get("rids", "").split(",") if r.strip()]
+        """What each cited row is now (`resolve_citations`).
+
+        `POST {"session_id": …, "rids": [...]}` takes the ids exactly as the
+        answer cites them. A cite may hold a comma (a `ref:doi:` id, a
+        document's `<path>#L12-L14`: `kernel.citations`), and `GET
+        ?session_id=…&rids=r1,r2` splits on commas, so it cuts such an id into
+        pieces that resolve to nothing and answers none of them under the id
+        that was asked. The bundled web client posts since mirobody-web
+        3b4bcfd; the GET stays for a client built before it, and for a page
+        left open across the upgrade.
+        """
+        if request.method == "POST":
+            params, err_response = await _json_body(request)
+            if err_response:
+                return err_response
+            session_id, rids = params.get("session_id"), params.get("rids")
+            if not isinstance(session_id, str) or not isinstance(rids, list) \
+                    or not all(isinstance(r, str) for r in rids):
+                return json_response_with_code(-1, "session_id is a string and rids a list of strings.",
+                                               request=request)
+        else:
+            session_id = request.query_params.get("session_id", "")
+            rids = [r.strip() for r in request.query_params.get("rids", "").split(",") if r.strip()]
         if not session_id or not rids:
             return json_response_with_code(-1, "session_id and rids are required", request=request)
         try:

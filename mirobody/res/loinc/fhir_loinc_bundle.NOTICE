@@ -17,7 +17,7 @@ Bundle members and their LOINC sources:
                                       SYSTEM, METHOD_TYP, LONG_COMMON_NAME, TIME_ASPCT, CLASS, each
                                       copied unchanged, plus two folded copies for lookup.
   corpus_names.bin / corpus_names.npz LONG_COMMON_NAME per code, same row order.
-  alias_keys.bin / alias_index.npz    692577 folded designations -> codes, from COMPONENT,
+  alias_keys.bin / alias_index.npz    1023273 folded designations -> codes, from COMPONENT,
                                       SHORTNAME, LONG_COMMON_NAME, RELATEDNAMES2, DisplayName and
                                       CONSUMER_NAME, and from these linguistic variants:
                                       arJO32, csCZ33, deAT24, deDE15, elGR17, esAR7, esES12, esMX28, etEE10, frBE23, frCA8, frFR18, itIT16, koKR13, nlNL22, plPL29, ptBR11, ruRU20, trTR19, ukUA30, zhCN5.
@@ -25,7 +25,7 @@ Bundle members and their LOINC sources:
   loinc_skip.txt                      36321 ACTIVE codes the cut leaves out (see below).
   loinc_units.tsv                     EXAMPLE_UCUM_UNITS per code.
 
-The cut (translate_build/loinc_cut.py): STATUS ACTIVE; CLASSTYPE laboratory or
+The cut (standardize_build/loinc_cut.py): STATUS ACTIVE; CLASSTYPE laboratory or
 clinical; CLASS families that never hold a reading dropped (surveys, documents,
 radiology, administrative, ...); SCALE_TYP Doc, Nar, -, Set and Multi dropped;
 H&P classes kept only at Qn or Ord; panels kept for the laboratory subclasses;

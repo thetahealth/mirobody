@@ -177,6 +177,14 @@ The reference application's aggregation worker keeps its SQL for the twenty-odd
 statistics it computes (percentiles, time-in-range, CGM event detection); the
 kernel owns the day boundary, the shapes and the policies.
 
+A range recalculation reads complete, consecutive calendar days, including
+across 30-day chunks. An Apple re-import may retract figures no longer
+supported after a timezone repair, so that pass requires every computation to
+succeed before writing or retracting any daily figure. A computation failure
+leaves the published figures visible and makes the import fail; retrying
+finishes the repair. The incremental worker still isolates failures by person
+and day so one bad record does not stall other people.
+
 *What changed:* the trigger queries split their input with `LOWER(indicator)
 LIKE '%sleep%'`. That matched 58 `daily…Sleep…` metrics which are
 `provider_daily` — the vendor's own figure, already dated — and re-anchoring
@@ -197,6 +205,24 @@ coverage, then the MEASUREMENT instant (never the row's update time: an echo is
 rewritten daily and looks fresh), then the deployment's own priority list — and
 `standardize/aggregate/election.py` records the winner in `th_day_authority`,
 which the read view exposes as `elected`.
+
+For generated daily summaries, `apple_health`, `apple_health_export` and
+`apple_health_watch` remain separate streams. Before competing with other
+vendors, their valid alternatives elect one Apple representative by source
+class, actual measurement freshness, coverage, then static priority. The
+freshness lookup uses the maximum valid `series_data.time` from the same
+source-id winner and catalogue window as SQL aggregation (including DST and
+the 18:00 sleep-day anchor). Filtered points, nonnumeric values and losing
+source IDs cannot refresh a stream. Display names are not device identities.
+
+Freshness takes precedence only when every valid alternative has retained
+sample evidence; otherwise the existing deterministic ranking applies. Equal
+measurement times fall back to coverage and priority. Reimporting an old
+export does not refresh its measurements: neither database write time nor a
+summary's synthetic day boundaries count. The representative then competes
+with other vendors under the ordinary coverage-first policy. Values are
+never summed across transports, validation still rejects impossible totals,
+and the authority row records the Apple transport policy in `rule`.
 
 A candidate is **rejected** rather than ranked when its numbers are impossible:
 a total sleep time longer than the night it was measured in is arithmetic, not

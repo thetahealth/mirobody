@@ -87,18 +87,24 @@ def question_language(text: str) -> str:
 
 #: The note in the question's own language. Written in English, it lost to
 #: 19k characters of English tool output: MiniCPM5-2B answered a Chinese chart
-#: question in English on two runs of three (2026-10-12).
+#: question in English on two runs of three (2026-10-12). It names the thinking,
+#: which the web client streams, and tells Japanese from Chinese. DeepSeek V4
+#: Flash thought in English for every Chinese and Japanese question and wrote
+#: Chinese for two Japanese ones of four; with it, ten Chinese runs of thirteen
+#: thought in Chinese and nine Japanese runs of nine answered in Japanese
+#: (2026-10-31).
 _TURN_NOTES = {
-    "Chinese (中文)": "[系统提示：现在是 {now}。最新的问题是中文：整个回答都用中文写，"
+    "Chinese (中文)": "[系统提示：现在是 {now}。最新的问题是中文：思考过程和整个回答都用中文写，"
                       "图表标题和坐标轴也用中文，即使工具返回的内容是英文。]",
-    "Traditional Chinese (繁體中文)": "[系統提示：現在是 {now}。最新的問題是繁體中文：整個回答都用繁體中文寫，"
+    "Traditional Chinese (繁體中文)": "[系統提示：現在是 {now}。最新的問題是繁體中文：思考過程和整個回答都用繁體中文寫，"
                                      "圖表標題和座標軸也用繁體中文，即使工具回傳的內容是英文。]",
-    "Japanese (日本語)": "[システム通知：現在は {now} です。最新の質問は日本語です。ツールの出力が英語でも、"
-                        "グラフのタイトルや軸を含め、回答はすべて日本語で書いてください。]",
+    "Japanese (日本語)": "[システム通知：現在は {now} です。最新の質問は日本語です（中国語ではありません）。ツールの出力が英語でも、"
+                        "考える過程も、グラフのタイトルや軸を含む回答も、すべて日本語で書いてください。]",
     "Korean (한국어)": "[시스템 안내: 지금은 {now}입니다. 최신 질문은 한국어입니다. 도구 출력이 영어여도 "
-                      "차트 제목과 축을 포함해 답변 전체를 한국어로 작성하세요.]",
-    "Russian (русский)": "[Системная заметка: сейчас {now}. Последний вопрос на русском: весь ответ, включая "
-                         "заголовки и оси графиков, пишите по-русски, даже если инструменты вернули текст на английском.]",
+                      "생각하는 과정과, 차트 제목과 축을 포함한 답변 전체를 한국어로 작성하세요.]",
+    "Russian (русский)": "[Системная заметка: сейчас {now}. Последний вопрос на русском: рассуждения и весь ответ, "
+                         "включая заголовки и оси графиков, пишите по-русски, даже если инструменты вернули текст "
+                         "на английском.]",
 }
 
 
@@ -154,7 +160,8 @@ async def build_system_prompt(
         answer_language=answer_language,
         knowledge=dict(knowledge or {}),
         deployment_facts=deployment_facts,
-        python_enabled=any(tool.name == "python_exec" for tool in langchain_tools),
+        code_language=next((str((getattr(tool, "metadata", None) or {}).get("language", ""))
+                            for tool in langchain_tools if tool.name == "code_exec"), ""),
     )
 
 
@@ -215,6 +222,14 @@ def _chat_route(alias: str) -> tuple[str, str, str] | None:
         base_url = endpoint_value(base_url)
     base_url = base_url_override(str(entry.get("api_key") or "").strip()) or base_url
     return str(entry.get("model") or alias), base_url, str(entry.get("llm_type") or "openai")
+
+
+def runs_locally(chat_alias: str) -> bool:
+    """Whether chat entry `chat_alias` runs on this machine or the person's
+    own network (`place`). False for a cloud service and for an entry whose
+    endpoint cannot be told."""
+    route = _chat_route(chat_alias)
+    return route is not None and place(route[1], route[2]).startswith(("on this machine", "on your own network"))
 
 
 def deployment_facts(chat_alias: str) -> str:

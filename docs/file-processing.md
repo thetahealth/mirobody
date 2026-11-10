@@ -6,7 +6,6 @@ This module provides comprehensive health data file processing capabilities, inc
 
 ## Table of Contents
 
-- [Features](#features)
 - [Supported File Types](#supported-file-types)
 - [File Upload](#file-upload)
   - [WebSocket Upload (Recommended)](#websocket-upload-recommended)
@@ -19,19 +18,6 @@ This module provides comprehensive health data file processing capabilities, inc
 - [Error Handling](#error-handling)
 - [Best Practices](#best-practices)
 - [Code Examples](#code-examples)
-
----
-
-## Features
-
-- ✅ **Multiple Upload Methods**: Supports WebSocket real-time upload and REST API batch upload
-- ✅ **Real-time Progress Feedback**: WebSocket connections provide real-time progress updates for file upload and processing
-- ✅ **Smart File Recognition**: Automatically identifies file types and selects the appropriate handler
-- ✅ **Health Indicator Extraction**: Uses LLM to automatically extract health indicator data from medical reports
-- ✅ **Multi-format Support**: Supports PDF, images, Office documents, text, genetic data and more
-- ✅ **PDF Text First**: a PDF's text layer is read directly; only its scanned pages go to the OCR model, several at once
-- ✅ **File Summary Generation**: Automatically generates file content summaries
-- ✅ **Cascade Deletion**: Automatically cleans up associated health data when files are deleted
 
 ---
 

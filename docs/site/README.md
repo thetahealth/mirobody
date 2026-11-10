@@ -9,6 +9,6 @@ inputs and outputs, and limits that affect those actions. Keep full schemas,
 SQL, architecture details, historical benchmarks and development history in
 the linked engineering reference.
 
-Write English and Chinese independently for their readers while preserving
-technical meaning, commands and supported boundaries. A fact needed to make
-a safe deployment choice stays beside the relevant step.
+Write English, Chinese and Japanese independently for their readers while
+preserving technical meaning, commands and supported boundaries. A fact
+needed to make a safe deployment choice stays beside the relevant step.

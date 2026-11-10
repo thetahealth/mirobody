@@ -16,6 +16,46 @@ days. Importing the same file again adds nothing. A person whose phone also
 pushes gets two streams, and each day takes one of them, so a day's steps are
 never counted twice.
 
+A reading counts on the day its record says. Apple writes every timestamp
+with the offset the phone showed (`2026-11-01 07:10:00 +0800`), and the day
+is read in that offset. `--tz` names a zone to keep when it gives the same
+offset at that instant, because an IANA name knows daylight saving and an
+offset does not; without it, the person's own zone is tried. A record taken
+somewhere else keeps its own offset either way. An export imported before
+this rule (the day was read in `--tz`, `UTC` by default) is repaired by
+importing it again: the readings move, and the daily values left on the days
+they moved off are retracted.
+
+For generated daily summaries, `apple_health`, `apple_health_export` and
+`apple_health_watch` remain separate streams. Before competing with other
+vendors, their valid alternatives elect one Apple representative by source
+class, actual measurement freshness, coverage, then static priority. The
+freshness lookup uses the maximum valid `series_data.time` from the same
+source-id winner and catalogue window as SQL aggregation (including DST and
+the 18:00 sleep-day anchor). Filtered points, nonnumeric values and losing
+source IDs cannot refresh a stream. Display names are not device identities.
+
+Freshness takes precedence only when every valid alternative has retained
+sample evidence; otherwise the existing deterministic ranking applies. Equal
+measurement times fall back to coverage and priority. Reimporting an old
+export does not refresh its measurements: neither database write time nor a
+summary's synthetic day boundaries count. The representative then competes
+with other vendors under the ordinary coverage-first policy. Values are
+never summed across transports, validation still rejects impossible totals,
+and the authority row records the Apple transport policy in `rule`.
+
+To reproduce the former stale choice, import a morning export, then push
+new afternoon measurements for the same metric and local day. The afternoon
+stream should publish its own value even if the morning stream has more
+coverage. Reverse the transports and the later measured export should win.
+Run the regression with:
+
+```bash
+python -m pytest -q mirobody/tests/test_apple_transport_election.py
+MIROBODY_TEST_POSTGRES_DSN=postgresql://localhost/mirobody_regression \
+  python -m pytest -q mirobody/tests/test_apple_transport_election.py -m needs_db
+```
+
 ## The vocabulary is HealthKit's own
 
 **`type` is a HealthKit identifier**: `HKQuantityTypeIdentifierHeartRate`, not
@@ -157,4 +197,8 @@ which is what makes them evidence.
 
 - **Duplicates** are the client's problem: deduplicate before sending.
 - **Volume**: large uploads are fine, and gzip is worth using.
-- **Time**: send the offset. A record's own `timezone` wins over `metaInfo`.
+- **Time**: send the zone. A record's own `timezone` wins over
+  `metaInfo.timezone`, which wins over the person's zone. A `startDate` in
+  Apple's string form is read in its own offset unless that zone gives the
+  same one, the rule `mirobody import apple` uses, so a record pushed and
+  exported lands on one day.

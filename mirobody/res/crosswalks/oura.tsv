@@ -6,6 +6,8 @@
 # Source, read 2026-09-09:
 #   https://cloud.ouraring.com/v2/static/json/openapi-1.41.json
 #   The official OpenAPI document, version 1.41.
+# Re-read 2026-10-29 for the sleep, daily_sleep and workout rows (1.41 is no longer served):
+#   https://cloud.ouraring.com/v2/static/json/openapi-1.43.json
 #
 # Columns:
 #   type        the vendor's data type, record class or endpoint, verbatim
@@ -40,7 +42,7 @@ sleep	restless_periods	sleepDisturbances	103211-9	unverified	「不安宁时段�
 sleep	sleep_phase_5_min				编码字符串（每字符一个 5 分钟分期）。落码前须先解码展开成分期时长
 sleep	type				枚举 deleted / sleep / long_sleep / late_nap / rest。建议用作分流键：late_nap 应进 napDuration 而非主睡眠
 sleep	readiness_score_delta				厂商专有分的变化量
-daily_sleep	score	sleepQuality			厂商专有睡眠分（0–100）,LOINC 结构性无码。`97891-6 Sleep score [R-Outcomes]` 是特定问卷量表,不可借用
+daily_sleep	score	sleepOverallScore			Oura's own day-dated sleep score (1-100), so a provider_daily summary, filed on the document's day. No code: 97891-6 Sleep score [R-Outcomes] is a specific questionnaire
 daily_sleep	contributors.*				deep_sleep / efficiency / latency / rem_sleep / restfulness / timing / total_sleep 七个贡献度分项,都是专有分
 daily_spo2	spo2_percentage.average	oxygenSaturations	59408-5	unverified	日均血氧；日均口径亦可用 103209-3（PROPERTY=NRat 有缺陷）
 daily_spo2	breathing_disturbance_index				厂商专有指数。注意：不是 AHI,不可落 `69990-0`
@@ -71,7 +73,7 @@ daily_cardiovascular_age	vascular_age	bodyAge			LOINC 无血管年龄 / 体能�
 daily_cardiovascular_age	pulse_wave_velocity	pulseWaveVelocity	77196-4	confident	新增：`77196-4` Pulse wave velocity，Vel/Qn —— 本仓无对应 member,建议新增
 vO2_max	vo2_max	vo2Maxs	94122-9	unverified	Oura 为估算值,非 CPET
 workout	calories	activeCalories	41981-2	unverified	单次运动,非日汇总
-workout	distance		103208-5	unverified	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); 换算量不是实测距离,须声明
+workout	distance	exerciseDistances	55412-1	unverified	Oura: 'Distance traveled in meters during the workout', for any activity. How Oura derives it is not documented
 workout	intensity	trainingLoad	103223-4	unverified	`103223-4` Workout intensity 是 Type/Ord；Oura 是枚举,SCALE 相符,但取值域须映射
 session	heart_rate_variability	hrvDatas			冥想/呼吸练习会话内的 HRV,同为 RMSSD,无码
 sleep_time	optimal_bedtime				推荐入睡窗口,不是测量值

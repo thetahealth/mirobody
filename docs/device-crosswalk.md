@@ -1,8 +1,8 @@
-# Device crosswalk: wearable fields to LOINC
+# Device crosswalk: what each wearable field measures
 
-Which LOINC code is Apple Health's step count? Is the HRV a Fitbit reports the
-same statistic as the one an Apple Watch reports? Where does Huawei's 深睡
-land, and is WHOOP's slow-wave sleep the same thing? No vendor API answers
+Is the HRV a Fitbit reports the same statistic as the one an Apple Watch
+reports? Where does Huawei's 深睡 land, and is WHOOP's slow-wave sleep the same
+thing? Which standard code is Apple Health's step count? No vendor API answers
 these: none of the thirteen read here carries a LOINC code of its own, and
 every integration maps by hand and keeps the result to itself.
 
@@ -65,24 +65,25 @@ python scripts/device_crosswalk_report.py vendors | reasons | base
 Fields read is every field or data type the vendor documents for health
 data; a field with a code is one the review could place on a LOINC code;
 confident is the subset that needs no further confirmation. The source
-column links the document each table was read from, all on 2026-09-09.
+column links the document each table was read from, all on 2026-09-09; the
+Oura and Honor distance and sleep rows were re-read on 2026-10-29.
 
 | Vendor | Fields read | With a code | Confident | Source |
 | --- | ---: | ---: | ---: | --- |
 | Apple HealthKit (`apple.tsv`) | 50 | 38 | 31 | [1](https://developer.apple.com/tutorials/data/documentation/healthkit/hkquantitytypeidentifier.json) · [2](https://developer.apple.com/tutorials/data/documentation/healthkit/hkcategorytypeidentifier.json) · [3](https://developer.apple.com/tutorials/data/documentation/healthkit/hkcategoryvaluesleepanalysis.json) |
 | Google Health Connect (`health_connect.tsv`) | 44 | 30 | 24 | [1](https://developer.android.com/reference/androidx/health/connect/client/records/package-summary) |
-| Huawei Health Kit (`huawei.tsv`) | 78 | 48 | 34 | [1](https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/overview-0000001177423513) · [2](https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/health-sampling-data-0000001131423778) |
-| Honor Health Kit (`honor.tsv`) | 58 | 36 | 23 | [1](https://developer.honor.com/) |
-| Samsung Health Data SDK (`samsung.tsv`) | 26 | 17 | 15 | [1](https://developer.samsung.com/health/data/api-reference) |
-| Fitbit Web API (`fitbit.tsv`) | 31 | 22 | 16 | [1](https://dev.fitbit.com/build/reference/web-api/) |
-| WHOOP API v2 (`whoop.tsv`) | 34 | 19 | 11 | [1](https://api.prod.whoop.com/developer/doc/openapi.json) |
-| Oura API v2 (`oura.tsv`) | 54 | 25 | 14 | [1](https://cloud.ouraring.com/v2/static/json/openapi-1.41.json) |
+| Huawei Health Kit (`huawei.tsv`) | 78 | 49 | 35 | [1](https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/overview-0000001177423513) · [2](https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/health-sampling-data-0000001131423778) |
+| Honor Health Kit (`honor.tsv`) | 58 | 36 | 22 | [1](https://developer.honor.com/) · [2](https://developer.honor.com/cn/docs/11005/guides/code-guide/web/request-statisticdata) |
+| Samsung Health Data SDK (`samsung.tsv`) | 26 | 16 | 14 | [1](https://developer.samsung.com/health/data/api-reference) |
+| Fitbit Web API (`fitbit.tsv`) | 31 | 22 | 15 | [1](https://dev.fitbit.com/build/reference/web-api/) |
+| WHOOP API v2 (`whoop.tsv`) | 34 | 18 | 11 | [1](https://api.prod.whoop.com/developer/doc/openapi.json) |
+| Oura API v2 (`oura.tsv`) | 54 | 25 | 14 | [1](https://cloud.ouraring.com/v2/static/json/openapi-1.43.json) |
 | Garmin Health API (`garmin.tsv`) | 23 | 17 | 6 | [1](https://developer.garmin.com/gc-developer-program/health-api/) |
 | vivo BlueOS health API (`vivo.tsv`) | 20 | 14 | 11 | [1](https://developers-watch.vivo.com.cn/api/health/health/) · [2](https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795) |
 | Xiaomi Health cloud (`xiaomi.tsv`) | 13 | 8 | 8 | [1](https://dev.mi.com/) |
 | Zepp OS Sensor module (`zepp.tsv`) | 11 | 11 | 8 | [1](https://docs.huami.com/) |
 | OPPO theme engine health data (`oppo.tsv`) | 5 | 4 | 4 | [1](https://open.oppomobile.com/documentation/page/info?id=13624) · [2](https://open.oppomobile.com/wiki/new-doc/index.json) |
-| **13 vendors** | **447** | **289** | **205** | |
+| **13 vendors** | **447** | **288** | **203** | |
 
 Garmin publishes only its metric families; field-level schemas need
 developer approval, so most Garmin rows are unverified until the schema is
@@ -268,8 +269,9 @@ field names are in the TSV.
 | 70003-9 | Central apnea index 24 hour |  | unverified | huawei |
 | 55423-8 | Number of steps in unspecified time Pedometer | `steps` | confident | apple, health_connect, huawei, honor, samsung, fitbit, garmin, vivo, xiaomi, zepp, oppo |
 | 41950-7 | Number of steps in 24 hour Measured | `dailySteps` | confident | huawei, honor, oura |
-| 103208-5 | Distance traveled | `dailyDistance` | confident | health_connect, huawei, honor, fitbit, whoop, oura, garmin, vivo, xiaomi, zepp |
+| 103208-5 | Distance traveled | `dailyDistance` | confident | health_connect, huawei, honor, fitbit, oura, garmin, vivo, xiaomi, zepp |
 | 112427-0 | Distance walking or running | `walkingRunningDistances` | confident | apple |
+| 55412-1 | Exercise distance | `exerciseDistances` | unverified | whoop, oura |
 | 100304-5 | Flights climbed [#] Reporting Period | `floors` | confident | apple, health_connect, samsung, fitbit |
 | 101687-2 | Elevation climbed | `altitudeGain` | confident | health_connect, huawei, honor, garmin, zepp |
 | 41981-2 | Calories burned | `activeCalories` | confident | apple, health_connect, huawei, honor, fitbit, whoop, oura, garmin, vivo, xiaomi, zepp |
@@ -311,11 +313,11 @@ same list is `mirobody.standardize.devices.SOURCES`. All were read on
 | Apple HealthKit | [hkquantitytypeidentifier.json](https://developer.apple.com/tutorials/data/documentation/healthkit/hkquantitytypeidentifier.json), [hkcategorytypeidentifier.json](https://developer.apple.com/tutorials/data/documentation/healthkit/hkcategorytypeidentifier.json), [hkcategoryvaluesleepanalysis.json](https://developer.apple.com/tutorials/data/documentation/healthkit/hkcategoryvaluesleepanalysis.json) |
 | Google Health Connect | [androidx.health.connect.client.records](https://developer.android.com/reference/androidx/health/connect/client/records/package-summary) |
 | Huawei Health Kit | [data-type overview](https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/overview-0000001177423513), [sampling data types](https://developer.huawei.com/consumer/cn/doc/HMSCore-Guides/health-sampling-data-0000001131423778) and their field-level pages |
-| Honor Health Kit | [developer.honor.com](https://developer.honor.com/), Fitness > Health service (kitId 11005); SDK `com.hihonor.mcs:fitness-health:1.0.0.302` from `https://developer.hihonor.com/repo` |
+| Honor Health Kit | [developer.honor.com](https://developer.honor.com/), Fitness > Health service (kitId 11005); SDK `com.hihonor.mcs:fitness-health:1.0.0.302` from `https://developer.hihonor.com/repo`; the cloud [daily statistics](https://developer.honor.com/cn/docs/11005/guides/code-guide/web/request-statisticdata) |
 | Samsung Health Data SDK | [API reference](https://developer.samsung.com/health/data/api-reference) |
 | Fitbit Web API | [reference](https://dev.fitbit.com/build/reference/web-api/), per-endpoint response tables |
 | WHOOP API v2 | [openapi.json](https://api.prod.whoop.com/developer/doc/openapi.json) |
-| Oura API v2 | [openapi-1.41.json](https://cloud.ouraring.com/v2/static/json/openapi-1.41.json) |
+| Oura API v2 | [openapi-1.43.json](https://cloud.ouraring.com/v2/static/json/openapi-1.43.json) (1.41, read first, is no longer served) |
 | Garmin Health API | [program page](https://developer.garmin.com/gc-developer-program/health-api/); field-level schemas need approval |
 | vivo | [BlueOS health API](https://developers-watch.vivo.com.cn/api/health/health/), [cloud interface](https://developers.vivo.com/doc/d/4ea8ba1ec4cd44bd8bdaca9f3fecf795) |
 | Xiaomi | public `com.xiaomi.micloud.fit.*` data types via [dev.mi.com](https://dev.mi.com/) |

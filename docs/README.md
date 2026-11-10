@@ -1,6 +1,6 @@
 # Documentation
 
-User guides are published in English and Chinese at
+User guides are published in English, Chinese and Japanese at
 [docs.mirobody.ai](https://docs.mirobody.ai/en/self-host). Short public guides
 live in `docs/site/`; the longer references below document implementation
 details for contributors. The site renders only the files selected in its
@@ -10,9 +10,10 @@ details for contributors. The site renders only the files selected in its
 
 | You want to | Read |
 | --- | --- |
-| Run the whole product and see a first answer | [quickstart.md](quickstart.md) ([中文](quickstart.zh-CN.md)) · [walkthrough.md](walkthrough.md) ([中文](walkthrough.zh-CN.md)) |
-| Keep every model on your own machine | [local-models.md](local-models.md) ([中文](local-models.zh-CN.md)) |
-| Choose local, cloud or hybrid models | [model-choice.md](model-choice.md) ([中文](model-choice.zh-CN.md)) |
+| Run the whole product and see a first answer | [quickstart.md](quickstart.md) ([中文](quickstart.zh-CN.md) · [日本語](quickstart.ja.md)) · [walkthrough.md](walkthrough.md) ([中文](walkthrough.zh-CN.md) · [日本語](walkthrough.ja.md)) |
+| Keep every model on your own machine | [local-models.md](local-models.md) ([中文](local-models.zh-CN.md) · [日本語](local-models.ja.md)) |
+| Choose local, cloud or hybrid models | [model-choice.md](model-choice.md) ([中文](model-choice.zh-CN.md) · [日本語](model-choice.ja.md)) |
+| See what the local models scored and what comes next for them | [local-models-roadmap.md](local-models-roadmap.md) ([中文](local-models-roadmap.zh-CN.md)) |
 | Back up and restore a deployment | [backup-restore.md](backup-restore.md) |
 
 ## How it works
@@ -24,10 +25,11 @@ details for contributors. The site renders only the files selected in its
 | ① | [provider-setup.md](provider-setup.md) ([中文](provider-setup.zh-CN.md)) | turning on Garmin, Oura and Whoop: credentials, callback URLs, and how to confirm a provider runs |
 | ① | [apple-health.md](apple-health.md) | Apple Health export and CDA import |
 | ① | [file-processing.md](file-processing.md) | how a file becomes text by kind, then readings |
-| ② | [standardization.md](standardization.md) ([中文](standardization.zh-CN.md)) | ② Standardize in depth: alias tiers, the LOINC release, what the bundled cut covers |
+| ② | [standardization.md](standardization.md) ([中文](standardization.zh-CN.md)) | how a printed reading becomes a coded, comparable one, step by step with the module for each; the LOINC release and what the bundled cut covers. Short version: [site/standardization.md](site/standardization.md) ([中文](site/standardization.zh-CN.md) · [日本語](site/standardization.ja.md)) |
 | ② | [device-crosswalk.md](device-crosswalk.md) | wearable vendors' fields to LOINC, with a confidence and a source per row |
 | ③ | [answers.md](answers.md) | the health-data tools: the matrix, the envelope, the governance, the PHI discipline |
 | ③ | [medications.md](medications.md) | the medication model, its state tables and its instruction grammar |
+| ③ | [python-analysis.md](python-analysis.md) ([中文](python-analysis.zh-CN.md) · [日本語](python-analysis.ja.md)) | how a chat calculation runs on the queried rows: JavaScript in the app for a cloud model, Python in a local container for a local one |
 | ①②③ | [genetics.md](genetics.md) ([中文](genetics.zh-CN.md)) | genotype uploads, bounded queries, VCF and FHIR export, CPIC coverage |
 | ③ | [frontend.md](frontend.md) | how the bundled web client is served, and how to replace it |
 

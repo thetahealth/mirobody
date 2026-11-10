@@ -35,19 +35,19 @@ cardioScore	value.vo2Max	vo2Maxs	94122-9	unverified	文档单位 mL/kg/min（与
 sleep	duration	dailySleepDuration	103213-5	unverified	Fitbit `duration` 是睡眠日志总长（ms），含清醒段 → 近「卧床时长」。须核是否等于 timeInBed
 sleep	efficiency	sleepEfficiency			LOINC 无睡眠效率码（轴表 Sleep efficiency 0 命中）
 sleep	minutesAsleep	dailyTotalSleepTime	93832-4	confident	Sleep duration
-sleep	minutesAwake	dailyAwakeTime	103210-1	unverified	Awakening duration
+sleep	minutesAwake	waso	103215-0	unverified	Awakening duration
 sleep	minutesToFallAsleep	dailySleepLatency	103212-7	confident	Duration of falling asleep
 sleep	timeInBed	sleepAnalysis_InBed	103213-5	confident	Duration in bed
 sleep	levels.summary.deep.minutes	dailyDeepSleep	93831-6	confident	仅 logType=stages 时存在
 sleep	levels.summary.light.minutes	dailyLightSleep	93830-8	confident	同上
 sleep	levels.summary.rem.minutes	dailyRemSleep	93829-0	confident	同上
-sleep	levels.summary.wake.minutes	dailyAwakeTime	103210-1	unverified	同上
+sleep	levels.summary.wake.minutes	waso	103215-0	unverified	同上
 sleep	levels.data[].level=restless / asleep / awake	sleepAnalysis_Asleep(Unspecified)	93832-4	unverified	Fitbit 有两套睡眠模式：`classic`（restless/asleep/awake，无分期）与 `stages`（deep/light/rem/wake）。classic 日志无法落分期码，只能落总睡眠时长。归一化时必须按 logType 分流
 sleep	infoCode				数据质量码（0 充分 / 1 心率数据不足 / 2 睡眠短于 3 小时 / 3 服务端问题）。建议接进本仓的置信分级而不是丢弃
 value	activeZoneMinutes	exerciseMinutes			陷阱：AZM 的 cardio 与 peak 区按 2 倍计（文档原文「1 cardio minute = 2 cardio active zone minutes」），是加权分而非真实分钟数,与任何 LOINC 时长码不可比
 value	fatBurnActiveZoneMinutes				同上（fat burn 为 1 倍）
-activities-steps		steps	55423-8	confident	日汇总用 41950-7
-activities-distance			103208-5	confident	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0)
+activities-steps		dailySteps	41950-7	confident	按日的步数时间序列 → dailySteps (41950-7, 24H/Measured)；55423-8 是 unspecified time
+activities-distance		dailyDistance	103208-5	unverified	Fitbit: 'The specified resource's daily total', all activity. 'distance = steps * stride length' until GPS connects, so it is calculated where 103208-5 says measured. The unit follows the Accept-Language header (kilometres or miles): convert to metres
 activities-calories		activeCalories	41981-2	confident	
 activities-floors		floors	100304-5	confident	
 body	weight	bodyMasss	29463-7	confident	

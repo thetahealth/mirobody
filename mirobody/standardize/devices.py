@@ -78,7 +78,8 @@ SOURCES: dict[str, Source] = {
     ),
     "honor": Source(
         "honor", "Honor Health Kit",
-        ("https://developer.honor.com/",),
+        ("https://developer.honor.com/",
+         "https://developer.honor.com/cn/docs/11005/guides/code-guide/web/request-statisticdata"),
         "Fitness > Health service (kitId 11005); SDK com.hihonor.mcs:fitness-health:1.0.0.302, "
         "Maven https://developer.hihonor.com/repo. Cloud side is read-only.",
     ),
@@ -99,8 +100,8 @@ SOURCES: dict[str, Source] = {
     ),
     "oura": Source(
         "oura", "Oura API v2",
-        ("https://cloud.ouraring.com/v2/static/json/openapi-1.41.json",),
-        "The official OpenAPI document, version 1.41.",
+        ("https://cloud.ouraring.com/v2/static/json/openapi-1.43.json",),
+        "The official OpenAPI document, version 1.43 (1.41, read first, is no longer served).",
     ),
     "garmin": Source(
         "garmin", "Garmin Health API",

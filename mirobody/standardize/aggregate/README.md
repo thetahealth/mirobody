@@ -27,13 +27,20 @@ A day's bounds:
 For Asia/Shanghai, a point at local 2025-10-30 12:00 begins a plain day at
 2025-10-30 00:00 local and a night at 2025-10-29 18:00 local.
 
+A row's `timezone` is an IANA name or a fixed offset spelled `UTC±HH:MM`
+(an Apple record read in its own offset). Postgres reads `UTC+08:00` the
+POSIX way, eight hours west, so `windows.local_expression` and
+`utc_expression` apply an offset as an interval instead.
+
 ## One pass
 
 ```
 series_data
     ↓ get_trigger_tasks (updated since the cursor) / _get_tasks_for_user_date_range
 CalculationTask: (person, indicator, rule, day begin, zone)
-    ↓ calculate_batch_aggregations: per day begin, per person and zone
+    ↓ calculate_batch_aggregations: per day begin, per person and day
+    ↓   (two zones that date and end the day alike, `Asia/Shanghai` and
+    ↓   `UTC+08:00`, are one day, written under the IANA name)
 summary rows: daily{Method}{Indicator}.{source}, with unit and timezone
     ↓ AggregateDatabaseService → observations.ingest_legacy_rows
 th_observation (an equal row is skipped, a changed one amends it)
@@ -46,8 +53,16 @@ th_day_authority
   task's cursor; with no cursor, those updated in the last 24 hours. The task advances the cursor to the newest
   `update_time` it processed.
 * **A date range** (`recalculate_date_range`): one person over any span, or
-  everyone over at most 30 days; longer spans run in 30-day chunks.
-  `ingest/services/repair_reconcile.py` uses it after a repair sweep.
+  everyone over at most 30 days; longer spans run in 30-day chunks. The
+  calendar days are inclusive and each chunk starts at midnight, so a first
+  sample at noon cannot hide the next chunk's early-morning samples.
+  `ingest/services/repair_reconcile.py` uses it after a repair sweep. With
+  `sweep_source`, one person's figures from that source dated in the range
+  that the pass does not write again are retracted
+  (`observations.retract_unproduced`): `mirobody import apple --into` uses it,
+  so a reading whose zone changed does not leave its old day's figure. This
+  pass requires complete computation before writing or retracting figures;
+  a failed calculation returns an error and leaves the old figures visible.
 
 ## The methods
 
@@ -66,8 +81,9 @@ indicator (`rule_generator.py`); each method becomes `daily{Method}{Indicator}`
 
 `value` is text. Every cast goes through `_num()`, which reads a value that
 is not a number as NULL, so one stray point does not fail the statement. A
-person-day that fails anyway is logged and skipped; the rest of the pass
-goes on. Points stored under `task_id = "filtered_out_of_range"` (outside
+person-day that fails anyway is logged and skipped in an incremental pass;
+a sweeping recalculation aborts instead, including on a custom derived
+method's failure. Points stored under `task_id = "filtered_out_of_range"` (outside
 their plausible range, `collect/ingest/services/upload_health.py`) are never
 aggregated.
 
@@ -84,6 +100,24 @@ then coverage, then measurement freshness, then the deployment's
 `th_data_source_priority`. A candidate whose duration exceeds its window
 (forty hours of sleep in one night) is rejected and the rejection is a row of
 `th_check_result`. Every reader joins `th_day_authority`; none re-decides.
+
+For generated daily summaries, `apple_health`, `apple_health_export` and
+`apple_health_watch` remain separate streams. Before competing with other
+vendors, their valid alternatives elect one Apple representative by source
+class, actual measurement freshness, coverage, then static priority. The
+freshness lookup uses the maximum valid `series_data.time` from the same
+source-id winner and catalogue window as SQL aggregation (including DST and
+the 18:00 sleep-day anchor). Filtered points, nonnumeric values and losing
+source IDs cannot refresh a stream. Display names are not device identities.
+
+Freshness takes precedence only when every valid alternative has retained
+sample evidence; otherwise the existing deterministic ranking applies. Equal
+measurement times fall back to coverage and priority. Reimporting an old
+export does not refresh its measurements: neither database write time nor a
+summary's synthetic day boundaries count. The representative then competes
+with other vendors under the ordinary coverage-first policy. Values are
+never summed across transports, validation still rejects impossible totals,
+and the authority row records the Apple transport policy in `rule`.
 
 ## Running it
 

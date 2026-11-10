@@ -1,0 +1,115 @@
+name: MCP Registry
+
+# Publishes server.json to the official MCP Registry
+# (registry.modelcontextprotocol.io), the list GitHub's MCP registry, VS Code
+# and most directories read. Until this existed server.json was never
+# published, so a search for the project in those places found nothing, while
+# directories still listed a retired Theta Health MCP whose repository is gone.
+#
+# Two triggers: workflow_call from pypi-release.yml after the PyPI upload is
+# verified, and a manual dispatch. Either way server.json comes from the ref
+# the run is on (the release tag, or the branch picked for the dispatch), and
+# `tag` must equal its version. Order matters: the registry accepts the entry
+# only if the PyPI release of that version carries
+# `mcp-name: ai.thetahealth/mirobody` in its README, which 1.5.8 already does,
+# so a dispatch on main with tag 1.5.8 publishes main's entry for it. With
+# check_only the run validates and logs in without publishing: the proof that
+# the TXT record and the key match.
+#
+# The `ai.thetahealth/` namespace is proven by a DNS TXT record on
+# thetahealth.ai. One-time setup, done by whoever holds the thetahealth.ai
+# zone (Route 53) and repository admin:
+#   openssl genpkey -algorithm Ed25519 -out key.pem      # OpenSSL 3 or later
+#   openssl pkey -in key.pem -pubout -outform DER | tail -c 32 | base64
+#     -> TXT at the apex, beside the existing ones:
+#        thetahealth.ai. "v=MCPv1; k=ed25519; p=<that base64>"
+#   openssl pkey -in key.pem -outform DER | tail -c 32 | xxd -p -c 32
+#     -> 64 hex characters: secret MCP_REGISTRY_KEY on the `mcp-registry`
+#        environment, restricted to `main` and release tags; then delete
+#        key.pem. (The registry docs' `-text | grep -A3 priv:` form appends
+#        "pub" on OpenSSL 4, which prints the key on two lines, not three.)
+# The key can publish anything under ai.thetahealth/, the company's whole
+# namespace, hence the environment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The version server.json on the selected branch names, already on PyPI, for example 1.5.8
+        required: true
+        type: string
+      check_only:
+        description: Validate and log in, but do not publish
+        required: false
+        default: false
+        type: boolean
+  workflow_call:
+    inputs:
+      tag:
+        description: The released version, already on PyPI
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: mcp-registry
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Fail by name, not skip: a skipped publish leaves the registry on the
+      # previous version while the release run stays green, the way the docs
+      # dispatch in pypi-release.yml skips when its secret is unset.
+      - name: Require the registry key
+        env:
+          MCP_REGISTRY_KEY: ${{ secrets.MCP_REGISTRY_KEY }}
+        run: |
+          if [ -z "$MCP_REGISTRY_KEY" ]; then
+            echo "::error::MCP_REGISTRY_KEY is not set on the mcp-registry environment; see the header of this workflow"
+            exit 1
+          fi
+
+      - name: Check server.json names this version
+        if: ${{ !inputs.check_only }}
+        run: |
+          version="$(jq -r .version server.json)"
+          if [ "$version" != "$TAG" ]; then
+            echo "::error::server.json says $version, the tag is $TAG"
+            exit 1
+          fi
+
+      - uses: ./.github/actions/install-mcp-publisher
+
+      - name: Validate server.json
+        run: ./mcp-publisher validate server.json
+
+      - name: Log in as thetahealth.ai
+        env:
+          MCP_REGISTRY_KEY: ${{ secrets.MCP_REGISTRY_KEY }}
+        run: ./mcp-publisher login dns --domain thetahealth.ai --private-key "$MCP_REGISTRY_KEY"
+
+      - name: Publish
+        if: ${{ !inputs.check_only }}
+        run: ./mcp-publisher publish
+
+      # "publish exited 0" is the publisher's opinion; this asks the registry.
+      - name: Verify the registry lists this version
+        if: ${{ !inputs.check_only }}
+        run: |
+          name="$(jq -r .name server.json)"
+          url="https://registry.modelcontextprotocol.io/v0.1/servers/$(jq -rn --arg n "$name" '$n|@uri')/versions/$TAG"
+          for i in $(seq 1 12); do
+            if curl -sfo /dev/null "$url"; then
+              echo "The MCP Registry lists $name $TAG"
+              exit 0
+            fi
+            echo "not visible yet, retrying in 10s ($i/12)"
+            sleep 10
+          done
+          echo "::error::$name $TAG is not in the MCP Registry two minutes after publishing"
+          exit 1

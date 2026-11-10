@@ -8,7 +8,7 @@ library, so it runs on a minimal install.
 import pytest
 
 from mirobody.kernel import citations
-from mirobody.kernel.citations import Segment, check, cite_kind, numbers, parse, strip
+from mirobody.kernel.citations import Segment, check, cite_kind, normalize, numbers, parse, strip
 
 ANSWER = (
     "<statement>你的 LDL 从 3 月的 3.8 降到 8 月的 2.9 mmol/L，下降 0.9<cite>[r3][r9]</cite></statement>"
@@ -60,6 +60,57 @@ def test_strip_leaves_what_a_reader_sees():
         "你的 LDL 从 3 月的 3.8 降到 8 月的 2.9 mmol/L，下降 0.9"
         "8 月的报告把范围印为 <3.4门诊病历写着三个月后复查建议把这条趋势带给医生。"
     )
+
+
+@pytest.mark.parametrize("written,meant", [
+    # DeepSeek, 2026-10-30: a statement closed with a misspelt cite.
+    ("<statement>均值 74.4 次/分<xcite>[r4]</cite></statement>",
+     "<statement>均值 74.4 次/分<cite>[r4]</cite></statement>"),
+    ("体重 69.2 kg<Cite >[r1]</ cite>。", "体重 69.2 kg<cite>[r1]</cite>。"),
+    # A close with no open is dropped; an open with no close ends at its ids.
+    ("体重 69.2 kg</cite>。", "体重 69.2 kg。"),
+    ("体重 69.2 kg<cite>[r1] 之后的话", "体重 69.2 kg<cite>[r1]</cite> 之后的话"),
+    ("体重 69.2 kg<xcite>[r1]</xcite>。", "体重 69.2 kg<cite>[r1]</cite>。"),
+    ("no markup at all", "no markup at all"),
+    # Prose that looks like a tag is not markup: a word, a title, no ids.
+    ("Caffeine can <excite>raise heart rate</excite>.", "Caffeine can <excite>raise heart rate</excite>."),
+    ("According to <cite>The Lancet</cite>, it is studied.", "According to <cite>The Lancet</cite>, it is studied."),
+    ("a <restatement> and a <recite> stay", "a <restatement> and a <recite> stay"),
+    ("a < b and <cite> is a tag", "a < b and <cite> is a tag"),
+    # A chart's JSON is data, not markup.
+    ('```vis-chart\n{"title":"<xcite>[r1]</cite> HR"}\n```', '```vis-chart\n{"title":"<xcite>[r1]</cite> HR"}\n```'),
+    # DeepSeek, English, 2026-10-30: every cite after its statement's close.
+    ("<statement>HbA1c was 5.8%</statement><cite>[r2]</cite>.",
+     "<statement>HbA1c was 5.8%<cite>[r2]</cite></statement>."),
+    ("<statement>A1C under 5.7%</statement> <cite>[ref:a:1]</cite><cite>[ref:b:2]</cite> x",
+     "<statement>A1C under 5.7%<cite>[ref:a:1]</cite><cite>[ref:b:2]</cite></statement> x"),
+    # A cite on the next line is not the statement's.
+    ("<statement>a 1</statement>\n<cite>[r1]</cite>", "<statement>a 1</statement>\n<cite>[r1]</cite>"),
+])
+def test_normalize_spells_the_markup_as_the_format_does(written, meant):
+    assert normalize(written) == meant
+
+
+def test_a_misspelt_tag_reads_as_the_tag_it_meant():
+    answer = "<statement>均值 74.4 次/分<xcite>[r4]</cite></statement>"
+    assert parse(answer) == [Segment("均值 74.4 次/分", ("r4",), True)]
+    assert strip(answer) == "均值 74.4 次/分"
+    assert check(answer, {"r4": [74.4]}) == []
+
+
+def test_a_word_that_looks_like_a_tag_does_not_change_what_is_checked():
+    prose = "Your heart rate went from 70 to 85 bpm after intake, per your tracker."
+    tagged = "Your heart rate went from 70 to 85 bpm<excite> after intake</excite>, per your tracker."
+    assert [p.kind for p in check(tagged, {})] == [p.kind for p in check(prose, {})] == ["uncited_number"] * 2
+
+
+def test_a_cite_after_its_statement_traces_the_statement():
+    answer = "<statement>HbA1c was 5.8%, above the report's upper limit of 5.6%</statement><cite>[r2]</cite>."
+    assert check(answer, {"r2": [5.8, 5.6]}) == []
+
+
+def test_an_unclosed_cite_does_not_swallow_the_answer():
+    assert strip("体重 69.2 kg<cite>[r1] 之后的话") == "体重 69.2 kg 之后的话"
 
 
 @pytest.mark.parametrize("cite,kind", [

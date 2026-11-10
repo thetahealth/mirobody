@@ -50,7 +50,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from mirobody.kernel import query, series, tools
+from mirobody.kernel import metrics, query, series, tools
 from mirobody.kernel.ops import is_driver_exception
 from ._authz import refused
 from ._base import CITATION_SESSION, RecordTool
@@ -90,6 +90,16 @@ _UNVERIFIED = "llm-unverified"
 _DAY_VALUE_NOTE = (
     "each day counts once here, as its elected value or else its last reading; "
     "view=stats counts every reading of such a day"
+)
+
+#: Said of the readings a series' unit cannot reach. Every other reading
+#: reaches the model in that one unit, and what the report printed never does:
+#: handed 212 mg/dL beside 4.90 mmol/L, or min..max in mol/L, MiniCPM5-2B told
+#: the person three times that their two cholesterol results could not be
+#: compared (#271).
+_UNIT_DIFFERS_NOTE = (
+    "{names}: {count} reading(s) are in a unit that does not convert to the rest of the series; "
+    "they are listed with their own unit and left out of every statistic"
 )
 
 
@@ -199,11 +209,22 @@ class HealthIndicatorsService(RecordTool):
         method = request.method
         rows = await self._dispatch(hq, method, subject_id, request, window)
 
+        # An empty answer to a named window has two causes: the selection
+        # matched no series, or it matched series with nothing in the window.
+        # Both used to fall back to the catalogue under "no indicator matched
+        # those terms", and asked how many days last week had little deep
+        # sleep, a local 2B answered that the record had no deep sleep while
+        # it held months of it (PHIA's objective set, 11% of its failures).
+        # The whole record's stats tell the two apart.
+        elsewhere: Sequence[Mapping[str, Any]] = ()
+        if not rows and method != "catalog" and (request.start or request.end):
+            elsewhere = await awaited(hq.stats(subject_id, request.selection, query.Window(0, 0, tz)))
+
         # Nothing matched a selection the caller DID give: answer with what the
         # person actually has rather than with an empty table. The alternative
         # costs a model call to learn the names, every time.
         fell_back = False
-        if not rows and method != "catalog":
+        if not rows and not elsewhere and method != "catalog":
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
@@ -211,10 +232,10 @@ class HealthIndicatorsService(RecordTool):
             rows = await _with_rids(CITATION_SESSION.get(), subject_id, method, request, window, rows)
 
         outside = ""
-        if self._outside_note and method != "catalog" and (request.start or request.end):
+        if self._outside_note and method != "catalog" and rows and (request.start or request.end):
             outside = _outside_note(await awaited(hq.catalog(subject_id, None)), rows, window)
         return _envelope_for(method, request, window, rows, fell_back=fell_back, bucket_cap=self._bucket_cap,
-                             row_cap=self._row_cap, outside=outside)
+                             row_cap=self._row_cap, outside=outside, elsewhere=elsewhere)
 
     async def _dispatch(
         self, hq: Any, method: str, subject_id: str, request: query.QueryRequest, window: query.Window
@@ -239,7 +260,11 @@ class HealthIndicatorsService(RecordTool):
             daily = await awaited(hq.buckets(subject_id, sel, window, resolution="day", limit=400))
             return query.trend_rows(daily)
         if method == "stats":
-            return await awaited(hq.stats(subject_id, sel, window))
+            if not request.banded:
+                return await awaited(hq.stats(subject_id, sel, window))
+            rows = await awaited(hq.stats(subject_id, sel, window, value_min=request.value_min,
+                                          value_max=request.value_max))
+            return [_unbanded(r) if _in_pieces(r) else r for r in rows]
         if method == "latest":
             return await awaited(hq.latest(subject_id, sel, window))
         raise ValueError(f"no leaf for method {method!r}")
@@ -287,6 +312,7 @@ def _envelope_for(
     bucket_cap: int = query.BUCKET_CAP,
     row_cap: int = query.ROW_CAP,
     outside: str = "",
+    elsewhere: Sequence[Mapping[str, Any]] = (),
 ) -> tools.Envelope:
     rows = list(rows)
     dated = bool(request.start or request.end)
@@ -322,6 +348,8 @@ def _envelope_for(
         assumptions.append(window.note)
     if outside:
         assumptions.append(outside)
+    if elsewhere:
+        assumptions.append(_elsewhere_note(elsewhere, window))
     if fell_back:
         assumptions.append("no indicator matched those terms; this is what this person has on file")
         # A window outside the record answers nothing, and the model used today's date for a
@@ -363,11 +391,27 @@ def _envelope_for(
             f"view={request.view} was not applied: with no keywords or indicators the answer is this catalogue; "
             f"call again with indicators copied from it and view={request.view}"
         )
+    apart = {}
+    for r in rows:
+        count = int(r.get("unconverted") or 0) if method == "stats" else int(bool(r.get("unit_differs")))
+        if count:
+            name = str(r.get("indicator") or r.get("name") or "")
+            apart[name] = apart.get(name, 0) + count
+    if apart:
+        assumptions.append(_UNIT_DIFFERS_NOTE.format(names=", ".join(sorted(apart)), count=sum(apart.values())))
+    if method == "stats" and request.banded:
+        assumptions.extend(_band_notes(request, rows))
+    elif request.band_unapplied and method != "catalog":
+        assumptions.append(
+            f"value_min/value_max were not applied: view={request.view} returns readings as they are; "
+            "view=stats counts them (count_in_range, days_in_range)")
     if method == "buckets" and request.view in ("day", "week", "month"):
         assumptions.append(_DAY_VALUE_NOTE)
     if semantics == query.SEMANTICS_DATE_PADDED:
         assumptions.append("some rows predate the stored local day; their window is padded a day each way")
-    assumptions.append(_ABSENCE_NOTE)
+    if not elsewhere:
+        # "never recorded" is false of a series the record holds elsewhere.
+        assumptions.append(_ABSENCE_NOTE)
     if any(r.get("rid") for r in rows):
         assumptions.append(RID_NOTE)
     unverified = sorted({str(r.get("indicator") or r.get("name") or "") for r in rows
@@ -390,7 +434,7 @@ def _envelope_for(
         next_steps.append(tools.NEXT_USE_INDICATORS)
         if truncated:
             next_steps.append(tools.NEXT_NARROW_WINDOW)
-    elif not rows:
+    elif not rows and not elsewhere:
         next_steps.append(tools.NEXT_PICK_FROM_CATALOG)
     elif truncated:
         next_steps.extend((tools.NEXT_NARROW_WINDOW, tools.NEXT_VIEW_STATS))
@@ -453,6 +497,48 @@ def _raw_cut_note(rows: Sequence[Mapping[str, Any]], cap: int) -> str:
             f"Older data {_NOT_MISSING}. For it, call again with {' or with '.join(ways)}.")
 
 
+def _pieces_codes() -> frozenset[str]:
+    """The catalogue identities whose every row stores a day in pieces:
+    increments (steps), segments (sleep stages) or entries (a meal's
+    protein). A code also carried by a daily figure (93831-6 is both a
+    night's deep-sleep total and its segments) is not one of them."""
+    shapes: dict[str, set[str]] = {}
+    for m in metrics.ROWS:
+        key = m.loinc if m.loinc and m.confidence == metrics.CONFIDENT else m.name
+        shapes.setdefault(key, set()).add(m.state_class)
+    pieces = {metrics.STATE_CUMULATIVE, metrics.STATE_INTERVAL, metrics.STATE_SESSION}
+    return frozenset(key for key, found in shapes.items() if found <= pieces)
+
+
+_PIECES = _pieces_codes()
+
+
+def _in_pieces(row: Mapping[str, Any]) -> bool:
+    return str(row.get("code") or "") in _PIECES
+
+
+def _unbanded(row: Mapping[str, Any]) -> dict[str, Any]:
+    """A band compares each stored reading, and a piece is not a day's
+    value: 12,000 steps stored as three 4,000-step increments counted no day
+    above 10,000. No count is given rather than a wrong one."""
+    return {**row, "count_in_range": None, "days_in_range": None}
+
+
+def _band_notes(request: query.QueryRequest, rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    """What a band counted, in which unit, and which rows it could not count."""
+    lo, hi = request.value_min, request.value_max
+    band = (f"between {lo:.15g} and {hi:.15g}" if lo is not None and hi is not None
+            else f"at or above {lo:.15g}" if lo is not None else f"at or below {hi:.15g}")
+    notes = [(f"count_in_range is the readings and days_in_range the days with at least one reading {band}, "
+              "in each row's unit; count and days are the whole window")]
+    pieces = sorted({str(r.get("indicator") or "") for r in rows if _in_pieces(r)} - {""})
+    if pieces:
+        notes.append("no band was counted for " + ", ".join(pieces) + ": each reading is a piece of a day "
+                     "(an increment or a segment), not the day's value; ask the daily series instead, "
+                     "such as dailySteps for steps")
+    return notes
+
+
 def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[str, Any]],
                   window: query.Window) -> str:
     """One note naming each answered series that has readings before or after
@@ -464,9 +550,7 @@ def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[s
     default span, so the bounds compared are the ones the rows were read
     from, not the dates the caller wrote."""
     answered = {str(r.get("series") or "") for r in rows} - {""}
-    zone = series.zone(window.tz)
-    first_day = datetime.fromtimestamp(window.start_ms / 1000, zone).date().isoformat()
-    last_day = datetime.fromtimestamp((window.end_ms - 1) / 1000, zone).date().isoformat()
+    first_day, last_day = _window_days(window)
     outside = []
     for entry in catalog:
         if str(entry.get("series") or "") not in answered:
@@ -483,6 +567,28 @@ def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[s
         return ""
     return (f"this window ({first_day}..{last_day}) leaves out readings of " + "; ".join(outside)
             + "; call again with a wider start or end to include them")
+
+
+def _window_days(window: query.Window) -> tuple[str, str]:
+    """The first and last local day a resolved window covers. With one end
+    named the other is the default span, so these are the days the rows were
+    read from, not the dates the caller wrote."""
+    zone = series.zone(window.tz)
+    first_day = datetime.fromtimestamp(window.start_ms / 1000, zone).date().isoformat()
+    last_day = datetime.fromtimestamp((window.end_ms - 1) / 1000, zone).date().isoformat()
+    return first_day, last_day
+
+
+def _elsewhere_note(stats: Sequence[Mapping[str, Any]], window: query.Window) -> str:
+    """The answer to a window that holds none of the readings the selection
+    matched: zero, and where the readings are, so "none last week" is not
+    read as "none ever"."""
+    first_day, last_day = _window_days(window)
+    held = "; ".join(f"{r.get('indicator')} has {r.get('count')} from {r.get('first_date')} to {r.get('last_date')}"
+                     for r in stats)
+    return (f"0 readings between {first_day} and {last_day}. The record does hold these indicators, all outside "
+            f"this window: {held}. The answer for this window is that it has none; to read them, call again "
+            "with dates inside those spans")
 
 
 def _day_before(stamp: str) -> str:

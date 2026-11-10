@@ -132,11 +132,15 @@ class MedicationsService(RecordTool):
 
 def _window(request: meds.MedicationsRequest, today: date, *, default_days: int | None) -> tuple[date, date] | None:
     """The caller's dates as local days, inclusive. Neither date: `None`
-    (everything) unless the view has a default span (the dose log)."""
+    (everything) unless the view has a default span (the dose log). Only
+    `end`: that span, or the dose log's for a view without one, ending there.
+    A span of N days ends on its last day and so starts N-1 days before it:
+    `today - N` made the dose log's "last 30 days" read 31."""
     if not request.start and not request.end:
-        return (today - timedelta(days=default_days), today) if default_days else None
+        return (today - timedelta(days=default_days - 1), today) if default_days else None
     end = date.fromisoformat(request.end) if request.end else today
-    start = date.fromisoformat(request.start) if request.start else end - timedelta(days=default_days or 30)
+    span = default_days or meds.LOG_DEFAULT_DAYS
+    start = date.fromisoformat(request.start) if request.start else end - timedelta(days=span - 1)
     if end < start:
         start, end = end, start
     return (start, end)

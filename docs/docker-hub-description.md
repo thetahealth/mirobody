@@ -8,15 +8,15 @@ documentation site.
 
 ## Short description
 
-Self-hosted AI health data engine: lab reports, wearables, genetics. Answers cite their sources.
+Mirror your body in data: lab reports, wearables and genetics in one self-hosted health record.
 
 ## Full description
 
 # Mirobody
 
-**Turn scattered health data into answers you can trace.** Mirobody brings lab
-reports, wearable data, Apple Health exports and genetic files into one
-record in a Postgres you run. Names and units are resolved to one standard
+**Mirror your body in data.** One standard, every source, one complete
+picture of you: Mirobody brings lab reports, wearable data, Apple Health
+exports and genetic files into one record in a Postgres you run. Names and units are resolved to one standard
 offline, and the agent's answers point back to the file and page each number
 came from.
 

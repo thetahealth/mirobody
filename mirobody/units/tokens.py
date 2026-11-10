@@ -82,6 +82,18 @@ MORPHEMES: dict[str, list[str]] = {
 
 
 ALIASES: dict[str, list[str]] = {
+    # ── Composed units a pump or a report prints beside a preparation ──
+    # `CSII - bolus insulin (Novolin R, IU)` and `IU/H` both answered None
+    # before this: the canonical is the UCUM composition, so the table is the
+    # right place rather than a rule. `kg/m**2` is NIH/CDC's exponent spelling
+    # of the BMI unit (NHANES body-measures labels use it verbatim).
+    # Substance per mass (`mmol/kg`) and energy per day (`kcal/day`): both are
+    # ordinary UCUM compositions that the tokenizer cannot build because `Kg`
+    # is a different spelling of the kilogram and `day` is a word, not a unit.
+    'mmol/kg': ['mmol/Kg', 'mmol/kg', 'mmol/kg BW'],
+    'kcal/d': ['kcal/day', 'kcal/Day', 'Cal/day'],
+    '[IU]/h': ['IU/H', 'IU/h', 'IU/hr', 'IU/Hr', 'iu/h', 'IU per hour'],
+
     # ── Printed spellings measured on real reports, 2026-09 ───────────────
     # Every entry below was a string a US, Chinese or Japanese lab actually
     # prints and `normalize_unit` answered None for. An unrecognized unit is
@@ -116,7 +128,7 @@ ALIASES: dict[str, list[str]] = {
     'fL': ['fL', 'fl', 'femtoliter'],
     'g': ['g', 'gm', 'grams', 'GM'],
     'J': ['Joule', 'joule', 'Joules', 'joules', '焦耳', 'ジュール', '주울', 'джоуль'],
-    'Ohm': ['ohm', 'Ω', 'Ом', '欧姆', 'オーム', '옴'],
+    'Ohm': ['ohm', 'ohms', 'Ω', 'Ом', '欧姆', 'オーム', '옴'],
     'W': ['watt', 'Watt', 'watts', 'Watts', '瓦', '瓦特', 'ワット', '와트', 'ватт'],
     'cal': ['gram calorie'],
     'h': ['hours', 'hr', 'HR', 'hrs'],
@@ -124,7 +136,7 @@ ALIASES: dict[str, list[str]] = {
     'kW': ['kilowatt', 'kilowatts', '千瓦', 'キロワット'],
     'kcal': ['Cal', 'Cals', 'calorie', 'calories', 'Kcal', 'KCAL', 'kilocalorie', 'kilocalories', '千卡', '大卡', '卡路里', '카로리', '칼로리', '킬로칼로리', 'カロリー', 'キロカロリー', 'ккал', 'Калории', 'Kalorie', 'Kalorien', 'caloría', 'calorías'],
     'kg': ['kg', 'KG', 'kilograms'],
-    'kg/m2': ['kg/m^2', 'kg/m²'],
+    'kg/m2': ['kg/m^2', 'kg/m²', 'kg/m**2', 'kg / m**2'],
     'm': ['m', 'meters'],
     'm2': ['SQM', 'm2', 'm^2'],
     'mL': ['ML', 'ml'],
@@ -145,8 +157,8 @@ ALIASES: dict[str, list[str]] = {
     'ug': ['MCG', 'mcg', 'ug'],
     'wk': ['WK', 'wk'],
     '/uL': ['/ul', '/μL', '/uL', 'cells/uL', 'cells/μL', 'Cells/uL', '/mm3', '/mm³', 'cells/mm3', '个/μL', '個/μL'],
-    '10*3/uL': ['10^3/uL', '10^3/ul', '10^3/μL', '×10³/uL', '10³/uL', '10*3/ul', 'K/uL', 'k/uL', 'Thousand/uL', 'thousand/uL', 'Thousand/μL', 'K/μL', 'x10E3/uL', '10E3/uL', 'x10e3/uL', '10^3/mm3', 'K/mm3'],
-    '10*6/uL': ['10^6/uL', '10^6/μL', '×10⁶/uL', '10⁶/uL', 'M/uL', 'Million/uL', 'million/uL', 'Million/μL', 'M/μL', 'x10E6/uL', '10E6/uL', '10^6/mm3'],
+    '10*3/uL': ['1000 cell/uL', '1000 cells/uL', 'thousand cells/uL', '10^3/uL', '10^3/ul', '10^3/μL', '×10³/uL', '10³/uL', '10*3/ul', 'K/uL', 'k/uL', 'Thousand/uL', 'thousand/uL', 'Thousand/μL', 'K/μL', 'x10E3/uL', '10E3/uL', 'x10e3/uL', '10^3/mm3', 'K/mm3'],
+    '10*6/uL': ['million cells/uL', 'Million cells/uL', '10^6/uL', '10^6/μL', '×10⁶/uL', '10⁶/uL', 'M/uL', 'Million/uL', 'million/uL', 'Million/μL', 'M/μL', 'x10E6/uL', '10E6/uL', '10^6/mm3'],
     'Cel': ['°C', 'degC', 'celsius', 'Celsius', '摄氏度', '攝氏度', '摄氏', '攝氏', '摂氏', '섭씨', '°С', 'градус Цельсия', 'градусов Цельсия', 'Grad Celsius', 'degrés Celsius', 'grados Celsius'],
     'L/min': ['L per minute'],
     'U/L': ['U/L', 'U/l', 'u/L', 'UNT/L'],

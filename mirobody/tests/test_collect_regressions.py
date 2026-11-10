@@ -113,6 +113,32 @@ async def test_the_export_device_can_correct_its_own_range_status(point_buffer, 
     assert tuple(stored) == ("Apple Watch", "100", new_task)
 
 
+@pytest.mark.parametrize("source", ["apple_health_export", "apple_health", "vital.synthetic"])
+async def test_a_reading_sent_again_in_another_zone_moves_to_that_zone(point_buffer, source):
+    """The zone decides a reading's day. An Apple import filed every reading
+    in UTC; importing the file again sends the same values in their own zone,
+    and the upsert, which only looked at the value, kept the UTC day."""
+    repository, connection = point_buffer
+    record = {"user_id": "synthetic-subject", "indicator": "hrvSDNN", "source": source,
+              "start_time": "2026-10-31 23:10:00", "value": "40", "timezone": "UTC", "source_id": "Apple Watch"}
+    writer = repository.HealthDataRepository()
+    assert await writer.save_health_records([record])
+    assert await writer.save_health_records([{**record, "timezone": "UTC+08:00"}])
+    [stored] = connection.execute("SELECT value, timezone FROM series_data").fetchall()
+    assert tuple(stored) == ("40", "UTC+08:00")
+
+
+async def test_a_losing_export_device_does_not_move_the_winners_zone(point_buffer):
+    repository, connection = point_buffer
+    record = {"user_id": "synthetic-subject", "indicator": "steps", "source": "apple_health_export",
+              "start_time": "2026-10-31 23:10:00", "value": "100", "timezone": "UTC+08:00", "source_id": "Apple Watch"}
+    writer = repository.HealthDataRepository()
+    assert await writer.save_health_records([record])
+    assert await writer.save_health_records([{**record, "source_id": "iPhone", "value": "80", "timezone": "UTC"}])
+    [stored] = connection.execute("SELECT source_id, value, timezone FROM series_data").fetchall()
+    assert tuple(stored) == ("Apple Watch", "100", "UTC+08:00")
+
+
 @pytest.mark.parametrize("source", ["apple_health", "vital.synthetic"])
 @pytest.mark.parametrize("second_value,expected_name", [("80", "iPhone"), ("100", "Apple Watch")])
 async def test_other_sources_keep_the_existing_value_and_task_update_condition(
@@ -274,3 +300,22 @@ async def test_a_character_cut_does_not_suggest_an_invalid_medication_view():
     # A display cut must not discard the complete original result used by Python.
     assert "truncated" in result["result"]
     assert (result["status"], result["row_count"], result["truncated"]) == (tools.STATUS_OK, meds.MAX_ROWS, False)
+
+
+@pytest.fixture
+def health_query():
+    return import_module("mirobody.collect.query").PostgresHealthQuery()
+
+
+async def test_a_keyword_reaches_every_series_sharing_a_name(health_query, monkeypatch):
+    """A lab's fasting glucose and a CGM's share the printed name. Keeping one
+    series per name hid the device series: asked for the CGM value of a day,
+    the model answered that there was none (ESL-Bench same-day questions)."""
+    lab, cgm = "loinc:glucose^post cfst|Ser/Plas|Pt|Qn|QCnc", "mirobody-device:FastingBloodGlucose-FBG"
+    labels = [("FastingBloodGlucose-FBG", lab), ("Fasting glucose [Moles/volume] in Serum or Plasma", lab),
+              ("FastingBloodGlucose-FBG", cgm), ("BodyWeight", "mirobody-device:BodyWeight")]
+    monkeypatch.setattr(health_query, "_labels", AsyncMock(return_value=labels))
+    monkeypatch.setattr(health_query, "_series_for", lambda keyword: set())
+    found = await health_query._by_keywords("1", ("fasting glucose",), None)
+    assert found == [lab, cgm]
+    assert await health_query._by_keywords("1", ("FastingBloodGlucose-FBG",), None) == [lab, cgm]

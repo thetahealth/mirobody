@@ -2,7 +2,7 @@
 
 # Run models locally
 
-**English** · **[中文](local-models.zh-CN.md)**
+**English** · **[中文](local-models.zh-CN.md)** · **[日本語](local-models.ja.md)**
 
 Run Mirobody's models on your own machine to keep document processing and
 questions local, without a model API key. The first start downloads model
@@ -224,6 +224,6 @@ content goes to the text model. See [pipeline.md](pipeline.md) for the process
 and [model-choice.md](model-choice.md#the-document-reader-glm-ocr-09b) for OCR
 alternatives and their configuration.
 
-All chat models use `python_exec` for calculations over queried records.
-Enable its separate local Docker executor as described in
-[Local Python analysis](python-analysis.md).
+Local models calculate over queried records with `code_exec` in Python when
+the app can reach a Docker daemon, and in JavaScript inside the app otherwise;
+see [Calculation in chat](python-analysis.md).

@@ -51,10 +51,19 @@ VARIANT_DESIGNATIONS = (
     "COMPONENT", "SHORTNAME", "LONG_COMMON_NAME", "RELATEDNAMES2", "LinguisticVariantDisplayName", "ConsumerName",
 )
 
-#: Key filters, unchanged from the index this replaces: a key is at most 50
-#: characters; a CJK key at least 2; a Latin key at least 3 with a letter.
-#: A key naming more than 500 codes is a classifier word, not a name.
-KEY_MAX_LEN = 50
+#: Key filters. A key is at most 120 characters; a CJK key at least 2; a Latin
+#: key at least 3 with a letter. A key naming more than 500 codes is a
+#: classifier word, not a name.
+#:
+#: The cap was 50, carried over from the index this replaces, and it silently
+#: dropped the names LOINC actually prints for a result: of the 287 codes
+#: res/catalog/metrics.tsv carries, 81 have an official long name longer than
+#: 50 characters — "Lactate dehydrogenase [Enzymatic activity/volume] in Serum
+#: or Plasma by Lactate to pyruvate reaction" is 112 — and none of those names
+#: was a key. 120 is the longest official designation in LOINC 2.83 over 8
+#: characters that names a laboratory code, rounded up; the classifier-word
+#: cap (DF_CAP) still refuses anything that names hundreds of codes.
+KEY_MAX_LEN = 120
 CJK_MIN_LEN = 2
 LATIN_MIN_LEN = 3
 DF_CAP = 500

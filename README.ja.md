@@ -7,10 +7,10 @@
 
 # Mirobody
 
-**散らばった健康データを、出典までたどれる答えに。**
+**あなたのからだを、データに映す。**
 
-検査報告、ウェアラブル、遺伝子ファイルを1つの標準化された記録にまとめる、セルフホスト型の AI 健康データエンジンです。<br>
-健康データの標準化はコマンド1つで試せます。自分のモデルキーを使って Codespaces でアプリ全体を試すことも、アプリ・データ・モデルを 100% 手元のマシンで動かすこともできます。
+ひとつの標準で、あらゆる情報源をまとめ、あなたの全体像を映し出す。健康の行方を理解するための、長く続く記録です。<br>
+このオープンソース版は、その記録を自分のマシンに置きます。検査報告・ウェアラブル・遺伝子ファイルをまとめ、AI エージェントからも MCP で直接使えます。
 
 **[English](README.md)** · **[中文](README.zh-CN.md)** · **日本語**
 
@@ -23,7 +23,7 @@
 </div>
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.gif" alt="コレステロールの変化を尋ねる様子：エージェントが作業の各ステップを表示しながら、同じ検査を別々の名前で記した3つの報告を1本の推移グラフにまとめ、数値に付いた番号付きの出典を開くと測定値とその元ファイルが表示される" width="880">
+  <img src="docs/images/ask-own-demo.ja.gif" alt="日本語でコレステロールの変化を尋ねる様子：考えている間は進み具合を1行で示し、同じ検査を別々の名前で記した3つの報告を1本の推移グラフにまとめ、点線の付いた数値を開くと測定値とその元ファイルが表示される" width="880">
 </p>
 <p align="center"><em>3つの報告、同じ検査に3つの名前。それを1本の推移に。どの数値にも元のファイルが付いています。</em></p>
 
@@ -31,11 +31,11 @@
 
 | やりたいこと | ここから | 必要なもの |
 | --- | --- | --- |
-| 名称と単位を標準化する | [コマンド1つ](#コマンド1つでエンジンを試す) | uv。モデルも API キーも不要 |
+| 名称と単位を標準化する（ターミナルでも、AI エージェントの中でも） | [コマンド1つ](#コマンド1つでエンジンを試す) | uv。モデルも API キーも不要 |
 | ブラウザでアプリ全体を試す | [GitHub Codespaces](#codespaces-でアプリ全体を試す) | GitHub アカウントと、自分のモデル API キー |
 | アプリ・モデル・記録をすべて手元に置く | [Docker で 100% ローカル](#すべてを-100-ローカルで動かす) | Compose 付きの Docker、メモリ 16 GB。API キー不要 |
 | Docker を使わずに、アプリと記録を手元に置く | [Docker なし](#docker-なしで動かす) | Debian または Ubuntu、PostgreSQL 16、Python 3.12、自分のモデル API キー |
-| 何も動かさずに、自分の記録で使う | Mirobody をベースにした [Theta](https://dr.thetahealth.ai/en/login?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme)（Web 版とモバイルアプリ） | アカウント |
+| 何も動かさずに、自分の記録で使う | [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme) で Mirobody を試す（Theta のモバイルアプリでも利用可） | アカウント |
 
 ## コマンド1つでエンジンを試す
 
@@ -50,10 +50,18 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 中国語の `血红蛋白` と日本語の `ヘモグロビン` は、どちらも `718-7` になります。`血脂`（中国語で「血中脂質」）は未解決のままです。特定の1つの検査ではなく、カテゴリを指す名前だからです。アプリ全体でも、同じエンジンが名称と単位を標準化します。
 
 <p align="center">
-  <img src="docs/images/resolve-demo.gif" alt="mirobody resolve：ヘモグロビンの中国語名と日本語名が同じ LOINC コードに解決され、広すぎるカテゴリは未解決のまま残る" width="880">
+  <img src="docs/images/resolve-demo.ja.gif" alt="mirobody resolve：ヘモグロビンの中国語名と日本語名が同じ LOINC コードに解決され、広すぎるカテゴリは未解決のまま残る" width="880">
 </p>
 
-→ [Python や MCP からエンジンを使う](docs/quickstart.md#a--the-library)（英語）
+同じエンジンを AI エージェントに渡すこともできます。Claude Code では次のとおりです。
+
+```bash
+claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)でも同じコマンドを使います。
+
+→ [Python や MCP からエンジンを使う](docs/quickstart.ja.md#a--the-library)
 
 ## Codespaces でアプリ全体を試す
 
@@ -77,22 +85,23 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-メモリは 16 GB、そのうち少なくとも 8 GB を Docker に割り当ててください。GPU は不要です。Windows では WSL 2 のターミナルでコマンドを実行します。初回起動時はコンテナイメージとモデルの重みをダウンロードするため、ネットワーク接続が必要です。レジストリに届かないネットワークでは、`deploy.sh` がその旨を表示してミラー経由で再試行します。`.env` の `DOCKER_MIRROR` で自分のミラーを指定できます。ダウンロードが済めば、文書の読み取り、標準化、回答はすべてローカルで動きます。CPU での回答には数分かかることがあります。GPU を使う方法は [Mac・NVIDIA・Windows の設定](docs/local-models.md)（英語）で説明しています。
+メモリは 16 GB、そのうち少なくとも 8 GB を Docker に割り当ててください。GPU は不要です。Windows では WSL 2 のターミナルでコマンドを実行します。初回起動時はコンテナイメージとモデルの重みをダウンロードするため、ネットワーク接続が必要です。レジストリに届かないネットワークでは、`deploy.sh` がその旨を表示してミラー経由で再試行します。`.env` の `DOCKER_MIRROR` で自分のミラーを指定できます。ダウンロードが済めば、文書の読み取り、標準化、回答はすべてローカルで動きます。CPU での回答には数分かかることがあります。GPU を使う方法は [Mac・NVIDIA・Windows の設定](docs/local-models.ja.md)で説明しています。
 
-スクリプトが表示するアプリのリンクを開きます。ローカルモデルは選択済みです。上と同じデモアカウントでログインし、質問するか、サンプルをアップロードしてください。ローカルモデルの選択肢は[モデルの選び方](docs/model-choice.md)（英語）で比較しています。
+スクリプトが表示するアプリのリンクを開きます。ローカルモデルは選択済みです。上と同じデモアカウントでログインし、質問するか、サンプルをアップロードしてください。ローカルモデルの選択肢は[モデルの選び方](docs/model-choice.ja.md)で比較しています。
 
 <p align="center">
-  <img src="docs/images/setup-demo.gif" alt="初回セットアップ画面：OpenRouter のキーの横でモデル名を編集し、次に 100% このマシンで動かす設定を選ぶと、ページが llama.cpp サーバーを見つけて提供中のモデルを一覧表示し、両方のモデルが準備完了になる" width="880">
+  <img src="docs/images/setup-demo.ja.gif" alt="初回セットアップ画面：OpenRouter のキーの横でモデル名を編集し、次に 100% このマシンで実行を選んで「小」のサイズのまま進むと、ページが llama.cpp サーバーを見つけ、2つのモデルを読み込んで準備完了になる" width="880">
 </p>
 
 **Docker でクラウドのモデルを使いたい場合は、** ローカルモデルのプロファイルを付けずに `./deploy.sh` を実行し、表示されたセットアップリンクに自分のモデルキーを貼り付けます。アプリと記録はホストに残り、文書と質問はモデルサービスが処理します。
 
-チャットでの計算は、どのモデルでもローカルの Python が担い、クエリしたもとのデータをそのまま受け取ります。
-オプションの計算ツールには、ローカルの Docker イメージとデーモンへの接続が必要です。ネイティブ環境とコンテナ環境での接続方法は
-[セットアップとデータの流れ](docs/python-analysis.md)（英語）で説明しています。クエリビューに組み込まれた統計は、
-この実行環境がなくても使えます。
+チャットでの計算は、クエリしたもとのデータをそのまま受け取ります。
+クラウドのモデルのコードはアプリ内の JavaScript で動き、設定は要りません。
+手元のハードウェアで動くモデルは、アプリが Docker デーモンに接続できるとき、ローカルのコンテナで Python を使います。
+両方の仕組みは[セットアップとデータの流れ](docs/python-analysis.ja.md)で説明しています。
+クエリビューに組み込まれた統計は、計算ツールがなくても使えます。
 
-→ [セルフホストガイド](https://docs.mirobody.ai/en/self-host) · [ウォークスルー](docs/walkthrough.md) · [サーバーへのデプロイ](https://docs.mirobody.ai/en/deployment/production)（いずれも英語）
+→ [セルフホストガイド](https://docs.mirobody.ai/ja/self-host) · [ウォークスルー](docs/walkthrough.ja.md) · [サーバーへのデプロイ](https://docs.mirobody.ai/ja/deployment/production)
 
 ## Docker なしで動かす
 
@@ -114,8 +123,10 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 - **日々のデータを取り込む。** Apple Health の書き出しデータを読み込んだり、Garmin、Oura、Whoop と連携したりできます。
 - **家族を見守る。** 自分の記録を共有してくれる家族を招待したり、ログインしない親の記録を代わりに管理したりできます。
 - **健康日記をつける。** `headache since last night, BP 150/95, no fever`（昨夜から頭痛、血圧 150/95、熱なし）は、コード化された症状1件とコード化された測定値2件になります。「no fever」が発熱として記録されることはありません。
-- **遺伝子データを調べる。** 23andMe、AncestryDNA、WeGene の書き出しデータや VCF をアップロードし、rsID、遺伝子、領域で質問できます。薬に関する質問には CPIC の対応状況を示し、服薬の変更を勧めることはありません。
+- **遺伝子データを調べる。** 23andMe、AncestryDNA、WeGene の書き出しデータや VCF をアップロードし、rsID、遺伝子、領域で質問できます。薬に関する質問には [CPIC](https://cpicpgx.org/) ガイドラインの対応状況を示し、服薬の変更を勧めることはありません。
 - **自分のエージェントを使う。** MCP で Claude Code、Codex、Cursor をつないだり、オフラインのエンジンを Python に組み込んだりできます。
+
+Mirobody は診断や処方を行わず、回答は医学的な助言ではありません。
 
 ## 収集 · 標準化 · エージェント
 
@@ -128,11 +139,11 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 
 | 段階 | 何をするか | 場所 |
 | --- | --- | --- |
-| **① 収集 Collect** | ファイル、デバイス、日記を取り込みます。出どころを残すので、どの測定値も元までたどれます。 | [`collect/`](mirobody/collect/) |
-| **② 標準化 Standardize** | `A1c`、`HbA1c`、`ヘモグロビンA1c` を同じコードに、単位を1つの標準にそろえます。すべてオフラインです。特定できない名前は未解決のまま残します。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
-| **③ エージェント Agent** | コード化された記録に質問します。推移、検査機関やデバイスをまたいだ比較、グラフ、そしてどの数値にも元のファイル。 | [`agent/`](mirobody/agent/) |
+| **① 収集 Collect** | レポート、デバイス、写真、遺伝子ファイル、日記をあらゆる出どころから取り込みます。どの測定値も元のファイルを保持します。 | [`collect/`](mirobody/collect/) |
+| **② 標準化 Standardize** | `A1c`、`HbA1c`、`ヘモグロビンA1c` を同じコードに、単位を1つの標準にそろえます。すべてオフラインです。出どころも書き方もばらばらな指標が、1つの表に整った行として並びます。特定できない名前は未解決のまま残します。 | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
+| **③ エージェント Agent** | モデルの記憶ではなく、この表を検索するツールを呼んで答えます。推移、検査機関やデバイスをまたいだ比較、グラフ。どの数値も元のファイルまでたどれるので、うのみにせず確かめられます。 | [`agent/`](mirobody/agent/) |
 
-モデルは文書を読み、推論します。コードと単位はパッケージに同梱された語彙から来るもので、モデルが生成することはありません。[測定値がパイプラインをどう通るか](docs/pipeline.md)（英語）。
+モデルは文書を読み、推論します。コードと単位はパッケージに同梱された語彙から来るもので、モデルが生成することはありません。[測定値が1ステップずつ標準化される流れ](docs/site/standardization.ja.md) · [測定値がパイプラインをどう通るか](docs/pipeline.md)（英語）。
 
 ## 家族を見守る
 
@@ -145,7 +156,7 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
   </picture>
 </p>
 
-ケアサークルに参加しただけでは、何も共有されません。自分の記録の閲覧や編集をほかのメンバーに許すかどうかは、メンバー一人ひとりが決めます。ログインしない親の記録はあなたが管理でき、本人が記録を引き継いだあとは、あなたに残す権限を本人が選びます。[ウォークスルーで見る](docs/walkthrough.md)（英語）。
+ケアサークルに参加しただけでは、何も共有されません。自分の記録の閲覧や編集をほかのメンバーに許すかどうかは、メンバー一人ひとりが決めます。ログインしない親の記録はあなたが管理でき、本人が記録を引き継いだあとは、あなたに残す権限を本人が選びます。[ウォークスルーで見る](docs/walkthrough.ja.md)。
 
 ## 手元のマシンに残るもの
 
@@ -166,13 +177,17 @@ scripts/start_native.sh     # ワーカーとアプリ（ポート 18060）
 
 | やりたいこと | ここから |
 | --- | --- |
-| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | **設定 → MCP リンク** のあと、[クライアントごとの1行設定](https://docs.mirobody.ai/en/tools/mcp-integration)（英語） |
-| 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.md#a--the-library)、英語） |
+| Claude Code、Codex、Cursor、Gemini CLI で自分の記録を使う | 動いているアプリで **設定 → MCP リンク**（既定で10日間有効）を開き、[クライアントごとの1行設定](https://docs.mirobody.ai/ja/tools/mcp-integration) |
+| アプリを動かさずに、オフラインのエンジンを MCP クライアントのツールとして使う | stdio で `uvx --python 3.12 mirobody mcp`（[クライアント設定](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)） |
+| DeepSeek Harness の中で Mirobody を使う | コミュニティプラグイン [dsh-plugin-mirobody](https://github.com/zwbao/dsh-plugin-mirobody)（作者 zwbao）：オフラインのエンジンと記録の読み取り専用ツールに、Mirobody タブが付きます |
+| 自分のコードで名称と単位を解決する | `pip install mirobody`：オフライン、キー不要、依存は numpy だけ（[ライブラリガイド](docs/quickstart.ja.md#a--the-library)） |
 | コーディングエージェントにこの手順を教える | `npx skills add thetahealth/mirobody --skill standardize-health-data`（[skills](skills/README.md)） |
 | デバイスのプロバイダーやツールを追加する | `mirobody/collect/providers/` か `mirobody/agent/tools/` にファイルを置く（[CONTRIBUTING](CONTRIBUTING.md)） |
 | デプロイせずにアプリを試す | [Mirobody Web デモ](https://chat.mirobody.ai/demo?ref=github-readme&lang=ja)。同じ[合成デモファイル](demo/README.md)を使っています |
 
-MCP では7つのツールが使え、どれもログイン中の本人の範囲に限られます。4つは記録を読み（測定値、服薬、遺伝子型、ファーマコゲノミクス）、3つは名称と単位を解決します。
+MCP で使えるツールは、どれもログイン中の本人の範囲に限られます。4つは記録を読み（測定値、服薬、遺伝子型、ファーマコゲノミクス）、3つは名称と単位を解決します。医学資料の情報源が設定されたデプロイでは、さらに2つのツールで医学資料を検索できます。
+
+stdio サーバーはリリースごとに `ai.thetahealth/mirobody` として公式 MCP Registry に公開されます。このレジストリを読むディレクトリにも掲載されます。たとえば [mcprush](https://mcprush.com/thetahealth/mirobody-mcp) や、サンドボックスで実際に動かして検査する [AddonAudit](https://addonaudit.com/addon/ai-thetahealth-mirobody/) です。新しいバージョンが反映される時期はディレクトリごとに違うので、インストールコマンドはこの README のものを使ってください。
 
 `pip install mirobody` のあと、同じエンジンを Python から使えます：
 
@@ -190,12 +205,15 @@ resolve("血脂").resolved                                     # False    1つ�
 
 | 主張 | 確かめ方 |
 | --- | --- |
-| 一般的な健康診断に載る検査名で **345/345**（英語、中国語、日本語、ロシア語、エストニア語、トルコ語） | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) がスコアを表示します |
-| 次元解析つきの **UCUM 単位 330 個**と、**標準デバイス指標 316 項目** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
-| パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
+| 一般的な健康診断に載る検査名で **347/347**（英語、中国語、日本語、ロシア語、エストニア語、トルコ語） | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) がスコアを表示します |
+| ルールに従って LOINC 2.83 から切り出した **63,416 個のコード**と、それを指す **1,023,273 個の名称**（LOINC 自身の21言語を含む）。索引が拾えないレポートの書き方は、レビューを経て1行ずつ追加しています | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE) · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [測定値が標準化される流れ](docs/site/standardization.md)（いずれも英語） |
+| 次元解析つきの **UCUM 単位 331 個**と、デバイス・臨床検査指標の**カタログ項目 902 件** | [標準化の詳細](docs/standardization.md) · [デバイス対応表](docs/device-crosswalk.md)（英語） |
+| 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA のエクスポートと GRCh37/GRCh38 の VCF から、**同じ 13 サイト（12 遺伝子）**の判定が得られます。テストデータはパッケージ同梱の 1000 Genomes 公開サンプルです | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公開遺伝子サンプル](mirobody/testing/genomics/README.md)（英語） |
+| パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公開している健康エージェントのベンチマーク：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Theta Wellness](https://www.thetahealth.ai/) のエンジンでもあります。
+Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Theta](https://www.thetahealth.ai/) のエンジンでもあります。現在の利用者数：<br>
+[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
 
 ## コントリビューション
 
@@ -215,7 +233,7 @@ Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Th
   </picture>
 </a>
 
-[ドキュメント](docs/README.md) · [ロードマップ](docs/roadmap.md) · [変更履歴](CHANGELOG.md) · [セキュリティ](SECURITY.md) · [AGENTS.md](AGENTS.md)（いずれも英語）
+[ドキュメント](docs/README.md) · [ディスカッション](https://github.com/thetahealth/mirobody/discussions) · [ロードマップ](docs/roadmap.md) · [変更履歴](CHANGELOG.md) · [セキュリティ](SECURITY.md) · [AGENTS.md](AGENTS.md)（いずれも英語）
 
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 

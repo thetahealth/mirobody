@@ -20,7 +20,7 @@ record as entered in error.
 | `query_medications` view | Use |
 | --- | --- |
 | `plan` | Plans in effect during the requested window. |
-| `log` | Recorded taken or skipped doses; defaults to the last 30 days. |
+| `log` | Recorded taken or skipped doses; defaults to the last 30 days, today included. |
 | `history` | Courses, their dates and closure information. |
 
 Use `keywords`, `start` and `end` to narrow the query:

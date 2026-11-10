@@ -1,0 +1,562 @@
+member	loinc	unit_ucum	component	property	scale	system	method	time
+LIPOPROTEIN_LITTLE_A_SER_PLAS	10835-7	mg/dL	lipoprotein (little a)	MCnc	Qn	Ser/Plas		Pt
+TROPONIN_I_CARDIAC_SER_PLAS	10839-9	ng/mL	troponin i.cardiac	MCnc	Qn	Ser/Plas		Pt
+PROSTATE_SPECIFIC_AG_FREE_SER_PLAS	10886-0	ng/mL	prostate specific ag.free	MCnc	Qn	Ser/Plas		Pt
+CORTISOL_FREE_URINE	11040-3	ug/dL	cortisol.free	MCnc	Qn	Urine		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_KAPPA_SER_PLAS	11050-2	mg/dL	immunoglobulin light chains.kappa	MCnc	Qn	Ser/Plas		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_LAMBDA_SER_PLAS	11051-0	mg/dL	immunoglobulin light chains.lambda	MCnc	Qn	Ser/Plas		Pt
+UREA_NITROGEN_POST_DIALYSIS_SER_PLAS	11064-3	mg/dL	urea nitrogen^post dialysis	MCnc	Qn	Ser/Plas		Pt
+UREA_NITROGEN_PRE_DIALYSIS_SER_PLAS	11065-0	mg/dL	urea nitrogen^pre dialysis	MCnc	Qn	Ser/Plas		Pt
+CREATININE_BODY_FLD	12190-5	mg/dL	creatinine	MCnc	Qn	Body fld		Pt
+ANGIOTENSIN_CONVERTING_ENZYME_CSF	12480-0	U/L	angiotensin converting enzyme	CCnc	Qn	CSF		Pt
+HOMOCYSTEINE_SER_PLAS	13965-9	umol/L	homocysteine	SCnc	Qn	Ser/Plas		Pt
+SEX_HORMONE_BINDING_GLOBULIN_SER_PLAS	13967-5	nmol/L	sex hormone binding globulin	SCnc	Qn	Ser/Plas		Pt
+CREATINE_KINASE_MB_SER_PLAS	13969-1	ng/mL	creatine kinase.mb	MCnc	Qn	Ser/Plas		Pt
+LACTATE_SER_PLAS	14118-4	mg/dL	lactate	MCnc	Qn	Ser/Plas		Pt
+PYRUVATE_BLD	14121-8	mmol/L	pyruvate	SCnc	Qn	Bld		Pt
+ASCORBATE_SER_PLAS	14622-5	umol/L	ascorbate	SCnc	Qn	Ser/Plas		Pt
+BILE_ACID_SER_PLAS	14628-2	umol/L	bile acid	SCnc	Qn	Ser/Plas		Pt
+LACTATE_DEHYDROGENASE_BODY_FLD	14803-1	U/L	lactate dehydrogenase	CCnc	Qn	Body fld	Reaction: lactate to pyruvate	Pt
+LACTATE_DEHYDROGENASE_SER_PLAS	14805-6	U/L	lactate dehydrogenase	CCnc	Qn	Ser/Plas	Reaction: pyruvate to lactate	Pt
+PHENYLALANINE_SER_PLAS	14875-9	umol/L	phenylalanine	SCnc	Qn	Ser/Plas		Pt
+ENOLASE_NEURON_SPECIFIC_SER_PLAS	15060-7	ug/L	enolase.neuron specific	MCnc	Qn	Ser/Plas		Pt
+FRUCTOSAMINE_SER_PLAS	15069-8	umol/L	fructosamine	SCnc	Qn	Ser/Plas		Pt
+AMMONIA_PLAS	16362-6	umol/L	ammonia	SCnc	Qn	Plas		Pt
+CALCITRIOL_SER_PLAS	1649-3	pg/mL	calcitriol	MCnc	Qn	Ser/Plas		Pt
+17_HYDROXYPROGESTERONE_SER_PLAS	1668-3	ng/dL	17-hydroxyprogesterone	MCnc	Qn	Ser/Plas		Pt
+COBALAMINS_BLD	16695-9	pg/mL	cobalamins	MCnc	Qn	Bld		Pt
+5_NUCLEOTIDASE_SER_PLAS	1690-7	U/L	5'-nucleotidase	CCnc	Qn	Ser/Plas		Pt
+ADENOSINE_TRIPHOSPHATE_BLD	1721-0	ng/mL	adenosine triphosphate	MCnc	Qn	Bld		Pt
+ALBUMIN_CSF	1746-7	mg/dL	albumin	MCnc	Qn	CSF		Pt
+ALBUMIN_BODY_FLD	1747-5	g/dL	albumin	MCnc	Qn	Body fld		Pt
+PROSTAGLANDIN_F2_ALPHA_URINE	17494-6	ng/mL	prostaglandin f2 alpha	MCnc	Qn	Urine		Pt
+ALDOSTERONE_SER_PLAS	1763-2	ng/dL	aldosterone	MCnc	Qn	Ser/Plas		Pt
+ALKALINE_PHOSPHATASE_BONE_SER_PLAS	1777-2	U/L	alkaline phosphatase.bone	CCnc	Qn	Ser/Plas		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_URINE	17793-1	g/L	immunoglobulin light chains	MCnc	Qn	Urine		24H
+HEMOGLOBIN_A1C_HEMOGLOBIN_TOTAL_BLD	17856-6	%	hemoglobin a1c/hemoglobin.total	MFr	Qn	Bld	HPLC	Pt
+CALCIUM_URINE	17862-4	mg/dL	calcium	MCnc	Qn	Urine		Pt
+CALCIUM_IONIZED_SER_PLAS	17863-2	mg/dL	calcium.ionized	MCnc	Qn	Ser/Plas		Pt
+AMYLASE_BODY_FLD	1795-4	U/L	amylase	CCnc	Qn	Body fld		Pt
+AMYLASE_SER_PLAS	1798-8	U/L	amylase	CCnc	Qn	Ser/Plas		Pt
+NIACIN_SER_PLAS	18244-4	ng/mL	niacin	MCnc	Qn	Ser/Plas		Pt
+ALPHA_1_ANTITRYPSIN_SER_PLAS	1825-9	mg/dL	alpha 1 antitrypsin	MCnc	Qn	Ser/Plas		Pt
+CHOLESTEROL_IN_LDL_SER_PLAS	18262-6	mg/dL	cholesterol.in ldl	MCnc	Qn	Ser/Plas	Direct assay	Pt
+ALPHA_1_FETOPROTEIN_SER_PLAS	1834-1	ng/mL	alpha-1-fetoprotein	MCnc	Qn	Ser/Plas		Pt
+ANDROSTANOLONE_SER_PLAS	1848-1	pg/mL	androstanolone	MCnc	Qn	Ser/Plas		Pt
+ANDROSTENEDIONE_SER_PLAS	1854-9	ng/mL	androstenedione	MCnc	Qn	Ser/Plas		Pt
+ANGIOTENSIN_CONVERTING_ENZYME_BLD	1857-2	U/L	angiotensin converting enzyme	CCnc	Qn	Bld		Pt
+APOLIPOPROTEIN_B_100_SER_PLAS	1871-3	mg/dL	apolipoprotein b-100	MCnc	Qn	Ser/Plas		Pt
+APOLIPOPROTEIN_B_SER_PLAS	1884-6	mg/dL	apolipoprotein b	MCnc	Qn	Ser/Plas		Pt
+IGE_SER_PLAS	19113-0	[IU]/L	ige	ACnc	Qn	Ser/Plas		Pt
+MAGNESIUM_SER_PLAS	19123-9	mg/dL	magnesium	MCnc	Qn	Ser/Plas		Pt
+MAGNESIUM_URINE	19124-7	mg/dL	magnesium	MCnc	Qn	Urine		Pt
+ALPHA_1_FETOPROTEIN_AMNIO_FLD	19171-8	[IU]/mL	alpha-1-fetoprotein	ACnc	Qn	Amnio fld		Pt
+BILIRUBIN_GLUCURONIDATED_BILIRUBIN_ALBUMIN_BOUND_SER_PLAS	1968-7	mg/dL	bilirubin.glucuronidated+bilirubin.albumin bound	MCnc	Qn	Ser/Plas		Pt
+BILIRUBIN_BODY_FLD	1974-5	mg/dL	bilirubin	MCnc	Qn	Body fld		Pt
+BILIRUBIN_URINE	1978-6	mg/dL	bilirubin	MCnc	Qn	Urine		Pt
+C_PEPTIDE_SER_PLAS	1986-9	ng/mL	c peptide	MCnc	Qn	Ser/Plas		Pt
+C_REACTIVE_PROTEIN_SER_PLAS	1988-5	mg/L	c reactive protein	MCnc	Qn	Ser/Plas		Pt
+CALCIDIOL_SER_PLAS	1989-3	ng/mL	calcidiol	MCnc	Qn	Ser/Plas		Pt
+CHOLECALCIFEROL_SER_PLAS	1990-1	ng/mL	cholecalciferol	MCnc	Qn	Ser/Plas		Pt
+CALCIUM_IONIZED_BLD	1994-3	mmol/L	calcium.ionized	SCnc	Qn	Bld		Pt
+CARBON_DIOXIDE_SER_PLAS	2028-9	mmol/L	carbon dioxide	SCnc	Qn	Ser/Plas		Pt
+CARCINOEMBRYONIC_AG_SER_PLAS	2039-6	ng/mL	carcinoembryonic ag	MCnc	Qn	Ser/Plas		Pt
+ACID_PHOSPHATASE_PROSTATIC_SER	20420-6	ng/mL	acid phosphatase.prostatic	MCnc	Qn	Ser		Pt
+THIAMINE_SER_PLAS	20468-5	nmol/L	thiamine	SCnc	Qn	Ser/Plas		Pt
+CAROTENE_SER_PLAS	2053-7	ug/dL	carotene	MCnc	Qn	Ser/Plas		Pt
+CARBOXYHEMOGLOBIN_HEMOGLOBIN_TOTAL_BLD	20563-3	%	carboxyhemoglobin/hemoglobin.total	MFr	Qn	Bld		Pt
+PROLACTIN_SER_PLAS	20568-2	ng/mL	prolactin	MCnc	Qn	Ser/Plas	IA	Pt
+CREATININE_URINE	20624-3	mg/dL	creatinine	MCnc	Qn	Urine		24H
+CITRULLINE_SER_PLAS	20640-9	umol/L	citrulline	SCnc	Qn	Ser/Plas		Pt
+CERULOPLASMIN_SER_PLAS	2064-4	mg/dL	ceruloplasmin	MCnc	Qn	Ser/Plas		Pt
+TYROSINE_SER_PLAS	20660-7	umol/L	tyrosine	SCnc	Qn	Ser/Plas		Pt
+CHLORIDE_BLD	2069-3	mmol/L	chloride	SCnc	Qn	Bld		Pt
+CHLORIDE_SWEAT	2077-6	mmol/L	chloride	SCnc	Qn	Sweat		Pt
+CHLORIDE_URINE	2078-4	mmol/L	chloride	SCnc	Qn	Urine		Pt
+CHOLESTEROL_IN_HDL_SER_PLAS	2085-9	mg/dL	cholesterol.in hdl	MCnc	Qn	Ser/Plas		Pt
+CHOLESTEROL_SER_PLAS	2093-3	mg/dL	cholesterol	MCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_BETA_SUBUNIT_SER_PLAS	2111-3	mmol/L	choriogonadotropin.beta subunit	SCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_BETA_SUBUNIT_URINE	2114-7	mmol/L	choriogonadotropin.beta subunit	SCnc	Qn	Urine		Pt
+CHORIOGONADOTROPIN_BETA_SUBUNIT_FREE_SER_PLAS	2115-4	mmol/L	choriogonadotropin.beta subunit.free	SCnc	Qn	Ser/Plas		Pt
+COLLAGEN_CROSSLINKED_N_TELOPEPTIDE_SER	21215-9	umol/L	collagen crosslinked n-telopeptide	SCnc	Qn	Ser		Pt
+COBALAMINS_SER_PLAS	2132-9	pg/mL	cobalamins	MCnc	Qn	Ser/Plas		Pt
+LEPTIN_SER_PLAS	21365-2	ng/mL	leptin	MCnc	Qn	Ser/Plas		Pt
+CORTICOTROPIN_PLAS	2141-0	pg/mL	corticotropin	MCnc	Qn	Plas		Pt
+CORTISOL_SALIVA	2142-8	ug/dL	cortisol	MCnc	Qn	Saliva		Pt
+CORTISOL_SER_PLAS	2143-6	ug/dL	cortisol	MCnc	Qn	Ser/Plas		Pt
+CORTISOL_FREE_SER_PLAS	2145-1	ug/dL	cortisol.free	MCnc	Qn	Ser/Plas		Pt
+PROTEIN_URINE	21482-5	g/dL	protein	MCnc	Qn	Urine		24H
+SODIUM_URINE	21525-1	mol/L	sodium	SCnc	Qn	Urine		24H
+THIOPURINE_METHYLTRANSFERASE_RBC	21563-2	U/mL	thiopurine methyltransferase	CCnc	Qn	RBC		Pt
+CREATINE_KINASE_SER_PLAS	2157-6	U/L	creatine kinase	CCnc	Qn	Ser/Plas		Pt
+TRYPTASE_SER_PLAS	21582-2	ng/mL	tryptase	MCnc	Qn	Ser/Plas		Pt
+CREATININE_AMNIO_FLD	2159-2	mg/dL	creatinine	MCnc	Qn	Amnio fld		Pt
+DEHYDROEPIANDROSTERONE_SULFATE_SER_PLAS	2191-5	ug/dL	dehydroepiandrosterone sulfate	MCnc	Qn	Ser/Plas		Pt
+DEHYDROEPIANDROSTERONE_UNCONJUGATED_SER_PLAS	2196-4	mg/L	dehydroepiandrosterone.unconjugated	MCnc	Qn	Ser/Plas		Pt
+DOPAMINE_SER_PLAS	2216-0	pg/mL	dopamine	MCnc	Qn	Ser/Plas		Pt
+DOPAMINE_URINE	2217-8	ug/L	dopamine	MCnc	Qn	Urine		Pt
+CALCIFEROL_SER_PLAS	2236-8	pg/mL	calciferol	MCnc	Qn	Ser/Plas		Pt
+ESTRADIOL_SER_PLAS	2243-4	pg/mL	estradiol	MCnc	Qn	Ser/Plas		Pt
+ESTRIOL_UNCONJUGATED_SER_PLAS	2250-9	ng/mL	estriol.unconjugated	MCnc	Qn	Ser/Plas		Pt
+ESTRIOL_SER_PLAS	2251-7	ng/mL	estriol	MCnc	Qn	Ser/Plas		Pt
+ESTROGEN_SER_PLAS	2254-1	pg/mL	estrogen	MCnc	Qn	Ser/Plas		Pt
+ESTRONE_SER_PLAS	2258-2	pg/mL	estrone	MCnc	Qn	Ser/Plas		Pt
+FERRITIN_SER_PLAS	2276-4	ng/mL	ferritin	MCnc	Qn	Ser/Plas		Pt
+FOLATE_BLD	2282-2	ng/mL	folate	MCnc	Qn	Bld		Pt
+FOLATE_RBC	2283-0	ng/mL	folate	MCnc	Qn	RBC		Pt
+FOLATE_SER_PLAS	2284-8	ng/mL	folate	MCnc	Qn	Ser/Plas		Pt
+GASTRIN_SER_PLAS	2333-3	pg/mL	gastrin	MCnc	Qn	Ser/Plas		Pt
+GLUCOSE_CSF	2342-4	mg/dL	glucose	MCnc	Qn	CSF		Pt
+GLUCOSE_BODY_FLD	2344-0	mg/dL	glucose	MCnc	Qn	Body fld		Pt
+GLUCOSE_SER_PLAS	2345-7	mg/dL	glucose	MCnc	Qn	Ser/Plas		Pt
+GLUCOSE_URINE	2350-7	mg/dL	glucose	MCnc	Qn	Urine		Pt
+GLUCOSE_6_PHOSPHATE_DEHYDROGENASE_RBC	2357-2	U/mL	glucose-6-phosphate dehydrogenase	CCnc	Qn	RBC		Pt
+IGA_SER_PLAS	2458-8	mg/dL	iga	MCnc	Qn	Ser/Plas		Pt
+IGD_SER	2460-4	mg/dL	igd	MCnc	Qn	Ser		Pt
+IGE_SER	2462-0	ug/L	ige	MCnc	Qn	Ser		Pt
+IGG_CSF	2464-6	mg/dL	igg	MCnc	Qn	CSF		Pt
+IGG_SER_PLAS	2465-3	mg/dL	igg	MCnc	Qn	Ser/Plas		Pt
+IGM_SER_PLAS	2472-9	mg/dL	igm	MCnc	Qn	Ser/Plas		Pt
+INSULIN_LIKE_GROWTH_FACTOR_BINDING_PROTEIN_3_SER_PLAS	2483-6	ng/mL	insulin-like growth factor binding protein 3	MCnc	Qn	Ser/Plas		Pt
+INSULIN_LIKE_GROWTH_FACTOR_I_SER_PLAS	2484-4	ng/mL	insulin-like growth factor-i	MCnc	Qn	Ser/Plas		Pt
+IODINE_SER_PLAS	2494-3	ug/mL	iodine	MCnc	Qn	Ser/Plas		Pt
+IRON_SER_PLAS	2498-4	ug/dL	iron	MCnc	Qn	Ser/Plas		Pt
+IRON_BINDING_CAPACITY_SER_PLAS	2500-7	ug/dL	iron binding capacity	MCnc	Qn	Ser/Plas		Pt
+IRON_BINDING_CAPACITY_UNSATURATED_SER_PLAS	2501-5	ug/dL	iron binding capacity.unsaturated	MCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_URINE	25372-4	[IU]/L	choriogonadotropin	ACnc	Qn	Urine		Pt
+CHROMOGRANIN_A_SER_PLAS	25587-7	nmol/L	chromogranin a	SCnc	Qn	Ser/Plas		Pt
+TRIGLYCERIDE_SER_PLAS	2571-8	mg/dL	triglyceride	MCnc	Qn	Ser/Plas		Pt
+MAGNESIUM_RBC	2597-3	mmol/L	magnesium	SCnc	Qn	RBC		Pt
+TESTOSTERONE_FREE_SER_PLAS	25987-9	mmol/L	testosterone.free	SCnc	Qn	Ser/Plas	RIA	Pt
+METHEMOGLOBIN_HEMOGLOBIN_TOTAL_BLD	2614-6	%	methemoglobin/hemoglobin.total	MFr	Qn	Bld		Pt
+MYELIN_BASIC_PROTEIN_CSF	2638-5	ng/mL	myelin basic protein	MCnc	Qn	CSF		Pt
+MYOGLOBIN_SER_PLAS	2639-3	ng/mL	myoglobin	MCnc	Qn	Ser/Plas		Pt
+MYOGLOBIN_URINE	2641-9	ug/L	myoglobin	MCnc	Qn	Urine		Pt
+OSTEOCALCIN_SER_PLAS	2697-1	ug/L	osteocalcin	MCnc	Qn	Ser/Plas		Pt
+OXALATE_URINE	2700-3	ug/mL	oxalate	MCnc	Qn	Urine		Pt
+SEROTONIN_SER	27057-9	ng/mL	serotonin	MCnc	Qn	Ser		Pt
+PARATHYRIN_INTACT_SER_PLAS	2731-8	pg/mL	parathyrin.intact	MCnc	Qn	Ser/Plas		Pt
+ANGIOTENSIN_CONVERTING_ENZYME_SER_PLAS	2742-5	U/L	angiotensin converting enzyme	CCnc	Qn	Ser/Plas		Pt
+PHOSPHATE_URINE	2778-9	mg/dL	phosphate	MCnc	Qn	Urine		Pt
+PROINSULIN_SER_PLAS	27882-0	pmol/L	proinsulin	SCnc	Qn	Ser/Plas		Pt
+UBIQUINONE_10_SER_PLAS	27923-2	ug/mL	ubiquinone 10	MCnc	Qn	Ser/Plas		Pt
+POTASSIUM_URINE	2828-2	mmol/L	potassium	SCnc	Qn	Urine		Pt
+PREGNENOLONE_SER_PLAS	2837-3	ng/dL	pregnenolone	MCnc	Qn	Ser/Plas		Pt
+PROGESTERONE_SER_PLAS	2839-9	ng/mL	progesterone	MCnc	Qn	Ser/Plas		Pt
+PROSTATE_SPECIFIC_AG_SER_PLAS	2857-1	ng/mL	prostate specific ag	MCnc	Qn	Ser/Plas		Pt
+PROTEIN_CSF	2880-3	mg/dL	protein	MCnc	Qn	CSF		Pt
+PROTEIN_BODY_FLD	2881-1	g/dL	protein	MCnc	Qn	Body fld		Pt
+PROTOPORPHYRIN_ZINC_RBC	2895-1	ug/dL	protoporphyrin.zinc	MCnc	Qn	RBC		Pt
+PYRIDOXINE_SER_PLAS	2900-9	ng/mL	pyridoxine	MCnc	Qn	Ser/Plas		Pt
+RETINOL_SER_PLAS	2923-1	ug/mL	retinol	MCnc	Qn	Ser/Plas		Pt
+SEROTONIN_BLD	2939-7	ng/mL	serotonin	MCnc	Qn	Bld		Pt
+SODIUM_BLD	2947-0	mmol/L	sodium	SCnc	Qn	Bld		Pt
+BETA_HYDROXYBUTYRATE_SER_PLAS	29512-1	mg/dL	beta hydroxybutyrate	MCnc	Qn	Ser/Plas		Pt
+PHENYLALANINE_BLD_DOT	29573-3	umol/L	phenylalanine	SCnc	Qn	Bld.dot		Pt
+SOMATOTROPIN_SER_PLAS	2963-7	ng/mL	somatotropin	MCnc	Qn	Ser/Plas		Pt
+TESTOSTERONE_SER_PLAS	2986-8	ng/dL	testosterone	MCnc	Qn	Ser/Plas		Pt
+THIAMINE_BLD	2998-3	ug/dL	thiamine	MCnc	Qn	Bld		Pt
+THYROGLOBULIN_SER_PLAS	3013-0	ng/dL	thyroglobulin	MCnc	Qn	Ser/Plas		Pt
+THYROXINE_BINDING_GLOBULIN_SER_PLAS	3021-3	mg/L	thyroxine binding globulin	MCnc	Qn	Ser/Plas		Pt
+THYROXINE_FREE_SER_PLAS	3024-7	ng/dL	thyroxine.free	MCnc	Qn	Ser/Plas		Pt
+TRANSFERRIN_RECEPTOR_SOLUBLE_SER_PLAS	30248-9	mg/L	transferrin receptor.soluble	MCnc	Qn	Ser/Plas		Pt
+THYROXINE_SER_PLAS	3026-2	ug/dL	thyroxine	MCnc	Qn	Ser/Plas		Pt
+TRANSFERRIN_SER_PLAS	3034-6	mg/dL	transferrin	MCnc	Qn	Ser/Plas		Pt
+TRIACYLGLYCEROL_LIPASE_SER_PLAS	3040-3	U/L	triacylglycerol lipase	CCnc	Qn	Ser/Plas		Pt
+TRIGLYCERIDE_BLD	3043-7	mg/dL	triglyceride	MCnc	Qn	Bld		Pt
+TRIIODOTHYRONINE_FREE_SER_PLAS	3051-0	pg/mL	triiodothyronine.free	MCnc	Qn	Ser/Plas		Pt
+TRIIODOTHYRONINE_REVERSE_SER_PLAS	3052-8	pg/mL	triiodothyronine.reverse	MCnc	Qn	Ser/Plas		Pt
+TRIIODOTHYRONINE_SER_PLAS	3053-6	ng/dL	triiodothyronine	MCnc	Qn	Ser/Plas		Pt
+TRIIODOTHYRONINE_TRUE_SER_PLAS	3054-4	pg/mL	triiodothyronine.true	MCnc	Qn	Ser/Plas		Pt
+URATE_URINE	3086-6	mg/dL	urate	MCnc	Qn	Urine		Pt
+UREA_URINE	3092-4	mg/dL	urea	MCnc	Qn	Urine		Pt
+UREA_NITROGEN_BODY_FLD	3093-2	mg/dL	urea nitrogen	MCnc	Qn	Body fld		Pt
+NATRIURETIC_PEPTIDE_B_SER_PLAS	30934-4	pg/mL	natriuretic peptide.b	MCnc	Qn	Ser/Plas		Pt
+UREA_NITROGEN_URINE	3095-7	mg/dL	urea nitrogen	MCnc	Qn	Urine		Pt
+UROBILINOGEN_URINE	3107-0	mg/dL	urobilinogen	MCnc	Qn	Urine		Pt
+THYROXINE_BLD_DOT	31144-9	ug/dL	thyroxine	MCnc	Qn	Bld.dot		Pt
+GLUCOSE_BLDC	32016-8	mg/dL	glucose	MCnc	Qn	BldC		Pt
+LACTATE_BLD	32693-4	mmol/L	lactate	SCnc	Qn	Bld		Pt
+KETONES_SER_PLAS	33058-9	mg/dL	ketones	MCnc	Qn	Ser/Plas		Pt
+NATRIURETIC_PEPTIDE_B_PROHORMONE_N_TERMINAL_SER_PLAS	33762-6	pg/mL	natriuretic peptide.b prohormone n-terminal	MCnc	Qn	Ser/Plas		Pt
+CYSTATIN_C_SER_PLAS	33863-2	mg/L	cystatin c	MCnc	Qn	Ser/Plas		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_LAMBDA_FREE_SER_PLAS	33944-0	mg/L	immunoglobulin light chains.lambda.free	MCnc	Qn	Ser/Plas		Pt
+INHIBIN_B_SER_PLAS	34319-4	pg/mL	inhibin b	MCnc	Qn	Ser/Plas		Pt
+VITAMIN_D_METABOLITES_SER_PLAS	35365-6	ng/mL	vitamin d+metabolites	MCnc	Qn	Ser/Plas		Pt
+TYROSINE_BLD_DOT	35571-9	umol/L	tyrosine	SCnc	Qn	Bld.dot		Pt
+IMMUNOGLOBULIN_LIGHT_CHAINS_KAPPA_FREE_SER	36916-5	mg/L	immunoglobulin light chains.kappa.free	MCnc	Qn	Ser		Pt
+MULLERIAN_INHIBITING_SUBSTANCE_SER_PLAS	38476-8	ng/mL	mullerian inhibiting substance	MCnc	Qn	Ser/Plas		Pt
+CREATININE_BLD	38483-4	mg/dL	creatinine	MCnc	Qn	Bld		Pt
+RETINYL_PALMITATE_SER_PLAS	38496-6	ug/mL	retinyl palmitate	MCnc	Qn	Ser/Plas		Pt
+THYROGLOBULIN_RECOVERY_SER_PLAS	38505-4	%	thyroglobulin recovery	MFr	Qn	Ser/Plas		Pt
+COLLAGEN_CROSSLINKED_C_TELOPEPTIDE_SER_PLAS	41171-0	pg/mL	collagen crosslinked c-telopeptide	MCnc	Qn	Ser/Plas		Pt
+NATRIURETIC_PEPTIDE_B_BLD	42637-9	pg/mL	natriuretic peptide.b	MCnc	Qn	Bld		Pt
+TROPONIN_I_CARDIAC_BLD	42757-5	ng/mL	troponin i.cardiac	MCnc	Qn	Bld		Pt
+ERCALCIDIOL_SER_PLAS	49054-0	ng/mL	ercalcidiol	MCnc	Qn	Ser/Plas		Pt
+CREATINE_KINASE_MB_BLD	49551-5	ng/mL	creatine kinase.mb	MCnc	Qn	Bld		Pt
+CALCIUM_BLD	49765-1	mg/dL	calcium	MCnc	Qn	Bld		Pt
+MYOGLOBIN_BLD	53833-0	ng/mL	myoglobin	MCnc	Qn	Bld		Pt
+1_5_ANHYDROGLUCITOL_SER_PLAS	53835-5	ug/mL	1,5-anhydroglucitol	MCnc	Qn	Ser/Plas		Pt
+ALPHA_1_FETOPROTEIN_TUMOR_MARKER_SER_PLAS	53962-7	ng/mL	alpha-1-fetoprotein.tumor marker	MCnc	Qn	Ser/Plas		Pt
+HUMAN_EPIDIDYMIS_PROTEIN_4_SER_PLAS	55180-4	pmol/L	human epididymis protein 4	SCnc	Qn	Ser/Plas		Pt
+CALCIDIOL_ERCALCIDIOL_SER_PLAS	62292-8	ng/mL	calcidiol+ercalcidiol	MCnc	Qn	Ser/Plas		Pt
+GALECTIN_3_SER_PLAS	62419-7	ng/mL	galectin 3	MCnc	Qn	Ser/Plas		Pt
+POTASSIUM_BLD	6298-4	mmol/L	potassium	SCnc	Qn	Bld		Pt
+UREA_NITROGEN_BLD	6299-2	mg/dL	urea nitrogen	MCnc	Qn	Bld		Pt
+RIBOFLAVIN_BLD	6695-1	ug/mL	riboflavin	MCnc	Qn	Bld		Pt
+17_HYDROXYPREGNENOLONE_SER_PLAS	6765-2	ng/dL	17-hydroxypregnenolone	MCnc	Qn	Ser/Plas		Pt
+VANILLYLMANDELATE_URINE	9624-8	mg/dL	vanillylmandelate	MCnc	Qn	Urine		Pt
+CORTISOL_PM_TROUGH_SPECIMEN_SER_PLAS	9812-9	ug/dL	cortisol^pm trough specimen	MCnc	Qn	Ser/Plas		Pt
+CORTISOL_AM_PEAK_SPECIMEN_SER_PLAS	9813-7	ug/dL	cortisol^am peak specimen	MCnc	Qn	Ser/Plas		Pt
+DNA_SINGLE_STRAND_AB_IGG_SER	10360-6	[arb'U]/mL	dna single strand ab.igg	ACnc	Qn	Ser		Pt
+COTININE_URINE	10366-3	ng/mL	cotinine	MCnc	Qn	Urine		Pt
+LUTROPIN_SER_PLAS	10501-5	m[IU]/mL	lutropin	ACnc	Qn	Ser/Plas		Pt
+DIGOXIN_SER_PLAS	10535-3	ng/mL	digoxin	MCnc	Qn	Ser/Plas		Pt
+COMPLEMENT_C1_ESTERASE_INHIBITOR_FUNCTIONAL_COMPLEMENT_C1_ESTERASE_INHIBITOR_TOTAL_SER_PLAS	10634-4	%	complement c1 esterase inhibitor.functional/complement c1 esterase inhibitor.total	MFr	Qn	Ser/Plas		Pt
+LEAD_SER_PLAS	10912-4	ug/dL	lead	MCnc	Qn	Ser/Plas		Pt
+PINUS_EDULIS_AB_IGE_SER	10954-6	k[IU]/L	pinus edulis ab.ige	ACnc	Qn	Ser		Pt
+HEPATITIS_C_VIRUS_RNA_SER_PLAS	11011-4	k[IU]/mL	hepatitis c virus rna	ACnc	Qn	Ser/Plas	Probe.amp.tar	Pt
+ACETYLCHOLINE_RECEPTOR_BINDING_AB_SER	11034-6	nmol/L	acetylcholine receptor binding ab	SCnc	Qn	Ser		Pt
+BLEEDING_TIME_PATIENT	11067-6	min	bleeding time	Time	Qn	^Patient		Pt
+SMITH_EXTRACTABLE_NUCLEAR_AB_SER	11090-8	[arb'U]/mL	smith extractable nuclear ab	ACnc	Qn	Ser		Pt
+ERYTHROCYTE_BODY_FLUID_BODY_FLD	11153-4	%	erythrocyte/body fluid	VFr	Qn	Body fld	Calculated	Pt
+MACADAMIA_SPP_AB_IGE_SER	11183-1	k[IU]/L	macadamia spp ab.ige	ACnc	Qn	Ser		Pt
+TACROLIMUS_BLD	11253-2	ng/mL	tacrolimus	MCnc	Qn	Bld		Pt
+HAEMOPHILUS_INFLUENZAE_B_AB_IGG_SER	11256-5	ng/mL	haemophilus influenzae b ab.igg	MCnc	Qn	Ser		Pt
+HEPATITIS_B_VIRUS_DNA_SER	11258-1	[IU]/mL	hepatitis b virus dna	ACnc	Qn	Ser		Pt
+JO_1_EXTRACTABLE_NUCLEAR_AB_SER	11565-9	[arb'U]/mL	jo-1 extractable nuclear ab	ACnc	Qn	Ser		Pt
+RHEUMATOID_FACTOR_SER_PLAS	11572-5	[IU]/mL	rheumatoid factor	ACnc	Qn	Ser/Plas		Pt
+THYROTROPIN_SER_PLAS	11579-0	m[IU]/L	thyrotropin	ACnc	Qn	Ser/Plas	Detection limit <= 0.05 mIU/L	Pt
+ELAEAGNUS_ANGUSTIFOLIA_AB_IGE_SER	13177-1	k[IU]/L	elaeagnus angustifolia ab.ige	ACnc	Qn	Ser		Pt
+ULMUS_AMERICANA_AB_IGG_SER	13183-9	k[arb'U]/L	ulmus americana ab.igg	ACnc	Qn	Ser		Pt
+CORYNEBACTERIUM_DIPHTHERIAE_AB_IGG_SER	13227-4	[arb'U]/mL	corynebacterium diphtheriae ab.igg	ACnc	Qn	Ser		Pt
+LEUKOCYTES_STOOL	13349-6	/mL	leukocytes	NCnc	Qn	Stool	Manual count	Pt
+GLUTAMATE_DECARBOXYLASE_65_AB_SER	13926-1	[arb'U]/mL	glutamate decarboxylase 65 ab	ACnc	Qn	Ser		Pt
+THROMBIN_ANTITHROMBIN_COMPLEX_AG_PPP	14182-0	ng/mL	thrombin antithrombin complex ag	MCnc	Qn	PPP	IA	Pt
+LITHIUM_SER_PLAS	14334-7	mmol/L	lithium	SCnc	Qn	Ser/Plas		Pt
+METHOTREXATE_SER_PLAS	14836-1	umol/L	methotrexate	SCnc	Qn	Ser/Plas		Pt
+COAGULATION_PPP	14979-9	s	coagulation	Time	Qn	PPP	Coag.surface induced	Pt
+FOLLITROPIN_SER_PLAS	15067-2	m[IU]/mL	follitropin	ACnc	Qn	Ser/Plas		Pt
+PHOSPHATASE_LEUKOCYTE_WBC	15112-6	[arb'U]/mL	phosphatase.leukocyte	ACnc	Qn	WBC		Pt
+RHEUMATOID_FACTOR_SER	15205-8	[IU]/mL	rheumatoid factor	ACnc	Qn	Ser	Nephelometry	Pt
+BETULA_VERRUCOSA_AB_IGE_SER	15283-5	k[IU]/L	betula verrucosa ab.ige	ACnc	Qn	Ser		Pt
+ALNUS_INCANA_AB_IGE_SER	15284-3	k[IU]/L	alnus incana ab.ige	ACnc	Qn	Ser		Pt
+BETA_2_GLYCOPROTEIN_1_AB_IGG_SER	16135-6	[arb'U]/mL	beta 2 glycoprotein 1 ab.igg	ACnc	Qn	Ser		Pt
+BETA_2_GLYCOPROTEIN_1_AB_IGM_SER	16136-4	[arb'U]/mL	beta 2 glycoprotein 1 ab.igm	ACnc	Qn	Ser		Pt
+OXAZEPAM_URINE	16201-6	ng/mL	oxazepam	MCnc	Qn	Urine	Confirm	Pt
+HEPATITIS_B_VIRUS_SURFACE_AB_SER	16935-9	m[IU]/mL	hepatitis b virus surface ab	ACnc	Qn	Ser		Pt
+TOPIRAMATE_SER_PLAS	17713-9	ug/mL	topiramate	MCnc	Qn	Ser/Plas		Pt
+SJOGRENS_SYNDROME_B_EXTRACTABLE_NUCLEAR_AB_SER	17791-5	[arb'U]/mL	sjogrens syndrome-b extractable nuclear ab	ACnc	Qn	Ser		Pt
+SJOGRENS_SYNDROME_A_EXTRACTABLE_NUCLEAR_AB_SER	17792-3	[arb'U]/mL	sjogrens syndrome-a extractable nuclear ab	ACnc	Qn	Ser		Pt
+CHORIOGONADOTROPIN_SER_PLAS	19080-1	m[IU]/mL	choriogonadotropin	ACnc	Qn	Ser/Plas		Pt
+HISTOPLASMA_CAPSULATUM_AG_SER	19107-2	[arb'U]/mL	histoplasma capsulatum ag	ACnc	Qn	Ser	RIA	Pt
+CHICKEN_DROPPINGS_AB_IGE_SER	19734-3	k[IU]/L	chicken droppings ab.ige	ACnc	Qn	Ser		Pt
+CALCITONIN_SER_PLAS	1992-7	ng/L	calcitonin	MCnc	Qn	Ser/Plas		Pt
+ACETYLCHOLINE_RECEPTOR_AB_SER	20427-1	nmol/L	acetylcholine receptor ab	SCnc	Qn	Ser		Pt
+HIV_1_RNA_SER_PLAS	20447-9	/mL	hiv 1 rna	NCnc	Qn	Ser/Plas	Probe.amp.tar	Pt
+INSULIN_SER_PLAS	20448-7	u[IU]/mL	insulin	ACnc	Qn	Ser/Plas		Pt
+GLIADIN_AB_IGA_SER	20495-8	[arb'U]/L	gliadin ab.iga	ACnc	Qn	Ser	IA	Pt
+GLIADIN_AB_IGG_SER	20496-6	[arb'U]/L	gliadin ab.igg	ACnc	Qn	Ser	IA	Pt
+ERYTHROCYTE_BLOOD_BLD	20570-8	%	erythrocyte/blood	VFr	Qn	Bld	Calculated	Pt
+VANCOMYCIN_SER_PLAS	20578-1	ug/mL	vancomycin	MCnc	Qn	Ser/Plas		Pt
+BETA_2_GLYCOPROTEIN_1_AB_IGA_SER	21108-6	[arb'U]/mL	beta 2 glycoprotein 1 ab.iga	ACnc	Qn	Ser		Pt
+SMITH_EXTRACTABLE_NUCLEAR_AB_RIBONUCLEOPROTEIN_EXTRACTABLE_NUCLEAR_AB_IGG_SER	21522-8	[arb'U]/mL	smith extractable nuclear ab+ribonucleoprotein extractable nuclear ab.igg	ACnc	Qn	Ser		Pt
+HEPATITIS_A_VIRUS_AB_IGM_SER	22315-6	[arb'U]/mL	hepatitis a virus ab.igm	ACnc	Qn	Ser		Pt
+HEPATITIS_D_VIRUS_AB_SER	22330-5	[arb'U]/mL	hepatitis d virus ab	ACnc	Qn	Ser		Pt
+HIV_1_RNA_PLAS	23876-6	[IU]/mL	hiv 1 rna	ACnc	Qn	Plas	Probe.amp.sig	Pt
+INHIBIN_A_SER_PLAS	23883-2	pg/L	inhibin a	MCnc	Qn	Ser/Plas		Pt
+MYCOPHENOLATE_SER_PLAS	23905-3	ug/mL	mycophenolate	MCnc	Qn	Ser/Plas		Pt
+EPSTEIN_BARR_VIRUS_EARLY_AB_IGG_SER	24007-7	[arb'U]/mL	epstein barr virus early ab.igg	ACnc	Qn	Ser		Pt
+BLATELLA_GERMANICA_AB_IGG_SER	24139-8	k[arb'U]/L	blatella germanica ab.igg	ACnc	Qn	Ser		Pt
+MUMPS_VIRUS_AB_IGM_SER	25419-3	[arb'U]/mL	mumps virus ab.igm	ACnc	Qn	Ser	IA	Pt
+ZINC_RBC	25557-0	umol/L	zinc	SCnc	Qn	RBC		Pt
+SCHISTOSOMA_SP_AB_IGG_SER	25757-6	[arb'U]/mL	schistosoma sp ab.igg	ACnc	Qn	Ser	IA	Pt
+EOSINOPHILS_BLD	26449-9	10*3/uL	eosinophils	NCnc	Qn	Bld		Pt
+LEUKOCYTES_BLD	26464-8	10*3/uL	leukocytes	NCnc	Qn	Bld		Pt
+PLATELETS_BLD	26515-7	10*3/uL	platelets	NCnc	Qn	Bld		Pt
+SMITH_EXTRACTABLE_NUCLEAR_AB_RIBONUCLEOPROTEIN_EXTRACTABLE_NUCLEAR_AB_SER	27048-8	[arb'U]/mL	smith extractable nuclear ab+ribonucleoprotein extractable nuclear ab	ACnc	Qn	Ser		Pt
+NUCLEAR_AB_SER	27200-5	[arb'U]/mL	nuclear ab	ACnc	Qn	Ser		Pt
+PARATHYRIN_RELATED_PROTEIN_SER_PLAS	2729-2	ng/L	parathyrin related protein	MCnc	Qn	Ser/Plas		Pt
+SCL_70_EXTRACTABLE_NUCLEAR_AB_SER	27416-7	[arb'U]/mL	scl-70 extractable nuclear ab	ACnc	Qn	Ser		Pt
+IMMUNE_COMPLEX_SER_PLAS	27831-7	[arb'U]/mL	immune complex	ACnc	Qn	Ser/Plas	C1q binding assay	Pt
+COLLAGEN_CROSSLINKED_N_TELOPEPTIDE_URINE	27939-8	nmol/mL	collagen crosslinked n-telopeptide	SCnc	Qn	Urine		Pt
+RENIN_PLAS	2915-7	ng/mL/h	renin	CCnc	Qn	Plas		Pt
+SIROLIMUS_BLD	29247-4	ng/mL	sirolimus	MCnc	Qn	Bld		Pt
+HEPATITIS_B_VIRUS_DNA_SER_PLAS	29615-2	/mL	hepatitis b virus dna	NCnc	Qn	Ser/Plas	Probe.amp.tar	Pt
+ZONISAMIDE_SER_PLAS	29620-2	ug/mL	zonisamide	MCnc	Qn	Ser/Plas		Pt
+LYSOZYME_BODY_FLD	29956-0	g/mL	lysozyme	MCnc	Qn	Body fld		Pt
+HISTONE_AB_IGG_SER	29996-6	[arb'U]/mL	histone ab.igg	ACnc	Qn	Ser	IA	Pt
+LEGIONELLA_PNEUMOPHILA_AB_SER	30046-7	[arb'U]/mL	legionella pneumophila ab	ACnc	Qn	Ser	IA	Pt
+EPSTEIN_BARR_VIRUS_NUCLEAR_AB_IGG_SER	30083-0	[IU]/mL	epstein barr virus nuclear ab.igg	ACnc	Qn	Ser	IA	Pt
+PERIPLANETA_AMERICANA_AB_IGE_SER	30170-5	k[IU]/L	periplaneta americana ab.ige	ACnc	Qn	Ser		Pt
+CHORIOGONADOTROPIN_INTACT_SER_PLAS	30243-0	m[IU]/mL	choriogonadotropin.intact	ACnc	Qn	Ser/Plas		Pt
+CYTOMEGALOVIRUS_DNA_SER_PLAS	30247-1	/mL	cytomegalovirus dna	NCnc	Qn	Ser/Plas	Probe.amp.tar	Pt
+GLOMERULAR_BASEMENT_MEMBRANE_AB_IGG_SER	30343-8	[arb'U]/mL	glomerular basement membrane ab.igg	ACnc	Qn	Ser	IA	Pt
+LEVETIRACETAM_SER_PLAS	30471-7	ug/mL	levetiracetam	MCnc	Qn	Ser/Plas		Pt
+TISSUE_TRANSGLUTAMINASE_AB_IGA_SER	31017-7	[arb'U]/L	tissue transglutaminase ab.iga	ACnc	Qn	Ser		Pt
+10_HYDROXYCARBAZEPINE_SER_PLAS	31019-3	ug/mL	10-hydroxycarbazepine	MCnc	Qn	Ser/Plas		Pt
+SACCHAROMYCES_CEREVISIAE_AB_IGA_SER	31032-6	k[IU]/L	saccharomyces cerevisiae ab.iga	ACnc	Qn	Ser		Pt
+ISLET_CELL_512_AB_SER	31209-0	[arb'U]/mL	islet cell 512 ab	ACnc	Qn	Ser		Pt
+VASOACTIVE_INTESTINAL_PEPTIDE_SER_PLAS	3125-2	ng/L	vasoactive intestinal peptide	MCnc	Qn	Ser/Plas		Pt
+VASOPRESSIN_SER_PLAS	3126-0	ng/L	vasopressin	MCnc	Qn	Ser/Plas		Pt
+COAGULATION_BLD	3173-2	s	coagulation	Time	Qn	Bld	Coag.surface induced	Pt
+ANTITHROMBIN_PPP	3174-0	[IU]/mL	antithrombin	ACnc	Qn	PPP	Chromo	Pt
+ANTITHROMBIN_AG_PPP	3175-7	[arb'U]/mL	antithrombin ag	ACnc	Qn	PPP	IA	Pt
+ACTIVATED_CLOTTING_TIME_BLD	3184-9	s	activated clotting time	Time	Qn	Bld	Coag	Pt
+REDUCING_SUBSTANCES_URINE	32147-1	mg/dL	reducing substances	MCnc	Qn	Urine		Pt
+CYCLIC_CITRULLINATED_PEPTIDE_AB_SER	32218-0	[arb'U]/mL	cyclic citrullinated peptide ab	ACnc	Qn	Ser	IA	Pt
+LIVER_KIDNEY_MICROSOMAL_1_AB_SER	32220-6	[arb'U]/mL	liver kidney microsomal 1 ab	ACnc	Qn	Ser		Pt
+FIBRINOGEN_PPP	3255-7	mg/dL	fibrinogen	MCnc	Qn	PPP	Coag	Pt
+FIBRINOGEN_AG_PPP	3256-5	mg/dL	fibrinogen ag	MCnc	Qn	PPP	IA	Pt
+TACROLIMUS_SER_PLAS	32721-3	ng/mL	tacrolimus	MCnc	Qn	Ser/Plas		Pt
+HEPARIN_UNFRACTIONATED_PPP	3274-8	[arb'U]/mL	heparin.unfractionated	ACnc	Qn	PPP	Chromo	Pt
+ACETAMINOPHEN_SER_PLAS	3298-7	ug/mL	acetaminophen	MCnc	Qn	Ser/Plas		Pt
+CYCLOSPORINE_2H_POST_DOSE_BLD	32997-9	ug/L	cyclosporine^2h post dose	MCnc	Qn	Bld		Pt
+AMIKACIN_TROUGH_SER_PLAS	3321-7	mg/L	amikacin^trough	MCnc	Qn	Ser/Plas		Pt
+ANABASINE_URINE	33915-0	ng/mL	anabasine	MCnc	Qn	Urine		Pt
+CYCLIC_CITRULLINATED_PEPTIDE_AB_IGG_SER_PLAS	33935-8	[arb'U]/mL	cyclic citrullinated peptide ab.igg	ACnc	Qn	Ser/Plas		Pt
+CAFFEINE_SER_PLAS	3422-3	ug/mL	caffeine	MCnc	Qn	Ser/Plas		Pt
+CARBAMAZEPINE_SER_PLAS	3432-2	ug/mL	carbamazepine	MCnc	Qn	Ser/Plas		Pt
+CARBOXY_TETRAHYDROCANNABINOL_URINE	3436-3	ng/mL	carboxy tetrahydrocannabinol	MCnc	Qn	Urine		Pt
+STRONGYLOIDES_SP_AB_IGG_SER	34376-4	[arb'U]/mL	strongyloides sp ab.igg	ACnc	Qn	Ser	IA	Pt
+ACTIN_AB_IGG_SER_PLAS	34661-9	[arb'U]/mL	actin ab.igg	ACnc	Qn	Ser/Plas		Pt
+CYCLOSPORINE_BLD	3520-4	ng/mL	cyclosporine	MCnc	Qn	Bld		Pt
+OXCARBAZEPINE_SER_PLAS	35331-8	ug/mL	oxcarbazepine	MCnc	Qn	Ser/Plas		Pt
+PROPOXYPHENE_URINE	3545-1	ng/mL	propoxyphene	MCnc	Qn	Urine		Pt
+SACCHAROMYCES_CEREVISIAE_AB_IGG_SER	35538-8	ug/mL	saccharomyces cerevisiae ab.igg	MCnc	Qn	Ser		Pt
+SALICYLATES_SER_PLAS	35597-4	ug/mL	salicylates	MCnc	Qn	Ser/Plas	Screen	Pt
+GENTAMICIN_SER_PLAS	35668-3	mg/L	gentamicin	MCnc	Qn	Ser/Plas		Pt
+TOBRAMYCIN_SER_PLAS	35670-9	mg/L	tobramycin	MCnc	Qn	Ser/Plas		Pt
+ETHOSUXIMIDE_SER_PLAS	3616-0	ug/mL	ethosuximide	MCnc	Qn	Ser/Plas		Pt
+GENTAMICIN_PEAK_SER_PLAS	3663-2	mg/L	gentamicin^peak	MCnc	Qn	Ser/Plas		Pt
+GENTAMICIN_TROUGH_SER_PLAS	3665-7	mg/L	gentamicin^trough	MCnc	Qn	Ser/Plas		Pt
+LIDOCAINE_SER_PLAS	3714-3	ug/mL	lidocaine	MCnc	Qn	Ser/Plas		Pt
+N_ACETYLPROCAINAMIDE_SER_PLAS	3834-9	ug/mL	n-acetylprocainamide	MCnc	Qn	Ser/Plas		Pt
+VORICONAZOLE_SER_PLAS	38370-3	ug/mL	voriconazole	MCnc	Qn	Ser/Plas		Pt
+NICOTINE_URINE	3854-7	ng/mL	nicotine	MCnc	Qn	Urine		Pt
+NORTRIPTYLINE_SER_PLAS	3872-9	ug/mL	nortriptyline	MCnc	Qn	Ser/Plas		Pt
+LEFLUNOMIDE_SER_PLAS	38901-5	ng/mL	leflunomide	MCnc	Qn	Ser/Plas		Pt
+PHENOBARBITAL_SER_PLAS	3948-7	ug/mL	phenobarbital	MCnc	Qn	Ser/Plas		Pt
+PHENYTOIN_SER_PLAS	3968-5	ug/mL	phenytoin	MCnc	Qn	Ser/Plas		Pt
+PHENYTOIN_FREE_SER_PLAS	3969-3	ug/mL	phenytoin.free	MCnc	Qn	Ser/Plas		Pt
+PROCAINAMIDE_SER_PLAS	3982-6	ug/mL	procainamide	MCnc	Qn	Ser/Plas		Pt
+THEOPHYLLINE_SER_PLAS	4049-3	ug/mL	theophylline	MCnc	Qn	Ser/Plas		Pt
+TOBRAMYCIN_PEAK_SER_PLAS	4057-6	mg/L	tobramycin^peak	MCnc	Qn	Ser/Plas		Pt
+TOBRAMYCIN_TROUGH_SER_PLAS	4059-2	mg/L	tobramycin^trough	MCnc	Qn	Ser/Plas		Pt
+VALPROATE_SER_PLAS	4086-5	ug/mL	valproate	MCnc	Qn	Ser/Plas		Pt
+VANCOMYCIN_PEAK_SER_PLAS	4090-7	ug/mL	vancomycin^peak	MCnc	Qn	Ser/Plas		Pt
+VANCOMYCIN_TROUGH_SER_PLAS	4092-3	ug/mL	vancomycin^trough	MCnc	Qn	Ser/Plas		Pt
+BK_VIRUS_DNA_SER_PLAS	41479-7	/uL	bk virus dna	NCnc	Qn	Ser/Plas	Probe.amp.tar	Pt
+BK_VIRUS_DNA_URINE	41480-5	/uL	bk virus dna	NCnc	Qn	Urine	Probe.amp.tar	Pt
+BETULA_POPULIFOLIA_AB_IGE_SER	41874-9	k[IU]/L	betula populifolia ab.ige	ACnc	Qn	Ser		Pt
+1_3_BETA_GLUCAN_SER	42176-8	ng/mL	1,3 beta glucan	MCnc	Qn	Ser		Pt
+CANNABINOIDS_URINE	42860-7	ug/L	cannabinoids	MCnc	Qn	Urine		Pt
+BETA_2_GLYCOPROTEIN_1_AB_IGA_SER_PLAS	44447-1	[arb'U]/mL	beta 2 glycoprotein 1 ab.iga	ACnc	Qn	Ser/Plas	IA	Pt
+BETA_2_GLYCOPROTEIN_1_AB_IGG_SER_PLAS	44448-9	[arb'U]/mL	beta 2 glycoprotein 1 ab.igg	ACnc	Qn	Ser/Plas	IA	Pt
+BETA_2_GLYCOPROTEIN_1_AB_IGM_SER_PLAS	44449-7	[arb'U]/mL	beta 2 glycoprotein 1 ab.igm	ACnc	Qn	Ser/Plas	IA	Pt
+COMPLEMENT_C1_ESTERASE_INHIBITOR_SER_PLAS	4477-6	mg/dL	complement c1 esterase inhibitor	MCnc	Qn	Ser/Plas		Pt
+COMPLEMENT_C3_SER_PLAS	4485-9	mg/dL	complement c3	MCnc	Qn	Ser/Plas		Pt
+COMPLEMENT_C4_SER_PLAS	4498-2	mg/dL	complement c4	MCnc	Qn	Ser/Plas		Pt
+CHORIOGONADOTROPIN_INTACT_BETA_SUBUNIT_SER_PLAS	45194-8	m[IU]/mL	choriogonadotropin.intact+beta subunit	ACnc	Qn	Ser/Plas		Pt
+ETHYL_GLUCURONIDE_URINE	45324-1	mg/L	ethyl glucuronide	MCnc	Qn	Urine		Pt
+COMPLEMENT_TOTAL_HEMOLYTIC_CH50_SER_PLAS	4532-8	[arb'U]/mL	complement total hemolytic ch50	ACnc	Qn	Ser/Plas		Pt
+HAPTOGLOBIN_SER_PLAS	4542-7	mg/dL	haptoglobin	MCnc	Qn	Ser/Plas		Pt
+HEMOGLOBIN_S_HEMOGLOBIN_TOTAL_BLD	4625-0	%	hemoglobin s/hemoglobin.total	MFr	Qn	Bld		Pt
+MYELOPEROXIDASE_AB_SER	46266-3	[arb'U]/mL	myeloperoxidase ab	ACnc	Qn	Ser	IA	Pt
+PROTEINASE_3_AB_SER	46267-1	[arb'U]/mL	proteinase 3 ab	ACnc	Qn	Ser	IA	Pt
+HEMOGLOBIN_FREE_SER	4635-9	mg/dL	hemoglobin.free	MCnc	Qn	Ser		Pt
+FIBRIN_D_DIMER_PPP	48058-2	ug/L	fibrin d-dimer	MCnc	Qn	PPP	IA.DDU	Pt
+ACTIVATED_CLOTTING_TIME_PPP	48344-6	s	activated clotting time	Time	Qn	PPP	Coag.kaolin induced without excess phospholipids	Pt
+HIV_1_O_2_AB_SER_PLAS	48346-1	[arb'U]/mL	hiv 1+o+2 ab	ACnc	Qn	Ser/Plas		Pt
+COAGULATION_BLDCRRT	49058-1	s	coagulation	Time	Qn	BldCRRT	Coag.surface induced	Pt
+EVEROLIMUS_BLD	50544-6	ng/mL	everolimus	MCnc	Qn	Bld		Pt
+BORRELIA_BURGDORFERI_AB_IGG_SER	5062-5	[arb'U]/mL	borrelia burgdorferi ab.igg	ACnc	Qn	Ser	IA	Pt
+CORYNEBACTERIUM_DIPHTHERIAE_AB_SER	5116-9	[IU]/mL	corynebacterium diphtheriae ab	ACnc	Qn	Ser	IA	Pt
+CYTOMEGALOVIRUS_AB_IGG_SER_PLAS	5124-3	[arb'U]/mL	cytomegalovirus ab.igg	ACnc	Qn	Ser/Plas	IA	Pt
+DNA_DOUBLE_STRAND_AB_SER	5130-0	[IU]/mL	dna double strand ab	ACnc	Qn	Ser		Pt
+EPSTEIN_BARR_VIRUS_CAPSID_AB_IGG_SER	5157-3	[arb'U]/mL	epstein barr virus capsid ab.igg	ACnc	Qn	Ser	IA	Pt
+CHROMATIN_AB_SER_PLAS	51775-5	[arb'U]/mL	chromatin ab	ACnc	Qn	Ser/Plas		Pt
+7_AMINOCLONAZEPAM_URINE	51776-3	ng/mL	7-aminoclonazepam	MCnc	Qn	Urine	Confirm	Pt
+HEPATITIS_B_VIRUS_LITTLE_E_AG_SER	5191-2	[IU]/mL	hepatitis b virus little e ag	ACnc	Qn	Ser	IA	Pt
+RIBONUCLEOPROTEIN_EXTRACTABLE_NUCLEAR_AB_SER	51928-0	[arb'U]/mL	ribonucleoprotein extractable nuclear ab	ACnc	Qn	Ser	IA	Pt
+HEPATITIS_B_VIRUS_SURFACE_AB_SER_PLAS	5193-8	m[IU]/mL	hepatitis b virus surface ab	ACnc	Qn	Ser/Plas	IA	Pt
+HERPES_VIRUS_6_AB_IGG_SER	5211-8	[arb'U]/mL	herpes virus 6 ab.igg	ACnc	Qn	Ser		Pt
+PARVOVIRUS_B19_AB_IGG_SER	5273-8	[arb'U]/mL	parvovirus b19 ab.igg	ACnc	Qn	Ser	IA	Pt
+PARVOVIRUS_B19_AB_IGM_SER	5274-6	[arb'U]/mL	parvovirus b19 ab.igm	ACnc	Qn	Ser	IA	Pt
+RUBELLA_VIRUS_AB_IGG_SER_PLAS	5334-8	[arb'U]/mL	rubella virus ab.igg	ACnc	Qn	Ser/Plas	IA	Pt
+STREPTOLYSIN_O_AB_SER_PLAS	5370-2	[IU]/mL	streptolysin o ab	ACnc	Qn	Ser/Plas		Pt
+COCAINE_METABOLITES_OTHER_URINE	53743-1	ng/mL	cocaine metabolites.other	MCnc	Qn	Urine		Pt
+CASEIN_AB_IGG_SER	53829-8	ug/mL	casein ab.igg	MCnc	Qn	Ser		Pt
+TOXOPLASMA_GONDII_AB_IGG_SER_PLAS	5388-4	[arb'U]/mL	toxoplasma gondii ab.igg	ACnc	Qn	Ser/Plas	IA	Pt
+CHORIOGONADOTROPIN_TUMOR_MARKER_SER_PLAS	53959-3	m[IU]/mL	choriogonadotropin.tumor marker	ACnc	Qn	Ser/Plas		Pt
+VARICELLA_ZOSTER_VIRUS_AB_IGG_SER	5403-1	[arb'U]/mL	varicella zoster virus ab.igg	ACnc	Qn	Ser	IA	Pt
+ACETONE_SER_PLAS	5568-1	mg/dL	acetone	MCnc	Qn	Ser/Plas		Pt
+ALUMINUM_SER_PLAS	5574-9	ng/mL	aluminum	MCnc	Qn	Ser/Plas		Pt
+ARSENIC_BLD	5583-0	ug/dL	arsenic	MCnc	Qn	Bld		Pt
+CADMIUM_BLD	5609-3	ng/mL	cadmium	MCnc	Qn	Bld		Pt
+CHROMIUM_BLD	5619-2	ng/mL	chromium	MCnc	Qn	Bld		Pt
+CHROMIUM_SER_PLAS	5622-6	ng/mL	chromium	MCnc	Qn	Ser/Plas		Pt
+COW_MILK_AB_IGG4_SER	56234-8	ug/mL	cow milk ab.igg4	MCnc	Qn	Ser		Pt
+COBALT_BLD	5625-9	ug/L	cobalt	MCnc	Qn	Bld		Pt
+COBALT_SER_PLAS	5627-5	ug/L	cobalt	MCnc	Qn	Ser/Plas		Pt
+COPPER_SER_PLAS	5631-7	ug/dL	copper	MCnc	Qn	Ser/Plas		Pt
+ETHANOL_BLD	5640-8	mg/dL	ethanol	MCnc	Qn	Bld		Pt
+ETHANOL_SER_PLAS	5643-2	mg/dL	ethanol	MCnc	Qn	Ser/Plas		Pt
+ETHANOL_URINE	5645-7	mg/dL	ethanol	MCnc	Qn	Urine		Pt
+ETHYLENE_GLYCOL_SER_PLAS_BLD	5646-5	ug/mL	ethylene glycol	MCnc	Qn	Ser/Plas/Bld		Pt
+TISSUE_TRANSGLUTAMINASE_AB_IGG_SER	56537-4	[arb'U]/mL	tissue transglutaminase ab.igg	ACnc	Qn	Ser	IA	Pt
+EPSTEIN_BARR_VIRUS_EARLY_AB_IGM_SER	56598-6	[arb'U]/mL	epstein barr virus early ab.igm	ACnc	Qn	Ser	IA	Pt
+ISOPROPANOL_SER_PLAS	5669-7	mg/dL	isopropanol	MCnc	Qn	Ser/Plas		Pt
+MERCURY_BLD	5685-3	ng/mL	mercury	MCnc	Qn	Bld		Pt
+METHANOL_SER_PLAS	5693-7	mg/dL	methanol	MCnc	Qn	Ser/Plas		Pt
+CYCLIC_CITRULLINATED_PEPTIDE_AB_IGA_IGG_SER_PLAS	57093-7	[arb'U]/mL	cyclic citrullinated peptide ab.iga+igg	ACnc	Qn	Ser/Plas	IA	Pt
+POLYCHLORINATED_BIPHENYL_SER_PLAS	5716-6	ug/mL	polychlorinated biphenyl	MCnc	Qn	Ser/Plas		Pt
+SELENIUM_SER_PLAS	5724-0	ng/mL	selenium	MCnc	Qn	Ser/Plas		Pt
+THYROTROPIN_RECEPTOR_AB_SER	57416-0	m[IU]/mL	thyrotropin receptor ab	ACnc	Qn	Ser	IA	Pt
+ZINC_SER_PLAS	5763-8	ug/mL	zinc	MCnc	Qn	Ser/Plas		Pt
+KETONES_URINE	5797-6	mg/dL	ketones	MCnc	SemiQn	Urine	Test strip	Pt
+PROTEIN_S_PPP	5892-5	[IU]/mL	protein s	ACnc	Qn	PPP	Coag	Pt
+LACOSAMIDE_SER_PLAS	59297-2	ug/mL	lacosamide	MCnc	Qn	Ser/Plas		Pt
+PROTEIN_C_PPP	6007-9	[IU]/mL	protein c	ACnc	Qn	PPP	Coag	Pt
+PROTEIN_C_AG_PPP	6009-5	[IU]/mL	protein c ag	ACnc	Qn	PPP	IA	Pt
+VON_WILLEBRAND_FACTOR_AG_PPP	6012-9	[IU]/mL	von willebrand factor ag	ACnc	Qn	PPP	IA	Pt
+PRUNUS_DULCIS_AB_IGE_SER	6019-4	k[IU]/L	prunus dulcis ab.ige	ACnc	Qn	Ser		Pt
+ALTERNARIA_ALTERNATA_AB_IGE_SER	6020-2	k[IU]/L	alternaria alternata ab.ige	ACnc	Qn	Ser		Pt
+MALUS_SYLVESTRIS_AB_IGE_SER	6021-0	k[IU]/L	malus sylvestris ab.ige	ACnc	Qn	Ser		Pt
+ASPERGILLUS_FUMIGATUS_AB_IGE_SER	6025-1	k[IU]/L	aspergillus fumigatus ab.ige	ACnc	Qn	Ser		Pt
+AUREOBASIDIUM_PULLULANS_AB_IGE_SER	6029-3	k[IU]/L	aureobasidium pullulans ab.ige	ACnc	Qn	Ser		Pt
+PASPALUM_NOTATUM_AB_IGE_SER	6034-3	k[IU]/L	paspalum notatum ab.ige	ACnc	Qn	Ser		Pt
+MUSA_SPP_AB_IGE_SER	6035-0	k[IU]/L	musa spp ab.ige	ACnc	Qn	Ser		Pt
+HORDEUM_VULGARE_AB_IGE_SER	6037-6	k[IU]/L	hordeum vulgare ab.ige	ACnc	Qn	Ser		Pt
+FAGUS_GRANDIFOLIA_AB_IGE_SER	6038-4	k[IU]/L	fagus grandifolia ab.ige	ACnc	Qn	Ser		Pt
+BEEF_AB_IGE_SER	6039-2	k[IU]/L	beef ab.ige	ACnc	Qn	Ser		Pt
+CYNODON_DACTYLON_AB_IGE_SER	6041-8	k[IU]/L	cynodon dactylon ab.ige	ACnc	Qn	Ser		Pt
+BERTHOLLETIA_EXCELSA_AB_IGE_SER	6050-9	k[IU]/L	bertholletia excelsa ab.ige	ACnc	Qn	Ser		Pt
+CANDIDA_ALBICANS_AB_IGE_SER	6059-0	k[IU]/L	candida albicans ab.ige	ACnc	Qn	Ser		Pt
+DAUCUS_CAROTA_AB_IGE_SER	6061-6	k[IU]/L	daucus carota ab.ige	ACnc	Qn	Ser		Pt
+CASEIN_AB_IGE_SER	6062-4	k[IU]/L	casein ab.ige	ACnc	Qn	Ser		Pt
+ACREMONIUM_SP_AB_IGE_SER	6066-5	k[IU]/L	acremonium sp ab.ige	ACnc	Qn	Ser		Pt
+CHICKEN_FEATHER_AB_IGE_SER	6070-7	k[IU]/L	chicken feather ab.ige	ACnc	Qn	Ser		Pt
+CHICKEN_MEAT_AB_IGE_SER	6071-5	k[IU]/L	chicken meat ab.ige	ACnc	Qn	Ser		Pt
+CHOCOLATE_AB_IGE_SER	6073-1	k[IU]/L	chocolate ab.ige	ACnc	Qn	Ser		Pt
+CLADOSPORIUM_HERBARUM_AB_IGE_SER	6075-6	k[IU]/L	cladosporium herbarum ab.ige	ACnc	Qn	Ser		Pt
+RUDITAPES_SPP_AB_IGE_SER	6076-4	k[IU]/L	ruditapes spp ab.ige	ACnc	Qn	Ser		Pt
+BLATELLA_GERMANICA_AB_IGE_SER	6078-0	k[IU]/L	blatella germanica ab.ige	ACnc	Qn	Ser		Pt
+COCOS_NUCIFERA_AB_IGE_SER	6081-4	k[IU]/L	cocos nucifera ab.ige	ACnc	Qn	Ser		Pt
+GADUS_MORHUA_AB_IGE_SER	6082-2	k[IU]/L	gadus morhua ab.ige	ACnc	Qn	Ser		Pt
+AMBROSIA_ELATIOR_AB_IGE_SER	6085-5	k[IU]/L	ambrosia elatior ab.ige	ACnc	Qn	Ser		Pt
+ZEA_MAYS_AB_IGE_SER	6087-1	k[IU]/L	zea mays ab.ige	ACnc	Qn	Ser		Pt
+POPULUS_DELTOIDES_AB_IGE_SER	6090-5	k[IU]/L	populus deltoides ab.ige	ACnc	Qn	Ser		Pt
+CANCER_PAGURUS_AB_IGE_SER	6092-1	k[IU]/L	cancer pagurus ab.ige	ACnc	Qn	Ser		Pt
+DERMATOPHAGOIDES_FARINAE_AB_IGE_SER	6095-4	k[IU]/L	dermatophagoides farinae ab.ige	ACnc	Qn	Ser		Pt
+DERMATOPHAGOIDES_PTERONYSSINUS_AB_IGE_SER	6096-2	k[IU]/L	dermatophagoides pteronyssinus ab.ige	ACnc	Qn	Ser		Pt
+DOG_DANDER_AB_IGE_SER	6098-8	k[IU]/L	dog dander ab.ige	ACnc	Qn	Ser		Pt
+DOG_EPITHELIUM_AB_IGE_SER	6099-6	k[IU]/L	dog epithelium ab.ige	ACnc	Qn	Ser		Pt
+EGG_WHITE_AB_IGE_SER	6106-9	k[IU]/L	egg white ab.ige	ACnc	Qn	Ser		Pt
+EGG_YOLK_AB_IGE_SER	6107-7	k[IU]/L	egg yolk ab.ige	ACnc	Qn	Ser		Pt
+ULMUS_AMERICANA_AB_IGE_SER	6109-3	k[IU]/L	ulmus americana ab.ige	ACnc	Qn	Ser		Pt
+PLANTAGO_LANCEOLATA_AB_IGE_SER	6110-1	k[IU]/L	plantago lanceolata ab.ige	ACnc	Qn	Ser		Pt
+EUCALYPTUS_SPP_AB_IGE_SER	6113-5	k[IU]/L	eucalyptus spp ab.ige	ACnc	Qn	Ser		Pt
+FUSARIUM_MONILIFORME_AB_IGE_SER	6121-8	k[IU]/L	fusarium moniliforme ab.ige	ACnc	Qn	Ser		Pt
+GLUTEN_AB_IGE_SER	6125-9	k[IU]/L	gluten ab.ige	ACnc	Qn	Ser		Pt
+GOOSE_FEATHER_AB_IGE_SER	6129-1	k[IU]/L	goose feather ab.ige	ACnc	Qn	Ser		Pt
+CORYLUS_AVELLANA_AB_IGE_SER	6136-6	k[IU]/L	corylus avellana ab.ige	ACnc	Qn	Ser		Pt
+CORYLUS_AVELLANA_POLLEN_AB_IGE_SER	6137-4	k[IU]/L	corylus avellana pollen ab.ige	ACnc	Qn	Ser		Pt
+SETOMELANOMMA_ROSTRATA_AB_IGE_SER	6138-2	k[IU]/L	setomelanomma rostrata ab.ige	ACnc	Qn	Ser		Pt
+AQUAPORIN_4_WATER_CHANNEL_AB_SER_PLAS	61430-5	[arb'U]/mL	aquaporin 4 water channel ab	ACnc	Qn	Ser/Plas	IA	Pt
+HORSE_DANDER_AB_IGE_SER	6143-2	k[IU]/L	horse dander ab.ige	ACnc	Qn	Ser		Pt
+CUPRESSUS_SEMPERVIRENS_AB_IGE_SER	6151-5	k[IU]/L	cupressus sempervirens ab.ige	ACnc	Qn	Ser		Pt
+SORGHUM_HALEPENSE_AB_IGE_SER	6152-3	k[IU]/L	sorghum halepense ab.ige	ACnc	Qn	Ser		Pt
+POA_PRATENSIS_AB_IGE_SER	6153-1	k[IU]/L	poa pratensis ab.ige	ACnc	Qn	Ser		Pt
+CHENOPODIUM_ALBUM_AB_IGE_SER	6156-4	k[IU]/L	chenopodium album ab.ige	ACnc	Qn	Ser		Pt
+LATEX_AB_IGE_SER	6158-0	k[IU]/L	latex ab.ige	ACnc	Qn	Ser		Pt
+QUERCUS_VIRGINIANA_AB_IGE_SER	6164-8	k[IU]/L	quercus virginiana ab.ige	ACnc	Qn	Ser		Pt
+HOMARUS_GAMMARUS_AB_IGE_SER	6165-5	k[IU]/L	homarus gammarus ab.ige	ACnc	Qn	Ser		Pt
+MILK_AB_IGE_SER	6174-7	k[IU]/L	milk ab.ige	ACnc	Qn	Ser		Pt
+JUNIPERUS_SABINOIDES_AB_IGE_SER	6178-8	k[IU]/L	juniperus sabinoides ab.ige	ACnc	Qn	Ser		Pt
+MUCOR_RACEMOSUS_AB_IGE_SER	6182-0	k[IU]/L	mucor racemosus ab.ige	ACnc	Qn	Ser		Pt
+ARTEMISIA_VULGARIS_AB_IGE_SER	6183-8	k[IU]/L	artemisia vulgaris ab.ige	ACnc	Qn	Ser		Pt
+URTICA_DIOICA_AB_IGE_SER	6186-1	k[IU]/L	urtica dioica ab.ige	ACnc	Qn	Ser		Pt
+QUERCUS_ALBA_AB_IGE_SER	6189-5	k[IU]/L	quercus alba ab.ige	ACnc	Qn	Ser		Pt
+AVENA_SATIVA_AB_IGE_SER	6190-3	k[IU]/L	avena sativa ab.ige	ACnc	Qn	Ser		Pt
+CITRUS_SINENSIS_AB_IGE_SER	6194-5	k[IU]/L	citrus sinensis ab.ige	ACnc	Qn	Ser		Pt
+DACTYLIS_GLOMERATA_AB_IGE_SER	6195-2	k[IU]/L	dactylis glomerata ab.ige	ACnc	Qn	Ser		Pt
+PISUM_SATIVUM_AB_IGE_SER	6204-2	k[IU]/L	pisum sativum ab.ige	ACnc	Qn	Ser		Pt
+ARACHIS_HYPOGAEA_AB_IGE_SER	6206-7	k[IU]/L	arachis hypogaea ab.ige	ACnc	Qn	Ser		Pt
+CARYA_ILLINOINENSIS_NUT_AB_IGE_SER	6208-3	k[IU]/L	carya illinoinensis nut ab.ige	ACnc	Qn	Ser		Pt
+CARYA_ILLINOINENSIS_TREE_AB_IGE_SER	6209-1	k[IU]/L	carya illinoinensis tree ab.ige	ACnc	Qn	Ser		Pt
+PENICILLIUM_NOTATUM_AB_IGE_SER	6212-5	k[IU]/L	penicillium notatum ab.ige	ACnc	Qn	Ser		Pt
+PORK_AB_IGE_SER	6219-0	k[IU]/L	pork ab.ige	ACnc	Qn	Ser		Pt
+SOLANUM_TUBEROSUM_AB_IGE_SER	6220-8	k[IU]/L	solanum tuberosum ab.ige	ACnc	Qn	Ser		Pt
+SYAGRUS_ROMANZOFFIANUM_AB_IGE_SER	6222-4	k[IU]/L	syagrus romanzoffianum ab.ige	ACnc	Qn	Ser		Pt
+ORYZA_SATIVA_AB_IGE_SER	6230-7	k[IU]/L	oryza sativa ab.ige	ACnc	Qn	Ser		Pt
+IVA_CILIATA_AB_IGE_SER	6232-3	k[IU]/L	iva ciliata ab.ige	ACnc	Qn	Ser		Pt
+SALSOLA_KALI_AB_IGE_SER	6234-9	k[IU]/L	salsola kali ab.ige	ACnc	Qn	Ser		Pt
+SALMO_SALAR_AB_IGE_SER	6237-2	k[IU]/L	salmo salar ab.ige	ACnc	Qn	Ser		Pt
+ATRIPLEX_LENTIFORMIS_AB_IGE_SER	6239-8	k[IU]/L	atriplex lentiformis ab.ige	ACnc	Qn	Ser		Pt
+SESAMUM_INDICUM_AB_IGE_SER	6242-2	k[IU]/L	sesamum indicum ab.ige	ACnc	Qn	Ser		Pt
+RUMEX_ACETOSELLA_AB_IGE_SER	6244-8	k[IU]/L	rumex acetosella ab.ige	ACnc	Qn	Ser		Pt
+PANDALUS_BOREALIS_AB_IGE_SER	6246-3	k[IU]/L	pandalus borealis ab.ige	ACnc	Qn	Ser		Pt
+GLYCINE_MAX_AB_IGE_SER	6248-9	k[IU]/L	glycine max ab.ige	ACnc	Qn	Ser		Pt
+STEMPHYLIUM_BOTRYOSUM_AB_IGE_SER	6252-1	k[IU]/L	stemphylium botryosum ab.ige	ACnc	Qn	Ser		Pt
+FRAGARIA_VESCA_AB_IGE_SER	6257-0	k[IU]/L	fragaria vesca ab.ige	ACnc	Qn	Ser		Pt
+PLATANUS_OCCIDENTALIS_AB_IGE_SER	6263-8	k[IU]/L	platanus occidentalis ab.ige	ACnc	Qn	Ser		Pt
+PHLEUM_PRATENSE_AB_IGE_SER	6265-3	k[IU]/L	phleum pratense ab.ige	ACnc	Qn	Ser		Pt
+LYCOPERSICON_LYCOPERSICUM_AB_IGE_SER	6266-1	k[IU]/L	lycopersicon lycopersicum ab.ige	ACnc	Qn	Ser		Pt
+THUNNUS_ALBACARES_AB_IGE_SER	6270-3	k[IU]/L	thunnus albacares ab.ige	ACnc	Qn	Ser		Pt
+JUGLANS_SPP_AB_IGE_SER	6273-7	k[IU]/L	juglans spp ab.ige	ACnc	Qn	Ser		Pt
+JUGLANS_CALIFORNIA_AB_IGE_SER	6274-5	k[IU]/L	juglans california ab.ige	ACnc	Qn	Ser		Pt
+TRITICUM_AESTIVUM_AB_IGE_SER	6276-0	k[IU]/L	triticum aestivum ab.ige	ACnc	Qn	Ser		Pt
+FRAXINUS_AMERICANA_AB_IGE_SER	6278-6	k[IU]/L	fraxinus americana ab.ige	ACnc	Qn	Ser		Pt
+MORUS_ALBA_AB_IGE_SER	6281-0	k[IU]/L	morus alba ab.ige	ACnc	Qn	Ser		Pt
+PINUS_STROBUS_AB_IGE_SER	6282-8	k[IU]/L	pinus strobus ab.ige	ACnc	Qn	Ser		Pt
+ARTEMISIA_ABSINTHIUM_AB_IGE_SER	6286-9	k[IU]/L	artemisia absinthium ab.ige	ACnc	Qn	Ser		Pt
+SACCHAROMYCES_CEREVISIAE_AB_IGE_SER	6287-7	k[IU]/L	saccharomyces cerevisiae ab.ige	ACnc	Qn	Ser		Pt
+GLUTEN_AB_IGG_SER	63091-3	ug/mL	gluten ab.igg	MCnc	Qn	Ser		Pt
+BORRELIA_BURGDORFERI_AB_CSF	6318-0	[arb'U]/mL	borrelia burgdorferi ab	ACnc	Qn	CSF	IA	Pt
+ANACARDIUM_OCCIDENTALE_AB_IGE_SER	6718-1	k[IU]/L	anacardium occidentale ab.ige	ACnc	Qn	Ser		Pt
+CAT_DANDER_AB_IGE_SER	6833-8	k[IU]/L	cat dander ab.ige	ACnc	Qn	Ser		Pt
+APIS_MELLIFERA_AB_IGE_SER	6844-5	k[IU]/L	apis mellifera ab.ige	ACnc	Qn	Ser		Pt
+PENICILLIN_G_AB_IGE_SER	6851-0	k[IU]/L	penicillin g ab.ige	ACnc	Qn	Ser		Pt
+CLOZAPINE_SER_PLAS	6896-5	ng/mL	clozapine	MCnc	Qn	Ser/Plas		Pt
+INSULIN_FREE_SER_PLAS	6901-3	u[IU]/mL	insulin.free	ACnc	Qn	Ser/Plas		Pt
+LAMOTRIGINE_SER_PLAS	6948-4	ug/mL	lamotrigine	MCnc	Qn	Ser/Plas		Pt
+BACCHARIS_SPP_AB_IGE_SER	7110-0	k[IU]/L	baccharis spp ab.ige	ACnc	Qn	Ser		Pt
+MYRICA_SPP_POLLEN_AB_IGE_SER	7124-1	k[IU]/L	myrica spp pollen ab.ige	ACnc	Qn	Ser		Pt
+ACER_NEGUNDO_AB_IGE_SER	7155-5	k[IU]/L	acer negundo ab.ige	ACnc	Qn	Ser		Pt
+HEMOGLOBIN_BLD	718-7	g/dL	hemoglobin	MCnc	Qn	Bld		Pt
+HEMOGLOBIN_FREE_PLAS	721-1	mg/L	hemoglobin.free	MCnc	Qn	Plas		Pt
+COW_MILK_AB_IGE_SER	7258-7	k[IU]/L	cow milk ab.ige	ACnc	Qn	Ser		Pt
+ANTHEMIS_COTULA_AB_IGE_SER	7287-6	k[IU]/L	anthemis cotula ab.ige	ACnc	Qn	Ser		Pt
+EGG_WHOLE_AB_IGE_SER	7291-8	k[IU]/L	egg whole ab.ige	ACnc	Qn	Ser		Pt
+LOLIUM_PERENNE_AB_IGE_SER	7369-2	k[IU]/L	lolium perenne ab.ige	ACnc	Qn	Ser		Pt
+CARYA_TOMENTOSA_AB_IGE_SER	7407-0	k[IU]/L	carya tomentosa ab.ige	ACnc	Qn	Ser		Pt
+CLADOSPORIUM_SPHAEROSPERMUM_AB_IGE_SER	7415-3	k[IU]/L	cladosporium sphaerospermum ab.ige	ACnc	Qn	Ser		Pt
+LACTALBUMIN_ALPHA_AB_IGE_SER	7445-0	k[IU]/L	lactalbumin alpha ab.ige	ACnc	Qn	Ser		Pt
+MANGIFERA_INDICA_POLLEN_AB_IGE_SER	7477-3	k[IU]/L	mangifera indica pollen ab.ige	ACnc	Qn	Ser		Pt
+OSTREA_EDULIS_AB_IGE_SER	7558-0	k[IU]/L	ostrea edulis ab.ige	ACnc	Qn	Ser		Pt
+AMARANTHUS_RETROFLEXUS_AB_IGE_SER	7604-2	k[IU]/L	amaranthus retroflexus ab.ige	ACnc	Qn	Ser		Pt
+PISTACIA_VERA_AB_IGE_SER	7613-3	k[IU]/L	pistacia vera ab.ige	ACnc	Qn	Ser		Pt
+LIGUSTRUM_VULGARE_AB_IGE_SER	7632-3	k[IU]/L	ligustrum vulgare ab.ige	ACnc	Qn	Ser		Pt
+PECTEN_SPP_AB_IGE_SER	7691-9	k[IU]/L	pecten spp ab.ige	ACnc	Qn	Ser		Pt
+COW_WHEY_AB_IGE_SER	7774-3	k[IU]/L	cow whey ab.ige	ACnc	Qn	Ser		Pt
+EPSTEIN_BARR_VIRUS_CAPSID_AB_IGM_SER	7886-5	[arb'U]/mL	epstein barr virus capsid ab.igm	ACnc	Qn	Ser		Pt
+GLIADIN_AB_SER	7893-1	[arb'U]/L	gliadin ab	ACnc	Qn	Ser		Pt
+ERYTHROCYTES_BLD	789-8	10*6/uL	erythrocytes	NCnc	Qn	Bld	Automated count	Pt
+HELICOBACTER_PYLORI_AB_IGA_SER	7901-2	[arb'U]/mL	helicobacter pylori ab.iga	ACnc	Qn	Ser		Pt
+HELICOBACTER_PYLORI_AB_IGG_SER	7902-0	[arb'U]/mL	helicobacter pylori ab.igg	ACnc	Qn	Ser		Pt
+RUBELLA_VIRUS_AB_IGG_SER	8014-3	[IU]/mL	rubella virus ab.igg	ACnc	Qn	Ser		Pt
+TOXOPLASMA_GONDII_AB_IGG_SER	8039-0	[arb'U]/mL	toxoplasma gondii ab.igg	ACnc	Qn	Ser		Pt
+TOXOPLASMA_GONDII_AB_IGM_SER	8040-8	[arb'U]/mL	toxoplasma gondii ab.igm	ACnc	Qn	Ser		Pt
+CENTROMERE_AB_SER	8068-9	[arb'U]/mL	centromere ab	ACnc	Qn	Ser		Pt
+INSULIN_AB_SER	8072-1	[arb'U]/mL	insulin ab	ACnc	Qn	Ser		Pt
+THYROGLOBULIN_AB_SER_PLAS	8098-6	[IU]/mL	thyroglobulin ab	ACnc	Qn	Ser/Plas		Pt
+THYROPEROXIDASE_AB_SER_PLAS	8099-4	[IU]/mL	thyroperoxidase ab	ACnc	Qn	Ser/Plas		Pt
+AMPHETAMINES_URINE	8150-5	ug/L	amphetamines	MCnc	Qn	Urine		Pt
+OPIATES_URINE	8220-6	ng/mL	opiates	MCnc	Qn	Urine		Pt
+BARBITURATES_URINE	9426-8	ug/mL	barbiturates	MCnc	Qn	Urine		Pt
+BENZODIAZEPINES_URINE	9428-4	ug/L	benzodiazepines	MCnc	Qn	Urine		Pt
+ENTAMOEBA_HISTOLYTICA_AB_IGG_SER	9522-4	[arb'U]/mL	entamoeba histolytica ab.igg	ACnc	Qn	Ser	IA	Pt
+PHYTONADIONE_SER_PLAS	9622-2	ng/L	phytonadione	MCnc	Qn	Ser/Plas		Pt
+GABAPENTIN_SER_PLAS_BLD	9738-6	ug/mL	gabapentin	MCnc	Qn	Ser/Plas/Bld		Pt
+HOUSE_DUST_GREER_AB_IGE_SER	9828-5	k[IU]/L	house dust greer ab.ige	ACnc	Qn	Ser		Pt

@@ -10,7 +10,7 @@ machine-checked (`lint-imports`, contracts in `pyproject.toml`):
 
 | Layer | Where | Installs with | May import |
 |---|---|---|---|
-| ② Standardize + the kernel (the library) | vocabulary: `engine/`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; the pure seam: **`standardize/`** (`fold`, `parse`, `local_day`, `series`, `code`, `devices`); semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `decoders/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
+| ② Standardize + the kernel (the library) | vocabulary: `engine/`, `lexical.py`, `units/`, `value_scale.py`, `zh_fold.py`, `_bundle.py`, `_strtab.py`; the pure seam: **`standardize/`** (`fold`, `parse`, `local_day`, `series`, `code`, `names`, `devices`); semantics: **`kernel/`** (`metrics`, `series`, `quality`, `overlay`, `meds`, `query`, `tools`, `ops`, `connect`, `sink`, `events`, `evidence`, `memory`, `decoders/`); toolbox: `testing/` | `pip install mirobody` (numpy only) | each other, nothing else |
 | ② Standardize, the parts that reach a database | `standardize/aggregate/`, `standardize/derive/`, `standardize/indicators_info.py`, `standardize/canonical_units.py`, `standardize/value_range_validator.py` | `[app]` | no agent framework |
 | ① Collect + storage + MCP | `mirobody/documents/`, `collect/`, `utils/`, `user/`, `task/`, `mcp/` | `[parse]` / `[app]` | no `langchain*`, `langgraph`, `deepagents` |
 | ③ Agent | `mirobody/agent/` (one agent: `MirobodyAgent`, on `deepagents`), `server/` | `[agent]` (the harness as a library) / `[app]` | anything |
@@ -48,8 +48,8 @@ running the minimal suite while reporting the full one. If a doc says `[agents]`
 ```bash
 ruff check mirobody examples   # rule set in pyproject.toml; 0 findings on main
 python -m compileall -q mirobody
-pytest -q               # 731 in a clone with [app]: 620 pass, 12 strict xfails,
-                        # 99 database cases skip until MIROBODY_TEST_POSTGRES_DSN
+pytest -q               # 1622 in a clone with [app]: 1460 pass, 12 strict xfails,
+                        # 150 database cases skip until MIROBODY_TEST_POSTGRES_DSN
                         # is set (docs/testing.md). The regression suite is gitignored
 lint-imports            # 6 contracts, must say "0 broken"
 python3 -c "import mirobody.kernel.meds, mirobody.kernel.query"   # the library layer, bare interpreter

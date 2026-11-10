@@ -230,6 +230,20 @@ def _clean(text: object) -> str:
     return str(text).replace("\x00", "").strip()
 
 
+def _placed(draft: Draft, user_tz: str) -> tuple[str, str, datetime, datetime]:
+    """`(tz, tz_source, start, end)` of a draft that has a start: its zone, and
+    its times as aware instants, a naive time being wall clock in that zone.
+    An instant's end is its start."""
+    tz, tz_source = standardize.resolve_tz(draft.tz, user_tz)
+    zone = standardize.zone_for(tz)
+    start = draft.observed_start if draft.observed_start.tzinfo else draft.observed_start.replace(tzinfo=zone)
+    end = draft.observed_end if draft.observed_end is not None else start
+    end = end if end.tzinfo else end.replace(tzinfo=zone)
+    if (draft.grain or (GRAIN_INSTANT if end == start else GRAIN_WINDOW)) == GRAIN_INSTANT:
+        end = start
+    return tz, tz_source, start, end
+
+
 def prepare(
     draft: Draft, provenance: Provenance, user_id: str, user_tz: str, *, now: datetime
 ) -> dict[str, Any]:
@@ -240,19 +254,18 @@ def prepare(
     say: a missing time is a rejection, not today.
     """
     name = _clean(draft.name_text)
-    if not name:
+    # The key, not the text: a lone `：` is not empty, but it folds to "" and
+    # the reading was filed under a series with no name (#235). A lone
+    # zero-width space survives the fold and prints as nothing, the same
+    # blank row on screen, so the key must hold a character that shows.
+    name_key = standardize.name_key(name)
+    if not any(c.isprintable() and not c.isspace() for c in name_key):
         raise Rejected(REJECT_NO_NAME)
     if draft.observed_start is None:
         raise Rejected(REJECT_NO_TIME)
 
-    tz, tz_source = standardize.resolve_tz(draft.tz, user_tz)
-    zone = standardize.zone_for(tz)
-    start = draft.observed_start if draft.observed_start.tzinfo else draft.observed_start.replace(tzinfo=zone)
-    end = draft.observed_end if draft.observed_end is not None else start
-    end = end if end.tzinfo else end.replace(tzinfo=zone)
+    tz, tz_source, start, end = _placed(draft, user_tz)
     grain = draft.grain or (GRAIN_INSTANT if end == start else GRAIN_WINDOW)
-    if grain == GRAIN_INSTANT:
-        end = start
 
     value_text = _clean(draft.value_text)
     unit_text = _clean(draft.unit_text)
@@ -270,7 +283,6 @@ def prepare(
     if code:
         raise Rejected(code)
 
-    name_key = standardize.name_key(name)
     unit_part = parsed.unit_ucum or standardize.unit_key(unit_text)
     local_key = f"{name_key}|{unit_part}"
     stream_key = f"{local_key}|{provenance.source_kind}:{provenance.vendor or ''}"
@@ -827,6 +839,54 @@ async def retract_unconfirmed(
         return await _retract(tx, str(user_id), [int(r["id"]) for r in rows or []], f"repair:{task_id}")
 
 
+# A source's visible readings on a run of local days.
+_SELECT_SOURCE_DAYS = """
+SELECT id, name_key, observed_start, observed_end, COALESCE(source_record_id, '') AS record_id, local_date
+  FROM v_observation
+ WHERE user_id = :user_id AND source_ref = :source_ref AND local_date BETWEEN :first AND :last
+"""
+
+
+async def retract_unproduced(
+    user_id: str, rows: list[dict[str, Any]], *, source: str, first: date, last: date, note: str
+) -> list[date]:
+    """Retract the daily figures the aggregation published for `source`,
+    dated `first` to `last`, that none of `rows` (a recalculation of those
+    days, in the shape `ingest_legacy` takes) writes again: its figures are
+    the complete set for the days it read, so one it did not produce is one
+    the readings no longer support. Returns the days retracted from, for
+    election.
+
+    A day's figure is written in the zone the day was read in, and its
+    identity is that day's span. When a reading's zone changes (an Apple
+    import that read every day in UTC, imported again), its new day gets a
+    new figure and the old day keeps the old one beside it; nothing amends
+    a row whose identity no reading reaches."""
+    source_ref = _aggregate_ref(source)
+    zone_default = await user_tz(user_id)
+    produced: set[tuple[str, float, float, str]] = set()
+    for row in rows:
+        if legacy_provenance(row).source_ref != source_ref:
+            continue
+        draft = legacy_draft(row)
+        name = _clean(draft.name_text)
+        if not name or draft.observed_start is None:
+            continue
+        try:
+            _tz, _source, start, end = _placed(draft, zone_default)
+        except ValueError:
+            continue
+        produced.add((standardize.name_key(name), start.timestamp(), end.timestamp(), _clean(draft.source_record_id)))
+    async with db.transaction() as tx:
+        visible = await tx.execute(_SELECT_SOURCE_DAYS, {
+            "user_id": str(user_id), "source_ref": source_ref, "first": first, "last": last,
+        })
+        stale = [r for r in visible or [] if (r["name_key"], r["observed_start"].timestamp(),
+                                              r["observed_end"].timestamp(), r["record_id"]) not in produced]
+        await _retract(tx, str(user_id), [int(r["id"]) for r in stale], note)
+    return sorted({r["local_date"] for r in stale})
+
+
 async def amend(
     user_id: str,
     observation_id: int,
@@ -892,7 +952,9 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
     date came from the upload time, answered by the person). A naive `when`
     is wall clock in each row's own zone, as `amend` reads it. Each move is
     an amendment. Returns `(moved, skipped)`, where a skipped row already sat
-    on that time, or an equal row already holds the target identity."""
+    on that time, or an equal row already holds the target identity. A row
+    with no name the write path would accept today stays where it is and is
+    counted in neither."""
     rows = await _select_by_source(user_id, source_ref)
     moved = skipped = 0
     for r in rows:
@@ -900,7 +962,18 @@ async def redate(user_id: str, source_ref: str, when: datetime, *, user_tz: str 
         if r["observed_start"] == target and r["observed_end"] == target:
             skipped += 1
             continue
-        new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
+        try:
+            new_id = await amend(user_id, int(r["id"]), observed_start=when, observed_end=when, user_tz=user_tz)
+        except Rejected as e:
+            # A row stored before the no-name gate read the folded key, such
+            # as a name of a lone `：` (#235). Raising here left the report
+            # half moved and its date unsaved on every retry, so it keeps its
+            # old time. Any other refusal, a future date, still fails the move.
+            # Not `skipped`: the Data page and the agent word that count as
+            # "already had a reading that day", which this row did not.
+            if e.reason != REJECT_NO_NAME:
+                raise
+            continue
         if new_id is None or new_id == int(r["id"]):
             skipped += 1
         else:
@@ -1255,6 +1328,12 @@ def legacy_draft(row: dict[str, Any]) -> Draft:
     )
 
 
+def _aggregate_ref(source: str) -> str:
+    """The `source_ref` of the figures an aggregation pass computed from
+    `source`'s readings."""
+    return f"aggregate:{source}"
+
+
 def legacy_provenance(row: dict[str, Any]) -> Provenance:
     """Where a `th_series_data`-shaped row came from, by the columns that
     used to say so (`source_table`, `task_id`, `source`)."""
@@ -1274,7 +1353,7 @@ def legacy_provenance(row: dict[str, Any]) -> Provenance:
         # join the seed's. Its file-backed rows say `th_files` above.
         return Provenance(MODALITY_DEVICE, SOURCE_DEVICE, f"demo:{source_table_id}", source_class=series.SOURCE_MEASURER, vendor=source or None)
     if task_id in AGGREGATE_TASK_IDS:
-        return Provenance(MODALITY_DEVICE, SOURCE_DEVICE, f"aggregate:{source}", source_class=series.SOURCE_AGGREGATOR, vendor=source or None)
+        return Provenance(MODALITY_DEVICE, SOURCE_DEVICE, _aggregate_ref(source), source_class=series.SOURCE_AGGREGATOR, vendor=source or None)
     ref = f"device:{source}"
     if task_id.startswith("repair-"):
         ref = f"{ref}:{task_id}"
@@ -1413,6 +1492,7 @@ __all__ = [
     "redate",
     "retract",
     "retract_unconfirmed",
+    "retract_unproduced",
     "user_tz",
     "value_ranges",
 ]

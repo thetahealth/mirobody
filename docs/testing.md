@@ -12,17 +12,24 @@ long-lived venv:
 
 | install | packages | tests |
 | --- | --- | --- |
-| `'.[test]'` | 20 | 409 passed, 161 skipped, 12 xfailed |
-| `'.[test,parse]'` | 78 | 409 passed, 161 skipped, 12 xfailed |
-| `'.[test,app]'` | 148 | 620 passed, 99 skipped, 12 xfailed |
+| `'.[test]'` | 20 | 833 passed, 244 skipped, 12 xfailed |
+| `'.[test,parse]'` | 76 | 919 passed, 232 skipped, 12 xfailed |
+| `'.[test,app]'` | 147 | 1190 passed, 150 skipped, 12 xfailed |
 
 The extras change less of what a clone can run than the package counts
-suggest. Thirteen public modules are kept in the repository, described below.
-Nine of them need no extra, so every install runs them in a clone. `[parse]`
-adds nothing a clone can run. `[app]` adds 211 tests, the ones that need
-FastAPI and skip without it (`pytest.importorskip("fastapi")`): the security
-gates (81), the collection (55) and extraction (70) regressions, and the
-confirmation route checks (5). The 99 database cases skip on every install
+suggest. Forty-four public modules are kept in `mirobody/tests`, described
+below, and most need no extra, so every install runs them in a clone.
+`[parse]` adds 86 tests, most of them the capability probes (48), which
+import the parser's dependencies, and the profile refresh (22), which
+imports the model client's; the absence semantics (4), the value-range
+filter (4), a model that answers nothing (4), the last-N-days window (3) and
+one collection case make up the rest. `[app]` adds 271 more,
+the ones that need FastAPI or the MCP SDK and skip without them
+(`pytest.importorskip`): the security gates (81), the extraction (80),
+collection (59) and plugin-directory (22) regressions, the Apple record day
+(11), the trend service (6), the confirmation route checks (5), the citation
+endpoint (4), the Chinese names (2) and the chat turn's citation repair (1).
+The 150 database cases skip on every install
 until `MIROBODY_TEST_POSTGRES_DSN` names a database (see below); CI supplies
 one. The skills module also ships in the wheel as inspectable release
 evidence, but skips when the wheel is installed without the repository-root
@@ -30,10 +37,12 @@ evidence, but skips when the wheel is installed without the repository-root
 described below. What the extras still decide is what the SERVER needs, which
 is what the package counts are for.
 
-<sub>Measured 2026-10-15 on a clone-shaped tree, each install in a fresh
-venv: packages are `uv pip freeze` lines, tests `pytest -q mirobody/tests`
-(731 collected with `[app]`). This table predates the published Python-analysis
-checks below. `pytest` in a checkout with the remaining maintainers' local
+<sub>Measured 2026-11-07 for 1.6.0 on a clone-shaped tree, each install in a
+fresh venv: packages are `uv pip freeze` lines, tests `pytest -q mirobody/tests`
+(1352 collected with `[app]`; plain `pytest -q`, which also collects the
+published modules under `tests/`, finds 1622). The table counts
+`mirobody/tests` only; the published Python-analysis checks below live in
+`tests/`. `pytest` in a checkout with the remaining maintainers' local
 suite collects additional tests.</sub>
 
 The published Python-analysis evidence adds 24 tests in
@@ -72,7 +81,8 @@ enough.
 That is the entire happy path. `testpaths` is set, so bare `pytest` collects
 two trees, and a third that is neither:
 
-- `mirobody/tests/` — thirteen public modules, described below.
+- `mirobody/tests/` — forty-four public modules, the gates among them
+  described below.
   It ships in the repository and is what `pytest mirobody` runs in a clone;
   only `test_skills.py` is carried into the wheel, and
   `scripts/check_wheel_data.py` fails if another test member turns up there.
@@ -99,7 +109,7 @@ a clone can re-run it.
 
 | Module | Covers | Notes |
 | --- | --- | --- |
-| `test_engine_coverage.py` | **the published accuracy number** | 345 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文, 日本語, Russian, Estonian and Turkish, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
+| `test_engine_coverage.py` | **the published accuracy number** | 347 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文, 日本語, Russian, Estonian and Turkish, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
 | `test_cross_language_identity.py` | one analyte, one code, in every language | `SAME_ANALYTE` rows must agree; `KNOWN_SPLITS` are the rows that do not yet, each a strict xfail that fails once fixed, so the row moves up |
 | `test_skills.py` | agent skill commands, frontmatter, Compose names and resolver examples | ships in the wheel and sdist as public evidence; it skips the repository-only skill files when run from `site-packages` |
 | `test_security_gates.py` | the server's security decisions: the OAuth return URL, the second factor for a token in the query string, upload ownership, the placeholder `JWT_KEY`, the response headers | needs `[app]` and skips without it. Each case was reproduced on a running server before its fix |

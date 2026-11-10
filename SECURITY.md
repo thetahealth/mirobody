@@ -86,10 +86,12 @@ others:
   `note_text` aside) and genotypes in `th_genotype` are not covered. Generate
   and set `PG_ENCRYPTION_KEY` too; `config.yaml` ships it under the same
   `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder. A stack first deployed with
-  1.5.2's `deploy.sh` encrypted with that placeholder, and upgrading keeps it:
-  a new key would leave those fields unreadable, and there is no command yet
-  that re-encrypts them (`docs/roadmap.md`). Treat such a deployment as a
-  local one.
+  1.5.2's `deploy.sh` encrypted with that placeholder, and so did a native
+  install (`scripts/install_native.sh`, the Codespaces path) from 1.5.7 to
+  1.5.9. Upgrading keeps it, and the installer leaves an existing `.env`
+  alone: a new key would leave those fields unreadable, and there is no
+  command yet that re-encrypts them (`docs/roadmap.md`). Treat such a
+  deployment as a local one.
 - **`SETUP_TOKEN` guards the setup page, which decides where health data is
   sent** (a vendor key, or the address of a model server). `deploy.sh`
   generates it into `.env`; without it the server makes one per run. While no

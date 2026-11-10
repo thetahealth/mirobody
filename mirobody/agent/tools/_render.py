@@ -40,16 +40,26 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 #: filled them in from memory and gave 1558-6, the [Mass/volume] glucose code,
 #: for a value it had just printed as 5.4 mmol/L. Both, never one: a
 #: device-namespace row carries the indicator's own name in `code`.
+
+#: `label` is the reading's name in the request's language (`standardize.names`):
+#: the Chinese display name, or LOINC's English consumer name. A row without one
+#: leaves the cell empty, and `query.compact` drops a column that is empty
+#: throughout. `facets` stays out: the model has the code, and the code says it.
+
+#: `value`, `unit` and `ref` are in the series' one unit (`collect/query.py`,
+#: "Units"). `printed`, what the report printed, stays out, and so does
+#: `mixed_units`: a series printed in mg/dL and mmol/L reached the model in
+#: both, and the model called its two readings incomparable (#271).
 _COLUMNS: dict[str, tuple[str, ...]] = {
-    "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
-    "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
-    "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
+    "catalog": ("indicator", "label", "system", "code", "count", "first_date", "last_date", "reason"),
+    "readings": ("indicator", "label", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "buckets": ("indicator", "label", "period", "avg", "min", "max", "n", "unit", "system", "code"),
+    "trend": ("indicator", "label", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
               "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
-    "stats": ("indicator", "count", "min", "max", "avg", "sum", "first", "first_date", "last", "last_date",
-              "change", "unit", "mixed_units", "system", "code"),
-    "latest": ("indicator", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "stats": ("indicator", "label", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
+              "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "system", "code"),
+    "latest": ("indicator", "label", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the

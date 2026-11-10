@@ -7,10 +7,10 @@
 
 # Mirobody
 
-**Turn scattered health data into answers you can trace.**
+**Mirror your body in data.**
 
-A self-hosted AI health data engine that brings lab reports, wearables and genetic files into one standardized record.<br>
-Standardize health data with one command. Try the full app in Codespaces with your own model key, or run the app, the data and the models 100% on your own machine.
+One standard, every source, one complete picture of you — building a lasting record to understand where your health is going.<br>
+This open-source edition keeps that record on your own machine: lab reports, wearables and genetic files flow into it, and your AI agent can query it over MCP.
 
 **English** · **[中文](README.zh-CN.md)** · **[日本語](README.ja.md)**
 
@@ -23,7 +23,7 @@ Standardize health data with one command. Try the full app in Codespaces with yo
 </div>
 
 <p align="center">
-  <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent shows each step as it works, charts three reports that name the test differently as one trend, and a numbered source on a number opens the reading and its file" width="880">
+  <img src="docs/images/ask-own-demo.gif" alt="Asking how cholesterol has changed: the agent shows each step as it works, charts three reports that name the test differently as one trend, and clicking an underlined number opens the reading and the file it came from" width="880">
 </p>
 <p align="center"><em>Three reports, three names for the same test. One trend, with the file behind every number.</em></p>
 
@@ -31,11 +31,11 @@ Standardize health data with one command. Try the full app in Codespaces with yo
 
 | You want to | Start here | What you need |
 | --- | --- | --- |
-| Standardize names and units | [One command](#try-the-engine-with-one-command) | uv; no model or API key |
+| Standardize names and units, in a terminal or inside your AI agent | [One command](#try-the-engine-with-one-command) | uv; no model or API key |
 | Try the full app in your browser | [GitHub Codespaces](#try-the-full-app-in-codespaces) | A GitHub account and your own model API key |
 | Keep the app, models and records on your machine | [100% local with Docker](#run-everything-100-locally) | Docker with Compose; 16 GB memory; no API key |
 | Keep the app and records on your machine, without Docker | [No Docker](#run-without-docker) | Debian or Ubuntu; PostgreSQL 16; Python 3.12; your own model API key |
-| Use it on your own records with nothing to run | [Theta](https://dr.thetahealth.ai/en/login?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme), built on Mirobody, on the web or as a mobile app | An account |
+| Use it on your own records with nothing to run | Try Mirobody in [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme), or in the Theta mobile app | An account |
 
 ## Try the engine with one command
 
@@ -52,6 +52,14 @@ No repository clone, Docker, model or API key. uv prepares Python and the packag
 <p align="center">
   <img src="docs/images/resolve-demo.gif" alt="mirobody resolve: Chinese and Japanese names for haemoglobin resolve to the same LOINC code, while a broad category stays unresolved" width="880">
 </p>
+
+Give the same engine to your AI agent. In Claude Code:
+
+```bash
+claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+Your agent can then standardize any name, reading, unit or complaint you paste, on your machine and without a key. Reading a whole report also needs `mirobody[parse]` and a model key. [Other MCP clients](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio) take the same command.
 
 → [Use the engine from Python or MCP](docs/quickstart.md#a--the-library)
 
@@ -87,11 +95,11 @@ Open the app link the script prints. The local models are already selected; sign
 
 **Prefer Docker with a cloud model?** Run `./deploy.sh` without a local model profile, then paste your own model key into the printed setup link. The app and records stay on your host; the model service processes your documents and questions.
 
-Chat calculations use local Python for every model, taking original queried
-data directly. The optional calculator needs a local Docker image and daemon
-connection; [setup and data flow](docs/python-analysis.md) cover native and
-containerized applications. Query views provide their built-in statistics
-without that executor.
+Chat calculations take the original queried data directly. A cloud model's
+code runs as JavaScript inside the app, with nothing to set up; a model on your
+own hardware computes in Python in a local Docker container when the app can
+reach a Docker daemon. [Setup and data flow](docs/python-analysis.md) cover
+both. Query views provide their built-in statistics without either.
 
 → [Self-host guide](https://docs.mirobody.ai/en/self-host) · [Walkthrough](docs/walkthrough.md) · [Deploy on a server](https://docs.mirobody.ai/en/deployment/production)
 
@@ -115,8 +123,10 @@ The local models belong to the Docker path, so this one answers through a model 
 - **Bring in everyday data.** Import an Apple Health export, or connect Garmin, Oura and Whoop.
 - **Look after your family.** Invite someone who shares their own record, or keep one for a parent who never signs in.
 - **Write a health journal.** `headache since last night, BP 150/95, no fever` becomes a coded complaint and two coded readings; "no fever" is not logged as a fever.
-- **Explore genetic data.** Upload a 23andMe, AncestryDNA or WeGene export, or a VCF, and ask by rsID, gene or region. Drug questions get CPIC coverage, never a change of medication.
+- **Explore genetic data.** Upload a 23andMe, AncestryDNA or WeGene export, or a VCF, and ask by rsID, gene or region. Drug questions get the matching [CPIC](https://cpicpgx.org/) guideline coverage, never a change of medication.
 - **Use your own agent.** Connect Claude Code, Codex or Cursor over MCP, or embed the offline engine in Python.
+
+Mirobody does not diagnose or prescribe, and its answers are not medical advice.
 
 ## Collect · Standardize · Agent
 
@@ -129,11 +139,11 @@ The local models belong to the Docker path, so this one answers through a model 
 
 | Stage | What it does | Where |
 | --- | --- | --- |
-| **① Collect** | Files, devices and journal entries come in; the source is kept, so every reading points back to it. | [`collect/`](mirobody/collect/) |
-| **② Standardize** | `A1c`, `HbA1c` and `Glycated Hemoglobin` resolve to one code, units to one standard, offline. A name it cannot place stays unresolved. | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
-| **③ Agent** | Ask over the coded record: trends, comparisons across labs and devices, a chart, and the file behind every number. | [`agent/`](mirobody/agent/) |
+| **① Collect** | Lab reports, devices, photos, genetic files and journal entries come in from every source; each reading keeps the file it came from. | [`collect/`](mirobody/collect/) |
+| **② Standardize** | `A1c`, `HbA1c` and `Glycated Hemoglobin` resolve to one code, units to one standard, offline: readings from scattered sources land as clean rows in one table. A name it cannot place stays unresolved. | [`engine/`](mirobody/engine/) · [`standardize/`](mirobody/standardize/) |
+| **③ Agent** | Answers come from tools that query that table, not from the model's memory: trends, comparisons across labs and devices, a chart. Every number traces to its file, so you can check it instead of taking it on trust. | [`agent/`](mirobody/agent/) |
 
-The model reads documents and reasons; the codes and units come from vocabularies bundled with the package, never from the model. [How a reading moves through the pipeline](docs/pipeline.md).
+The model reads documents and reasons; the codes and units come from vocabularies bundled with the package, never from the model. [How a reading is standardized, step by step](docs/site/standardization.md) · [How a reading moves through the pipeline](docs/pipeline.md).
 
 ## Care for your family
 
@@ -167,13 +177,17 @@ Device vendors see data only after you link one. Before this reaches a network y
 
 | You want | Start here |
 | --- | --- |
-| Your record in Claude Code, Codex, Cursor or Gemini CLI | **Settings → MCP link**, then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
+| Your record in Claude Code, Codex, Cursor or Gemini CLI | In the running app, **Settings → MCP link** (valid for 10 days by default), then [one line per client](https://docs.mirobody.ai/en/tools/mcp-integration) |
+| The offline engine as tools in any MCP client, with no app | `uvx --python 3.12 mirobody mcp` over stdio ([client setup](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio)) |
+| Mirobody inside DeepSeek Harness | [dsh-plugin-mirobody](https://github.com/zwbao/dsh-plugin-mirobody), a community plugin by zwbao: the offline engine and your record's read-only tools, with a Mirobody tab |
 | Names and units resolved in your own code | `pip install mirobody`: offline, no key, numpy the only dependency ([library guide](docs/quickstart.md#a--the-library)) |
 | Your coding agent taught the workflow | `npx skills add thetahealth/mirobody --skill standardize-health-data` ([skills](skills/README.md)) |
 | A new device provider or tool | Drop a file into `mirobody/collect/providers/` or `mirobody/agent/tools/` ([CONTRIBUTING](CONTRIBUTING.md)) |
 | Try the app without deploying | [Mirobody Web demo](https://chat.mirobody.ai/demo?ref=github-readme&lang=en), using the same [synthetic demo files](demo/README.md) |
 
-Over MCP the stack serves seven tools, each scoped to the signed-in person: four read your record (readings, medications, genotypes, pharmacogenomics) and three resolve names and units.
+Over MCP the stack serves tools scoped to the signed-in person: four read your record (readings, medications, genotypes, pharmacogenomics), three resolve names and units, and two search medical reference material when the deployment has a knowledge source.
+
+The stdio server is published to the official MCP Registry as `ai.thetahealth/mirobody` with every release. Directories that read the registry list it too, such as [mcprush](https://mcprush.com/thetahealth/mirobody-mcp) and [AddonAudit](https://addonaudit.com/addon/ai-thetahealth-mirobody/), which runs it in a sandbox. Each picks up a new version on its own schedule, so take the install line from this README.
 
 After `pip install mirobody`, use the same engine from Python:
 
@@ -191,12 +205,15 @@ resolve("血脂").resolved                                     # False    a cate
 
 | Claim | Check it |
 | --- | --- |
-| **345/345** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
-| **330 UCUM units** with dimensional analysis, and **316 standard device indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
-| The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.09.17-aacb2c715b56` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
+| **347/347** on the tests an ordinary checkup prints, in English, Chinese, Japanese, Russian, Estonian and Turkish | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) prints the score |
+| **63,416 LOINC 2.83 codes** cut by rule and **1,023,273 names** pointing at them, including LOINC's own 21 languages; report spellings the index misses are added one reviewed row at a time | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE) · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [How a reading is standardized](docs/site/standardization.md) |
+| **331 UCUM units** with dimensional analysis, and **902 catalogue members for device and laboratory indicators** | [Standardization](docs/standardization.md) · [Device crosswalk](docs/device-crosswalk.md) |
+| 23andMe, AncestryDNA, WeGene, MyHeritage and FamilyTreeDNA exports and VCF on GRCh37 and GRCh38 decode to **the same 13 calls across 12 genes**, tested on public 1000 Genomes samples shipped in the package | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [Public genotype examples](mirobody/testing/genomics/README.md) |
+| The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody is the engine under [Theta Wellness](https://www.thetahealth.ai/), a live consumer health app on the web and mobile.
+Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), a live consumer health app on the web and mobile, with these users today:<br>
+[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
 
 ## Contributing
 
@@ -216,7 +233,7 @@ Built on [HL7 FHIR](https://hl7.org/fhir/), [LOINC](https://loinc.org/) from the
   </picture>
 </a>
 
-[Documentation](docs/README.md) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [AGENTS.md](AGENTS.md)
+[Documentation](docs/README.md) · [Discussions](https://github.com/thetahealth/mirobody/discussions) · [Roadmap](docs/roadmap.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md) · [AGENTS.md](AGENTS.md)
 
 Apache 2.0 · © 2026 [Theta Health](https://thetahealth.ai)
 

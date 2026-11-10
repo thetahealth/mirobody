@@ -1,6 +1,6 @@
 # 选择模型
 
-[English](model-choice.md) · **中文**
+**[English](model-choice.md)** · **中文** · **[日本語](model-choice.ja.md)**
 
 选择模型前，先确定健康数据能否交给外部服务处理，再考虑本机硬件和图像理解需求。
 Mirobody 支持全本地、云端和混合部署。对话、文档提取、健康日记可以分别指定模型，
@@ -20,13 +20,10 @@ Mirobody 支持全本地、云端和混合部署。对话、文档提取、健�
 
 ## 本地模型
 
-轻量配置是默认选项，采用 MiniCPM5-2B 的 Q8_0 权重。增强配置采用
-Qwen3.8-27B 的 IQ3_S 权重，并加载视觉投影模型。两种配置都使用
-GLM-OCR-0.9B 识别文档。
+轻量配置是默认选项，采用 MiniCPM5-2B 的 Q8_0 权重。增强配置采用 Qwen3.8-27B 的 IQ3_S 权重，并加载视觉投影模型。两种配置都使用 GLM-OCR-0.9B 识别文档。
 
 模型由 [llama.cpp](https://github.com/ggml-org/llama.cpp) 的 `llama-server`
-提供推理服务；Mirobody 负责连接，不直接加载权重。预设会在首次使用时从 Hugging Face
-下载模型。各操作系统的安装、启动及 GPU/CPU 配置见[本地运行](local-models.zh-CN.md)。
+提供推理服务，预设会在首次使用时从 Hugging Face 下载模型。各操作系统的安装、启动及 GPU/CPU 配置见[本地运行](local-models.zh-CN.md)。
 
 <a id="the-document-reader-glm-ocr-09b"></a>
 
@@ -38,8 +35,7 @@ GLM-OCR 将报告中的文字和表格识别出来，规则提取能够识别的
 
 ## 云端处理的数据
 
-使用云端模型可以减少本地推理的硬件需求。配置 API Key 后，在模型菜单中选择可用条目；
-实际可用的模型取决于所配置的服务。
+使用云端模型可以减少本地推理的硬件需求。配置 API Key 后，在模型菜单中选择可用条目。
 
 | 数据或任务 | 全本地 | 云端模型 | 本地 OCR + 云端对话 |
 | --- | --- | --- | --- |
@@ -56,14 +52,9 @@ GLM-OCR 将报告中的文字和表格识别出来，规则提取能够识别的
 
 ### OpenRouter 的托管方
 
-同一个模型可以由不同托管方提供，OpenRouter 也可能在请求失败后切换托管方。
-数据保留条款和支持的参数应按实际托管方核对。已公布的评测使用账号级零数据保留设置，
-并为每个模型固定托管方、关闭回退。仅在设置页填入 Key，或设置 `OPENROUTER_CHAT_MODEL`，
-都不会固定托管方。
+同一个模型可能由不同托管方提供，各托管方的数据保留条款和支持的参数不同。仅在设置页填入 Key，或设置 `OPENROUTER_CHAT_MODEL`，都不会固定托管方；请同时核对账号的数据设置和托管方条款。
 
-高级路由在模型条目的 `extra_body` 中配置 `provider.order` 和 `allow_fallbacks: false`。
-[评测配置](../benchmarks/local_models/refs/)保留了对应示例。这些选项控制路由和数据保留条件，
-云端处理本身仍会接收完成任务所需的数据。
+已公布的评测要求零数据保留，为每个模型固定一个托管方且关闭回退：这些设置通过 `extra_body` 中的 `provider.order` 和 `allow_fallbacks: false` 配置，参见[评测配置](../benchmarks/local_models/refs/)。它们只控制路由和数据保留方式，云端处理本身仍会接收完成任务所需的数据。
 
 ## 混合部署
 
@@ -99,7 +90,8 @@ UTILS_VISION_MODEL=local-utils
 docker compose exec mirobody mirobody doctor --probe
 ```
 
-探针检查流式对话的工具调用、可见思考，以及文档提取、视觉和 OCR，并核对本地模型名称。
+探针检查流式对话的工具调用，以及文档提取、视觉和 OCR，并报告对话模型是否显示了思考。
+按需思考的模型在探针这道简短的问题上可能不思考，所以这只是一条提示，不算失败。探针还会核对本地模型名称。
 通过检查说明这些能力可用，不代表回答质量或响应速度达到某个水平。
 
 ## 思考过程与最终答案

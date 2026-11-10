@@ -1,6 +1,900 @@
 ## Unreleased
 
+### Changed
+
+- **MCP directories have less to get wrong.** Directories that mirror the MCP
+  Registry describe the stdio server from its own text. AddonAudit's sandbox
+  could not say whether `normalize_unit` and `convert_unit` run offline,
+  because their descriptions did not say so; both now do. mcprush gives
+  `uvx 'mirobody[agent]' mcp` (about 93 packages) as the install line, and
+  `examples/README.md` was the only page pairing that extra with MCP: its row
+  for example 04 now says the extra is for the MCP SDK the script loads, and
+  that `mirobody mcp` needs only `pip install mirobody`. The READMEs (English,
+  Chinese, Japanese) name the registry entry and two directories that list it,
+  say to take the install line from the README, and add the community DeepSeek
+  Harness plugin to "Build on Mirobody". Glama, which the awesome-mcp-servers
+  list requires an entry to pass first, did not index the repository; a
+  root `glama.json` now names the maintainer, which is how Glama lets an
+  organization's repository claim its listing. How to tell: `tools/list`
+  from `mirobody mcp` says "offline" in all three terminology tools.
+
+### Fixed
+
+- **A series printed in two units is answered in one** (#271). One person's
+  total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
+  one, is one series, and every raw row carried its canonical pair, but each
+  view chose its own unit. The web chart plotted the printed numbers and drew a
+  fall from 212 to 4.9, its tooltip reading "212 mmol/L · range <200"; a stats
+  row answered `min=0.0049, max=0.00548, unit=mol/L, first=212, last=4.90`;
+  the trend view used the oldest reading's unit and raw rows each their own,
+  and a small model handed both told the person three times that the two
+  results could not be compared. Now the read authority picks one unit per
+  series, the one this person's reports print most often (the newer on a tie,
+  `units.pick_display_unit`, over the whole record so every view and window
+  agree), labelled as the reports spell it (`bpm`, where buckets and stats
+  said `/min`). A reading in another unit is converted through its canonical
+  pair with the factor `units.canonicalize` wrote it with, its range is
+  converted with it (`<200` is `<5.17`), and it is named by the code of the
+  unit it is now in (14647-2, not the [Mass/volume] 2093-3). Statistics,
+  buckets, trends and value bands read that one number. What the report
+  printed rides in `printed` for the web's source column and chart tooltip and
+  in the export (`printed_value`, `printed_unit`, `printed_ref`); it never
+  reaches the model, and neither does `mixed_units`. A reading whose unit does
+  not convert (albumin in g/L and umol/L) keeps its unit, is marked
+  `unit_differs` and is counted by no statistic, where before the whole
+  series had no min, max or mean. Correcting a reading in the drawer edits
+  what the report printed, in its unit. `convert_unit(212, "mg/dL",
+  "mmol/L")` without a `loinc_code` answered "not interconvertible, report
+  the readings separately"; it now says to call again with the reading's code.
+  The chart tooltip also escapes the unit and range it reads off a document,
+  which it set as HTML. `GET /api/data` still returns each record as written.
+  The demo now shows the case: mom's seeded record gained an older US panel in
+  mg/dL (`demo/seed/mom_lab_2025-05.md`), as `server/demo.py` had long said it
+  had; with every demo file in mmol/L no walk-through ever showed a series in
+  two units. How to tell: sign in as `you`, open mom's total cholesterol, and
+  the line runs 5.12 to 5.30 mmol/L with "As printed: 198 mg/dL" in the source
+  column; `scripts/e2e_docker.sh` checks it (step 2b), and
+  `demo/e2e/` holds the issue's two files for an upload run.
+
+## 1.6.0
+
 ### Added
+
+- **The docs say how a printed reading becomes a comparable one.** The public
+  standardization page (`docs/site/standardization.md`, the site's
+  Standardization page) was three bullets and a `resolve("hemoglobin")`
+  example, and the reference page opened on vocabulary statistics: nowhere
+  said, in order, what happens to `LDL-C 2.48 mmol/L` between the report and a
+  trend line, or what a reading that is not coded becomes. The public page now
+  walks one test printed three ways (`LDL-C 2.48 mmol/L`,
+  `低密度脂蛋白胆固醇 96 mg/dL`, `LDL Cholesterol 101 mg/dL`) through seven
+  steps to one series, says where a model takes part and where it does not,
+  lists the needs-input and refused outcomes with what a person can do about
+  each, and ends with commands to try and the limits. `docs/standardization.md`
+  gains the same flow module by module: the source routes, `name_key`,
+  `parse_value`, the quality gates, the order of authority in `code()`, the
+  resolver's candidate keys, `variant_for_reading`'s four outcomes, every
+  reason code, the FHIR Observation `standardize_reading` returns, the series
+  key and the canonical value pair, the read side, and confirm and recode.
+  Both pages have Chinese editions written for Chinese readers. Every example
+  was run against the 1.5.10 bundle. To tell: open the Standardization page;
+  its first table is "The steps one reading goes through".
+- **The READMEs show how to give the engine to an AI agent.** `mirobody mcp`
+  serves the offline tools over stdio, but no README said so: the only MCP
+  route they named was the personal link, which
+  needs the full app running, so a reader who wanted the engine inside Claude
+  Code or Cursor found nothing to paste. Each edition now gives the one line
+  (`claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`) under the
+  one-command section, a row for it in "Build on Mirobody" beside the
+  personal-link row, which now says it needs the running app. On the first
+  screen, the two lines under the tagline that listed the sources and then the
+  three ways to run it (the link bar and the start table below repeat both)
+  are one sentence that says only what the open-source edition adds: the
+  record stays on the reader's machine and their agent can query it over MCP.
+  One trend across labs and the file behind every number are left to the demo
+  and its caption right below, which already show them. A sentence after "What you can do" says Mirobody does not diagnose
+  or prescribe and its answers are not medical advice; CPIC is linked where it
+  is first named; the footer links Discussions. To tell: run the line,
+  then `claude mcp get mirobody` reports it connected.
+- **The user guides have Japanese editions.** The README had a Japanese
+  edition, but every guide it linked was English and marked （英語）, and
+  docs.mirobody.ai had no Japanese pages. The guides the site renders now have
+  a Japanese edition beside the English and Chinese ones (`*.ja.md`):
+  quickstart, walkthrough, model-choice, local-models, python-analysis and every
+  page under `docs/site/`. Each one carries the English ids that other pages
+  link to, uses the app's own Japanese labels (「設定 → MCP リンク」), and shows the
+  Japanese demo images where they exist. The top-level guides' language line
+  names all three editions, and `README.ja.md` links the Japanese guides and the
+  site's `/ja/` pages. To tell: open `docs/quickstart.ja.md`; once the site pins
+  this release, docs.mirobody.ai/ja/quickstart shows it.
+- **Settings makes a personal MCP link for a family member, not only for
+  yourself.** `POST /personal/mcp` has taken `{"user_id": …}` for a member
+  the care circle lets you read, but the web client posted an empty body, so
+  someone who manages a parent could make a link only for their own record
+  (#232). Settings → MCP link now has a row for each record: yours, then
+  every member on the record switcher's roster, each with its own create,
+  regenerate and revoke; a new URL shows once, under the row it reads. A line
+  under the hint says one link reads one record and a family member's is
+  added as a second MCP server. A member who stopped sharing gets a refusal
+  that names them, and their row goes. The web client in `frontend/` is
+  rebuilt from thetahealth/mirobody-web `8385563`. How to tell: add a member
+  on 关爱圈, create a link on their row in Settings → MCP link; an MCP client
+  pointed at it reads that member's record, and Revoke makes it answer 401.
+
+### Fixed
+
+- **An imported Apple Health reading counts on the day its phone showed.**
+  `mirobody import apple export.zip --into <id>` said `--tz` was a fallback
+  because "Apple records carry their own offset", then read every day in
+  `--tz`, `UTC` unless given: an HRV sample written `2026-11-01 07:10:00
+  +0800` was filed under 31 October, and a person in China who passed no
+  `--tz` had every morning before 08:00 on the day before. The phone push had
+  the same shape: a record's `timezone` defaulted to `UTC`, so
+  `metaInfo.timezone` (the zone the docs' own example sends) was never read.
+  Now a record's day is read in the offset its timestamp carries, unless the
+  zone given (`--tz`, else the person's own; for a push, the record's or
+  `metaInfo`'s) gives the same offset at that instant, in which case that
+  zone is kept, so a daylight-saving day keeps its 23 or 25 hours
+  (`decoders.apple.record_zone`, one rule for both front doors). The daily
+  aggregation now reads a `UTC+08:00` zone as eight hours east: Postgres
+  reads that spelling the POSIX way, eight hours west, and `ZoneInfo` raised
+  on it. When a phone's `Asia/Shanghai` and an export's `UTC+08:00` describe
+  one day, it is computed once: computed per spelling, every recalculation
+  amended each of that day's figures twice. **If you imported before this
+  release, run the same import again:** the readings move to their own
+  zone (a changed zone now rewrites a stored reading; the value alone used
+  to), and the daily figures left on the days they moved off are retracted,
+  never deleted (`note_text = recalculated:apple_health_export`). How to
+  tell: the re-import prints "Retracted the daily values on N days";
+  `SELECT DISTINCT timezone FROM series_data WHERE source =
+  'apple_health_export'` names the phone's offset or zone, not `UTC`.
+- An older Apple Health export could beat a stream containing later measurements
+  for the same day. Generated summaries now choose one valid Apple transport
+  by actual sample freshness before coverage, then compete normally with other
+  vendors. Push, export and direct-watch totals stay separate and are never
+  added together. Reimporting an old export cannot make it fresh by write time;
+  missing sample evidence retains the existing ranking. Reproduce with a
+  morning export and afternoon push for the same metric and day: the later
+  measurements publish their own value (see `docs/apple-health.md`).
+- **An Apple re-import keeps its published daily figures when recalculation
+  fails.** A person-day or custom derived computation could fail and return
+  partial results; the subsequent sweep retracted the figures it had not
+  computed and the import reported success. A sweeping recalculation now
+  requires every computation to succeed before writing or retracting figures,
+  and reports failure to the importer. The incremental worker still isolates
+  one person's failure so other records can progress. How to tell: interrupt
+  a re-import's aggregation query, then retry; the old daily figures remain
+  visible until the retry finishes the timezone repair.
+- **Apple imports cover every day across 30-day calculation chunks.** The
+  first sample's time of day carried into each next chunk and skipped its
+  first day's earlier samples; the sweep could then retract valid summaries.
+  Date-range calculations now read complete, consecutive calendar days.
+  How to tell: import and re-import 35 days whose first sample is at noon
+  and later samples at 01:00; all 35 days retain their daily figures and
+  the unchanged re-import writes nothing.
+- **A coded reading is named for a person, in the reader's language.** A
+  report that printed 低密度脂蛋白胆固醇 was standardized and then listed as
+  `Cholesterol in LDL [Moles/volume] in Serum or Plasma` in the indicator
+  list, the drawer and the agent's answers, whatever the UI language (#231):
+  `th_concept.display_zh` was never written, and LOINC's own Simplified
+  Chinese translation (the zh-CN linguistic variant) translates only the six
+  Parts of a code, leaving its long name, display name and consumer name
+  empty. Every Part the 17,555 codes LOINC ranks as commonly ordered use was
+  reviewed against that variant and 1,654 of 9,472 corrected (stale Parts
+  from before LOINC restructured the coagulation tests, TSH detection limits
+  of 0.01 and 0.001 where the English says 0.05 and 0.005, 贫血小板血浆 for
+  乏血小板血浆, Greek letters spelled out, non-standard drug and organism
+  names), and those codes gained a Chinese display name and long name
+  (`res/loinc/zh_CN_names.tsv`). A first cut then showed the translated long
+  name in the drawer, which kept LOINC's syntax (`血红蛋白 [质量/体积]，全血`,
+  `心率^静息 [计数型速率]`), and every English reader still read the long name
+  itself. Now a coded row carries `label`, the one name a person reads, and a
+  catalogue row `facets`, what the code measures axis by axis (specimen,
+  property, and timing or method when it has them; a point in time or an
+  unspecified specimen is left out), both in the request's language
+  (`X-Language` or `Accept-Language`); hemoglobin is 血红蛋白 with 全血 and
+  质量浓度, or `Hemoglobin, Blood` with `Blood` and `Mass Concentration`. A
+  Chinese `label` is the translated display name; for a code LOINC leaves
+  unranked, the display name of a translated code in the same series by the
+  same method when they all agree (1,104 codes: the molar fasting glucose a
+  report in mmol/L codes to, 14771-0, is 空腹血糖 like its mg/dL sibling), the
+  catalogue's label, the Chinese consumer name it shares with a translated
+  code (7,544 more codes: `Albumin, Urine` is 白蛋白，尿液), or last its reviewed
+  component with any qualifier in brackets (心率（静息）). Any other language
+  gets LOINC's English ConsumerName, verbatim, and no `label` where LOINC has
+  none (vital signs, whose long names already read plainly). Ten blood-group
+  display names kept a caret (`Fy^a 抗原`) and now read `红细胞 Fy(a) 抗原`.
+  `indicator` stays LOINC's long name, because callers select by it and two
+  series can share one plain name; the agent's tables gain a `label` column,
+  and a cite on a number carries `label`, so a device reading or a statistic
+  in an answer's sources is named as the list names it. Nothing is stored, so
+  a better translation names past readings too. A translation of LOINC belongs
+  to Regenstrief under section 12 of the LOINC licence, so these files ship
+  under that licence (`res/loinc/zh_CN.NOTICE`) and
+  `standardize_build/loinc_names.py --submission` writes the file that goes
+  back to them. In the web client (`frontend/`, rebuilt from
+  thetahealth/mirobody-web `d83f10b`), the indicator list, All entries and an
+  answer's cite sources show `label`; a language switch renames them without
+  a reload (the list kept the rows it had fetched, so an English page showed
+  Chinese names until a refresh); and the drawer lists the facets one per
+  line, closing with the code and LOINC's long name in small type. To tell:
+  with `X-Language: zh-CN`, `GET /api/v1/health-indicators` answers a
+  hemoglobin row with `"label": "血红蛋白"` and
+  `"facets": {"specimen": "全血", "property": "质量浓度"}`; open its drawer on a
+  中文 page.
+- **A page opened in English asks for English, whatever the browser's
+  language.** The web client read `?lang=` once to draw the page and again on
+  every request for `X-Language`. Once an in-app link dropped the query, a
+  page opened as `/login?lang=en` in a browser set to Chinese stayed English
+  but asked the server for Chinese: the indicator list read 体重 and 总胆固醇
+  under English headings, and every later request, the chat included, said
+  the reader's language was Chinese. A request now asks for the language the
+  page is drawn in, which both language switches set (`frontend/`, rebuilt
+  from thetahealth/mirobody-web `1047eb1`). How to tell: in a browser set to
+  Chinese, open `/login?lang=en`, sign in and open Indicators; the names read
+  `Body weight`, `Cholesterol, Blood`.
+- **The web client can be read in dark mode.** With the system (or the
+  browser, or an embedded view) set to dark, the page painted no background,
+  so near-black showed through behind the cream design's near-black text:
+  indicator names, tabs and the record switcher disappeared, while headers,
+  inputs and cards stayed white. The client now has a dark palette that
+  follows `prefers-color-scheme` (the same warm hue, contrast checked: body
+  text 12.8:1 or better), paints its own canvas, and reads tokens where about
+  110 colours were hard-coded; antd components, the trend and chat charts,
+  and the logo switch with it. Light mode looks as it did. `frontend/` is
+  rebuilt from thetahealth/mirobody-web `d83f10b`. How to tell: set the
+  system to dark and open 指标; names and values read light on a dark page.
+- **A long indicator name no longer pushes the newest value off the screen.**
+  On Data → 指标 the name column took the width of its longest name: a
+  60-character LOINC display, or one unbreakable token such as
+  `Cholesterol.in.LDL/Cholesterol.in.HDL…`, took 665px of a 704px table at
+  1024px, and 最新值, 记录数 and 最近记录 left the window (#236). Names with
+  spaces stayed on one line too, because the records list's stylesheet sets
+  `white-space: nowrap` on every table cell. Names now wrap; when the columns
+  still do not fit, the table scrolls inside its own frame, and the drawer's
+  title wraps the same way. The web client in `frontend/` is rebuilt from
+  thetahealth/mirobody-web `985f3c2`. How to tell: at 1024px, open 指标 on a
+  record with a long name.
+
+- **查看 on a file no longer leaves a blank tab.** The viewer opens a tab,
+  fetches `/files/<key>` with the session's token and points the tab at what
+  came back. A request that never finished, or a 200 that was not the file
+  (a reverse proxy answering `/files/` with the app's own `index.html` or a
+  login page), left the tab on `about:blank` with no message (#238). The
+  request now gives up after 60 seconds; a PDF must carry the PDF header, an
+  image must come back as an image, and nothing else may come back as HTML.
+  Either failure closes the tab and says why, and the second names the
+  proxy's rule for `/files/` as the usual cause. How to tell: behind a proxy
+  that does not forward `/files/`, 查看 closes the tab with that message.
+
+- **The web client renders again.** The 985f3c2 sync above committed the new
+  chunks but not the `index.html` that loads them, so `index.html` still named
+  the entry chunk the same sync deleted (`index-mKXkiuxp.js`): the script
+  404'd and every page was blank. No release carried it. `index.html` is now
+  the one the 985f3c2 build writes; a fresh build matches all 70 files in
+  `frontend/assets/` byte for byte and differed only in that script line. A
+  new gate, `mirobody/tests/test_frontend_bundle.py`, follows what a browser
+  fetches from `index.html` through every chunk it loads and fails on any
+  file `frontend/` does not hold. How to tell: `/login?lang=en` renders and
+  the network log has no 404; the gate fails on the previous `index.html`
+  with `index.html -> assets/index-mKXkiuxp.js`.
+
+- **A checkup name with `测定` or a flag after it codes like the bare name.**
+  A Chinese checkup prints the assay word after the analyte,
+  `尿酸(UA)测定` and `低密度脂蛋白胆固醇测定`, or a flag mark, `γ-谷氨酰基转移酶*`.
+  None of those resolved while the bare name did, so each became an uncoded
+  series beside the coded one (#234). After a miss, the resolver now strips a
+  trailing `测定` or `*`/`↑`/`↓` and answers as the bare name would, every
+  block and the two-analytes rule included: `血脂测定` stays refused and
+  `血糖(HbA1c)测定` stays two analytes. `测定` alone, which answered an HbA1c
+  device-type code, is refused. Five names from the same reports get override
+  rows: `体重指数BMI`, `白球比例`, `中性粒细胞比值`, `红细胞分布宽度-变异系数` and
+  `天门冬氨酸/丙氨酸氨基转移酶`; `红细胞分布宽度-标准差` abstains like `RDW-SD`,
+  since the 2.83 cut has no reachable code for it. Readings already stored
+  under these names move with `mirobody recode`. How to tell:
+  `mirobody resolve "尿酸(UA)测定"` answers Urate.
+
+- **Apple HRV (SDNN), walking asymmetry and 20 more device readings show
+  up.** A series reaches a day only through the statistics its catalogue row
+  declares, and 22 of the series metrics the device decoders write declared
+  none, so they were decoded and stored and then shown nowhere: not in the
+  indicator list, the dashboard or `query_health_indicators` (#245). Apple
+  had eleven of them, among them HRV (SDNN), walking asymmetry and
+  double-support time, wrist temperature and six-minute walk distance;
+  Garmin, Whoop, Oura and Open Wearables had eleven more, among them recovery
+  score, skin temperature, max heart rate and alcohol. Each now declares the
+  statistic its own policy names: `avg,min,max` for HRV (SDNN), `total` for
+  alcohol, `last` for the rest. WHOOP's profile maximum heart rate
+  (`maxHeartRateProfile`) stays stored and unshown: it is the ceiling set in
+  the profile, not a measurement (`res/crosswalks/unmappable.tsv`), and a
+  daily row would sit beside the measured maximum. A test now fails when a
+  decoder writes a series that declares no statistic; sleep stages are
+  exempt, since their nightly figures come from the derive rules. Days stored
+  before this release are not rebuilt on their own: the aggregator only
+  revisits a day whose points are written again. Rerunning
+  `mirobody import apple <export.zip> --into <user id>` rebuilds every day the
+  export covers and adds no readings. How to tell: after that import,
+  `dailyAvgHrvSDNN` has a row per day with HRV, and `query_health_indicators`
+  returns it.
+
+- **A reading whose name is only punctuation or invisible characters is
+  refused, not filed under no name.** The write path refused an empty name
+  after trimming whitespace, but a name such as a lone `：` is not empty, and
+  its series key folds to `""` (NFKC makes it `:` and trailing punctuation is
+  stripped), so the reading was stored under a blank local series. A lone
+  zero-width space (U+200B), byte-order mark or soft hyphen survives that
+  fold and prints as nothing, the same blank row on screen. Either is one way
+  to get the nameless uric acid row reported from a self-hosted 1.5.10 (#235).
+  The gate now requires a character that shows in the folded key every series
+  is built from, and such a reading is rejected as `no-name`. A row already
+  stored that way stays where it is: changing its report's date moves every
+  other reading and leaves that one on its old date, counted neither moved
+  nor skipped (the Data page words `skipped` as "already had a reading that
+  day"), where the stricter gate would otherwise have failed the whole change
+  with "This update could not complete." How to tell: a draft named `：` or
+  `"\u200b"` comes back `Rejected("no-name")` from `observations.prepare`.
+
+- **Stale figures and links in the READMEs and docs.** `docs/standardization*.md`
+  said 692,577 folded designations (the 1.5.10 bundle's NOTICE says 1,023,273; the figure dates
+  from September, before the bundle was rebuilt), the Chinese reference said `骨量` resolves to a dental
+  code (it resolves to nothing, as the English said), and both described a
+  "downloadable-corpus" semantic index that 1.5.0 deleted. The READMEs said
+  MCP serves seven tools; a deployment with a knowledge source also lists the
+  two medical-reference tools, and none of them said a personal MCP link
+  expires after 10 days. The walkthrough still lettered the stages C · T · A,
+  the Chinese README linked the English `python-analysis.md` and called the
+  hosted app Theta Wellness without the live user badges the other two
+  editions carry, and the docs index had no row for `python-analysis.md` or
+  `local-models-roadmap.md`. All corrected in every edition; the READMEs'
+  "Numbers you can check" table gains a row for the LOINC cut and its names,
+  checked against `fhir_loinc_bundle.NOTICE`. To tell: `grep -c 1,023,273
+  README.md docs/standardization.md` prints 1 for each.
+- **Four guide errors, and Chinese lines that rendered with stray spaces.**
+  `docs/site/file-processing.md` implied `POST /files/upload` files a document
+  into the record; it only stores it unless the request sets `file=true`, the
+  likely cause of "stored but no readings" that the same section debugs.
+  `docs/site/health-data-tools.md` listed the query views without `trend`, which
+  the tool schema accepts. The Chinese `model-choice` said two things the
+  English does not (that Mirobody never loads weights, that OpenRouter switches
+  host after a failure), and the Chinese pipeline page dropped "standardizes
+  names and units". The Chinese guides also broke lines mid-sentence, which
+  GitHub and the docs site render as a space between two characters; those
+  lines are joined. To tell: `grep -n "file=true" docs/site/file-processing.md`.
+- **The walkthrough's upload demo shows the list as it reads now.** It ended
+  on test names in LOINC's long form (`Cholesterol in HDL [Moles/volume] in
+  Serum or Plasma`), the Chinese GIF included. It is re-recorded in English,
+  Chinese and, for the Japanese walkthrough, which showed the English one,
+  Japanese: the upload, the list by plain names, and total cholesterol's
+  drawer with its two readings, specimen, what it measures and its code.
+  To tell: `docs/images/upload-demo.ja.gif` exists and `docs/walkthrough.ja.md`
+  shows it.
+
+- **Hematocrit printed as `0.45 L/L` and as `45 %` is one series.** `L/L`,
+  the SI spelling of a volume fraction, was not a unit the engine knew, so a
+  `0.45 L/L` reading was stored with no unit and no canonical value and
+  shared no statistic with `45 %` (#202). `L/L` is now a volume fraction: it
+  converts to `%` by a factor of 100 and folds to the pair every stored
+  percent already has, `(45.0, '%')`. A percent still converts to nothing
+  else, because the other dimensionless units hold HbA1c in `mmol/mol`
+  (6.5 % NGSP is 48 mmol/mol IFCC, not 65), counts, doses per body mass and
+  time per day; and `%` keeps its own canonical pair, which `recode` would
+  never rewrite for readings already stored. `红细胞比容` and `红细胞比积`,
+  common Chinese names for hematocrit, answered 24360-0, the hemoglobin and
+  hematocrit panel: a reading in `%` asked for input and one in `L/L` was
+  filed under the panel. Both now code to 4544-3 (one item of #234).
+  Readings stored before keep the empty unit they were stored with;
+  `mirobody recode` moves the two Chinese names to 4544-3. The resolver
+  coverage score is 347/347 and the unit table has 331 units. How to tell:
+  `convert_value(0.45, "L/L", "%")` is `45.0`, and
+  `convertible("%", "mmol/mol")` is still `False`.
+
+- **A cited id with a comma in it resolves.** `GET /api/citations` took the
+  ids as one comma-separated `rids` parameter, but a `ref:doi:` id and a
+  document cite such as `/library/lab results, March.pdf#L12-L14` may hold a
+  comma: the server cut them into pieces that resolved to `unknown`, and no
+  entry came back under the id the client asked about (#192). `POST
+  /api/citations` with `{"session_id": …, "rids": [...]}` takes the ids as
+  they were cited, with no split and no strip, and the web client in
+  `frontend/`, rebuilt from thetahealth/mirobody-web `3b4bcfd`, now asks that
+  way. The comma `GET` still answers a web client built before that, and a
+  page left open across the upgrade. How to tell: post an id with a comma and
+  the answer's `rid` is that id, whole; in the browser, a chip's lookup is a
+  `POST /api/citations`.
+
+- **Taking over a managed account and choosing not to share now revokes the
+  family member's personal MCP link.** Activation wrote the new owner's
+  `health_access` directly and skipped the revocation that lowering the switch
+  in the care circle performs, so the link was refused but stayed live: if
+  the person later raised the switch again, within the link's 10 days, the old
+  URL read their record once more. Unsharing never had that hole, and the docs
+  said neither did this. Activation now ends the links the circle no longer
+  allows, like every other sharing change (#232). How to tell: after an
+  activation that chose "none", the link's row in `th_personal_mcp_url` has
+  `revoked_by = 'care_circle'`, and raising the switch leaves it refused.
+
+- **A family member's personal MCP link survives the account it reads being
+  merged.** When a person took over a managed account by signing in to one
+  they already had, or bound an address that belonged to another account, the
+  two accounts were merged but `th_personal_mcp_url` was not: a link someone
+  made to read the closed account still named it. It was refused even when
+  the person chose to keep sharing, still listed as live to the person who
+  made it, and missing from the person's own list of links that read their
+  record, where they would revoke it (#232). The merge now moves such a link
+  to the surviving account, where every use is checked against the care
+  circle as before, so choosing "none" revokes it as it does without a merge.
+  Links the closed account made, and the surviving account's links to the
+  closed one, are revoked; if one person held links to both records, the one
+  that expires later is kept. How to tell: after the merge the link's
+  `subject_id` is the surviving account, and revoked rows read
+  `revoked_by = 'account_merge'`.
+
+- **A provider that answers nothing is no longer logged as a bug in this
+  repo.** The OpenAI client returns `None`, without raising, when an endpoint
+  answers HTTP 200 with a JSON `null` body. On 1.5.10 a 587 s `deepseek-utils`
+  call did that during the provider's 503 outage, and
+  `async_get_structured_output` dereferenced it, so the extraction log read
+  `AttributeError: 'NoneType' object has no attribute 'choices'` at
+  `utils/llm/utils.py` (found on 1.5.10, #239). Text completion and vision had
+  the same unguarded access. Structured output and text completion now return
+  their "no model answered" `None`; vision raises `NoResponse`, and an upload
+  that fails on it tells the person "… sent back an empty response, which an
+  overloaded provider does" instead of a type name. How to tell: the log reads
+  `structured output: no response` or `text completion: no response` with the
+  model name, and no traceback. The native Anthropic path streams and was not
+  affected.
+
+- **A calculation step reads as a calculation.** 1.5.10 named the calculator
+  `code_exec`, and the web client, which knew it as `eval` and
+  `python_exec`, showed the step as "调用了 code_exec" with a generic tool
+  icon. It now reads "完成计算" ("Calculated") with the calculator icon;
+  conversations stored before 1.5.10 keep their labels. How to tell: ask a
+  question that needs the calculator and open the thinking panel.
+
+- **On a phone the indicator drawer no longer scrolls sideways.** A
+  document's readings add a reference-range and a source column, and at
+  375px the drawer's table was 492px wide in a 327px column, so the whole
+  drawer moved sideways and the source link and the edit and delete buttons
+  fell off the screen. Only the table scrolls now, as the indicator list's
+  table already did. How to tell: at 375px, open an indicator read from an
+  uploaded report.
+
+- **An Apple Health export from an iPhone set to Chinese imports.** Such a
+  phone names the export `apple_health_export/导出.xml`, and
+  `mirobody import apple` looked only for `export.xml`, so the zip and the
+  unpacked folder were both refused ("no export.xml inside the archive"), and
+  with `--into` the refusal was a traceback (#244). `export.xml` is still
+  tried first; otherwise the export is the `.xml` in the export folder, other
+  than `*_cda.xml`, whose root element is `HealthData`, so the lookup no
+  longer depends on the phone's language. An archive or folder without one is
+  refused in one line, `--into` included. Contributed by Mayuri (#249). How
+  to tell: `mirobody import apple export.zip` on a zip holding
+  `apple_health_export/导出.xml` lists its readings.
+
+## 1.5.10
+
+### Fixed
+
+- **The agent imports with every langchain the package accepts.**
+  `pyproject.toml` asked for `langchain>=1.4.0`, but since 1.5.8
+  `agent/middleware/genotype_summarization.py` imports `_summary_config`,
+  which langchain added in 1.4.4. deepagents 0.7.23 accepts 1.4.3, so an
+  environment that already held 1.4.0 to 1.4.3 kept it on
+  `pip install "mirobody[agent]"`, and the agent failed to import
+  (`ImportError: cannot import name '_summary_config'`). The floor is now
+  1.4.4. How to tell: `pip install "mirobody[agent]" "langchain==1.4.3"`
+  refuses to resolve instead of installing an agent that cannot start.
+
+- **A native install encrypts the record with its own key.**
+  `scripts/install_native.sh`, which a codespace runs, wrote `JWT_KEY` and
+  `CONFIG_ENCRYPTION_KEY` into `.env` but not `PG_ENCRYPTION_KEY`, so from
+  1.5.7 chat messages, uploaded files' text and the health profile were
+  encrypted under `config.yaml`'s public placeholder. A new install now
+  generates one, 32 random bytes in hex as `deploy.sh` makes it. An existing
+  install keeps its `.env` and its placeholder: a new key would leave its
+  encrypted fields unreadable, and nothing re-encrypts them yet (SECURITY.md,
+  `docs/roadmap.md`). How to tell: after a fresh install,
+  `grep -c PG_ENCRYPTION_KEY .env` prints 1.
+
+- **A codespace's `.env` is readable by its owner only.**
+  `scripts/install_native.sh` set `umask 077` before writing `.env`, but a
+  codespace's `/workspaces` carries a default ACL, which takes precedence
+  over the umask: `.env` came out 666, and the postgres account could read
+  `JWT_KEY` and both encryption keys. The installer now sets 600 after
+  writing, as `deploy.sh` does, and `scripts/start_native.sh` narrows an
+  existing codespace's `.env` on its next start. How to tell:
+  `stat -c %a .env` prints 600.
+
+- **The setup page accepts a working OpenRouter key.** Since 1.5.8 the page
+  saved a key only when the chat probe saw the model think, and on the
+  probe's short question claude-sonnet-5.5 and gpt-6-luna on OpenRouter spent
+  0 reasoning tokens at medium and at high effort; both thought on a question
+  that needed it. The page answered "The key did not work: … no native
+  thinking was observed" to a key that answered every chat, 6 times out of 6,
+  and `mirobody doctor --probe` failed the chat surface the same way. The
+  probe now passes on the tool round and reports whether thinking was shown.
+  How to tell: an OpenRouter key pasted on the setup page is saved, and
+  `mirobody doctor --probe` prints `chat  PASS` with the note.
+
+- **The README counts 902 catalogue members, not 543.** The README in all
+  three editions and `docs/standardization` quoted 1.5.9's count. This
+  release adds 359 rows and removes none: the 352 laboratory orders the
+  unit-family gate admits, the four distances, `altitudes`, `waso` and
+  `bloodGlucoseMoles`. How to tell:
+  `python -c "from mirobody.kernel import metrics; print(len(metrics.ROWS))"`.
+
+- **The health profile is written from the record by code; the model only
+  picks its scenario.** After every ingest `user/profile.py` asked a model to
+  rewrite the whole profile: the previous one plus every new reading, every
+  value of three years, in up to 32,000 tokens. MiniCPM5-2B on the llama.cpp
+  router wrote all 32,000 three times in one 100%-local load, 18 to 21
+  minutes each on a GPU. Replayed, it filed readings under headings it made
+  up (a urine glucose under 血糖, NEUT% under 电解质), then wrote "无记录"
+  lines for panels the person never had and looped on them to the cap. The
+  600 s timeout freed the lock while the server kept writing, so the next
+  refresh took the router's other slot. Two of the seven profiles it stored
+  opened with the prompt's Core Summary instructions, which the agent's
+  system prompt carries, and each rewrite read the last, so what one got
+  wrong the next kept. None of its scenarios reached the store: every
+  profile in that load's database carries the default one.
+  Now code writes every section from the record, read through
+  `PostgresHealthQuery.records` as the tools and the Data page read it: the
+  core summary (sex and age; conditions and the findings the report marked
+  abnormal; readings outside their printed range; symptoms reported more than
+  once), then each reading with its range and flag, the findings, the
+  symptoms and the device week. A refresh renders the past three years (a
+  diagnosis however old) and no longer reads the previous profile. The model
+  is asked for the scenario alone, one line `场景：<name>` in at most 1,024
+  tokens; a name not in the table is not stored, and no answer keeps the
+  previous scenario, so the profile is stored without any model. The
+  scenario answer has its own 300 s limit, past which the previous scenario
+  stays and the record is still stored; a refresh past the 600 s timeout is
+  `timed_out`, not `error`, and is not retried. Each note keeps its own line
+  and dates: every note is filed in one series, and grouped by series a
+  person's notes became one line under the newest note's words.
+  `async_get_text_completion` now logs every reply cut at `max_tokens`.
+  How to tell: on the same replayed refreshes MiniCPM5-2B answers in 4 to 12
+  tokens where it wrote up to 3,266, or 32,000; the lab section quotes each
+  reading as stored; the worker logs `profile scenario not picked, previous
+  kept` when the model named none.
+- **The local evaluation no longer stalls on a large streamed event.**
+  `benchmarks/local_models/run.py` read the chat stream one byte at a time,
+  and `requests` rebuilds the unfinished line on every read, so a line cost
+  time in the square of its length. With a model that reads photos itself, a
+  `read_file` result carries the photo as base64, up to 1.5 MB: it took
+  minutes to arrive, the question's deadline (checked once per line) never
+  fired, and the recorded time was the reader's, not the answer's. The runner
+  now reads whatever has arrived (`read1`) and splits the lines itself, so
+  each event is still timed when it arrives, chunked stream or not;
+  `iter_lines(chunk_size=None)` would have waited for the end of a stream
+  that is not chunked. A connection dropped mid-event or a read timeout
+  still fails only its question: the reader raises urllib3's errors as
+  requests' own, as `iter_lines` did. How to tell: `pytest
+  tests/agent/test_local_eval_contract.py -k "large_event or broken_stream"`
+  sends a 300 KB event both ways and breaks a stream two ways; the old reader
+  was still on the large event after 280 s, and a 1.5 MB event now takes
+  0.02 s.
+- **Every deployment has a calculator: `code_exec`, in JavaScript for a cloud
+  model and in Python for a local one.** A stack started from `compose.yaml`
+  alone mounts no Docker socket into the app, yet every chat model was given
+  `python_exec` and told to use it, so every call answered "local Python
+  execution is unavailable", and a model that then did the arithmetic itself
+  could get it wrong and carry the error into the next turn. The calculator is
+  now one tool, `code_exec`, with two engines. A model at a cloud service
+  writes JavaScript, run in process by QuickJS on WebAssembly (the engine
+  under deepagents' `eval` interpreter, new dependency `quickjs-rs`), with no
+  container, network or files. A model on this machine or the person's own
+  network writes Python in the local container, when a Docker daemon answered
+  the one check at startup; without one it writes JavaScript too, and the log
+  says why once. Both read the original rows as `data` and `results`, as
+  before; the old interpreter's tool bridge, which had models rebuild rows from
+  tables, does not come back. The prompt names the language it got. The
+  prompt's rule to name a change's direction in words (rise, fall, unchanged)
+  sat inside the computation section and now stands with the citing rules.
+  `DISALLOWED_TOOLS` still turns it off; `python_exec` and `eval` there are read
+  as `code_exec`, with a warning, so an existing setting keeps hiding it.
+  `compose.yaml` now says where the Python overlay is; the default deploy is
+  unchanged. The web client labels the step by the old names, so a
+  `code_exec` step shows as a generic tool until it learns the new one. How
+  to tell: on a stack without `compose-python.yaml`, a cloud model's
+  calculation question gets a `code_exec` call that returns the result;
+  `pytest tests/test_code_tool_capability.py`.
+
+- **"The last N days" reads N days, not N+1.** `query_health_indicators`
+  takes `start` and `end` as inclusive local dates, and the model wrote "the
+  last N days" as today minus N: asked about the last 60 days, DeepSeek V4.1
+  Flash read 61 and answered "61 of the last 61 days" (found by a local
+  evaluation). The `start` description, which the chat agent and MCP clients
+  both read, now says the window counts both ends and gives a worked
+  example: on 2026-03-10 the last 7 days start 2026-03-04, not 2026-03-03. How to tell: ask about "the last 7 days" and
+  check that the answer's window starts six days before today; `pytest
+  mirobody/tests/test_last_n_days_window.py` holds the example to the window
+  the server builds.
+
+- **`query_medications` reads the last 30 days as 30, and says how to count
+  a window.** With no dates, `view="log"` promised "the last 30 days" but
+  read from today minus 30 to today, 31 days; with only `end`, the window was
+  31 days ending there. Both now start 29 days back. The tool's `start`
+  description was "inclusive" with no example, the wording that made the
+  readings tool read N+1 days; it now quotes the same worked example, from
+  one constant (`query.LAST_N_DAYS_EXAMPLE`) both schemas publish. How to
+  tell: on 2026-06-10, `query_medications(view="log")` reports the window
+  2026-05-12 to 2026-06-10, not 2026-05-11; `pytest
+  mirobody/tests/test_last_n_days_window.py` checks the default, the
+  `end`-only window and that both schemas carry the example.
+
+- **Citations in an answer are drawn on the values, not as numbered chips,
+  and the web client's tables, charts and indicator pages read on a phone.**
+  Every cited id was a numbered chip: one sentence carried 19, a table row 7,
+  the same row twice in one cell (`114.5 ⁹ ⁹`), and in a narrow cell the chip
+  wrapped onto a line of its own; the numbers matched nothing on screen. The
+  bundled client (`frontend/`) now underlines the cited values with a dotted
+  line and opens all of a group's sources on click, grouped by indicator; a
+  shared page draws no marks. Also: a table's label column no longer shrinks
+  to one character per line, a line chart's two series are two colours (the
+  palette failed four of five checks) drawn straight with each reading
+  marked, the Indicators page fits a 375px screen as cards, and its drawer
+  charts the readings against the report's range and shows each reading's
+  range and flag. The model pill beside a long conversation title no longer
+  breaks over two lines. The README and walkthrough demos are re-recorded on
+  this client, and the Japanese README shows its own Ask and resolve demos
+  instead of the English ones. How to tell: open any cited answer; on a
+  phone, open Indicators.
+
+- **A misspelt citation tag no longer reaches the reader, and a value is not
+  cited twice.** DeepSeek closed a statement with `<xcite>[r4]</cite>`, which
+  every client showed as text, and in English wrote each cite after its
+  statement's close (`<statement>…</statement><cite>[r2]</cite>`), which
+  `check` reported as a statement with no cite. `kernel.citations.normalize`
+  now corrects the first and moves the second inside before the answer is
+  kept, and `parse`, `strip` and `check` read the same way. Stray letters
+  count as a cite only where ids follow, so `<excite>`, a `<cite>` around a
+  journal's title and a chart's JSON are left as written. The automatic cite
+  looked only at the character after a value, so `114.5 <cite>[r32]</cite>`
+  gained a second `[r32]`; it now also skips a value whose cite follows a
+  space, or whose row the claim cites later. The prompt tells the model to
+  write a claim once, inside its statement: it wrote one sentence in prose
+  and again in a `<statement>` beside it. How to tell: `pytest
+  mirobody/tests/test_citations.py mirobody/tests/test_chat_auto_citations.py`.
+
+- **A Chinese question's thinking is Chinese, a Japanese question is
+  answered in Japanese, and an English answer has no Chinese words.** The
+  web client streams the model's thinking while it works. With DeepSeek V4
+  Flash every Chinese and Japanese run thought in English, and a Japanese
+  question about cholesterol was answered in Chinese on two runs of four,
+  once right after its thinking said "Now answer in Japanese". The note sent
+  with a non-English question now asks for the thinking in that language
+  too, and the Japanese note and the prompt say kana mark Japanese, not
+  Chinese: ten Chinese runs of thirteen then thought in Chinese
+  throughout, and nine Japanese runs of nine answered in Japanese (their
+  thinking stays English). A prompt rule spelled a change's direction in Chinese
+  (`上升/下降/持平`), and English answers copied it ("total cholesterol
+  **下降** slightly", four runs of four); it now asks for the words in the
+  answer's language, and four English runs had none. How to tell: ask in
+  Chinese and watch the thinking; ask in Japanese.
+
+- **The thinking panel's labels stay on one line, and the first-run page
+  shows the local models loaded once they are.** A step's label could shrink
+  to one character wide beside a long summary ("Loo/ked/up/you/r/heal/th").
+  After "use the models on this machine", each model's badge, the size cards
+  and the notice kept the lookup made before the save and said "waiting to
+  load" beside the page's own "both models have loaded". A one-line source
+  read "Lines 13–13". All three are fixed in the bundled client, and the
+  README's Ask demos are recorded again on it: the Chinese ones think in
+  Chinese, the Japanese one folds DeepSeek's English thinking, and the
+  Japanese README gets its own first-run demo (`setup-demo.ja.gif`). How to
+  tell: open README.ja.md.
+
+- **A counting question can be asked of `view="stats"`, and its count is
+  right.** "How many days last week did I get under an hour of deep sleep"
+  is a band plus a count, and the tool returned the whole series; a local 2B
+  answered `30.75`, a duration. `query_health_indicators` takes `value_min` /
+  `value_max`, and stats rows now carry `days` (distinct local days) and,
+  when a band is given, `count_in_range` (readings in it) and
+  `days_in_range` (days with at least one). The band is compared on the
+  basis the row's min/max/avg use, so it is in the unit the row reports, and
+  a series whose readings share no unit gets no count. A series stored in
+  pieces (steps as increments, sleep as segments) gets no count either: a
+  piece is not a day's value, and three 4,000-step readings counted no day
+  above 10,000. A bound that is not a finite number, or a `value_min` above
+  `value_max`, is refused; a band on a view that does not count is said, not
+  silently dropped. `HealthQuery.stats` takes the band as optional keyword
+  arguments, passed only when given. How to tell:
+  `pytest mirobody/tests/test_value_range_filter.py`.
+
+- **An empty window says it is empty, not that the record lacks the
+  indicator.** When a named window held none of the readings a selection
+  matched, `query_health_indicators` fell back to the catalogue under "no
+  indicator matched those terms" and added "no data for an indicator means it
+  was never recorded". Both are false for a series the record holds outside
+  the window, and a local 2B answering PHIA's objective set concluded exactly
+  that in 11% of its failures. The tool now reads the selection's
+  whole-record statistics before falling back: when it matched, the answer
+  is zero rows with "0 readings between <start> and <end>" and each
+  indicator's count and first and last dates; only a selection that matches
+  nothing falls back. How to tell: `pytest mirobody/tests/test_absence_semantics.py`.
+
+- **Oura's and WHOOP's nightly sleep totals are filed as the night's
+  figures.** Deep, light and REM sleep, awake time, latency and the sleeping
+  heart and breathing rates are totals over a whole sleep, and the decoders
+  filed them under the interval metrics (`sleepAnalysis_*`) or the point
+  series (`heartRates`, `respiratoryRates`) with the sleep's start..end. A
+  duration union then read every stage as the whole night (90 minutes of deep
+  sleep became 480), and Oura's sleeping heart rate became the day's
+  average. They now go to the `daily…` summaries, as Garmin's already did, on
+  the day the vendor files the night under (Oura's `day`; the day a WHOOP
+  sleep ends), and only from the main sleep: an Oura nap, a WHOOP nap, and an
+  Oura sleep the user deleted or rejected no longer replace the night. WHOOP's
+  cycle average and maximum heart rate go to `dailyHeartRateAvg` and
+  `dailyHeartRateMax`. Rows already stored keep their old names and days; a
+  re-sync of a night already stored adds the new reading beside the old one.
+  The Oura and WHOOP samples in the wheel, which `mirobody.testing.run_samples`
+  holds a decoder to, expect this filing and the workout distance below.
+  How to tell: `pytest mirobody/tests/test_nightly_sleep_figures.py`.
+
+- **A workout's distance is an exercise distance, and an increment is not a
+  daily total.** Oura's `workout.distance` and WHOOP's
+  `workout.score.distance_meter` cover any sport and were filed under
+  `walkingRunningDistances` (112427-0, walking or running only); both decoders
+  and tables now use `exerciseDistances` (55412-1). Fitbit's
+  `activities-distance` ("the specified resource's daily total") and Honor's
+  daily `DISTANCE` statistic now name `dailyDistance`, unverified because
+  Fitbit calculates it from steps and Honor publishes no field or unit for it.
+  Health Connect's `DistanceRecord` and Huawei's `distance.delta` stay
+  unmapped: each is "distance since the last reading", and `dailyDistance`
+  keeps one value a day. The Oura and WHOOP tables are now held to their
+  decoders by a test, and say what the decoders file for WHOOP's cycle energy
+  (`dailyTotalCalories`), its workout heart rate and Oura's daily sleep score.
+
+- **A nap no longer replaces the night's sleep scores.** WHOOP scores a nap
+  under the night's efficiency, performance, consistency and disturbance
+  fields, Oura under its `efficiency` and `restless_periods`, and an afternoon
+  nap falls in the night's 18:00 day. A night of 91 % and a nap of 80 % read
+  80 as the day's last score and 85.5 as `dailyAvgSleepEfficiency`, and the
+  night's 12 disturbances plus the nap's one made `dailyTotalSleepDisturbances`
+  13. These scores now come from the main sleep only, the rule the nightly
+  totals follow (WHOOP `nap` not true; Oura `type` `long_sleep` or absent). A
+  nap's score is not filed at all: the catalogue has no nap score, only
+  `napDuration`. Rows already stored are not rewritten. How to tell:
+  `pytest mirobody/tests/test_nightly_sleep_figures.py -k scores`.
+
+- **A workout's time in a heart-rate zone summarises to that time, not to
+  the workout.** WHOOP's zone durations are filed as `workoutDurationLow`,
+  `workoutDurationMedium` and `workoutDurationHigh` with the workout's
+  start..end, and the catalogue gave those rows a sleep stage's shape
+  (`session`/`duration_union`), so `series.aggregate` returned the minutes the
+  workout spans: zones of 20, 10 and 1 minutes in a 60 minute workout each
+  became 60, and two workouts' 20 and 15 low-zone minutes became 90. The rows
+  are now `cumulative`/`sum_delta`, the shape the same workout's
+  `activeCalories` and `exerciseDistances` already have, which gives 20, 10, 1
+  and 35. `data_type`, `window` and `aggregation_methods` are unchanged, so
+  readings land in the same table on the same day; the device bundle carries
+  the new shape and `TERMINOLOGY_VERSION` is 1.5.10. How to tell:
+  `pytest mirobody/tests/test_workout_zones.py`.
+
+- **Breathing disturbances are no longer filed as awakenings.**
+  open-wearables' `sleeping_breathing_disturbances` is Apple's
+  `appleSleepingBreathingDisturbances` relayed (open-wearables maps that
+  HealthKit type to it, and no other provider sends it), and
+  `open_wearables.tsv` filed it under `sleepDisturbances`, 103211-9 Number of
+  awakenings, so a night's count of interrupted breathing read as that many
+  awakenings in `dailyTotalSleepDisturbances`. Apple counts wrist movements
+  tied to interrupted breathing and says they are not an AHI, and `apple.tsv`
+  already declined the quantity. The row is now an explicit decline with that
+  reason and the decoder quarantines the type; the table maps 48 types and
+  declines 45. How to tell:
+  `pytest mirobody/tests/test_engine_coverage.py -k open_wearables`.
+
+- **`view="stats"` exposes a median and sample standard deviation to every
+  caller.** These statistics were unavailable, and adding them to the SQL row
+  alone still left them hidden from the compact output chat and MCP models
+  read. Both the row and the model's table now carry `median`
+  (`PERCENTILE_CONT(0.5)`) and `stddev` (`STDDEV_SAMP`), using the mean's unit
+  guard. Zero remains visible; a single numeric reading has a median but no
+  sample standard deviation. Incompatible units yield no invented statistic.
+
+- **A sleep score summarises to the score, not to the night's length.**
+  `sleepEfficiency`, `sleepPerformance`, `sleepConsistency` (percent) and
+  `sleepDisturbances` (a count) are one figure a vendor computes for one
+  sleep, but the catalogue gave them a sleep stage's shape
+  (`session`/`duration_union`), so `series.aggregate` ignored the value and
+  returned the minutes the sleep spans: WHOOP's 91% efficiency became 480,
+  Oura's 93% became 450, and a count with no span became nothing. They are
+  now `instant`/`last`, as `sleepQuality` already was: a re-scored sleep
+  replaces its earlier score instead of being averaged with it.
+  `TERMINOLOGY_VERSION` is 1.5.10. Stored data is untouched: the four stay
+  `series` on the 18:00 day, so readings land in the same table on the same
+  day, and `dailyAvgSleepEfficiency` and `dailyTotalSleepDisturbances`, which
+  read the values all along, are identical before and after on PostgreSQL.
+  How to tell:
+  `pytest mirobody/tests/test_sleep_scores.py`, which also refuses
+  `duration_union` for any metric whose unit is not a time.
+
+- **A crosswalk row that names a code but no indicator now says so.** The
+  runtime needs a mapped metric, so a candidate LOINC alone does not establish
+  an active mapping. Such rows now carry an explicit unmapped marker without
+  claiming the catalogue lacks that code. Honor's elevation remains unmapped
+  because its distinct vendor field has not been verified: sharing the
+  distance permission scope cannot identify a measurement. Regression tests
+  check both the notes and the actual scope lookup.
+
+- **Health Connect activity intensity is filed by level, not by position.**
+  The record carries `moderate` and `vigorous` only — there is no light tier —
+  and the two rows left the field blank and mapped to light (101688-0) and
+  moderate (101689-8). Two blank fields are also one key, so the resolver saw a
+  two-row group it could not disambiguate and filed neither. They now name
+  `moderate` and `vigorous` against 101689-8 and 101690-6.
+
+- **Vendor crosswalks corrected against the vendors' own documentation.** A
+  field-by-field review of Apple, Fitbit, Garmin, Huawei and Samsung (235 rows)
+  found seven mappings whose catalogue quantities did not match the fields.
+  Molar blood glucose now names `bloodGlucoseMoles` (`15074-8`), while printed
+  mass units still select the mass-concentration sibling during coding.
+  Huawei's altitude, metres sampled per moment, was mapped to
+  "Elevation climbed" and now uses `41905-1` (new `altitudes`); Fitbit's and
+  Huawei's awake-at-night duration is WASO and now uses `103215-0` (new `waso`);
+  Fitbit's daily step series now targets `dailySteps` (41950-7) instead of the
+  unspecified-time indicator; Apple's step *length* (metres) no longer lands in
+  the step *duration* (ms) series; and Samsung's apnoea field, an enum of
+  detected / not detected, is no longer read as an AHI index.
+
+- **Valid LOINC units no longer exclude queryable laboratory orders.** The
+  generator accepted only a small hand-written unit list, dropping orders
+  whose declared UCUM unit was already supported by the unit-family table.
+  Both sources now validate the code's PROPERTY, admitting 352 additional
+  catalogue rows. Their displays, numeric readings, units and six LOINC axes
+  are checked against the source manifest.
+
+- **Distance is split the way LOINC splits it.** LOINC names four activities'
+  distance separately — 93817-5 Running distance, 93816-7 Swimming distance,
+  41953-1 Walking distance, 55412-1 Exercise distance — and the catalogue only
+  carried cycling (93818-3) plus a generic \`DISTANCE\` whose code,
+  112427-0, is 'Distance walking or running'. A treadmill run therefore landed
+  on the walking-or-running indicator and answered "how far did I walk" with
+  the running figure. The catalogue carries the four now, so a source that
+  knows the activity can file it where LOINC puts it.
+
+- **The alias index keeps the names LOINC actually prints.** The key cap was 50
+  characters, carried over from the index this replaced, and it dropped 81 of
+  the 287 codes this catalogue carries: their official long names are longer
+  ("Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by
+  Lactate to pyruvate reaction" is 112). The cap is now 120, which is above
+  every laboratory designation in LOINC 2.83; the classifier-word cap still
+  refuses anything that names hundreds of codes. Measured on the catalogue:
+  long-name recall 73.9% -> 99.3%, short-name 99.3%, and the names a code
+  carried before its current one ("Lactate Dehydrogenase (LDH), Blood") answer
+  again — 721 -> 1,128 of 1,159 — so no override rows are needed for them. The
+  bundle grows 12.7 -> 17.1 MB.
+
+- **A keyword search reaches every series that shares a name.** `_by_keywords`
+  kept one series per printed or display name (`dict.setdefault`), so when a
+  lab and a device filed the same analyte under the same name, the second
+  series could not be found by keyword: asked for a CGM's fasting glucose on a
+  day, the agent answered that there was none, though 1,007 readings were
+  stored. A matching name now brings all its series; their rows already carry
+  the series, file and modality that tell them apart. On a local deployment of
+  `main` with the 20 ESL-Bench synthetic users (lab results and devices seeded
+  as structured data), 86 questions comparing a lab value with the same day's
+  device value went from 22 to 86 answered correctly.
+
+### Changed
+
+- **The local-model roadmap no longer promises a model in 1.6.0.**
+  `docs/local-models-roadmap.md` and its Chinese edition said 1.6.0 would
+  ship the two small local models post-trained as Mirobody's own model; no
+  release is committed to that. Both editions drop the claim; the training
+  plan and its pass bar stay, with no version attached.
+
+## 1.5.9
+
+### Added
+
+- **Queryable chemistry coverage comes from LOINC's Universal Lab Orders.**
+  The catalogue now carries 209 additional indicators after reusing the serum
+  chemistry rows added alongside them. Every generated row has a recognized
+  unit, a distinct internal name, a display that resolves to its code and all
+  six axes checked against LOINC 2.83. The combined catalogue covers 226 of the
+  1,519 universal orders. A source-axis manifest and synthetic generation tests
+  make the coverage and specimen distinctions reproducible.
 
 - **`view="trend"` describes numeric direction and shape from daily source values.**
   Single first/last readings can conceal a hump, dip or repeated swings. The new view
@@ -41,6 +935,32 @@
 
 ### Changed
 
+- **The bundled web client no longer carries the hosted app's consent copy.**
+  `frontend/` is rebuilt from thetahealth/mirobody-web `4babe74`, which drops
+  19 strings nothing rendered, among them "Your data is securely stored with
+  Theta Health" and the CLEAR identity-verification text: a self-hosted
+  server's bundle said its data lived with Theta. To tell: `grep -c "Theta
+  Health" frontend/assets/*.js` finds nothing.
+
+- **The README, PyPI and Docker Hub open with what Mirobody is, in mirobody.ai's
+  words.** They opened with "Turn scattered health data into answers you can
+  trace" and "AI health data engine", while mirobody.ai defines Mirobody as
+  the record itself: "Mirror Your Body in Data", "One standard, every source,
+  one complete picture of you". All three READMEs, the PyPI summary and the
+  Docker Hub copy now lead with that definition; tracing every number to its
+  source and MCP access follow as what this open-source edition does. To
+  tell: the bold line under `# Mirobody` reads "Mirror your body in data."
+  (中文「你的健康数字分身。」). The English and Japanese READMEs also name the
+  hosted app Theta, as mirobody.ai and thetahealth.ai do, instead of "Theta
+  Wellness", and show its registered and daily-active users live from Theta's
+  public stats, the same figures mirobody.ai's proof bar reads. The stage
+  table now says what each stage is for: Collect and Standardize turn readings
+  from scattered sources, genetic files included, into rows of one table, and
+  the agent answers by querying that table with tools rather than from the
+  model's memory, so every number traces to its file. "Numbers you can check"
+  adds the genotype benchmark: five consumer exports and VCF on both reference
+  builds decode to the same 13 calls, tested on public 1000 Genomes samples.
+
 - **Stage ② is Standardize (标准化), not Translate (转译).** The stage never
   translates: it keeps the printed name verbatim and assigns a LOINC code, a
   UCUM unit and a local day. The old name collided with real translation, which
@@ -68,6 +988,46 @@
   `scan_value_units` match the previous code on 4.5M inputs.
 
 ### Fixed
+
+- **The MCP server is published to the MCP Registry, as `ai.thetahealth/mirobody`.**
+  `server.json` was written in 1.5.1 but never published, so the official
+  registry, and the GitHub and VS Code lists that read it, had no Mirobody
+  entry, while third-party directories still showed a retired Theta Health MCP
+  whose repository is gone. Each release now publishes the entry after PyPI
+  (`.github/workflows/mcp-registry.yml`, signed in by a TXT record on
+  thetahealth.ai) and checks that the registry lists the version; every PR runs
+  the registry's own validator on `server.json`. The entry's description now
+  names what the tools code to: LOINC codes and UCUM units for lab results,
+  ICPC-3 for symptoms and diagnoses. 1.5.8 can be published from `main`, since
+  its PyPI README already carries the name. To tell:
+  `curl https://registry.modelcontextprotocol.io/v0.1/servers?search=mirobody`
+  returns the entry.
+
+- **Catalogue generation refuses empty units and preserves specimen siblings.**
+  Missing or unrecognized example units previously produced unitless rows;
+  an existing serum member also suppressed different-specimen candidates.
+  Unit checks now fail closed and collisions are checked after specimen naming.
+  Twenty-four-hour results are summaries with no unsupported aggregation task.
+  Regenerating the combined catalogue emits zero additional rows.
+
+- **LOINC-derived aliases preserve ambiguity and explicit refusals.** The
+  generator counted repeated fields as different code owners, compared names
+  before folding and could emit targets requiring a second override hop.
+  It now counts distinct codes per folded key and emits only directly reachable
+  targets; synthetic release tests cover these cases and empty reruns.
+
+- **Catalogue names retain their measurement identity.** Serum chemistry and
+  device names previously missed the catalogue or resolved to another concept.
+  Display-name aliases and 18 chemistry rows now bridge that gap; serum sodium
+  uses `serumSodium` separately from dietary `sodium`. Instantaneous walking
+  speed keeps its device identity because LOINC's code describes a 24-hour
+  maximum. Conflicting duplicate catalogue names now fail at load time.
+
+- **Printed unit spellings normalize without guessing between competing units.**
+  BMI exponents, cell-count spellings and preparation-prefixed units now
+  normalize to UCUM. A field such as `mg/dL, mmol/L` is refused rather than
+  silently choosing its last unit. Regression tests pin both the accepted
+  spellings and refused conversions.
 
 - **Change citations preserve the metric and explicit sign.** Change/endpoint
   grammar could bypass metric binding, and a stated negative delta could cite
@@ -213,6 +1173,15 @@
   possessive or "other" after "no" or "any" now rules the phrase out;
   "There is no genotype file" still passes. The suite is
   `harness100-20261023c`; the contract test has these cases.
+
+- **A self-hosted server introduces itself as Mirobody, not Theta.** With
+  `EMAIL_FROM_NAME` unset (it is commented out in `config.yaml`), sign-in codes
+  went out from "Theta Wellness", and with `WEBAUTHN_RP_NAME` unset the browser
+  offered to save a passkey for "Theta Health": the hosted product's names, on
+  a server Theta does not run. Both now default to "Mirobody", the sender
+  default lives in one place instead of four, and `config.yaml` documents both
+  keys. To tell: request a sign-in code without setting `EMAIL_FROM_NAME`; the
+  sender reads Mirobody.
 
 ## 1.5.8
 

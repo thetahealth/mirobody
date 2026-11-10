@@ -6,10 +6,12 @@ in both languages, including replay against changed source values. MiniCPM5-2B
 can produce correct-looking answers while copying literal readings; neither
 language passes that stronger source-dependence check on this small model.
 
-The product uses one local Python calculator for a simpler tool and data path.
-Its original-data integration is supported by the tests; a general claim about
-Python being the stronger language for every model is not supported by these
-measurements.
+The product's `code_exec` takes its language from where the model runs:
+JavaScript, in-process QuickJS, for a cloud model, since the cloud models
+here were equally correct in both; Python in a local container for a model on
+the person's own hardware when a Docker daemon answers. Its original-data
+integration is supported by the tests; a general claim about Python being the
+stronger language for every model is not supported by these measurements.
 
 ## Current method: 2026-10-21
 
@@ -129,4 +131,4 @@ The historical implementation and original evidence are preserved in
 [commit 63eb73f1](https://github.com/thetahealth/mirobody/tree/63eb73f1/benchmarks/local_agent).
 The old interpreter, PTC bridge, model language switches and return-repair
 middleware were removed from the current product. Local setup and the current
-data path are documented in [Local Python analysis](../../docs/python-analysis.md).
+data path are documented in [Calculation in chat](../../docs/python-analysis.md).

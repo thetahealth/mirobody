@@ -36,7 +36,7 @@ DATA_TYPES.STEP_COUNT(5)		steps	55423-8	confident	Number of steps in unspecified
 DATA_TYPES.DISTANCE(7)		dailyDistance	103208-5	confident	Distance traveled
 DATA_TYPES.CALORIES(8)		activeCalories	41981-2	confident	Calories burned
 DATA_TYPES.INTENSITY_SPORT(4)		exerciseMinutes	101691-4	unverified	Duration of physical activity
-DATA_TYPES.STANDING(3)			112425-4	unverified	Standing time 1 day
+DATA_TYPES.STANDING(3)			112425-4	unverified	【未映射：尚未接入本仓指标】 Standing time 1 day
 DATA_TYPES.HEART_RATE_STEP(1)					NO_CONCEPT; Int / bpm，步行心率
 DATA_TYPES.STRESS(9)					VENDOR_SCORE; Int / 无单位
 DATA_TYPES.WALKING_SPEED(10)					NO_CONCEPT，步频无码; ⚠️ 名为 speed 实为步频：Int / 步/min —— 按名字接会错落到 walkingSpeeds

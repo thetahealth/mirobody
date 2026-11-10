@@ -34,10 +34,13 @@ models. To keep images local, follow the local or hybrid instructions in
 ## API integration
 
 Use `POST /files/upload` for REST uploads, or
-`/ws/upload-health-report` for progress events. WebSocket clients must wait
-for `extraction_completed`; `upload_completed` only confirms file storage.
-Requests require authentication and permission to write to the target record.
-The deployment's `/docs` page lists current request schemas.
+`/ws/upload-health-report` for progress events. The REST endpoint only stores
+the file unless the request also sets `file=true`, which files it into the
+record and starts extraction — the same path the Data page uses. WebSocket
+clients must wait for `extraction_completed`; `upload_completed` only
+confirms file storage. Requests require authentication and permission to
+write to the target record. The deployment's `/docs` page lists current
+request schemas.
 
 If a file is stored but no readings appear, check the extraction status, model
 configuration and `ENABLE_INDICATOR_EXTRACTION` setting. Interface examples,

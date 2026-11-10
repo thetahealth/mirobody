@@ -559,9 +559,15 @@ def _cmd_import(args: argparse.Namespace) -> None:
         sys.exit(f"mirobody import: no such file: {args.file}")
     if args.into:
         _require_extra("import --into", "app", "sqlalchemy", "the database layer")
-        stored = asyncio.run(_store_export(args))
+        try:
+            stored = asyncio.run(_store_export(args))
+        except FileNotFoundError as e:
+            sys.exit(f"mirobody import: {e}")
         print(f"Read {stored['records']} records, {stored['facts']} decoded; record {args.into} gained "
               f"{stored['added']} readings, daily values included. A re-import adds nothing.")
+        if stored["moved"]:
+            print(f"Retracted the daily values on {stored['moved']} days that these readings no longer produce, "
+                  "such as days an earlier import read in another zone.")
         return
 
     counts = apple_export.Counts()
@@ -571,7 +577,7 @@ def _cmd_import(args: argparse.Namespace) -> None:
     out = open(args.out, "w", encoding="utf-8") if args.out else None
     try:
         for kind, item in apple_export.iter_items(args.file, counts):
-            facts = decoders.decode("apple", kind, item, args.tz)
+            facts = decoders.decode("apple", kind, item, args.tz or "UTC")
             if not facts:
                 if kind:
                     unknown[kind] = unknown.get(kind, 0) + 1
@@ -620,19 +626,26 @@ async def _store_export(args: argparse.Namespace) -> dict[str, int]:
     from the phone gets two streams a day's election chooses between, never
     one stream whose step counts add up twice. A re-import of the same file
     writes nothing new (both stores are keyed on the reading), so it never
-    double counts. The export's days are then aggregated, as the worker would."""
-    from datetime import UTC, datetime
+    double counts. The export's days are then aggregated, as the worker would.
 
-    from mirobody.collect import StandardPulseData, StandardPulseMetaInfo, records_from_facts
+    Each reading's day is read in its record's own offset, unless `--tz` (else
+    the person's zone) gives that same offset, see `apple.record_zone`. An
+    import before that filed every reading in `--tz`, `UTC` by default, so
+    re-importing the file moves the readings and retracts the daily values
+    left on the days they moved off."""
+    from datetime import UTC, datetime, timedelta
+
+    from mirobody.collect import StandardPulseData, StandardPulseMetaInfo, observations, records_from_facts
     from mirobody.collect.ingest import StandardHealthService
     from mirobody.kernel import decoders
-    from mirobody.kernel.decoders import apple_export
+    from mirobody.kernel.decoders import apple, apple_export
     from mirobody.standardize import AggregateIndicatorService
     from mirobody.utils import execute_query
     from mirobody.utils.config import Config
 
     await Config.init(yaml_filenames=args.config)
     user = str(args.into)
+    fallback = args.tz or await observations.user_tz(user)
 
     async def readings() -> int:
         rows = await execute_query("SELECT count(*) AS n FROM th_observation WHERE user_id = :u", {"u": user},
@@ -648,28 +661,34 @@ async def _store_export(args: argparse.Namespace) -> dict[str, int]:
         if not batch:
             return
         data = StandardPulseData(
-            metaInfo=StandardPulseMetaInfo(userId=user, source=source, timezone=args.tz), healthData=list(batch),
+            metaInfo=StandardPulseMetaInfo(userId=user, source=source, timezone=fallback), healthData=list(batch),
         )
         if not await service.process_standard_data(data, user):
             sys.exit("mirobody import: a batch failed to store; see the log. Rerunning is safe.")
         batch.clear()
 
     for kind, item in apple_export.iter_items(args.file, counts):
-        found = decoders.decode("apple", kind, item, args.tz)
+        found = decoders.decode("apple", kind, item, fallback)
         facts += len(found)
         span.extend(f.effective_start_ms for f in found)
-        batch.extend(records_from_facts(found, slug="apple_health", tz=args.tz,
+        batch.extend(records_from_facts(found, slug="apple_health", tz=apple.record_zone(item.get("startDate"), fallback),
                                         source_id=item.get("sourceName") or "export", source=source))
         if len(batch) >= IMPORT_BATCH:
             await flush()
     await flush()
     if span:
         first, last = (datetime.fromtimestamp(ms / 1000, UTC).replace(tzinfo=None) for ms in (min(span), max(span)))
-        result = await AggregateIndicatorService().recalculate_date_range(first, last, user_id=user)
+        # A day a reading was filed under in another zone is a UTC date at
+        # most one either side of the span (offsets reach ±14 hours).
+        result = await AggregateIndicatorService().recalculate_date_range(
+            first - timedelta(days=1), last + timedelta(days=1), user_id=user, sweep_source=source)
         if result.get("status") != "success":
             sys.exit(f"mirobody import: the readings are stored, the daily values are not ({result.get('error')}); "
                      "the worker will build them, or rerun.")
-    return {"records": counts.records, "facts": facts, "added": await readings() - before}
+        moved = int(result.get("days_retracted") or 0)
+    else:
+        moved = 0
+    return {"records": counts.records, "facts": facts, "added": await readings() - before, "moved": moved}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -725,7 +744,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     p_import.add_argument("vendor", choices=["apple"], help="which vendor's export this is")
     p_import.add_argument("file", help="path to export.zip, export.xml, or the unpacked directory")
-    p_import.add_argument("--tz", default="UTC", help="fallback timezone; Apple records carry their own offset")
+    p_import.add_argument("--tz", default="",
+                          help="IANA zone a day is read in when a record's own offset agrees with it; a record "
+                               "whose offset differs keeps its own (default: the person's zone with --into, else UTC)")
     p_import.add_argument("--out", default="", help="write decoded facts to this file as JSON lines")
     p_import.add_argument("--into", default="", metavar="USER_ID",
                           help="also store the readings in this person's record (requires the [app] extra)")

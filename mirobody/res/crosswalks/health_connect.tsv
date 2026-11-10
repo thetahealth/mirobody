@@ -28,23 +28,23 @@ HeartRateVariabilityRmssdRecord		hrvRMSSD			类名即 Rmssd。LOINC 只有 SDNN�
 OxygenSaturationRecord		oxygenSaturations	59408-5	confident	percentage；设备为脉搏血氧，用 METHOD=Pulse oximetry 的码
 RespiratoryRateRecord		respiratoryRates	9279-1	confident	rate: breaths/min
 BloodPressureRecord		systolicPressures	8480-6	confident	另有 diastolic → 8462-4；含 bodyPosition / measurementLocation 枚举
-BloodGlucoseRecord		bloodGlucoses	2339-0	confident	含 relationToMeal / specimenSource 枚举；若为血糖仪可用 41653-7
+BloodGlucoseRecord		bloodGlucoseMoles	15074-8	confident	含 relationToMeal / specimenSource 枚举；若为血糖仪可用 41653-7
 BodyTemperatureRecord		bodyTemperatures	8310-5	confident	含 measurementLocation 枚举
 BasalBodyTemperatureRecord					LOINC 有基础体温码族（生育相关），本仓无对应 member
 SkinTemperatureRecord		skinTemperature	61008-9	unverified	本次更正上一轮结论：`61008-9` Body surface temperature 是 Temp/Qn/SYSTEM=Surface，是定量体表温度码（IEEE MDC_TEMP_BODY）。HC 该 Record 有 `baseline`（绝对值）+ `deltas`（偏差）+ `measurementLocation`。落码规则见下三行
-SkinTemperatureRecord	baseline+measurementLocation=FINGER		60830-7	confident	Finger temperature，Temp/Qn/SYSTEM=Finger —— 戒指类设备（Oura）的精确落点
-SkinTemperatureRecord	baseline+measurementLocation=TOE		60833-1	confident	Toe temperature
+SkinTemperatureRecord	baseline+measurementLocation=FINGER		60830-7	confident	【未映射：尚未接入本仓指标】 Finger temperature，Temp/Qn/SYSTEM=Finger —— 戒指类设备（Oura）的精确落点
+SkinTemperatureRecord	baseline+measurementLocation=TOE		60833-1	confident	【未映射：尚未接入本仓指标】 Toe temperature
 SkinTemperatureRecord	deltas	temperatureDelta			偏差量不是温度量，LOINC 无「相对基线温差」码；同 Fitbit tempSkin.nightlyRelative
 StepsRecord		steps	55423-8	confident	count；日汇总用 41950-7
 StepsCadenceRecord		cadence			LOINC 无步频码（轴表 Cadence 0 命中）
-DistanceRecord			103208-5	confident	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); Distance traveled（2.75）
+DistanceRecord			103208-5	confident	【未映射：尚未接入本仓指标】 an interval record: 'distance travelled by the user since the last reading. The total distance over an interval can be calculated by adding together all the values'. dailyDistance keeps one value a day and would keep the last interval; the catalogue has no summed any-activity distance
 ElevationGainedRecord		altitudeGain	101687-2	confident	新增：Elevation climbed（2.75），LRat/Qn
 FloorsClimbedRecord		floors	100304-5	confident	Flights climbed [#] Reporting Period；24H 用 93833-2
 ActiveCaloriesBurnedRecord		activeCalories	41981-2	confident	Calories burned
 TotalCaloriesBurnedRecord		dailyTotalCalories	41979-6	unverified	Calories burned in 24 hour Calculated —— HC 该 Record 非固定 24h 窗口，窗口口径须核
 BasalMetabolicRateRecord		basalCalories			LOINC `50042-1` 是 BMR index（ACnc），HC 是能量速率（kcal/day），口径不同
-ActivityIntensityRecord		dailyActivityIntensityLow	101688-0	unverified	HC 该 Record 分 MODERATE / VIGOROUS 两档 → Duration of moderate / vigorous activity（2.75）。本仓 dailyActivityIntensity{Low,Medium,High} 是三档，档位对不齐
-ActivityIntensityRecord		dailyActivityIntensityMedium	101689-8	unverified	HC 该 Record 分 MODERATE / VIGOROUS 两档 → Duration of moderate / vigorous activity（2.75）。本仓 dailyActivityIntensity{Low,Medium,High} 是三档，档位对不齐
+ActivityIntensityRecord	moderate	dailyActivityIntensityMedium	101689-8	unverified	HC 该 Record 只有 MODERATE / VIGOROUS 两档 → moderate 落 101689-8；原表错落 Low(light)
+ActivityIntensityRecord	vigorous	dailyActivityIntensityHigh	101690-6	unverified	vigorous 落 101690-6；原表错落 Medium(moderate)
 ExerciseSessionRecord		workoutDuration			会话容器，非单指标；exerciseType 有 80+ 枚举
 PlannedExerciseSessionRecord					训练计划，不是测量
 SleepSessionRecord		sleepAnalysis_InBed	103213-5	confident	会话容器；stages 见下四行

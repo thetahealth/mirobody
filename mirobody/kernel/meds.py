@@ -1539,7 +1539,8 @@ VIEWS = (VIEW_PLAN, VIEW_LOG, VIEW_HISTORY)
 #: history newest first, the plan view active plans first, earliest start first.
 #: A medication list is short by nature, a dose log is bounded by its window.
 MAX_ROWS = 200
-#: The dose log's window when the caller names no dates.
+#: The dose log's window when the caller names no dates: this many days
+#: ending today, both counted, as `query.LAST_N_DAYS_EXAMPLE` tells the model.
 LOG_DEFAULT_DAYS = 30
 
 TOOL_SCHEMA: dict[str, object] = {
@@ -1566,8 +1567,9 @@ TOOL_SCHEMA: dict[str, object] = {
             "type": "string",
             "pattern": r"^\d{4}-\d{2}-\d{2}$",
             "description": (
-                "First local date, inclusive (YYYY-MM-DD). plan/history: plans or courses in effect at any point in "
-                "the window; log: doses recorded in it (default: the last 30 days)."
+                f"First local date, inclusive (YYYY-MM-DD). {query.LAST_N_DAYS_EXAMPLE} plan/history: plans or "
+                "courses in effect at any point in the window; log: doses recorded in it (default: the last "
+                f"{LOG_DEFAULT_DAYS} days)."
             ),
         },
         "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},

@@ -75,7 +75,7 @@ class UserService:
             smtp_pass       = email_password,
             mandrill_api_key= email_password,
             from_email      = email_from,
-            from_name       = email_from_name if email_from_name else "Theta Wellness",
+            from_name       = email_from_name,
             template        = email_template,
             predefined_codes= email_predefined,
             ephemeral           = ephemeral

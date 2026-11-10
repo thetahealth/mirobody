@@ -1,6 +1,6 @@
 # Choosing a model
 
-**English** · [中文](model-choice.zh-CN.md)
+**English** · **[中文](model-choice.zh-CN.md)** · **[日本語](model-choice.ja.md)**
 
 Choose where your health data may be processed, then consider your hardware
 and image-understanding needs. Mirobody supports fully local, cloud and hybrid
@@ -107,8 +107,10 @@ Check the selected routes with:
 docker compose exec mirobody mirobody doctor --probe
 ```
 
-The probe checks a streamed chat tool round trip and visible thinking,
-plus document extraction, vision and OCR. It also verifies local model
+The probe checks a streamed chat tool round trip, plus document extraction,
+vision and OCR, and reports whether the chat model showed its thinking. A
+model that thinks adaptively may skip it on the probe's short question, so
+no thinking there is a note, not a failure. It also verifies local model
 names. A successful probe confirms those capabilities, not answer quality
 or expected latency.
 

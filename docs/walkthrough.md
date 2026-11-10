@@ -1,6 +1,6 @@
 # The whole engine, in four minutes
 
-**English** · **[中文](walkthrough.zh-CN.md)**
+**English** · **[中文](walkthrough.zh-CN.md)** · **[日本語](walkthrough.ja.md)**
 
 This page walks through five scenes on the demo record: arriving, uploading a
 file, reading its coded values, asking across reports, and writing a journal
@@ -76,7 +76,7 @@ what it means is another.
 
 <p align="center">
   <img src="images/upload-demo.gif"
-       alt="Dropping a lab-report PDF on the Data page; its analytes extracted, each linked to its source file" width="880">
+       alt="Uploading a lab-report PDF on the Data page; once it is processed, the Indicators list names each test plainly, and one test's drawer shows its specimen, what it measures and its LOINC code" width="880">
 </p>
 
 **3 · ② Standardize.** Its analytes come out as readings once the model has read
@@ -117,14 +117,14 @@ Total Cholesterol   4.60 mmol/L   2025-11-12   you_lab_2025-11.md
                     4.38 mmol/L   2026-08-04   you_lipid_panel_2026-08.csv
 ```
 
-Three files, three vocabularies, one line. Every number carries a numbered
-source: click it and the reading, its date and range, and the file it came off
-open beside it. Ask the same question about the shared record and the answer is
+Three files, three vocabularies, one line. Every cited number is underlined
+with a dotted line: click it and the reading, its date and range, and the file
+it came off open beside it. Ask the same question about the shared record and the answer is
 a different person's.
 
 <p align="center">
   <img src="images/ask-own-demo.gif"
-       alt="Asking how your cholesterol has changed: the steps show as the agent works, the three reports become one trend, and a numbered source on a number opens the reading and its file" width="880">
+       alt="Asking how your cholesterol has changed: the steps show as the agent works, the three reports become one trend, and an underlined number opens the reading and its file" width="880">
 </p>
 
 <p align="center">
@@ -145,7 +145,7 @@ than logged as a fever.
 </p>
 
 That is the whole chain in one sitting: a file goes in, a coded reading comes
-out, and an agent answers over it — **C · T · A**, each stage visible on its own
+out, and an agent answers over it — **C · S · A**, each stage visible on its own
 rather than asserted.
 
 Every value is generated; no file here describes a person, and the seed needs no

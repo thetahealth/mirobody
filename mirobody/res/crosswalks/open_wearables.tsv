@@ -31,7 +31,7 @@ blood_glucose	mg_dl	bloodGlucoses	mg_dl is mg/dL, which is the catalogue unit to
 blood_pressure_systolic	mmHg	systolicPressures	
 blood_pressure_diastolic	mmHg	diastolicPressures	
 respiratory_rate	brpm	respiratoryRates	brpm is breaths/min; the engine does not know the spelling, so the table gives it
-sleeping_breathing_disturbances	count	sleepDisturbances	
+sleeping_breathing_disturbances	count		Apple's appleSleepingBreathingDisturbances relayed (open-wearables maps that HealthKit type here and no other provider sends it): interrupted breathing, not awakenings, so not sleepDisturbances (103211-9); Apple says it is not an AHI either. apple.tsv declines it too
 breathing_disturbance_index	score		a vendor index with no unit; not a measurement
 blood_alcohol_content	mg_dl		OW labels this mg_dl; blood alcohol is normally %BAC, so the label is not trusted
 peripheral_perfusion_index	score		the catalogue has perfusionIndex (%); OW labels this `score`, so the value's scale is not known until checked

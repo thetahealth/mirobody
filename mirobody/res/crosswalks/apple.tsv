@@ -43,11 +43,11 @@ HKQuantityTypeIdentifier	flightsClimbed	floors	100304-5	confident	Flights climbe
 HKQuantityTypeIdentifier	activeEnergyBurned	activeCalories	41981-2	confident	Calories burned，EngRat/Pt/Qn
 derived	dailyCaloriesActive	dailyCaloriesActive	41979-6	confident	Calories burned in 24 hour Calculated
 HKQuantityTypeIdentifier	basalEnergyBurned	basalCalories			LOINC 无基础代谢消耗量码；50042-1 是 BMR index（ACnc），口径不同
-HKQuantityTypeIdentifier	appleStandTime		112425-4	unverified	Standing time 1 day（2.82）。Apple appleStandTime 是分钟数/日，口径相符；本仓无对应项
+HKQuantityTypeIdentifier	appleStandTime		112425-4	unverified	【未映射：尚未接入本仓指标】 Standing time 1 day（2.82）。Apple appleStandTime 是分钟数/日，口径相符；本仓无对应项
 HKQuantityTypeIdentifier	appleExerciseTime	exerciseMinutes			LOINC 无 Apple 口径「运动分钟」；101691-4 Duration of physical activity 是自报病史轴，方法不同
 HKQuantityTypeIdentifier	appleMoveTime				同上
 HKQuantityTypeIdentifier	vo2Max	vo2Maxs	94122-9	unverified	本仓现为 60842-2 = Oxygen consumption (VO2) VRat，无 max 语义，是错码。94122-9 = VO2/Body weight^peak during exercise，VRatCnt/Qn，单位 mL/min/kg 与本仓一致；但 LOINC 该码指 CPET 实测峰值，穿戴是估算 —— 故 unverified 而非 confident
-HKQuantityTypeIdentifier	physicalEffort		112426-2	confident	LOINC 2.82 新增，COMPONENT 逐字 "Physical effort"，EngRat/Qn（MET）。本仓无对应项
+HKQuantityTypeIdentifier	physicalEffort		112426-2	confident	【未映射：尚未接入本仓指标】 LOINC 2.82 新增，COMPONENT 逐字 "Physical effort"，EngRat/Qn（MET）。本仓无对应项
 HKQuantityTypeIdentifier	walkingSpeed	walkingSpeeds			LOINC 仅有 24h/1W 汇总的 Walking speed（41956-4/41957-2/41958-0/41959-8），无 Pt 瞬时码；本仓是 instant 序列，SCALE/TIME 不符
 HKQuantityTypeIdentifier	walkingAsymmetryPercentage	walkingAsymmetryPercentage	112432-0	unverified	LOINC 2.82 新增，名称逐字对应；但 SCALE_TYP=Ord 而 Apple 是百分比数值（Qn）—— 轴冲突，落码前须确认（同 skinTemperature/39106-0 的否决理由）
 HKQuantityTypeIdentifier	walkingDoubleSupportPercentage	walkingDoubleSupportPercentage	112434-6	confident	LOINC 2.82 新增，Prctl/Qn，与 Apple 百分比相符
@@ -55,7 +55,7 @@ HKQuantityTypeIdentifier	stairAscentSpeed	stairAscentSpeed	112431-2	confident	LO
 HKQuantityTypeIdentifier	stairDescentSpeed	stairDescentSpeed	112430-4	confident	LOINC 2.82 新增，Vel/Qn
 HKQuantityTypeIdentifier	appleWalkingSteadiness				LOINC 无行走稳定性码（轴表 0 命中）
 HKQuantityTypeIdentifier	sixMinuteWalkTestDistance	sixMinuteWalkDistance	64098-7	confident	Six minute walk test，Len/6M/Qn
-HKQuantityTypeIdentifier	walkingStepLength	stepDuration			本仓 stepDuration 是时长(ms)，Apple 是步长(m)，口径本身不同；LOINC 无步长码
+HKQuantityTypeIdentifier	walkingStepLength				步长是长度(m)，stepDuration 是时长(ms)，口径不同；LOINC 无步长码，故不落指标
 HKQuantityTypeIdentifier	bodyMass	bodyMasss	29463-7	confident	本仓已有
 HKQuantityTypeIdentifier	height	heights	8302-2	confident	本仓已有
 HKQuantityTypeIdentifier	bodyMassIndex	bmis	39156-5	confident	本仓已有

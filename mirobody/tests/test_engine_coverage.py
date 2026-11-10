@@ -238,6 +238,10 @@ CASES: list[tuple[str, str, str]] = [
     ("free T3",                     r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
     ("游离T3",                       r"triiodothyronine.*free|free.*triiodothyronine|T3.*free", r"uptake|T3RU"),
     ("红细胞计数",                   r"erythrocyte|red blood cell",   r""),
+    # Both answered 24360-0, the hemoglobin and hematocrit PANEL, which no
+    # unit admits: a hematocrit printed under either name was never coded.
+    ("红细胞比容",                   r"hematocrit",                   r"panel"),
+    ("红细胞比积",                   r"hematocrit",                   r"panel"),
     ("血小板计数",                   r"platelet",                     r""),
     ("谷丙转氨酶",                   r"alanine aminotransferase",     r""),
     ("谷草转氨酶",                   r"aspartate aminotransferase",   r""),
@@ -662,6 +666,18 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # all leave the answer exactly where `resolve` put it.
     ("HGB",             "140", "g/L",    "718-7",   "g/L is already MCnc"),
     ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
+    ("hematocrit",      "0.42", "L/L",   "4544-3",  "L/L is a volume fraction too"),
+    ("红细胞比容",          "0.42", "L/L",   "4544-3",  "the SI spelling on a Chinese report"),
+    # A checkup prints the assay word, or a flag, after the name (#234).
+    ("尿酸(UA)测定",        "420", "umol/L", "14933-6", "名称(缩写)测定, molar"),
+    ("丙氨酸氨基转移酶(ALT)测定", "30", "U/L", "1742-6",  "名称(缩写)测定"),
+    ("低密度脂蛋白胆固醇测定",   "2.5", "mmol/L", "22748-8", "名称测定"),
+    ("γ-谷氨酰基转移酶*",     "28",  "U/L",    "2324-2",  "a flag mark after the name"),
+    ("体重指数BMI",          "22.1", "kg/m2", "39156-5", "acronym glued on"),
+    ("白球比例",             "1.5", "",       "1759-0",  "ratio said in words"),
+    ("中性粒细胞比值",        "60",  "%",      "26511-6", "ratio said in words"),
+    ("红细胞分布宽度-变异系数", "13",  "%",      "30385-9", "RDW-CV in words"),
+    ("天门冬氨酸/丙氨酸氨基转移酶", "1.1", "",   "1916-6",  "AST/ALT in words"),
     ("白细胞计数",         "6.5", "10*9/L", "26464-8", "count already NCnc"),
     # The differential, both ways: a measure word in the name goes to the
     # fraction component, and the unit then picks the count or the ratio;
@@ -899,6 +915,40 @@ def test_a_name_that_holds_two_analytes_says_which_two():
     assert "51637-7" in r.rejected_reason and "33959-8" in r.rejected_reason
     assert r.rejected_code == ""
     assert resolve("血脂").rejected_reason == ""
+
+
+def test_a_report_mark_is_answered_as_the_bare_name_would_be():
+    """Stripping `测定` or a flag keeps every rule the bare name meets: a
+    category stays refused, two analytes in one name stay two, and the word
+    alone is no name (#234)."""
+    from mirobody.engine import resolve
+
+    assert resolve("尿酸(UA)测定").term == "尿酸(UA)测定"
+    assert resolve("血脂测定").method == "refused"
+    assert "4548-4" in resolve("血糖(HbA1c)测定").rejected_reason
+    assert resolve("测定").method == "refused"
+    assert resolve("红细胞分布宽度-标准差").method == "refused"
+
+
+def test_a_run_of_flag_marks_does_not_backtrack():
+    """The rule's first spelling, `(?:\\s*[*↑↓]+|\\s*测定)+\\s*$`, backtracked
+    exponentially (CodeQL py/redos): 22 `*` and one more character took 0.4 s,
+    and every two more `*` took four times as long, so 26 take seconds and 40
+    take a day. A name is whatever a report or an MCP client sends. The scan
+    that replaced it answers both in microseconds; the bound is loose enough
+    for a slow runner and still fails in seconds, not never."""
+    import time
+
+    from mirobody.engine import resolve
+    from mirobody.lexical import strip_report_marks
+
+    hostile = "尿酸" + "*" * 26 + "x"
+    resolve("尿酸")  # the first call loads the bundle; that is not what is timed
+    started = time.perf_counter()
+    assert strip_report_marks(hostile) == ""
+    assert resolve(hostile).loinc == ""
+    assert time.perf_counter() - started < 1.0
+    assert strip_report_marks("尿酸" + " 测定*↑" * 10_000) == "尿酸"
 
 
 def test_the_unit_still_selects_between_two_real_siblings():
@@ -1341,6 +1391,47 @@ def test_the_apple_crosswalk_says_what_the_apple_decoder_does():
     assert apple.QUANTITY["HKQuantityTypeIdentifierHeartRateVariabilitySDNN"] == "hrvSDNN"
 
 
+def test_open_wearables_declines_the_apple_quantity_apple_declines():
+    """open-wearables' `sleeping_breathing_disturbances` is Apple's
+    appleSleepingBreathingDisturbances relayed, and its table filed it under
+    sleepDisturbances, 103211-9 Number of awakenings: a count of interrupted
+    breaths read as a count of times the person woke. The Apple table
+    declines that quantity, so the relay must too."""
+    from mirobody.kernel.decoders import open_wearables
+    from mirobody.standardize import devices
+
+    direct = devices.lookup("apple", "HKQuantityTypeIdentifier", "appleSleepingBreathingDisturbances")
+    assert direct is not None and not direct.metric
+    assert open_wearables.CROSSWALK["sleeping_breathing_disturbances"].declined
+    sample = {"type": "sleeping_breathing_disturbances", "value": 4, "unit": "count",
+              "timestamp": "2026-01-02T07:00:00+08:00"}
+    assert open_wearables.decode("timeseries", sample, "Asia/Shanghai") == []
+    assert "sleepDisturbances" not in open_wearables.METRICS
+
+
+@pytest.mark.parametrize("vendor", ["oura", "whoop"])
+def test_a_decoded_vendor_crosswalk_says_what_its_decoder_does(vendor):
+    """The table and the decoder name the same metric wherever both name one.
+
+    When they disagreed, neither side was right by default: Oura's sleep
+    stages and WHOOP's cycle heart rate were wrong in the decoder, WHOOP's
+    cycle energy and both workout distances in the table. Each was settled
+    against the vendor's own field definition; this keeps them settled.
+    """
+    from mirobody.kernel import decoders
+    from mirobody.standardize import devices
+
+    mapping = getattr(decoders, vendor).MAPPING
+    checked = 0
+    for r in devices.vendor_fields(vendor):
+        entry = mapping.get(r.type, {}).get(r.field)
+        if entry is None or not r.metric:
+            continue
+        assert entry[0] == r.metric, (r.key, entry[0], r.metric)
+        checked += 1
+    assert checked >= 20, checked
+
+
 def test_a_catalogue_alias_lets_the_unit_pick_the_variant():
     """The catalogue says `bloodGlucoses` is 2339-0, glucose as a mass
     concentration in blood; a Honor watch prints mmol/L. The alias names the
@@ -1448,3 +1539,86 @@ def test_a_posting_row_is_an_axis_row_and_never_a_skipped_code(resolver):
     skipped = set((read_member("loinc_skip.txt") or b"").split())
     assert skipped, "loinc_skip.txt is missing or empty"
     assert skipped.isdisjoint(axis.field_raw(row, AXIS_CODE) for row in range(len(axis)))
+
+
+def test_a_row_that_names_a_code_but_no_metric_says_so():
+    """A candidate code with no metric is not an active vendor mapping.
+
+    The catalogue may already carry the code while the vendor's field or
+    aggregation shape remains unverified. The note must not imply either
+    successful integration or absence of that code from the catalogue.
+    """
+    from mirobody.standardize import devices
+
+    markers = ("【未映射：尚未接入本仓指标】", "【未映射：厂商字段未核实】")
+    unmarked = []
+    marked = 0
+    for vendor in devices.VENDORS:
+        for row in devices.vendor_fields(vendor):
+            if row.metric or not row.loinc:
+                continue
+            if any(marker in row.note for marker in markers):
+                marked += 1
+            else:
+                unmarked.append(f"{vendor}:{row.key} {row.loinc}")
+    assert not unmarked, unmarked[:6]
+    assert marked >= 10, marked
+
+
+def test_a_multi_metric_record_names_its_fields():
+    """A record that carries several metrics must say which field is which.
+
+    Health Connect's ActivityIntensityRecord reports MODERATE and VIGOROUS. Its
+    two crosswalk rows both left the field empty, so (type, field) identified a
+    group of two: records_router could not disambiguate, returned the raw
+    identifier as the metric, and *neither* row reached a metric — the reading
+    was dropped rather than mis-filed.
+
+    Rows with no metric are excluded: a blank there is a decision not to
+    publish the field. Records whose payload is one object the caller splits
+    (a blood-pressure pair) are allowlisted — records_router documents that
+    split, and the vendor's field names are unavailable for some of them
+    (Garmin's health-api reference returned 404).
+    """
+    from mirobody.standardize import devices
+
+    allowlisted = {
+        # One payload the caller splits; records_router documents the split.
+        "com.huawei.instantaneous.blood_pressure",
+        # Garmin's health-api field reference returned 404 (2026-10-28), so its
+        # three multi-metric records cannot be given real field names without
+        # guessing. Recorded here so the gap is visible rather than silent.
+        "Intensity Minutes", "Sleep", "Body Composition", "Blood Pressure",
+    }
+    problems = []
+    for vendor in devices.VENDORS:
+        seen: dict[tuple[str, str], str] = {}
+        for row in devices.vendor_fields(vendor):
+            if not row.metric or row.type in allowlisted:
+                continue
+            # A field naming several fields ("maxHeartRate / minHeartRate",
+            # "nightSegment[] / napSegment[]") is documentation shorthand: the
+            # runtime looks up the exact name and finds nothing, which the
+            # audit lists among the paper rows. It cannot be a duplicate key
+            # problem because it is not a key at all.
+            if "/" in row.field or "[" in row.field:
+                continue
+            key = (row.type, row.field)
+            if key in seen:
+                problems.append(f"{vendor}:{row.type}.{row.field or '(blank)'} "
+                                f"-> {seen[key]} and {row.metric}")
+            seen[key] = row.metric
+    assert not problems, problems[:6]
+
+
+def test_health_connect_activity_intensity_matches_its_two_levels():
+    """The record reports moderate and vigorous only; the codes must say so."""
+    from mirobody.standardize import devices
+
+    rows = {r.field: r for r in devices.vendor_fields("health_connect")
+            if r.type == "ActivityIntensityRecord"}
+    assert set(rows) == {"moderate", "vigorous"}, rows
+    assert rows["moderate"].metric == "dailyActivityIntensityMedium"
+    assert rows["moderate"].loinc == "101689-8"
+    assert rows["vigorous"].metric == "dailyActivityIntensityHigh"
+    assert rows["vigorous"].loinc == "101690-6"

@@ -217,11 +217,14 @@ Medications have their own tool, with four parameters — `view`, `keywords`,
 
 ```
 query_medications(view="plan")                        what they intend to take, with today's slot states
-query_medications(view="log", start=…, end=…)         doses recorded taken/skipped (default: last 30 days)
+query_medications(view="log", start=…, end=…)         doses recorded taken/skipped (default: the 30 days ending today)
 query_medications(view="history")                     courses: start, end, and why each ended
 query_medications(keywords=["metformin"], start="2025-03-01", end="2025-03-31")
                                                       what they were on in March
 ```
+
+`start` and `end` are inclusive local dates, so the dose log's default is the
+30 dates ending today, both counted. Built as today minus 30, it read 31 days.
 
 The rows are pure functions in `kernel.meds` — `plan_rows`, `log_rows`,
 `history_rows` over the two store ports — so a consumer with its own storage

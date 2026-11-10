@@ -14,7 +14,7 @@ authors = [
     {name = "Theta AI Team", email = "developer@thetahealth.ai"},
 ]
 # The PyPI storefront line: keep it in step with the README's opening lines.
-description = "Self-hosted AI health data engine: lab reports, wearables and genetics in one standardized record, with answers that cite their sources."
+description = "Mirror your body in data: one standardized, self-hosted record of your lab reports, wearables and genetics, with every number traced to its source."
 readme = "README.md"
 # 3.12+ is a hard floor, not a preference: the codebase uses PEP 701 f-strings
 # (nested same-type quotes, e.g. utils/config/config.py), which are a SyntaxError
@@ -175,9 +175,14 @@ parse = [
 # deepagents agent installs this and nothing else — no HTTP server, no object
 # stores, no mail. `mirobody.mcp.service` (serving those tools over HTTP) is [app].
 agent = [
-    # Local calculation containers, through the maintained Docker SDK. Code
-    # never runs in the app process or uses a remote sandbox provider.
+    # Calculation for a model on the person's own hardware: local containers,
+    # through the maintained Docker SDK. Code never uses a remote sandbox provider.
     "docker>=7.1.0",
+    # Calculation for every other model: QuickJS compiled to WebAssembly, run
+    # in process on wasmtime, with no network, files or Docker (the engine
+    # under deepagents' `eval` interpreter). A pure-Python wheel; 0.x, so the
+    # next minor version is held back until it is tried.
+    "quickjs-rs>=0.2.6,<0.3",
     # The checkpointer (langgraph-checkpoint-postgres) and the file-system
     # projections talk to Postgres directly.
     "psycopg[binary]",
@@ -205,8 +210,10 @@ agent = [
     # (`azure-identity`, which [parse] carries) adds that one package — instead
     # of every install carrying all of them for a configuration it never has.
     # `langchain_community` was declared and never imported; gone.
-    # 1.4.0 is deepagents 0.7.14's floor.
-    "langchain>=1.4.0",
+    # 1.4.4 is the first with `summarization._summary_config`, which
+    # `agent/middleware/genotype_summarization.py` imports. deepagents 0.7.23
+    # accepts 1.4.3, and beside it the agent failed to import (2026-11-01).
+    "langchain>=1.4.4",
     "langchain-openai>=1.4.3",
     # 4.2.4 relaxed its google-genai cap to <3.0.0 (earlier 4.x pinned <2.0.0,
     # which would block the google-genai>=2.0 required by [parse]).
@@ -453,6 +460,7 @@ forbidden_modules = [
     "langchain_google_genai",
     "langgraph",
     "deepagents",
+    "quickjs_rs",
 ]
 # (The former router seam is gone: pulse/router moved to server/routers, where
 # importing the agent layer is legal. The engine list needs no exemptions here.)
@@ -581,6 +589,7 @@ forbidden_modules = [
     "pytest",
     "pytest_asyncio",
     "pytest_sugar",
+    "quickjs_rs",
     "redis",
     "requests",
     "requests_oauthlib",
@@ -655,14 +664,18 @@ allow_indirect_imports = true
 # is the way to widen this, and it is one line.
 #
 # Tests are exempt by construction: they live in `tests/`, outside the graph.
-# That is the right privilege for them. A regression test for `readings.py`
-# should import `readings.py`, including its underscore-private names.
+# That is the right privilege for them. A regression test for `query.py`
+# should import `query.py`, including its underscore-private names.
+#
+# Every module listed must exist: import-linter 2.16 fails the run on one that
+# does not. `backfill.py` and `readings.py` went when every write moved to
+# `observations.ingest` and every read to `query.py` ("one writer, one
+# reader", 2026-09-20), and stayed listed here until 2.16 noticed.
 source_modules = [
     "mirobody.agent",
     "mirobody.server",
 ]
 forbidden_modules = [
-    "mirobody.collect.backfill",
     "mirobody.collect.base",
     "mirobody.collect.citations",
     "mirobody.collect.core",
@@ -672,7 +685,6 @@ forbidden_modules = [
     "mirobody.collect.meds",
     "mirobody.collect.providers",
     "mirobody.collect.query",
-    "mirobody.collect.readings",
     "mirobody.collect.setup",
 ]
 ignore_imports = []

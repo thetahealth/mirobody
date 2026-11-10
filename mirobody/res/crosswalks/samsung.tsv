@@ -32,7 +32,7 @@ SleepType.Stage	DEEP	dailyDeepSleep	93831-6	confident	Deep sleep duration
 SleepType.Stage	LIGHT	dailyLightSleep	93830-8	confident	Light sleep duration
 SleepType.Stage	REM	dailyRemSleep	93829-0	confident	REM sleep duration
 SleepType.Stage	AWAKE	dailyAwakeTime	103210-1	unverified	Awakening duration
-SleepApneaType(?)		apneaHypopneaIndex	69990-0	confident	Apnea hypopnea index 24 hour
+SleepApneaType(?)					官方枚举是 DetectedSign(DETECTED/NOT_DETECTED)，不是 AHI 指数；不落 69990-0
 StepsType		steps	55423-8	confident	Number of steps in unspecified time Pedometer
 FloorsClimbedType		floors	100304-5	confident	Flights climbed [#] Reporting Period
 ActivitySummaryType		dailyCaloriesActive	41979-6	confident	Calories burned in 24 hour Calculated

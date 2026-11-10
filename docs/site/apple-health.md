@@ -24,6 +24,11 @@ Re-importing the same archive does not add another copy. When export data and
 phone pushes overlap, daily aggregation selects a source rather than adding
 both streams together.
 
+Each reading counts on the day the phone showed: Apple writes every time
+with its offset, and the import reads the day in that offset. An archive
+imported by an earlier release, which read every day in UTC unless `--tz`
+was given, is corrected by importing it again.
+
 ## Client integration
 
 Authenticated clients can send HealthKit JSON to `POST /apple/health`.

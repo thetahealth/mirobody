@@ -28,7 +28,7 @@ recovery	score.skin_temp_celsius	skinTemperature	61008-9	unverified	绝对摄氏
 recovery	score.recovery_score				0–100% 厂商专有恢复分,LOINC 结构性无码
 recovery	score.user_calibrating				校准状态布尔量。建议接进本仓置信分级：true 时读数不可信
 cycle	score.strain	strain			WHOOP 专有心血管负荷分,无码。本仓 `strain` 留空是对的
-cycle	score.kilojoule	activeCalories	41981-2	unverified	单位陷阱：spec 为千焦,本仓 activeCalories 是 kcal。须 ÷4.184
+cycle	score.kilojoule	dailyTotalCalories	41979-6	unverified	WHOOP: 'Kilojoules the user expended during the cycle', the whole cycle and not only activity; the decoder divides by 4.184. A cycle runs from one sleep onset to the next, close to 24 hours but not bounded by it
 cycle	score.average_heart_rate	dailyHeartRateAvg	103205-1	confident	Mean heart rate（2.75）
 cycle	score.max_heart_rate	dailyHeartRateMax	101692-2	confident	Maximum heart rate（2.75）
 sleep	score.respiratory_rate	dailySleepRespiratoryRate	103217-6	unverified	睡眠期间呼吸率；`103217-6` 有轴缺陷,(see docs/device-crosswalk.md)
@@ -47,9 +47,9 @@ sleep	score.sleep_needed.baseline_milli				「应睡时长」是推荐值不是�
 sleep	score.sleep_needed.need_from_sleep_debt_milli				同上
 sleep	nap	napDuration			布尔标记 + 时段；LOINC 无小睡码
 workout	score.strain	workoutStrain			厂商专有分
-workout	score.average_heart_rate	dailyHeartRateAvg	103205-1	unverified	单次运动均值,非日均;`103205-1` 的 TIME_ASPCT=XXX 可容纳,但口径须声明
-workout	score.max_heart_rate	dailyHeartRateMax	101692-2	unverified	同上
-workout	score.distance_meter		103208-5	unverified	generic distance, all activities; the catalogue's walkingRunningDistances is walking or running only (112427-0); spec 注：仅部分运动存在
+workout	score.average_heart_rate	heartRates			one workout's mean, filed as a reading spanning the workout (Garmin's activities do the same). A daily summary would keep the last workout as the day's average. No code: the honest one is 103205-1 Mean heart rate, and the catalogue's heartRates is 8867-4, a point reading
+workout	score.max_heart_rate	heartRateMax	101692-2	unverified	one workout's maximum, filed as a reading spanning the workout; dailyHeartRateMax is the cycle's
+workout	score.distance_meter	exerciseDistances	55412-1	unverified	WHOOP: 'The distance the user travelled during the workout. Only present if distance data sent to WHOOP'; any sport
 workout	score.percent_recorded				心率数据完整度百分比。建议接进置信分级
 workout	score.zone_durations				WHOOP 五区与本仓五区、LOINC 三区+最大区互不对齐,不落码
 user	measurement.body.height_meter	heights	8302-2	confident	

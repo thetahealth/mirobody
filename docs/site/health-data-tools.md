@@ -34,10 +34,12 @@ query_health_indicators(indicators=["<name from the result>"], view="latest")
 | `minute`, `hour`, `day`, `week`, `month` | Time buckets. |
 | `stats` | Count, minimum, maximum, average, sum, first, last and change. |
 | `latest` | Most recent value per indicator. |
+| `trend` | Direction and shape over the window, with a reason when the data isn't comparable. |
 
 Without `keywords` or `indicators`, the result is a catalogue, even if a view
 was requested. `start` and `end` are inclusive dates in the record owner's
-timezone; omitted measurement dates mean the whole recorded history.
+timezone, so the last 7 days start six days before today; omitted
+measurement dates mean the whole recorded history.
 
 ## Interpret results
 
@@ -48,5 +50,5 @@ count days, so their averages can differ from statistics over individual reading
 
 Missing data means no recorded evidence, not that a condition is absent.
 Keep returned row IDs when citing or calculating from results. Use the
-[local calculator](../python-analysis.md) for additional arithmetic.
+[calculator](../python-analysis.md) for additional arithmetic.
 Full schemas and result conventions are in the [tool reference](../answers.md).

@@ -15,7 +15,7 @@
 #   samsung         Samsung Health Data SDK: https://developer.samsung.com/health/data/api-reference
 #   fitbit          Fitbit Web API: https://dev.fitbit.com/build/reference/web-api/
 #   whoop           WHOOP API v2: https://api.prod.whoop.com/developer/doc/openapi.json
-#   oura            Oura API v2: https://cloud.ouraring.com/v2/static/json/openapi-1.41.json
+#   oura            Oura API v2: https://cloud.ouraring.com/v2/static/json/openapi-1.43.json
 #   garmin          Garmin Health API: https://developer.garmin.com/gc-developer-program/health-api/
 #   vivo            vivo BlueOS health API: https://developers-watch.vivo.com.cn/api/health/health/
 #   xiaomi          Xiaomi Health cloud: https://dev.mi.com/
@@ -67,8 +67,9 @@ loinc	name	axes	metric	confidence	apple	health_connect	huawei	honor	oppo	samsung
 70003-9	Central apnea index 24 hour	NRat/24H/Qn		unverified			health.record.ventilator:centerApneaEventTimes											Huawei publishes a total count, which has to be divided by the hours of use to become an index
 55423-8	Number of steps in unspecified time Pedometer	NRat/XXX/Qn/Pedometer	steps	confident	stepCount	StepsRecord	com.huawei.continuous.steps.delta:steps_delta	SAMPLE_STEPS:step	step	StepsType	activities-steps			DATA_TYPES.STEP_COUNT(5)	com.xiaomi.micloud.fit.step_count.delta	Step	Steps	All eleven vendors (including WeChat Sport and Alipay Sport, which publish steps only)
 41950-7	Number of steps in 24 hour Measured	NRat/24H/Qn/Measured	dailySteps	confident			com.huawei.continuous.steps.total:steps	daily stats STEPS:steps					daily_activity.steps					a daily total
-103208-5	Distance traveled	Len/Pt/Qn	dailyDistance	confident		DistanceRecord	com.huawei.continuous.distance.delta:distance_delta	distance.read(daily distance)			activities-distance	workout.score.distance_meter	daily_activity.equivalent_walking_distance(unverified)	DATA_TYPES.DISTANCE(7)	com.xiaomi.micloud.fit.distance.delta	Distance	?	Oura converts to an equivalent walking distance
+103208-5	Distance traveled	Len/Pt/Qn	dailyDistance	confident		DistanceRecord(increment)	com.huawei.continuous.distance.delta:distance_delta(increment)	DISTANCE (daily)			activities-distance		daily_activity.equivalent_walking_distance(unverified)	DATA_TYPES.DISTANCE(7)	com.xiaomi.micloud.fit.distance.delta	Distance	?	Oura converts to an equivalent walking distance
 112427-0	Distance walking or running	Len/Pt/Qn	walkingRunningDistances	confident	distanceWalkingRunning													LOINC 2.82; the Apple name matches word for word
+55412-1	Exercise distance	Len/XXX/Qn	exerciseDistances	unverified								workout.score.distance_meter	workout.distance					one workout's distance, any activity; neither vendor says how it is derived
 100304-5	Flights climbed [#] Reporting Period	Num/RptPeriod/Qn	floors	confident	flightsClimbed	FloorsClimbedRecord				FloorsClimbedType	activities-floors							Use 93833-2 for the 24H quantity
 101687-2	Elevation climbed	LRat/Pt/Qn	altitudeGain	confident		ElevationGainedRecord	com.huawei.instantaneous.altitude	distance.read(includes ascent)								Barometer(derived)	?	LOINC 2.75
 41981-2	Calories burned	EngRat/Pt/Qn	activeCalories	confident	activeEnergyBurned	ActiveCaloriesBurnedRecord	com.huawei.continuous.calories.burnt:calories	calories.read			activities-calories	cycle.score.kilojoule(divide by 4.184)	workout.calories	DATA_TYPES.CALORIES(8)	com.xiaomi.micloud.fit.calories.expended	Calorie	Calories	WHOOP publishes kilojoules, a unit trap

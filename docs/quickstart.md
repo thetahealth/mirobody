@@ -1,6 +1,6 @@
 # Quickstart
 
-**English** · **[中文](quickstart.zh-CN.md)**
+**English** · **[中文](quickstart.zh-CN.md)** · **[日本語](quickstart.ja.md)**
 
 Try data standardization with one command, or start the full app for document
 processing and health questions.
@@ -84,7 +84,7 @@ a real request. Port `18060` is forwarded privately by default.
 
 The app and records are stored in GitHub's cloud; documents and questions sent
 for model processing go to your model provider. Use the supplied synthetic
-data for this trial. [Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces)
+data to explore. [Codespaces billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces)
 and model charges apply. Stop the codespace when finished; reopening it starts
 the app again.
 
@@ -170,7 +170,9 @@ the web client in `frontend/` alongside the API. The Python package alone does
 not include the web client.
 
 `dev` generates temporary secrets. To preserve sessions and encrypted
-configuration across restarts, set `JWT_KEY` and `CONFIG_ENCRYPTION_KEY`.
+configuration across restarts, set `JWT_KEY` and `CONFIG_ENCRYPTION_KEY`. Set
+`PG_ENCRYPTION_KEY` as well: without it, stored record fields are encrypted
+under `config.yaml`'s public placeholder (SECURITY.md).
 For deployment, `serve` reads the shipped configuration and
 `config.{ENV}.yaml` and expects persistent secrets.
 

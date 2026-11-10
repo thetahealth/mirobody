@@ -196,6 +196,25 @@ jobs:
       shell: powershell
       run: ./benchmarks/windows/test-native.ps1
 
+  # The release publishes server.json to the MCP Registry, which rejects an
+  # entry the publisher's validator rejects, or one whose name the PyPI README
+  # does not carry as `mcp-name`. Both are checkable on every PR, so a broken
+  # entry shows up here instead of as a red release after PyPI already has it.
+  mcp-entry:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ./.github/actions/install-mcp-publisher
+    - name: Validate server.json
+      run: ./mcp-publisher validate server.json
+    - name: README.md carries the registry name
+      run: |
+        name="$(jq -r .name server.json)"
+        if ! grep -qF "<!-- mcp-name: $name -->" README.md; then
+          echo "::error::README.md (the PyPI description) lacks <!-- mcp-name: $name -->"
+          exit 1
+        fi
+
   test-import:
     needs: test-build
     runs-on: ${{ matrix.os }}
@@ -235,7 +254,7 @@ jobs:
 
   summary:
     permissions: {}
-    needs: [test-build, test-import, windows-benchmark]
+    needs: [test-build, test-import, windows-benchmark, mcp-entry]
     runs-on: ubuntu-latest
     if: always()
 
@@ -262,5 +281,11 @@ jobs:
           echo "❌ Windows benchmark tooling checks failed"
         fi
 
+        if [ "${{ needs.mcp-entry.result }}" == "success" ]; then
+          echo "✅ MCP Registry entry validates"
+        else
+          echo "❌ MCP Registry entry check failed"
+        fi
+
         echo ""
-        echo "Ready for release: ${{ needs.test-build.result == 'success' && needs.test-import.result == 'success' && needs.windows-benchmark.result == 'success' }}"
+        echo "Ready for release: ${{ needs.test-build.result == 'success' && needs.test-import.result == 'success' && needs.windows-benchmark.result == 'success' && needs.mcp-entry.result == 'success' }}"

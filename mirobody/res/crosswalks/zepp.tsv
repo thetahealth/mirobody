@@ -29,6 +29,6 @@ Step		steps	55423-8	confident	Number of steps in unspecified time Pedometer
 Distance		dailyDistance	103208-5	confident	Distance traveled
 Barometer (derived)		altitudeGain	101687-2	confident	Elevation climbed; derived by the vendor app, not a sensor type
 Calorie		activeCalories	41981-2	confident	Calories burned
-Stand			112425-4	unverified	Standing time 1 day
+Stand			112425-4	unverified	【未映射：尚未接入本仓指标】 Standing time 1 day
 Workout		trainingLoad	103223-4	unverified	Workout intensity
 shared-data list	VO2max	vo2Maxs	94122-9	unverified	Oxygen consumption (VO2)/Body weight^peak during exercise; from the shared-data list Zepp publishes, not a sensor class

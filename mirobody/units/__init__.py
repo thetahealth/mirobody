@@ -34,7 +34,7 @@ from .families import (
 )
 from .convert import (
     CanonicalQuantity, MOLAR_MASS, canonical_unit, canonicalize, conversion_factor,
-    convert_value, convertible, partition_units, pick_display_unit, scale,
+    convert_value, convertible, needs_molar_mass, partition_units, pick_display_unit, scale,
 )
 from .normalize import (
     ParsedQuantity, normalize_unit, parse_value_unit, scan_value_units,
@@ -55,6 +55,7 @@ __all__ = [
     "convert_value",
     "convertible",
     "conversion_factor",
+    "needs_molar_mass",
     "partition_units",
     "pick_display_unit",
     "scale",

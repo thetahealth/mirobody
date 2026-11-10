@@ -1,4 +1,5 @@
-# Opt-in local container management; calculation containers get no host socket.
+# Opt-in local container management, for a local model's Python calculation
+# (docs/python-analysis.md); calculation containers get no host socket.
 # PYTHON_DOCKER_SOCKET is a path on the daemon host, not the app container.
 services:
   mirobody:
