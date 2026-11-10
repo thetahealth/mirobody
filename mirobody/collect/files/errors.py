@@ -20,11 +20,12 @@ class UploadError(Exception):
 def failure_reason(e: BaseException) -> str:
     """The message of an error written for the person who uploaded the file
     (`UploadError`, no routable model, a vision model that read nothing, a
-    provider that sent back an empty response), else the error's type: the
-    traceback is in the server log."""
+    provider that sent back an empty response, a local model not loaded yet),
+    else the error's type: the traceback is in the server log."""
     from mirobody.utils.config.llm import NoProviderError
+    from mirobody.utils.config.served import ModelNotReady
     from mirobody.utils.llm import ImageNotRead, NoResponse
 
-    if isinstance(e, UploadError | NoProviderError | ImageNotRead | NoResponse):
+    if isinstance(e, UploadError | NoProviderError | ImageNotRead | NoResponse | ModelNotReady):
         return str(e)
     return type(e).__name__

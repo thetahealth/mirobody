@@ -200,6 +200,70 @@ def served_status(base_url: str, model: str) -> str | None:
     return answer
 
 
+#: How long work that needs a local model waits for a router that is loading
+#: it before saying so: a load from disk takes seconds, a download minutes to
+#: hours. Before this an upload waited on the request itself: 307 s for the
+#: summary, as long again for the readings, the row reading 已处理 meanwhile,
+#: and the reason was "InternalServerError" (#275, a stalled download).
+LOAD_WAIT_SEC = 120.0
+_POLL_SEC = 5.0
+#: When a wait last gave up on a model, by (address, model).
+_gave_up: dict[tuple[str, str], float] = {}
+
+
+class ModelNotReady(RuntimeError):
+    """A local model the router is still downloading or loading, or could not
+    load. The message names the model and the fix, for the person whose
+    upload needed it."""
+
+    def __init__(self, model: str, *, failed: bool = False) -> None:
+        if failed:
+            message = (f"the local model {model} failed to load: its download did not finish or the file is "
+                       "damaged (the model server's log says which); upload the file again once it loads")
+        else:
+            message = (f"the local model {model} is still downloading or loading; upload the file again once "
+                       "the setup page shows it ready")
+        super().__init__(message)
+        self.model = model
+
+
+def still_loading(spec: Any) -> bool:
+    """Whether `spec` runs on a local model server whose router is still
+    downloading or loading its model. An `unloaded` model is left to the
+    request, which is what starts its load. Blocks for up to one timeout."""
+    if spec is None or not (getattr(spec, "base_url_env", "") and getattr(spec, "base_url", "")):
+        return False
+    return served_status(spec.base_url, spec.model) == "loading"
+
+
+async def wait_until_loaded(spec: Any, *, wait: float | None = None) -> None:
+    """Return once the router no longer reports `spec`'s model loading (or
+    never did); raise `ModelNotReady` if it still is after `wait` seconds,
+    `LOAD_WAIT_SEC` by default."""
+    import asyncio
+
+    limit = LOAD_WAIT_SEC if wait is None else wait
+    key = (getattr(spec, "base_url", ""), getattr(spec, "model", ""))
+    deadline = time.monotonic() + limit
+    while await asyncio.to_thread(still_loading, spec):
+        # One wait per model, not one per caller: a scan's two OCR passes
+        # waited it out in turn (240 s), and every further page would have.
+        recently = time.monotonic() - _gave_up.get(key, float("-inf")) < limit
+        if recently or time.monotonic() >= deadline:
+            _gave_up[key] = time.monotonic()
+            raise ModelNotReady(spec.model)
+        await asyncio.sleep(_POLL_SEC)
+    _gave_up.pop(key, None)
+
+
+def failed_to_load(spec: Any, exc: BaseException) -> bool:
+    """Whether `exc` is llama.cpp's router answering that `spec`'s model
+    failed to load ("model name=glm-ocr failed to load", HTTP 500), which the
+    upload reported as "InternalServerError"."""
+    return (bool(getattr(spec, "base_url_env", "")) and getattr(exc, "status_code", None) == 500
+            and "failed to load" in str(exc))
+
+
 def sees(spec: Any) -> bool:
     """Whether a resolved route can be sent an image: a declared `false` is
     final; an address from configuration asks the server; otherwise the
@@ -213,4 +277,5 @@ def sees(spec: Any) -> bool:
     return True
 
 
-__all__ = ["sees", "served_context", "served_status", "served_vision"]
+__all__ = ["LOAD_WAIT_SEC", "ModelNotReady", "failed_to_load", "sees", "served_context", "served_status",
+           "served_vision", "still_loading", "wait_until_loaded"]

@@ -20,6 +20,24 @@
 
 ### Fixed
 
+- **An upload made while a local model is still loading says so** (#275).
+  On a local stack whose llama.cpp router had not finished downloading the
+  text model, a text PDF waited 307 s on its summary, was listed 已处理 with
+  no readings and no reason, waited as long again on the readings and then
+  failed with "returned an error"; with the OCR model unable to load, a scan
+  failed with "InternalServerError". The upload now asks the router first.
+  While the model is loading it skips the summary, waits up to two minutes for
+  the load, then fails the file with "the local model minicpm5-2b is still
+  downloading or loading; upload the file again once the setup page shows it
+  ready"; a model the router reports as failed to load is named as such, with
+  where to look. Once one upload has waited out the window, the next is told
+  at once instead of waiting again. The web file list shows a failed file's
+  reason under 处理失败, where it showed only the status. A load the upload
+  itself starts (the router reports the model unloaded) still waits for the
+  router's own limit, and the file reads 已处理 until the readings fail.
+  How to tell: start the local stack, upload a report before the setup page
+  shows the model ready, and the file fails within two minutes with that
+  sentence.
 - **A series printed in two units is answered in one** (#271). One person's
   total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
   one, is one series, and every raw row carried its canonical pair, but each

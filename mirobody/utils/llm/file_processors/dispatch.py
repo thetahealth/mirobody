@@ -26,6 +26,7 @@ from mirobody.utils.config.llm import (
     resolve_named,
     resolve_route,
 )
+from mirobody.utils.config.served import ModelNotReady, failed_to_load, wait_until_loaded
 from mirobody.utils.llm import backends_anthropic
 from mirobody.utils.llm_output import strip_code_fence
 
@@ -90,10 +91,14 @@ async def vision_extract(
 
     Raises `NoProviderError` (a ValueError) naming the fix when no entry is
     routable, `ValueError` for a named provider that is unknown or keyless,
-    `ImageNotRead` for an empty answer, and whatever the endpoint raises for
-    a failed request.
+    `ImageNotRead` for an empty answer, `ModelNotReady` for a local model the
+    router is still loading or could not load, and whatever the endpoint
+    raises for a failed request.
     """
     spec = vision_route(provider, model)
+    # A local router still downloading the model held this request open for
+    # minutes and then answered 500 (#275): wait a load's length, then say so.
+    await wait_until_loaded(spec)
     ready = await asyncio.to_thread(model_ready, image, mime)
     final_prompt = json_prompt(prompt) if json_mode else prompt
     logger.info("vision extraction: model=%s json_mode=%s", spec.model, json_mode)
@@ -107,6 +112,8 @@ async def vision_extract(
     except Exception as e:
         logger.error("vision extraction failed: model=%s error_type=%s", spec.model, type(e).__name__,
                      exc_info=not is_driver_exception(e))
+        if failed_to_load(spec, e):
+            raise ModelNotReady(spec.model, failed=True) from e
         raise
     if not answer.strip():
         logger.error("vision extraction answered nothing: model=%s", spec.model)

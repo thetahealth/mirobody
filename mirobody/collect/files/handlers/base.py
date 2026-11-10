@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from mirobody.collect.files.services.report_date import resolve_report_date
 import abc
+import asyncio
 import hashlib
 import logging
 import uuid
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
 from mirobody.collect.files.errors import UploadError, failure_reason
 from mirobody.documents.extract import PartialText
 from mirobody.kernel.ops import is_driver_exception
+from mirobody.utils.config.llm import no_provider_message, resolve_route
+from mirobody.utils.config.served import ModelNotReady, still_loading, wait_until_loaded
 from mirobody.utils.i18n import localize
 from mirobody.utils.req_ctx import request_language
 from mirobody.utils.tasks import spawn
@@ -65,11 +68,11 @@ def _no_answer_reason() -> str:
     sentence names the key to set), or the routed one's call failed. ONE route
     is tried, never a second: config.llm.yaml states it ("selection happens
     once; a failed call is reported, never retried elsewhere")."""
-    from mirobody.utils.config.llm import no_provider_message, resolve_route
-
     route = resolve_route("text")
     if route is None:
         return no_provider_message("text")
+    if still_loading(route):
+        return f"indicator extraction failed: {ModelNotReady(route.model)}"
     return (f"indicator extraction failed: {route.alias} ({route.model}) returned an error, and a failed call "
             "is not retried on another provider (see the server log for the provider's message); re-upload "
             "after fixing it, or point UTILS_TEXT_MODEL elsewhere")
@@ -214,6 +217,11 @@ class BaseFileHandler(abc.ABC):
         file_abstract, file_name = "", ctx.filename
         try:
             if original_text and original_text.strip():
+                if await asyncio.to_thread(still_loading, resolve_route("text")):
+                    # The summary is a nicety; waiting on a model the router
+                    # is still downloading held the upload 307 s (#275).
+                    logger.info("abstract skipped: the text model is still loading: message_id=%s", ctx.message_id)
+                    return self.abstract_extractor.fallback_abstract(ctx.filename, self.get_type_name()), ctx.filename
                 file_abstract, file_name = await self.abstract_extractor.abstract_from_text(
                     original_text, ctx.filename, language)
             elif self.get_type_name() == "image" and not ctx.extraction_error:
@@ -417,6 +425,10 @@ class BaseFileHandler(abc.ABC):
         formatted_raw = original_text
         failed_reason = ""
         try:
+            # A model the router is still downloading: say so after a load's
+            # length rather than wait out a download on each of the two calls
+            # below, the row reading 已处理 with no readings meanwhile (#275).
+            await wait_until_loaded(resolve_route("text"))
             probed = await self.indicator_extractor.probe_report_date(original_text)
             probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
             probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}

@@ -136,6 +136,7 @@ docker compose exec mirobody mirobody doctor --probe
 | --- | --- |
 | 找不到模型服务 | 确认服务已在端口 8080 启动。Linux 还需检查下方的主机网络配置。 |
 | 首次提问等待较久 | 模型可能仍在下载。查看 `docker compose logs -f llama_cpu`；GPU 服务查看 `llama`。 |
+| 上传失败，原因是 "still downloading or loading" | 模型服务还没加载完该模型。等设置页显示就绪后重新上传。"failed to load" 表示下载未完成或文件损坏，模型服务的日志会说明是哪一种。 |
 | Docker 内存不足 | 在 Docker Desktop 中分配至少 8 GB 内存，或执行 `colima start --memory 8`。CPU 使用 `docker/local-models-cpu.ini`，GPU 使用 `docker/local-models.ini`。 |
 | 预设文件报错 `Is a directory` | 确认 Docker 能访问源码目录。Colima 默认共享主目录，可将源码放在其中，或将路径加入 `mounts`。 |
 | 无法从 Hugging Face 下载 | Compose 在 `.env` 中设置 `HF_ENDPOINT=https://<mirror>`；直接运行 `llama-server` 时，在启动它的 shell 中设置。 |
