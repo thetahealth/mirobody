@@ -208,3 +208,109 @@ def test_the_model_reads_one_name_per_series():
                for specimen, code in (("Blood", "15074-8"), ("Serum or Plasma", "14749-6"))]
     shared = render_compact(tools.Envelope(status="ok", data=glucose))
     assert "in Blood" in shared and "in Serum or Plasma" in shared and "葡萄糖" not in shared
+
+
+def _journal():
+    pytest.importorskip("fastapi")
+    import importlib
+
+    # By path: `mirobody.server.routers` re-exports the APIRouter under the module's name.
+    return importlib.import_module("mirobody.server.routers.journal_router")
+
+
+def _journal_row(i: int, kind: str, text: str, system: str, code: str, display: str, value: str = "") -> dict:
+    from datetime import UTC, date, datetime
+
+    return {"id": i, "kind": kind, "local_date": date(2026, 11, 6), "observed_start": datetime(2026, 11, 6, 1, tzinfo=UTC),
+            "name_text": text, "value_text": value, "unit_text": "mmHg" if value else "", "code_system": system,
+            "code": code, "display": display, "outcome": "coded", "reason": None, "series_id": series_of(code) or None,
+            "note_text": None}
+
+
+def _journal_rows() -> list[dict]:
+    """What the journal holds after 昨晚开始头疼，血压150/95，心率72: three readings on
+    LOINC, one with an English consumer name, and a complaint on ICPC-3."""
+    from mirobody.standardize import ICPC3_SYSTEM
+
+    return [
+        _journal_row(1, "measurement", "收缩压", LOINC_SYSTEM, "8480-6", "Systolic blood pressure", "150"),
+        _journal_row(2, "measurement", "舒张压", LOINC_SYSTEM, "8462-4", "Diastolic blood pressure", "95"),
+        _journal_row(3, "measurement", "心率", LOINC_SYSTEM, "8867-4", "Heart rate", "72"),
+        _journal_row(4, "symptom", "头疼", ICPC3_SYSTEM, "NS01", "Headache"),
+    ]
+
+
+def _journal_answers(monkeypatch, language: str) -> tuple[dict, dict]:
+    """`(listed, logged)`: the entries `GET /api/v1/journal` and `POST
+    /api/v1/journal/sentence` answer with, by the person's words, for a request
+    in `language`. Only the database and the text model are stood in for."""
+    import asyncio
+
+    from mirobody.collect import observations
+    from mirobody.utils.req_ctx import set_req_ctx
+
+    journal = _journal()
+
+    async def owner(*args, **kwargs):
+        return "7"
+
+    async def rows(sql, params):
+        return _journal_rows()
+
+    async def zone(user_id):
+        return "Asia/Shanghai"
+
+    async def nothing(*args, **kwargs):
+        return []
+
+    async def read(text, **kwargs):
+        return [], "{}"
+
+    async def ingest(*args, **kwargs):
+        return observations.Report(inserted=4, ids=[1, 2, 3, 4])
+
+    monkeypatch.setattr(journal, "subject_for", owner)
+    monkeypatch.setattr(journal, "execute_query", rows)
+    monkeypatch.setattr(journal, "_medications", nothing)
+    monkeypatch.setattr(journal.observations, "user_tz", zone)
+    monkeypatch.setattr(journal.observations, "ingest", ingest)
+    monkeypatch.setattr(journal.sentence, "available", lambda: True)
+    monkeypatch.setattr(journal.sentence, "read", read)
+    monkeypatch.setattr(journal.sentence, "plan", lambda parts, **kwargs: (["drafts"], []))
+    monkeypatch.setattr(journal.sentence, "mentions", lambda parts, **kwargs: ([], []))
+    with set_req_ctx({"language": language}):
+        listed = asyncio.run(journal.list_entries(
+            user_id="7", from_date="2026-11-01", to_date="2026-11-07", kind=None, target_user_id=None, tz=None,
+            x_timezone=None))
+        logged = asyncio.run(journal.log_sentence(
+            journal.JournalSentence(text="昨晚开始头疼，血压150/95，心率72"), user_id="7", x_timezone=None))
+    assert listed.code == 0 and logged.code == 0, (listed, logged)
+    return ({e["text"]: e for day in listed.data["days"] for e in day["entries"]},
+            {e["text"]: e for e in logged.data["written"]})
+
+
+def test_the_journal_names_a_reading_as_the_indicator_list_does(monkeypatch):
+    # A Chinese page read `收缩压 150 mmHg → Systolic blood pressure 8480-6`: the
+    # journal sent `display` only, LOINC's long name, a year after the indicator
+    # list stopped showing it to a Chinese reader.
+    for entries in _journal_answers(monkeypatch, "zh-CN"):
+        assert entries["收缩压"]["label"] == "收缩压"
+        assert entries["舒张压"]["label"] == "舒张压"
+        assert entries["心率"]["label"] == "心率"
+        assert entries["收缩压"]["display"] == "Systolic blood pressure"  # the classification's own name stays
+
+
+def test_an_english_journal_reads_as_it_did(monkeypatch):
+    for entries in _journal_answers(monkeypatch, "en"):
+        # LOINC gives vital signs no English consumer name; the long name is already plain.
+        assert "label" not in entries["收缩压"] and "label" not in entries["舒张压"]
+        assert entries["心率"]["label"] == "Heart rate"  # its ConsumerName, as the indicator list shows it
+
+
+@pytest.mark.parametrize("language", ["zh-CN", "en"])
+def test_a_complaint_keeps_the_icpc3_term_in_every_language(monkeypatch, language):
+    # There is no Chinese ICPC-3 in the bundle, and CC BY-ND forbids writing one
+    # (`res/icpc3/icpc3.NOTICE`): 头疼 is coded NS01 and named by WONCA's term.
+    for entries in _journal_answers(monkeypatch, language):
+        assert "label" not in entries["头疼"]
+        assert entries["头疼"]["display"] == "Headache"
