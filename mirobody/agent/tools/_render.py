@@ -45,7 +45,7 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 #: the Chinese display name, or LOINC's English consumer name. A row without one
 #: leaves the cell empty, and `query.compact` drops a column that is empty
 #: throughout. `facets` stays out: the model has the code, and the code says it.
-#:
+
 #: `value`, `unit` and `ref` are in the series' one unit (`collect/query.py`,
 #: "Units"). `printed`, what the report printed, stays out, and so does
 #: `mixed_units`: a series printed in mg/dL and mmol/L reached the model in

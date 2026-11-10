@@ -111,14 +111,12 @@ _SERIES_UNIT_JOIN = (
 )
 
 #: A reading's number in its series' unit, the one number every statistic,
-#: bucket and band reads: as printed when it was printed in that unit (or in
-#: none), its canonical value over the unit's factor when it converts, NULL
-#: when it does not. Statistics over printed values averaged 212 mg/dL with
-#: 4.90 mmol/L; over canonical ones they answered in mol/L, which a small
-#: model called incomparable (#271); with no molar mass, 40 g/L and 600 umol/L
-#: of albumin averaged to 20.0003 "mol/L". The full precision is kept: four
-#: decimals once rounded a 1e-5 g/L daily mean to zero before the trend code
-#: saw it.
+#: bucket and band reads: as printed in that unit (or in none), else its
+#: canonical value over the unit's factor, else NULL. Over canonical values
+#: stats answered in mol/L, which a small model called incomparable (#271);
+#: with no molar mass, 40 g/L and 600 umol/L of albumin averaged to 20.0003
+#: "mol/L". Full precision: four decimals once rounded a 1e-5 g/L daily mean
+#: to zero before the trend code saw it.
 _VALUE_STD = (
     "CASE WHEN o.value_num IS NULL THEN NULL"
     " WHEN su.ucum IS NULL OR COALESCE(o.unit_ucum, '') IN ('', su.ucum) THEN o.value_num::double precision"
