@@ -52,8 +52,10 @@ def test_one_row_per_series_is_one_table() -> None:
     assert _blocks(rows, COLUMNS) == query.compact(rows, COLUMNS)
     catalog = [{"indicator": r["indicator"], "label": r["label"], "series": r["series"], "system": LOINC,
                 "code": r["code"], "count": 3, "first_date": "2025-01-02", "last_date": "2026-01-01"} for r in rows]
-    assert _readings_table(catalog) == query.compact(catalog, ("indicator", "label", "system", "code", "count",
-                                                               "first_date", "last_date", "reason"))
+    # Named once, by the label (`query.shown_names`).
+    shown = [{**r, "indicator": r["label"]} for r in catalog]
+    assert _readings_table(catalog) == query.compact(shown, ("indicator", "system", "code", "count",
+                                                             "first_date", "last_date", "reason"))
 
 
 def test_mixed_series_render_one_block_each() -> None:

@@ -323,6 +323,17 @@ of objects it can sort and paginate. Re-parsing a pipe table in JavaScript to
 rebuild the dicts that existed two calls earlier is not a serialisation
 strategy.
 
+Both read rows in which each series is described once: one identity (every
+row of a series carries the same name, code and unit, in every view), and
+every number written by one rule (`query.presentable`: a computed value to
+six significant figures, a reading as printed or converted). What a report
+printed (its name for the test, its value, unit and range) rides in
+`printed`, for the source column and the export, and never reaches the model.
+The model reads one name per series (`query.shown_names`): the label a
+person reads (`LDL cholesterol, Blood`, 深睡比例), or LOINC's long name where
+there is no label or two series in one answer share it. That name is also
+a selector: asking again by it reaches the same series.
+
 ---
 
 ## Every number has a source

@@ -31,6 +31,31 @@
   aggregate row names with a blank indicator stay apart. How to tell: ask
   `query_health_indicators` for raw readings of two indicators over a month
   and each gets its own block, about half the tokens of the one table.
+- **`query_health_indicators` names each series once and writes each number
+  one way.** A raw row carried three names for one series: LOINC's long name
+  (`Cholesterol in LDL [Moles/volume] in Serum or Plasma`), the label
+  (`LDL cholesterol, Blood`) and what each report printed (`LDL Cholesterol`,
+  `低密度脂蛋白胆固醇`), the last one data that is only the source's. A device
+  series had no label and read as its key, `dailyDeepSleepPercentage`.
+  Numbers came out unrounded: a converted reading was 5.48 in raw rows and
+  5.482994956679169 in a month, and a device export's
+  `20.583333333333332` passed through. Now the model reads one name per
+  series, the label in the request's language (device metrics included:
+  深睡比例, `Daily Deep Sleep Percentage`), or LOINC's long name where there
+  is no label or two series in one answer share one; the notes use the same
+  name, and asking again by it reaches the same series. Every reading of a
+  series carries the series' code, its own in `printed`. The printed name
+  moves into `printed` beside the printed value, unit and range; the records
+  list and export keep it as `name`. Computed values (min, max, mean, median,
+  spread, change, a sum that is not a whole number) have six significant
+  figures, as trend's already did, and a reading's float noise is cut to
+  the same. The REST rows change the same way; `indicator` is still LOINC's
+  long name there, the handle the web's drawer selects by. On a fixture of
+  two lab panels and device sleep data, over the per-series blocks above, the
+  model's text is 19% shorter for the catalogue, 18% for raw readings, 25%
+  for latest, 26% for stats and 45% for months. How
+  to tell: `view=raw` over a mixed panel shows `LDL cholesterol, Blood` and no
+  `LDL Cholesterol`, and `view=stats` has no number longer than six figures.
 
 ### Fixed
 
