@@ -60,6 +60,15 @@ def executor_ready() -> bool:
     return True
 
 
+class NoSource(ValueError):
+    """Nothing in this turn to compute on. The message is written for the
+    model and carries no value, so the tool returns it (`_no_source`) instead
+    of raising: raised, it reached the fault middleware, which never passes an
+    exception's message on, and the model read "check the tool's parameter
+    list". Asked "画个图看看" after a lookup in the turn before, MiniCPM5-2B
+    then sent the same numbers to code_exec five times (2026-11-10)."""
+
+
 def source_results(messages: list, *, computation_tool: str = TOOL_NAME) -> list[dict]:
     """Original results in this turn, in call order, including their methodology."""
     start = user_turn_start(messages)
@@ -70,12 +79,23 @@ def source_results(messages: list, *, computation_tool: str = TOOL_NAME) -> list
         and message.name != computation_tool
     ]
     if not available:
-        raise ValueError("Call a record tool before computing; no original result exists in this turn")
+        raise NoSource(
+            "no original result exists in this turn. code_exec computes only on what a record tool returned "
+            "in this turn, never on numbers written into the code or remembered from an earlier turn: call "
+            "the record tool again for the readings you need, then compute on data. To chart readings "
+            "already in the conversation, write the chart block in your answer; that needs no code_exec")
     if available[-1]["status"] == tools.STATUS_ERROR:
-        raise ValueError("A source lookup failed; obtain a successful result before computing")
+        raise NoSource("the source lookup failed; obtain a successful result before computing")
     if not available[-1]["data"]:
-        raise ValueError("The source returned no rows; missing readings must not become a zero result")
+        raise NoSource("the source returned no rows; missing readings must not become a zero result")
     return [result for result in available if result["status"] != tools.STATUS_ERROR]
+
+
+def _no_source(exc: NoSource) -> tuple[str, dict]:
+    """What the model reads when there is nothing to compute on, and the
+    artifact retry governance reads: recoverable, by doing what it says."""
+    return f"error: {exc}", {"status": tools.STATUS_ERROR, "error_class": tools.ERROR_RECOVERABLE,
+                             "error_kind": "no_source"}
 
 
 def _inputs(runtime: ToolRuntime) -> tuple[list[dict], dict]:
@@ -124,7 +144,10 @@ async def python_code(code: str, runtime: ToolRuntime, timeout_s: int = 15) -> t
     and results; you may load that file instead of using the injected variables.
     For example: values = [float(row['value']) for row in data]; print(sum(values) / len(values)).
     """
-    results, inputs = _inputs(runtime)
+    try:
+        results, inputs = _inputs(runtime)
+    except NoSource as exc:
+        return _no_source(exc)
     seconds = _seconds(timeout_s)
     try:
         sandbox = await asyncio.to_thread(LocalPythonSandbox, timeout=seconds)
@@ -166,7 +189,10 @@ async def javascript_code(code: str, runtime: ToolRuntime, timeout_s: int = 15) 
     are available; there is no network, file system, require or import.
     For example: const values = data.map(row => Number(row.value)); console.log(values.reduce((a, b) => a + b, 0) / values.length);
     """
-    results, inputs = _inputs(runtime)
+    try:
+        results, inputs = _inputs(runtime)
+    except NoSource as exc:
+        return _no_source(exc)
     seconds = _seconds(timeout_s)
     # The engine stops itself at `seconds`; this deadline is for the rare run
     # it overshoots (a loop of large allocations ran to 4x its limit).
