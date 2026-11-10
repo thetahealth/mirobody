@@ -8,7 +8,8 @@ what a browser gets: arrays of objects it can sort and paginate.
 Both are generic over an envelope, so readings, medications and genetics all
 render through them; each tool says which columns its rows have (`columns`), or
 lets the readings shapes be derived. A readings result renders what the person
-reported as a second table (`_readings_table`). Underscore-prefixed so the tool loader
+reported as a second table (`_readings_table`), and a result that mixes series
+as one block per series when that is shorter (`_blocks`). Underscore-prefixed so the tool loader
 never publishes anything in here.
 """
 
@@ -105,9 +106,39 @@ def _method_of(first: Mapping[str, Any]) -> str:
     return ""
 
 
+def _blocks(rows: Sequence[Mapping[str, Any]], columns: Sequence[str]) -> str:
+    """A result that mixes series as one table per series, when that is shorter.
+
+    ``query.compact`` hoists what is constant across the whole table, but
+    ``indicator``, ``unit``, ``ref``, ``system``, ``code`` and ``file`` are
+    constant only within a series, so a mixed table repeats them on every row.
+    On a paired benchmark (#269: same questions, only the table changes) a
+    repeated, task-irrelevant column cost a 2 B model 10 pp (60% to 50%,
+    p=0.021). A block per series hoists them once each.
+
+    A block pays only where its series has rows to share it. Applied to every
+    series, a catalogue, stats or latest view (one row per series) came out 31%
+    to 326% longer in tokens, every value relabelled a constant. So a series
+    with one row stays in a table shared with the others like it, and the
+    blocks are kept only when shorter than the one table.
+    """
+    groups: dict[tuple[str, ...], list[Mapping[str, Any]]] = {}
+    for row in rows:
+        groups.setdefault(query.series_key(row), []).append(row)
+    single = query.compact(rows, columns)
+    shared = [group[0] for group in groups.values() if len(group) == 1]
+    if len(groups) == 1 or len(shared) == len(groups):
+        return single
+    blocks = [query.compact(group, columns) for group in groups.values() if len(group) > 1]
+    if shared:
+        blocks.append(query.compact(shared, columns))
+    blocked = "\n\n".join(blocks)
+    return blocked if len(blocked) < len(single) else single
+
+
 def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
-    """A readings result as one table, and what the person reported as a
-    second one under its own heading: one table would put a blank value
+    """A readings result as one table (or a block per series, `_blocks`), and
+    what the person reported under its own heading: one table would put a blank value
     beside every symptom and let a self-reported diagnosis read as a result."""
     measured = [r for r in rows if r.get("provenance") != tools.PROVENANCE_REPORTED]
     reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
@@ -119,7 +150,7 @@ def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
         shown = columns[method] if method else tuple(group[0].keys())
         if any(r.get("rid") for r in group):
             shown = ("rid", *shown)  # the handle an answer cites (kernel.citations)
-        table = query.compact(group, shown)
+        table = _blocks(group, shown)
         parts.append(f"{heading}\n{table}" if heading else table)
     return "\n\n".join(parts)
 

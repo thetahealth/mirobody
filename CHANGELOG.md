@@ -17,6 +17,20 @@
   root `glama.json` now names the maintainer, which is how Glama lets an
   organization's repository claim its listing. How to tell: `tools/list`
   from `mirobody mcp` says "offline" in all three terminology tools.
+- **A result that mixes series states each series' constants once** (#269).
+  The table the model and an MCP client read hoisted only what was constant
+  across the whole result, so a month of glucose and LDL repeated the
+  indicator, unit, range, system, code and file on every row; on a paired
+  benchmark a repeated, task-irrelevant column cost a 2 B model 10 points.
+  Such a result is now one block per series, each with its own
+  `(constants: …)` line over a `rid|time|value` table. A series with one row
+  stays in a table shared with the others like it, and the blocks are used
+  only when shorter than the one table, so a catalogue, stats or latest view
+  (one row per series) renders as before: blocking those made them 31% to
+  326% longer. Rows are grouped by series, not by name, so two series an
+  aggregate row names with a blank indicator stay apart. How to tell: ask
+  `query_health_indicators` for raw readings of two indicators over a month
+  and each gets its own block, about half the tokens of the one table.
 
 ### Fixed
 

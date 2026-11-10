@@ -362,6 +362,17 @@ def compact(
     return "\n".join(out)
 
 
+def series_key(row: Mapping[str, object]) -> tuple[str, ...]:
+    """Which series a row belongs to: its series id, or without one its
+    indicator, system and code. Not the indicator alone: it is a display name,
+    and an aggregate row of a series with no LOINC display has had a blank one,
+    which would merge every such series into one."""
+    series_id = str(row.get("series") or "")
+    if series_id:
+        return ("series", series_id)
+    return ("identity", *(str(row.get(k) or "") for k in ("indicator", "system", "code")))
+
+
 def _significant(value: float, digits: int = 6) -> float:
     """A float kept to `digits` significant figures, so small scales survive rounding."""
     if value == 0 or value != value:
@@ -430,10 +441,7 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
     """
     grouped: dict[tuple[str, ...], list[Mapping[str, object]]] = {}
     for row in daily:
-        series_id = str(row.get("series") or "")
-        key = (("series", series_id) if series_id else
-               ("identity", *(str(row.get(k) or "") for k in ("indicator", "system", "code"))))
-        grouped.setdefault(key, []).append(row)
+        grouped.setdefault(series_key(row), []).append(row)
 
     out: list[dict[str, object]] = []
     for source in grouped.values():

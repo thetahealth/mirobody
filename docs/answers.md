@@ -314,7 +314,11 @@ Two rules about it are load-bearing:
 
 `render_compact` for the model: a pipe table with constant columns hoisted into
 one `(constants: unit=mmol/L)` line, because a third-party MCP client pays per
-token for the unit repeated on 200 rows. `render_rest` for the browser: arrays
+token for the unit repeated on 200 rows. A result that mixes series is one such
+table per series, since its name, unit, code and file are constant only within
+one; a series with one row shares a table with the others like it, and the
+blocks are used only when shorter than the single table, so a catalogue still
+reads as one. `render_rest` for the browser: arrays
 of objects it can sort and paginate. Re-parsing a pipe table in JavaScript to
 rebuild the dicts that existed two calls earlier is not a serialisation
 strategy.
