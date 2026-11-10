@@ -11,7 +11,7 @@ from datetime import datetime
 from fastapi import Request
 
 from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, UploadFile, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from mirobody.utils import execute_query
 from mirobody.utils.i18n import language_from_headers
 from mirobody.utils.req_ctx import set_req_ctx
@@ -23,7 +23,7 @@ from mirobody.collect import get_websocket_file_upload_manager
 from mirobody.collect import get_user_data_distribution
 
 # Additional imports for async file processing
-from mirobody.collect import delete_files_from_message, delete_all_files_from_message, upload_files_to_storage
+from mirobody.collect import delete_files_from_message, delete_all_files_from_message, reprocess_file, upload_files_to_storage
 from mirobody.collect import FileUploadData
 from mirobody.utils.log import secret_fingerprint
 from mirobody.kernel.ops import is_driver_exception
@@ -64,6 +64,12 @@ class FileDeleteRequest(BaseModel):
         """Convert message_id to string (accepts both str and int from frontend)"""
         return str(v) if v is not None else v
 
+
+
+class FileReprocessRequest(BaseModel):
+    """The file to read again, by its storage key."""
+
+    file_key: str = Field(min_length=1, max_length=255)
 
 
 async def _authorize_file_read(file_key: str, caller_id: str) -> bool:
@@ -587,8 +593,10 @@ async def delete_uploaded_files(
     
     This endpoint allows deletion of specific files or all files by source_id.
     - If file_keys is provided, only those specific files will be soft deleted
-    - If file_keys is None/empty, all files with the source_id will be deleted
+    - If file_keys is None/empty, all files with the source_id will be deleted,
+      and an upload still in flight under that id is cancelled (`data.cancelled`)
     - Files are soft deleted (is_del = true) in th_files table
+    - A request that matches no file and no upload answers 404
     
     Args:
         request: FileDeleteRequest containing message_id (source_id) and optional file_keys
@@ -636,7 +644,10 @@ async def delete_uploaded_files(
         failed_count = len(result.get("failed_deletions", []))
         message_deleted = result.get("message_deleted", False)
         
-        if message_deleted:
+        if result.get("cancelled") and deleted_count == 0:
+            # The page names an upload still in flight by its message id alone.
+            msg = "The upload was cancelled: none of its files will be filed."
+        elif message_deleted:
             msg = f"Successfully deleted all {deleted_count} files. Message marked as deleted."
         elif failed_count > 0:
             msg = f"Partial deletion: {deleted_count} files deleted, {failed_count} failed"
@@ -649,3 +660,37 @@ async def delete_uploaded_files(
         return failed("file deletion", e, "Failed to delete files.")
 
 
+#: Why a file cannot be reprocessed now, as the client is told.
+_NOT_REPROCESSED = {
+    "processing": (409, "This file is still being processed."),
+    "genetic": (400, "A genotype file is loaded once; upload it again to replace it."),
+    "missing": (404, "The stored file is gone; upload it again."),
+}
+
+
+@router.post("/api/v1/data/reprocess-file", response_model=StandardResponse | ErrorResponse)
+async def reprocess_uploaded_file(request: FileReprocessRequest, user_id: str = Depends(verify_token)):
+    """Read a filed document again, replacing the readings taken from it.
+
+    The retry a failed file was missing (#239): the readings from the earlier
+    read are erased, the row turns `processing`, and the result lands on the
+    row as an upload's does. Rewriting someone else's record needs the
+    care-circle write grant, the rule the upload itself applies.
+    """
+    from mirobody.collect import FileDbService
+
+    try:
+        row = await FileDbService.get_file_by_key(request.file_key)
+        owner = (await subject_for(user_id, str(row.get("query_user_id") or row.get("user_id")), write=True)
+                 if row else None)
+        if owner is None:
+            # Same answer as an absent key: "forbidden" would confirm one exists.
+            return err(404, "No such file.")
+        refused = await reprocess_file(row, owner)
+        if refused:
+            code, msg = _NOT_REPROCESSED[refused]
+            return err(code, msg)
+        return StandardResponse(msg="Reprocessing started.",
+                                data={"file_key": request.file_key, "upload_status": "processing"})
+    except Exception as e:
+        return failed("file reprocessing", e, "Failed to reprocess the file.")

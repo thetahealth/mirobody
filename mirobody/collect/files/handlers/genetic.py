@@ -132,6 +132,8 @@ class GeneticHandler(BaseFileHandler):
                 "file_name": file_name,
                 "message_id": ctx.message_id,
                 "file_key": file_key,
+                # The load below writes the row's final status: filed `processing`.
+                "extracting": True,
             }
 
             # Spawn background task

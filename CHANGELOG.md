@@ -86,10 +86,33 @@
   the messages sent while it runs, where the upload socket used the
   browser's. A load the upload
   itself starts (the router reports the model unloaded) still waits for the
-  router's own limit, and the file reads 已处理 until the readings fail.
+  router's own limit; the file reads 处理中 meanwhile (see the next entry).
   How to tell: start the local stack, upload a report before the setup page
   shows the model ready, and the file fails within two minutes with that
   sentence; switch the language in Settings and the sentence follows.
+- **A deleted upload stays deleted, and a file says when it is still being
+  read** (#241, #240, #239). Deleting an upload still in flight sent only its
+  message id; it had no file row yet, so the server answered success with
+  nothing deleted, the page dropped the row, and minutes later the upload was
+  filed anyway as a second copy of the report with its own extraction. A
+  delete during extraction erased the file's readings once, and extraction
+  then wrote its own, which outlived the file. And a file was filed 已处理
+  before extraction ran, then flipped to 处理失败 with no way to retry. Now
+  the upload is recorded while in flight (`th_upload`, keyed by its message
+  id) and a delete cancels it: nothing of it is filed and its stored object
+  is deleted, the answer says `cancelled`, and a delete that matches neither
+  a file nor an upload is a 404. Extraction, and a genotype load, check that
+  the file still exists before writing and again after, erasing what they
+  wrote if it went in between. A file is filed `processing` until its
+  readings are in, then `complete` or `failed`; one still `processing` an
+  hour after it last changed, left by a restart, is listed failed with
+  "processing stopped before it finished". `POST /api/v1/data/reprocess-file`
+  reads a filed document again from its stored object, erasing the readings
+  taken from it first, since extraction skips a reading it already has.
+  Readings are no longer written for a file whose row was never filed.
+  How to tell: start an upload with a slow model, delete the row while it
+  says 处理中, and no file appears afterwards; the file list shows a new
+  upload as 处理中 until its readings are counted.
 - **A series printed in two units is answered in one** (#271). One person's
   total cholesterol, 212 mg/dL from a US lab and 4.90 mmol/L from a Chinese
   one, is one series, and every raw row carried its canonical pair, but each

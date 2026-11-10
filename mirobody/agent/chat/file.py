@@ -59,6 +59,10 @@ async def _download_single_file(file_dict: dict[str, Any], storage: Any, session
         "url_full": file_url,
         "session_id": session_id,
         "upload_time": datetime.now().isoformat(),
+        # Filed before it is read: `process_files_async` writes how it went.
+        "status": "processing",
+        "processed": False,
+        "progress": 0,
     }
 
 #-----------------------------------------------------------------------------

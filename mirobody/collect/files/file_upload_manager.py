@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from fastapi import WebSocket
 from mirobody.collect.files.errors import failure_reason
 from mirobody.collect.files.file_processor import FileProcessor
+from mirobody.collect.files.services import upload_state
 from mirobody.collect.files.services.file_db_service import SOURCE_DATA, FileDbService
 from mirobody.collect.files.services.file_uploader import validate_file_extension
 from mirobody.utils.file_types import guess_mime
@@ -283,6 +284,8 @@ class WebSocketFileUploadManager:
                 logger.info("upload session finished, starting a new one: message_id=%s", message_id)
 
             self.upload_sessions[message_id] = session_info
+            # What a delete reads to cancel this upload before it is filed (#240).
+            await upload_state.register(real_user_id, message_id)
 
             # A new chat session gets its sidebar title from the files.
             if is_first_message:
@@ -580,6 +583,10 @@ class WebSocketFileUploadManager:
 
             return_info = self._return_info(uploaded_files, outcomes, message_id, user_id_for_business, query_user_id,
                                             session)
+            if await upload_state.cancelled(user_id_for_business, message_id):
+                await self._drop_cancelled(return_info, message_id, user_id_for_business, query_user_id)
+                await self._report_cancelled(connection_id, message_id, session)
+                return
             # Every file is filed, a failed one too: the row says why it failed.
             await self._save_files_to_database(
                 return_info=return_info,
@@ -588,6 +595,16 @@ class WebSocketFileUploadManager:
                 query_user_id=query_user_id,
                 session_id=session.get("session_id", ""),
             )
+            if await upload_state.settle(user_id_for_business, message_id):
+                # Cancelled while the rows went in: removed the way any delete
+                # removes a filed file, its readings and stored object with it.
+                from mirobody.collect.files.services.file_processing_service import delete_files_from_message
+
+                keys = [f["file_key"] for f in return_info.get("files", []) if f.get("file_key")]
+                if keys:
+                    await delete_files_from_message(message_id, keys, user_id_for_business)
+                await self._report_cancelled(connection_id, message_id, session)
+                return
 
             if successful_files == 0:
                 await self.send_message(
@@ -641,6 +658,32 @@ class WebSocketFileUploadManager:
 
     # ==================== Helper Methods for process_files_async ====================
 
+    @staticmethod
+    async def _drop_cancelled(return_info: dict, message_id: str, user_id: str, query_user_id: str) -> None:
+        """What a cancelled upload leaves before it is filed: each file's
+        stored object, and whatever a background task that ran ahead of the
+        filing wrote from it (one does once `FileDbService.rows_ready` gives up
+        waiting). With no row filed, nothing else could ever delete them."""
+        from mirobody.collect.files.services.file_processing_service import delete_file_from_storage, erase_extracted
+
+        owner = str(query_user_id or user_id)
+        files = [f for f in return_info.get("files", []) if f.get("file_key")]
+        for f in files:
+            await delete_file_from_storage(f["file_key"])
+        await erase_extracted(message_id, [
+            ({"file_key": f["file_key"], "scene": "genetic" if f.get("type") == "genetic" else "report"}, owner)
+            for f in files])
+        await upload_state.settle(user_id, message_id)
+        logger.info("cancelled upload not filed: message_id=%s file_count=%d", message_id, len(files))
+
+    async def _report_cancelled(self, connection_id: str, message_id: str, session: dict) -> None:
+        session["status"] = "cancelled"
+        session["progress"] = 0
+        await self.send_message(connection_id, {
+            "type": "upload_cancelled", "messageId": message_id, "status": "cancelled",
+            "message": "The upload was cancelled: none of its files were filed.",
+        })
+
     async def _save_files_to_database(
         self,
         return_info: dict,
@@ -681,10 +724,15 @@ class WebSocketFileUploadManager:
                     logger.warning("a file with no storage key is not filed: message_id=%s", message_id)
                     continue
                 
-                # Determine status based on success flag
+                # Determine status based on success flag. A file whose readings
+                # are still being extracted is `processing`: filed `completed`,
+                # it read 已处理 with no readings for as long as extraction
+                # took, ten minutes behind a local model still loading (#239,
+                # #275). Extraction writes `completed` or `failed` when done.
                 is_success = file_entry.get("success", True)
+                extracting = bool(is_success and file_entry.get("extracting"))
                 if is_success:
-                    status = "completed"
+                    status = "processing" if extracting else "completed"
                     error_message = ""
                 else:
                     status = "failed"
@@ -715,7 +763,7 @@ class WebSocketFileUploadManager:
                     "content_hash": file_entry.get("content_hash", ""),  # SHA256 hash for deduplication
                     "indicators": file_entry.get("indicators", []),
                     "indicators_count": file_entry.get("indicators_count", 0),
-                    "processed": is_success,
+                    "processed": is_success and not extracting,
                     "session_id": session_id,
                     "upload_time": datetime.now(UTC).isoformat(),
                     "query": return_info.get("query", ""),  # Store user query if provided
@@ -760,7 +808,7 @@ class WebSocketFileUploadManager:
             )
             
             if inserted_ids:
-                success_count = sum(1 for f in files_info if f.get("status") == "completed")
+                success_count = sum(1 for f in files_info if f.get("status") != "failed")
                 failed_count = sum(1 for f in files_info if f.get("status") == "failed")
                 logger.info("files filed: message_id=%s inserted=%d succeeded=%d failed=%d", message_id,
                             len(inserted_ids), success_count, failed_count)
@@ -1002,6 +1050,9 @@ class WebSocketFileUploadManager:
                 # _save_files_to_database always inserted indicators: [].
                 "indicators": outcome.get("indicators", []),
                 "indicators_count": outcome.get("indicators_count", len(outcome.get("indicators", []) or [])),
+                # A background task (indicator extraction, a genotype load) is
+                # still reading the file and writes the row's final status.
+                "extracting": bool(outcome.get("extracting")),
                 "success": True,
             })
 

@@ -853,6 +853,61 @@ def test_a_failing_files_route_answers_a_sentence_not_the_exception(monkeypatch)
     assert answer.json()["code"] == 500 and "mirobody.ai" not in answer.text
 
 
+def test_reprocessing_a_file_takes_the_write_grant_on_its_record(monkeypatch):
+    """`POST /data/reprocess-file` erases a record's readings and writes new
+    ones, so it takes the care-circle write grant on the record the file was
+    filed in, and a file the caller may not write reads as absent."""
+    from mirobody.collect.files.services.file_db_service import FileDbService
+
+    client, files = _router_app("file_router", user_id="7")
+    rows = {"web_uploads/mine.pdf": {"file_key": "web_uploads/mine.pdf", "user_id": "7", "query_user_id": "7"},
+            "web_uploads/theirs.pdf": {"file_key": "web_uploads/theirs.pdf", "user_id": "8", "query_user_id": "8"}}
+    started = []
+
+    async def get_file_by_key(file_key, user_id=None):
+        return rows.get(file_key)
+
+    async def subject_for(caller, target, *, write=False):
+        assert write is True
+        return target if target == caller else None
+
+    async def reprocess_file(row, owner):
+        started.append((row["file_key"], owner))
+        return "processing" if row.get("busy") else None
+
+    monkeypatch.setattr(FileDbService, "get_file_by_key", get_file_by_key)
+    monkeypatch.setattr(files, "subject_for", subject_for)
+    monkeypatch.setattr(files, "reprocess_file", reprocess_file)
+    assert client.post("/api/v1/data/reprocess-file", json={"file_key": "web_uploads/theirs.pdf"}).json()["code"] == 404
+    assert client.post("/api/v1/data/reprocess-file", json={"file_key": "web_uploads/none.pdf"}).json()["code"] == 404
+    answer = client.post("/api/v1/data/reprocess-file", json={"file_key": "web_uploads/mine.pdf"}).json()
+    assert answer["code"] == 0 and answer["data"]["upload_status"] == "processing"
+    rows["web_uploads/mine.pdf"]["busy"] = True
+    assert client.post("/api/v1/data/reprocess-file", json={"file_key": "web_uploads/mine.pdf"}).json()["code"] == 409
+    assert started == [("web_uploads/mine.pdf", "7"), ("web_uploads/mine.pdf", "7")]
+
+
+def test_deleting_an_upload_in_flight_says_it_was_cancelled(monkeypatch):
+    """#240: the page names an upload still in flight by its message id; the
+    answer says it was cancelled, and one that matched nothing is a 404, not
+    a success with nothing deleted."""
+    client, files = _router_app("file_router")
+
+    async def cancelled(**kw):
+        return {"success": True, "cancelled": True, "message_id": kw["message_id"], "deleted_files": [],
+                "failed_deletions": []}
+
+    async def nothing(**kw):
+        return {"success": False, "cancelled": False, "message_id": kw["message_id"], "deleted_files": [],
+                "failed_deletions": []}
+
+    monkeypatch.setattr(files, "delete_all_files_from_message", cancelled)
+    answer = client.post("/api/v1/data/delete-files", json={"message_id": "m1"}).json()
+    assert answer["code"] == 0 and answer["data"]["cancelled"] is True and "cancelled" in answer["msg"]
+    monkeypatch.setattr(files, "delete_all_files_from_message", nothing)
+    assert client.post("/api/v1/data/delete-files", json={"message_id": "m1"}).json()["code"] == 404
+
+
 def test_a_public_share_link_answers_a_sentence_not_the_exception(monkeypatch):
     client, share = _router_app("session_share_router")
     monkeypatch.setattr(share.chat_session, "get_shared_session_history", _raises())

@@ -13,6 +13,7 @@ This module provides comprehensive health data file processing capabilities, inc
 - [Processing Flow](#processing-flow)
 - [Health Indicator Extraction](#health-indicator-extraction)
 - [File Deletion](#file-deletion)
+- [Reprocessing a File](#reprocessing-a-file)
 - [API Reference](#api-reference)
 - [Data Models](#data-models)
 - [Error Handling](#error-handling)
@@ -102,6 +103,20 @@ client needs both: the first says the file arrived and is readable, the second
 says whether anything could be extracted from it. Extraction runs after the
 upload has already completed, so a client that stops listening at
 `upload_completed` will render a stored file as a finished one.
+
+The file row says the same. A file whose readings are still being extracted
+(or whose genotype is still loading) is filed `upload_status: "processing"`,
+and the background task turns it `complete` or `failed` with its reason. A
+row still `processing` an hour after it last changed was left by a task that
+died, a restart for instance; the files list reports it `failed`, "processing
+stopped before it finished", and it can be reprocessed (see
+[Reprocessing a File](#reprocessing-a-file)).
+
+An upload can be cancelled until its files are filed: `POST
+/api/v1/data/delete-files` with its `message_id` and no `file_keys`. Nothing
+of it is filed, its stored objects are deleted, and the socket that sent it
+receives `{"type": "upload_cancelled", "messageId": ..., "status":
+"cancelled"}` in place of `upload_completed`.
 
 #### Message Types
 
@@ -617,7 +632,13 @@ Authorization: Bearer <token>
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | message_id | string | ✅ | Message ID |
-| file_keys | string[] | ❌ | List of file keys to delete; if empty, deletes all files |
+| file_keys | string[] | ❌ | List of file keys to delete; if empty, deletes all files of the message and cancels the upload if it is still in flight |
+
+`data.cancelled` is `true` when an upload still in flight was cancelled: its
+files had no rows yet, so `deleted_files` is empty, and none will be filed.
+A request that matches no file and no upload in flight answers `404`; it
+answered success with nothing deleted, and the page dropped a row that the
+upload filed minutes later.
 
 ### Response Example
 
@@ -656,6 +677,36 @@ When deleting files, the system automatically performs cascade deletion:
 Steps 4 and 5 run in the background, every file on its own: one whose erase
 fails is logged and does not stop the others.
 
+A file deleted while its readings are being extracted keeps none of them.
+Extraction checks that the file still exists before it writes and again
+after, and erases what it wrote when the file went in between; a genotype
+load does the same with the set it made.
+
+---
+
+## Reprocessing a File
+
+```http
+POST /api/v1/data/reprocess-file
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{"file_key": "web_uploads/xxx.pdf"}
+```
+
+Reads a filed document again from its stored object: the retry for a file
+that failed, which could otherwise only be deleted and uploaded again. The
+readings taken from it before are erased first, because extraction does not
+overwrite: a reading with the same name, time and source is skipped, so a
+second read on top of the first would keep a wrong value and file a reading
+whose date moved beside the old one. The row turns `processing` and the
+outcome lands on it as an upload's does; a report date the person set stays.
+
+It needs the care-circle write grant on the record the file was filed in; a
+file the caller may not write answers `404`, as an absent one does. `409`:
+the file is still being processed. `400`: a genotype file, which is loaded
+once. `404` also when the stored object is gone.
+
 ---
 
 ## API Reference
@@ -666,7 +717,8 @@ fails is logged and does not stop the others.
 |--------|----------|-------------|
 | WS | `/ws/upload-health-report` | WebSocket file upload |
 | POST | `/files/upload` | REST API file upload |
-| POST | `/api/v1/data/delete-files` | Delete files |
+| POST | `/api/v1/data/delete-files` | Delete files, or cancel an upload in flight |
+| POST | `/api/v1/data/reprocess-file` | Read a filed document again |
 | GET | `/files/{file_path}` | Get file content (proxy access) |
 
 ### Authentication
