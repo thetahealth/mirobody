@@ -41,25 +41,28 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 #: for a value it had just printed as 5.4 mmol/L. Both, never one: a
 #: device-namespace row carries the indicator's own name in `code`.
 
-#: `label` is the reading's name in the request's language (`standardize.names`):
-#: the Chinese display name, or LOINC's English consumer name. A row without one
-#: leaves the cell empty, and `query.compact` drops a column that is empty
-#: throughout. `facets` stays out: the model has the code, and the code says it.
+#: A measured row is named once (`query.shown_names`): `indicator` reads as the
+#: name a person reads, in the request's language (`label`: 低密度脂蛋白胆固醇,
+#: `LDL cholesterol, Blood`, 深睡比例), and as LOINC's long name only where a
+#: series has no label or shares its label with another in the same answer.
+#: A raw row used to carry three names (long name, label, the report's own
+#: spelling) for one series. Selecting by the label reaches the series
+#: (`collect/query.py`, `_by_names`). `facets` stays out: the code says it.
 
 #: `value`, `unit` and `ref` are in the series' one unit (`collect/query.py`,
-#: "Units"). `printed`, what the report printed, stays out, and so does
-#: `mixed_units`: a series printed in mg/dL and mmol/L reached the model in
-#: both, and the model called its two readings incomparable (#271).
+#: "Units"). `printed`, what the report printed, name included, stays out, and
+#: so does `mixed_units`: a series printed in mg/dL and mmol/L reached the
+#: model in both, and the model called its two readings incomparable (#271).
 _COLUMNS: dict[str, tuple[str, ...]] = {
-    "catalog": ("indicator", "label", "system", "code", "count", "first_date", "last_date", "reason"),
-    "readings": ("indicator", "label", "name", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
-    "buckets": ("indicator", "label", "period", "avg", "min", "max", "n", "unit", "system", "code"),
-    "trend": ("indicator", "label", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
+    "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
+    "readings": ("indicator", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
+    "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
               "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
-    "stats": ("indicator", "label", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
+    "stats": ("indicator", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
               "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "system", "code"),
-    "latest": ("indicator", "label", "name", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
+    "latest": ("indicator", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
 #: The same, for what the person REPORTED: `name` is their words and is the
@@ -112,6 +115,8 @@ def _readings_table(rows: Sequence[Mapping[str, Any]]) -> str:
     measured = [r for r in rows if r.get("provenance") != tools.PROVENANCE_REPORTED]
     reported = [r for r in rows if r.get("provenance") == tools.PROVENANCE_REPORTED]
     parts: list[str] = []
+    names = query.shown_names(measured)
+    measured = [{**r, "indicator": query.shown_name(r, names)} for r in measured]
     for group, columns, heading in ((measured, _COLUMNS, ""), (reported, _REPORTED_COLUMNS, _REPORTED_HEADING)):
         if not group:
             continue

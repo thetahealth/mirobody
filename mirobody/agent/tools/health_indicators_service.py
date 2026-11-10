@@ -228,6 +228,7 @@ class HealthIndicatorsService(RecordTool):
             rows = await self._dispatch(hq, "catalog", subject_id, request, window)
             method, fell_back = "catalog", True
 
+        rows = query.presentable(rows)
         if method != "catalog" and CITATION_SESSION.get():
             rows = await _with_rids(CITATION_SESSION.get(), subject_id, method, request, window, rows)
 
@@ -370,10 +371,12 @@ def _envelope_for(
                         f"record, so ask again starting at or after {first}")
                 else:
                     assumptions.append(f"this person's records span {first} .. {last}")
+    # A note names a series as the table does (`query.shown_names`).
+    names = query.shown_names(rows)
     if method == "trend" and rows:
         summaries = []
         for row in rows[:4]:
-            description = f"{row.get('indicator')}: direction={row.get('direction')}, shape={row.get('shape')}"
+            description = f"{query.shown_name(row, names)}: direction={row.get('direction')}, shape={row.get('shape')}"
             if row.get("delta_pct") is not None:
                 description += f" ({row['delta_pct']}% normalized change, {row.get('n')} numeric days)"
             else:
@@ -395,7 +398,7 @@ def _envelope_for(
     for r in rows:
         count = int(r.get("unconverted") or 0) if method == "stats" else int(bool(r.get("unit_differs")))
         if count:
-            name = str(r.get("indicator") or r.get("name") or "")
+            name = query.shown_name(r, names)
             apart[name] = apart.get(name, 0) + count
     if apart:
         assumptions.append(_UNIT_DIFFERS_NOTE.format(names=", ".join(sorted(apart)), count=sum(apart.values())))
@@ -414,7 +417,7 @@ def _envelope_for(
         assumptions.append(_ABSENCE_NOTE)
     if any(r.get("rid") for r in rows):
         assumptions.append(RID_NOTE)
-    unverified = sorted({str(r.get("indicator") or r.get("name") or "") for r in rows
+    unverified = sorted({query.shown_name(r, names) for r in rows
                          if r.get("modality") == _UNVERIFIED or r.get("unverified")} - {""})
     if unverified:
         assumptions.append("some source readings for these indicators are not verified against the document's text; "
@@ -460,7 +463,8 @@ _NOT_MISSING = "exists and is not shown here; it is not missing"
 
 
 def _trend_cut_note(rows: Sequence[Mapping[str, Any]]) -> str:
-    spans = [f"{r.get('indicator')}: newest {r.get('source_days')} of {r.get('total_days')} recorded days, "
+    names = query.shown_names(rows)
+    spans = [f"{query.shown_name(r, names)}: newest {r.get('source_days')} of {r.get('total_days')} recorded days, "
              f"{r.get('first_date')} to {r.get('last_date')}" for r in rows if r.get("input_truncated")]
     return ("Only part of the data was used for the trend: " + "; ".join(spans)
             + f". Earlier data {_NOT_MISSING}. Narrow the window before describing its whole-period trend.")
@@ -531,7 +535,8 @@ def _band_notes(request: query.QueryRequest, rows: Sequence[Mapping[str, Any]]) 
             else f"at or above {lo:.15g}" if lo is not None else f"at or below {hi:.15g}")
     notes = [(f"count_in_range is the readings and days_in_range the days with at least one reading {band}, "
               "in each row's unit; count and days are the whole window")]
-    pieces = sorted({str(r.get("indicator") or "") for r in rows if _in_pieces(r)} - {""})
+    names = query.shown_names(rows)
+    pieces = sorted({query.shown_name(r, names) for r in rows if _in_pieces(r)} - {""})
     if pieces:
         notes.append("no band was counted for " + ", ".join(pieces) + ": each reading is a piece of a day "
                      "(an increment or a segment), not the day's value; ask the daily series instead, "
@@ -550,6 +555,7 @@ def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[s
     default span, so the bounds compared are the ones the rows were read
     from, not the dates the caller wrote."""
     answered = {str(r.get("series") or "") for r in rows} - {""}
+    names = query.shown_names(rows)
     first_day, last_day = _window_days(window)
     outside = []
     for entry in catalog:
@@ -562,7 +568,7 @@ def _outside_note(catalog: Sequence[Mapping[str, Any]], rows: Sequence[Mapping[s
         if last and last > last_day:
             spans.append(f"until {last}")
         if spans:
-            outside.append(f"{entry.get('indicator')} ({', '.join(spans)})")
+            outside.append(f"{query.shown_name(entry, names)} ({', '.join(spans)})")
     if not outside:
         return ""
     return (f"this window ({first_day}..{last_day}) leaves out readings of " + "; ".join(outside)
@@ -584,7 +590,8 @@ def _elsewhere_note(stats: Sequence[Mapping[str, Any]], window: query.Window) ->
     matched: zero, and where the readings are, so "none last week" is not
     read as "none ever"."""
     first_day, last_day = _window_days(window)
-    held = "; ".join(f"{r.get('indicator')} has {r.get('count')} from {r.get('first_date')} to {r.get('last_date')}"
+    names = query.shown_names(stats)
+    held = "; ".join(f"{query.shown_name(r, names)} has {r.get('count')} from {r.get('first_date')} to {r.get('last_date')}"
                      for r in stats)
     return (f"0 readings between {first_day} and {last_day}. The record does hold these indicators, all outside "
             f"this window: {held}. The answer for this window is that it has none; to read them, call again "

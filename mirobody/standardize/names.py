@@ -124,6 +124,35 @@ def english_names(code: str) -> Names | None:
     return Names(row[_CONSUMER], _facets(row, english, "en"))
 
 
+def label_for(system: str, code: str, language: str) -> str:
+    """The one name a reader sees for a series coded `system`/`code`, "" when
+    there is none and the caller shows the printed name. A LOINC code reads as
+    `names_for` names it; a device metric as the catalogue labels it (深睡比例,
+    `Daily Deep Sleep Percentage`), where its key (`dailyDeepSleepPercentage`)
+    is what the model was handed before."""
+    from .outcome import LOINC_SYSTEM
+
+    if system == LOINC_SYSTEM:
+        found = names_for(code, language)
+        return found.display if found is not None else ""
+    from mirobody.kernel import metrics
+
+    metric = metrics.METRICS.get(code) if system == metrics.SYSTEM_DEVICE else None
+    if metric is None:
+        return ""
+    if is_chinese(language):
+        _device_labels()
+        return metrics.label(metric.member, "zh") or metric.display
+    return metric.display
+
+
+@lru_cache(maxsize=1)
+def _device_labels() -> None:
+    from mirobody.kernel import metrics
+
+    metrics.load_labels_resource("zh")
+
+
 def _readable(part: str, language: str) -> str:
     """A Part with its qualifiers in brackets: LOINC writes `Heart rate^resting`
     and `RBC^Donor`, a person writes 心率（静息）."""
@@ -222,7 +251,7 @@ def _series(code: str) -> str:
 def _catalogue_by_series() -> dict[str, str]:
     from mirobody.kernel import metrics
 
-    metrics.load_labels_resource("zh")
+    _device_labels()
     seen: dict[str, set[str]] = {}
     for m in metrics.ROWS:
         label = metrics.label(m.member, "zh")

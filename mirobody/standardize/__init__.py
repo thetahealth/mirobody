@@ -79,7 +79,7 @@ from .parse import RANGE_SEPARATOR, Parsed, parse_range, parse_value
 from .series import Axes, local_series_id, property_dim, series_id, symptom_series_id
 from .code import NOTE_SERIES, code, code_note, decision_id, release, series_of
 from .icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
-from .names import Names, names_for
+from .names import Names, label_for, names_for
 
 #: The pure seam, imported above. `code` is the function, not the module;
 #: `from mirobody.standardize.code import code` still reaches the module.
@@ -99,6 +99,7 @@ _SEAM = [
     "NOTE_SERIES",
     "decision_id",
     "local_day",
+    "label_for",
     "local_series_id",
     "name_key",
     "names_for",
