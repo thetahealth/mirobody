@@ -8,14 +8,14 @@ already does) and sign in with the codes in `config.yaml`.
 | | `you@mirobody.ai` | `mom@mirobody.ai` |
 | --- | --- | --- |
 | Who | healthy, active, labs in range | heavier, less active, sleeping badly, HbA1c above range |
-| Seeded | a year of device readings + `seed/you_lab_2025-11.md` | a year of device readings + `seed/mom_lab_2025-11.md` |
+| Seeded | a year of device readings + `seed/you_lab_2025-11.md` | a year of device readings + `seed/mom_lab_2025-05.md` (mg/dL) + `seed/mom_lab_2025-11.md` |
 | Upload | `upload/you_annual_checkup_2026-05.pdf`, `upload/you_lipid_panel_2026-08.csv` | `upload/mom_physical_2026-06.jpg`, `upload/mom_clinic_visit_2026-07.xlsx` |
 | Circle | reads mom's record, view-only | shares their record with you |
 
 ## `seed/` — what the database gets directly
 
-One lab panel per account, written by `mirobody/server/demo.py` alongside a
-year of generated device readings (weight, resting heart rate, steps, blood
+One lab panel per account, and for mom a second, older one, written by
+`mirobody/server/demo.py` alongside a year of generated device readings (weight, resting heart rate, steps, blood
 pressure, and sleep for the account that tracks it). That is the baseline, so
 the charts are not empty before you have done anything.
 
@@ -52,12 +52,27 @@ its `Body weight` and `Systolic Blood Pressure` sit beside the watch's
 `bodyMasss` and `systolicPressures`, carrying **29463-7** and **8480-6** just as
 those do. Two sources, two rows, one code.
 
-The units match across the files on purpose. LOINC puts the unit IN the
-identity: cholesterol is 14647-2 in mmol/L and **2093-3** in mg/dL, two codes
-for one analyte, and a demo that mixed them would show the comparability key
-rather than the three-spellings point these files make. The DEVICE path
-converts before it stores: `standardize.convert_to_standard` turns `154.5 lb`
-into `70.08 kg`, and `examples/02_standardize_a_reading.py` prints that offline.
+Your files match in units, so they make the three-spellings point alone.
+Mom's do not, on purpose: `seed/mom_lab_2025-05.md` is from a US clinic and
+prints glucose and cholesterol in mg/dL, the 2025-11 panel and the uploads in
+mmol/L. LOINC puts the unit in the identity (cholesterol is **2093-3** in
+mg/dL and 14647-2 in mmol/L), the two fold into one series through the molar
+mass, and every view answers that series in one unit: the drawer charts
+`198 mg/dL` as 5.12 mmol/L, and its source column says what the report
+printed. With every demo file in mmol/L, no demo walk-through ever showed a
+series in two units, and a chart that drew 212 mg/dL and 4.90 mmol/L as a fall
+from 212 to 4.9 shipped (thetahealth/mirobody#271). The DEVICE path converts
+before it stores: `standardize.convert_to_standard` turns `154.5 lb` into
+`70.08 kg`, and `examples/02_standardize_a_reading.py` prints that offline.
+
+## `e2e/` — two labs, two units
+
+`units_us_lab_2025-03.csv` (mg/dL) and `units_cn_lab_2026-06.csv` (mmol/L)
+are the case from #271: one person's total cholesterol and LDL from two labs.
+Uploaded to one record they are one series each, read in mmol/L. The local
+e2e harness's `units` stage uploads both and checks the drawer's rows, the
+statistics and what the model reads; `scripts/e2e_docker.sh` checks the same
+on mom's seeded record without an upload.
 
 Every file carries ONE collection date, because `resolve_report_date` gives a
 whole file a single date. A spreadsheet of seven mornings lands as one reading:
