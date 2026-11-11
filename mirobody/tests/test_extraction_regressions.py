@@ -193,6 +193,7 @@ async def test_the_table_rules_rows_pass_the_same_gate(monkeypatch):
 @pytest.mark.parametrize("name,method,kind", [
     ("心影", "Imaging", observations.KIND_FINDING),
     ("双肾结晶", "Imaging", observations.KIND_FINDING),
+    ("牙周", "Examination", observations.KIND_FINDING),
     ("HR", "Physiological", observations.KIND_MEASUREMENT),
     ("K", "laboratory", observations.KIND_MEASUREMENT),
 ])
@@ -209,3 +210,38 @@ async def test_an_imaging_row_is_stored_as_a_finding(monkeypatch, name, method, 
     )
     _, drafts, _ = ingest.call_args.args
     assert drafts[0].kind == kind
+
+
+@pytest.mark.parametrize("value,kind", [
+    ("牙周炎", observations.KIND_FINDING),
+    ("义齿修复", observations.KIND_FINDING),
+    ("170", observations.KIND_MEASUREMENT),
+    ("<0.5", observations.KIND_MEASUREMENT),
+    ("1,250", observations.KIND_MEASUREMENT),
+    ("结石 3 mm", observations.KIND_FINDING),
+])
+async def test_a_numeric_examination_row_stays_a_measurement(monkeypatch, value, kind):
+    """A finding's record carries its text, never a number: `身高 170 cm`
+    tagged `Examination` keeps its value and unit as a measurement."""
+    method = "Examination"
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-user", [_row("身高", value, "cm" if kind == observations.KIND_MEASUREMENT else "", method=method)],
+        datetime(2026, 3, 4), "extracted", "synthetic-281.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert drafts[0].kind == kind
+    assert drafts[0].value_text == value
+
+
+def test_the_extraction_offers_every_finding_method():
+    """A method the model cannot choose is a kind it can never store."""
+    from mirobody.collect.files.services.prompts import file_indicator_extract as prompt
+    schema = prompt.RESPONSE_SCHEMA_EXTRACT_INDICATORS
+    offered = repr(schema)
+    text = prompt.get_extract_indicators_prompt("en")
+    for method in indicator_store.FINDING_METHODS:
+        assert f"'{method}'" in offered
+        assert f'"{method}"' in text

@@ -71,7 +71,7 @@ Only continue extraction if content is a **medical examination report**:
 Language code: {language}
 - All adaptable fields must use language corresponding to `{language}`
 - Keep `original_indicator` and `value` exactly as the report prints them, whatever language that is
-- Fixed English values: `status` ["normal", "high", "low"], `detection_method` ["laboratory", "Imaging", "Physiological", "Pathological", "wearable"]
+- Fixed English values: `status` ["normal", "high", "low"], `detection_method` ["laboratory", "Imaging", "Physiological", "Pathological", "Examination", "wearable"]
 
 ### Medical Report Types:
 
@@ -101,7 +101,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 | value | The result only: the number with its comparator if any ("5.62", "<0.5", "++", "阴性"). Do NOT put the unit here; descriptive results keep the original text exactly |
 | unit | The unit EXACTLY as printed beside the value (e.g., "g/L", "mmol/L", "×10⁹/L"), or empty string if none |
 | reference_range | The reference range EXACTLY as printed (e.g., "4.0-10.0", "<5.2"), empty string if none |
-| detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "wearable" |
+| detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "Examination" / "wearable" |
 | status | "high" / "low" as the report flags it (an arrow, H/L, 偏高/偏低), or by comparing with the reference range printed on this row; "normal" when neither says otherwise. Never judge a value from general knowledge |
 | notes | Clinical significance or abnormality explanation in user's language |
 | date_time | The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a log, a table by day); empty string when the row has the document's date |
@@ -120,7 +120,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 ## General Rules:
 1. **Completeness**: Extract ALL indicators from the report - do NOT omit any test results
 2. **Status**: Always one of: "normal", "high", "low", from the report's own flag or its printed range only
-3. **Detection Method**: Always one of: "laboratory", "Imaging", "Physiological", "Pathological", "wearable"
+3. **Detection Method**: Always one of: "laboratory", "Imaging", "Physiological", "Pathological", "Examination", "wearable"
 4. **Units**: `unit` holds the unit; `value` never repeats it
 5. **Language**: Only `notes` is written in the user's language ({language}). `original_indicator`, `value`, `unit` and `reference_range` are copied from the report verbatim, whatever its language, abbreviations and `#` / `%` suffixes included. The printed name is the key the standardization stage looks up — a translated one resolves to no code, or to a different measurement, and `中性粒细胞#` and `中性粒细胞%` are two different measurements
 6. **Precision**: Preserve exact numerical values as shown in the report
@@ -280,8 +280,8 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     },
                     "detection_method": {
                         "type": "string",
-                        "enum": ["laboratory", "Imaging", "Physiological", "Pathological", "wearable"],
-                        "description": "Detection method type: 'laboratory' (lab tests like blood/urine tests), 'Imaging' (CT/MRI/X-ray/ultrasound), 'Physiological' (vital signs like blood pressure/heart rate), 'Pathological' (biopsy/pathology), 'wearable' (smart devices/wearables).",
+                        "enum": ["laboratory", "Imaging", "Physiological", "Pathological", "Examination", "wearable"],
+                        "description": "Detection method type: 'laboratory' (lab tests like blood/urine tests), 'Imaging' (CT/MRI/X-ray/ultrasound), 'Physiological' (vital signs like blood pressure/heart rate), 'Pathological' (biopsy/pathology), 'Examination' (a physical or dental examination written up as findings, e.g. periodontal condition, dentures, heart sounds; a measured number such as height or weight stays 'Physiological'), 'wearable' (smart devices/wearables).",
                     },
                     "status": {
                         "type": "string",

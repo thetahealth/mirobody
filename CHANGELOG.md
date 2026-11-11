@@ -1,5 +1,13 @@
 ## Unreleased
 
+### Added
+
+- **A physical or dental examination can be stored as a finding.** The file
+  extraction has a sixth `detection_method`, `Examination`, and a row with it
+  is stored with `kind='finding'`, so `牙周` and `义齿` no longer depend on the
+  model calling them Imaging. An `Examination` row whose value is a number
+  (`身高 170 cm`) stays a measurement and keeps its value and unit (#281).
+
 ## 1.6.1
 
 ### Upgrade notes
