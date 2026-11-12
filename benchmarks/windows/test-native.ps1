@@ -13,6 +13,17 @@ function Assert-Throws([scriptblock]$Action, [string]$Expected) {
     try { & $Action } catch { $message = $_.Exception.Message; $stack = $_.ScriptStackTrace }
     Assert ($message -and $message -match $Expected) "Expected failure matching $Expected; got $message; $stack"
 }
+# A second handle to a child, so a check after Stop-Server (which disposes the
+# caller's object) asks that exact process whether it exited. Get-Process -Id
+# cannot answer that on Windows PowerShell 5.1: .NET Framework looks the id up
+# in the system process list, and on windows-latest that list still held the
+# child in 9 of 200 tries after WaitForExit had returned, for up to 82 ms.
+# PowerShell 7 asks the process itself and never returned it.
+function Watch-Process([Diagnostics.Process]$Process) {
+    $watch = [Diagnostics.Process]::GetProcessById($Process.Id)
+    $null = $watch.Handle  # opened now and kept, so a reused id cannot answer
+    return $watch
+}
 
 # Parser errors are platform independent, even though CIM/process flags are Windows-specific.
 foreach ($file in @("native-common.ps1", "speed_windows.ps1", "cpu-thread-sweep.ps1")) {
@@ -94,7 +105,7 @@ public sealed class MirobodyBenchmarkBrokenProxy : IWebProxy {
     Remove-Item -LiteralPath $healthFixture -Recurse -Force
 }
 $process = Start-Process -FilePath $interpreter -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 60"' -PassThru
-$childId = $process.Id
+$child = Watch-Process $process
 try {
     & {
         function Get-LocalHealth { param($Port); return @{ status = "ok" } }
@@ -107,11 +118,14 @@ try {
     }
     Assert-Throws { Wait-Server $process $port 0 } "did not become healthy"
 } finally { Stop-Server $process }
-Assert ($null -eq (Get-Process -Id $childId -ErrorAction SilentlyContinue)) "Child survived Stop-Server."
+Assert $child.HasExited "Child survived Stop-Server."
+$child.Dispose()
 $exited = Start-Process -FilePath $interpreter -ArgumentList '-NoProfile -Command "exit 7"' -PassThru
 try {
     $exited.WaitForExit()
     Assert-Throws { Wait-Server $exited $port 3 } "exited with code 7"
+    # Stop-Server meets an exited process the way it meets one that exits
+    # while it is being stopped: Kill finds it gone. That must not throw.
 } finally { Stop-Server $exited }
 if ($env:OS -eq "Windows_NT") {
     Assert-Throws { Invoke-Probe $env:ComSpec @("/c", "exit", "17") } "exited with code 17"
@@ -160,10 +174,10 @@ try {
         function Wait-Server { param($Process, $Port); return }
         function Start-Process {
             param($FilePath, $ArgumentList, [switch]$PassThru, $WindowStyle, $RedirectStandardError, $RedirectStandardOutput)
-            $script:RunnerChild = Microsoft.PowerShell.Management\Start-Process -FilePath $interpreter `
+            $started = Microsoft.PowerShell.Management\Start-Process -FilePath $interpreter `
                 -ArgumentList '-NoProfile -Command "Start-Sleep -Seconds 60"' -PassThru
-            $script:RunnerChildId = $script:RunnerChild.Id
-            return $script:RunnerChild
+            $script:RunnerChild = Watch-Process $started
+            return $started
         }
         $tokens = $null
         $errors = $null
@@ -171,7 +185,8 @@ try {
         $runOne = $ast.Find({ param($Node) $Node -is [Management.Automation.Language.FunctionDefinitionAst] -and $Node.Name -eq "Run-One" }, $true)
         . ([scriptblock]::Create($runOne.Extent.Text))
         Assert-Throws { Run-One "synthetic" $interpreter $Cases "" } "speed_probe.py exited with code 17"
-        Assert ($null -eq (Get-Process -Id $script:RunnerChildId -ErrorAction SilentlyContinue)) "Run-One left a child after probe failure."
+        Assert $script:RunnerChild.HasExited "Run-One left a child after probe failure."
+        $script:RunnerChild.Dispose()
         Assert-Throws { Run-One "missing" "" $Cases "" } "No llama-server.exe"
     }
 } finally {

@@ -55,6 +55,27 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+- **The `windows-benchmark` CI job no longer fails at random.** It failed in
+  five of the last hundred `Test Build` runs, on `main` and on pull requests
+  that changed only Markdown, with one of three messages. Two came from the
+  test under Windows PowerShell 5.1, `Run-One left a child after probe
+  failure.` and `Child survived Stop-Server.`: after `Stop-Server` had killed
+  the child and waited for it, the test asked `Get-Process -Id` whether it was
+  gone. On .NET Framework that lookup reads the system process list, which on
+  a Windows runner still held the child in 9 of 200 tries after the wait had
+  returned, for up to 82 ms; PowerShell 7 asks the process itself and never
+  did. The test now opens its own handle to the child and asks that handle
+  whether the child exited. The third, `Cannot find a process with the process
+  identifier` under PowerShell 7, was `Stop-Server` itself: it checked
+  `HasExited` and then looked the id up again with `Stop-Process -Id`, so a
+  process that exited in between made it throw, and inside `Run-One` that
+  error replaced the one that explained the failure. It now kills through the
+  handle it already holds, treats a process that is already gone as stopped,
+  and still waits for it before returning. How to tell: pull requests stop
+  needing a rerun of `windows-benchmark`; on a Windows runner,
+  `benchmarks/windows/test-native.ps1` run 40 times in a row under
+  `powershell.exe` failed 3 times before this change and none after.
+
 ## 1.6.1
 
 ### Upgrade notes

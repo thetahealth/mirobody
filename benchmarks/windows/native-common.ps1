@@ -69,8 +69,14 @@ function Wait-Server([Diagnostics.Process]$Process, [int]$Port, [int]$Seconds = 
 
 function Stop-Server([Diagnostics.Process]$Process) {
     if ($Process) {
-        $Process.Refresh()
-        if (-not $Process.HasExited) { Stop-Process -Id $Process.Id -Force }
+        # Kill through the object Start-Process returned, not by id. A
+        # HasExited check followed by Stop-Process -Id threw "Cannot find a
+        # process" when the process exited in between (CI, PowerShell 7, the
+        # health fixture exiting on its own); in Run-One's finally that error
+        # replaced the one that mattered. Kill on an exited process returns on
+        # .NET and throws InvalidOperationException on .NET Framework, hence
+        # the catch, which rethrows anything that leaves the process running.
+        try { $Process.Kill() } catch { if (-not $Process.HasExited) { throw } }
         $Process.WaitForExit()
         $Process.Dispose()
     }
