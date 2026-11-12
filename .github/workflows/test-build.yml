@@ -84,6 +84,7 @@ jobs:
       run: |
         pip install -e '.[app,test]'
         pytest -q
+        python demo/test_export.py
         python -m unittest discover -s benchmarks/genomics -p 'test_*.py'
         python -m unittest discover -s benchmarks/health_records -p 'test_*.py'
         # Must run against the repo source. In a venv holding an installed
@@ -107,7 +108,7 @@ jobs:
         # `tests/test_examples.py` executes them. The local battery has always
         # linted both; CI checking only `mirobody` meant an examples-only
         # regression was invisible here.
-        ruff check mirobody examples benchmarks/windows
+        ruff check mirobody examples benchmarks/windows demo
 
     # Comment style, which ruff cannot see: block length and em-dashes in
     # prose. The thresholds and what they were measured against are in the

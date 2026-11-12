@@ -145,9 +145,11 @@ one, and `mom@mirobody.ai`, who shares her record view-only. Set
 `SEED_DEMO_DATA=false` in `.env` before the first start for an empty
 deployment.
 
-- **Data page**: drop a file. `demo/upload/` in the checkout holds four the
-  seed leaves out: the lab PDF and the CSV are `you`'s, the report photo and
-  the spreadsheet are `mom`'s (upload those signed in as her). Each analyte
+- **Data page**: drop a file. `demo/upload/` in the checkout holds seven the
+  seed leaves out: the 2026 lab PDF and the CSV are `you`'s, the 2026 report
+  photo and spreadsheet are `mom`'s (upload those signed in as her), and
+  three more are `you`'s earlier years, two in Chinese and two in mg/dL,
+  printing LDL cholesterol under three names (`demo/README.md`). Each analyte
   comes out with a value, a unit and a code, linked to the page it was read
   from. A genotype export goes on the Genomics tab, not here.
 - **Ask page**: a question such as "How has my cholesterol moved?" finds every

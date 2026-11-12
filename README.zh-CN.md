@@ -227,6 +227,8 @@ Mirobody 也是 [Theta](https://www.thetahealth.ai/) 背后的健康数据引擎
 
 最有价值的贡献，是找出解析器答错的术语。运行 `mirobody resolve "<术语>"`，结果错误或为空时，[提交 issue](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)，或附上测试用例直接提交修复。词表就是这样扩展到新语言的：俄文的检验项目和爱沙尼亚文的维生素写法来自 [#88](https://github.com/thetahealth/mirobody/pull/88)，土耳其文化验单的写法来自 [#140](https://github.com/thetahealth/mirobody/pull/140)，每个术语都只是 [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) 里的一行，加一个测试用例。环境搭建和检查命令见 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。
 
+想写文章或发帖介绍 Mirobody？[`docs/images`](./docs/images/README.zh-CN.md) 里的动图、示意图和截图随仓库以 Apache-2.0 提供，可以直接使用；索引页写明了每个文件展示的内容。
+
 本项目基于 [HL7 FHIR](https://hl7.org/fhir/)、[Regenstrief Institute](https://www.regenstrief.org/) 的 [LOINC](https://loinc.org/)、[UCUM](https://ucum.org/)、[ICPC-3](https://icpc-3.info/)（WONCA）、[CPIC](https://cpicpgx.org/)、[llama.cpp](https://github.com/ggml-org/llama.cpp) 与 [deepagents](https://github.com/langchain-ai/deepagents)，在此致谢。术语许可见 [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY)。
 
 <div align="center">
