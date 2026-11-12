@@ -19,7 +19,7 @@ class ExportContractTest(unittest.TestCase):
     def test_initial_record_keeps_upload_samples_out(self):
         fixture = export.build_fixture()
         self.assertEqual([len(m["readings"]) for m in fixture["members"]], [814, 1208])
-        self.assertEqual(fixture["period"], {"start": "2025-05-14", "end": "2026-09-14"})
+        self.assertEqual(fixture["period"], {"start": "2025-09-15", "end": "2026-09-14"})
         seeded = {"you": {"you_lab_2025-11.md"}, "mom": {"mom_lab_2025-05.md", "mom_lab_2025-11.md"}}
         for member in fixture["members"]:
             names = {r["fileId"] for r in member["readings"] if r["fileId"]}
@@ -46,6 +46,29 @@ class ExportContractTest(unittest.TestCase):
 
     def test_repeat_exports_are_identical(self):
         self.assertEqual(export.build_fixture(), export.build_fixture())
+
+    def test_history_spellings_and_units_share_each_analytes_series(self):
+        from mirobody import standardize
+
+        panels = list(generate.HISTORY.values())
+        self.assertEqual([len(panel["rows"]) for panel in panels], [16, 16, 16])
+        all_series = set()
+        for variants in zip(*(panel["rows"] for panel in panels), strict=True):
+            series = set()
+            for name, value, unit, *_ in variants:
+                parsed = standardize.parse_value(value, unit)
+                key = standardize.name_key(name)
+                coding = standardize.code(
+                    name, name_key=key, local_key=f"{key}|{unit}",
+                    value_kind=parsed.value_kind, value_text=value,
+                    unit_text=unit, unit_ucum=parsed.unit_ucum,
+                    value_num=parsed.value_num,
+                )
+                self.assertTrue(coding.coded, (name, coding.reason))
+                series.add(coding.series_id)
+            self.assertEqual(len(series), 1, variants)
+            all_series.update(series)
+        self.assertEqual(len(all_series), 16)
 
     def test_three_years_print_one_test_three_ways(self):
         """`upload/you_*_zh_*` and `you_lab_results_en_*`: three places, three

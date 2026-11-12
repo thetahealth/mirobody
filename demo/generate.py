@@ -289,8 +289,8 @@ def _pdf_file(stream: str, title: str, *, cjk: bool = False) -> bytes:
     objects = [
         "<< /Type /Catalog /Pages 2 0 R >>",
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
-        f"<< /Font << /F1 4 0 R /F2 5 0 R{' /F3 7 0 R' if cjk else ''} >> >> /Contents 6 0 R >>",
+        ("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources "
+         f"<< /Font << /F1 4 0 R /F2 5 0 R{' /F3 7 0 R' if cjk else ''} >> >> /Contents 6 0 R >>"),
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
         f"<< /Length {len(stream)} >>\nstream\n{stream}endstream",
@@ -325,12 +325,12 @@ def _pdf_file(stream: str, title: str, *, cjk: bool = False) -> bytes:
 # `documents.extract`: read from the layer, never sent to a vision model.
 
 _CJK_FONT = [
-    "<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H "
-    "/DescendantFonts [8 0 R] >>",
-    "<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo "
-    "<< /Registry (Adobe) /Ordering (GB1) /Supplement 2 >> /FontDescriptor 9 0 R /DW 1000 >>",
-    "<< /Type /FontDescriptor /FontName /STSong-Light /Flags 6 /FontBBox [-25 -254 1000 880] "
-    "/ItalicAngle 0 /Ascent 752 /Descent -271 /CapHeight 737 /StemV 58 >>",
+    ("<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light /Encoding /UniGB-UCS2-H "
+     "/DescendantFonts [8 0 R] >>"),
+    ("<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light /CIDSystemInfo "
+     "<< /Registry (Adobe) /Ordering (GB1) /Supplement 2 >> /FontDescriptor 9 0 R /DW 1000 >>"),
+    ("<< /Type /FontDescriptor /FontName /STSong-Light /Flags 6 /FontBBox [-25 -254 1000 880] "
+     "/ItalicAngle 0 /Ascent 752 /Descent -271 /CapHeight 737 /StemV 58 >>"),
 ]
 
 
@@ -557,7 +557,7 @@ def _xlsx() -> bytes:
     sheet.append(["Date", "Measurement", "Result", "Unit"])
     for measurement, result, unit in XLSX_PANEL["rows"]:
         sheet.append([XLSX_PANEL["collected"], measurement, result, unit])
-    for column, width in zip("ABCD", (14, 30, 12, 12)):
+    for column, width in zip("ABCD", (14, 30, 12, 12), strict=True):
         sheet.column_dimensions[column].width = width
     return _workbook_bytes(book)
 

@@ -62,7 +62,9 @@ def build_fixture() -> dict:
                        uploads.XLSX_PANEL["collected"], uploads.XLSX_PANEL["rows"]))
     for filename, panel in uploads.HISTORY.items():
         files.append(_file("you", filename, "upload", panel["collected"], panel["rows"]))
-    first = min(row["date"][:10] for member in members for row in member["readings"])
+    # `period` is the device coverage; a seeded lab panel may predate it.
+    first = min(row["date"][:10] for member in members for row in member["readings"]
+                if not row["fileId"])
     fixture = {
         "schemaVersion": 1,
         "asOf": seed._LAST_DAY.isoformat(),

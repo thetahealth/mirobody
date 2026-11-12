@@ -24,7 +24,10 @@
   since 1.6.1, was in her readings and not among the fixture's files, so three
   readings named a file the fixture did not carry, and `demo/test_export.py`
   failed on the reading count. How to tell: `python demo/test_export.py`
-  passes, and the fixture has three seed files and 2,022 seeded readings.
+  passes, the fixture has three seed files and 2,022 seeded readings, and
+  `period` stays at the device coverage (2025-09-15 through 2026-09-14)
+  even when a lab panel predates it. The build workflow now runs the export
+  tests and lints `demo/`, so a broken fixture no longer passes CI unnoticed.
 
 ## 1.6.1
 
