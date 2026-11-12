@@ -22,7 +22,8 @@ from mirobody.lexical import normalize
 
 _CJK = "぀-ヿ㐀-䶿一-鿿豈-﫿ｦ-ﾟ가-힯"
 _CJK_SPACE = re.compile(rf"(?<=[{_CJK}])\s+|\s+(?=[{_CJK}])")
-_TRAILING = re.compile(r"[\s:：;；,，.。、]+$")
+_TRAILING = re.compile(r"[\s:：;；,，.。、*]+$")
+_REPORT_SUFFIX = re.compile(r"(?:\([^)]*\))?(?:测定|检测)$")
 
 
 def name_key(text: str) -> str:
@@ -37,7 +38,9 @@ def name_key(text: str) -> str:
         return ""
     folded = normalize(unicodedata.normalize("NFKC", text)).casefold()
     folded = _CJK_SPACE.sub("", folded)
-    return _TRAILING.sub("", folded).strip()
+    folded = _TRAILING.sub("", folded)
+    folded = _REPORT_SUFFIX.sub("", folded)
+    return folded.strip()
 
 
 def unit_key(text: str) -> str:
