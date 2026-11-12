@@ -219,6 +219,8 @@ Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), 
 
 The most useful contribution is a term the resolver gets wrong. Run `mirobody resolve "<term>"`; if the answer is wrong or empty, [report it](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml) or send a fix with a test case. That is how the vocabulary grows into new languages: Russian panel and Estonian vitamin terms arrived in [#88](https://github.com/thetahealth/mirobody/pull/88) and Turkish lab-report spellings in [#140](https://github.com/thetahealth/mirobody/pull/140), each one row of [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) and one test case per term. [CONTRIBUTING.md](CONTRIBUTING.md) has the setup and the checks.
 
+Writing about Mirobody? The recordings, diagrams and screenshots in [`docs/images`](./docs/images/README.md) ship under Apache-2.0 and are ready to use in an article or a post; the index says what each one shows.
+
 Built on [HL7 FHIR](https://hl7.org/fhir/), [LOINC](https://loinc.org/) from the [Regenstrief Institute](https://www.regenstrief.org/), [UCUM](https://ucum.org/), [ICPC-3](https://icpc-3.info/) (WONCA), [CPIC](https://cpicpgx.org/), [llama.cpp](https://github.com/ggml-org/llama.cpp) and [deepagents](https://github.com/langchain-ai/deepagents), with thanks. Terminology licences: [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY).
 
 <div align="center">
