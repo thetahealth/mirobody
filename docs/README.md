@@ -15,6 +15,7 @@ details for contributors. The site renders only the files selected in its
 | Choose local, cloud or hybrid models | [model-choice.md](model-choice.md) ([中文](model-choice.zh-CN.md) · [日本語](model-choice.ja.md)) |
 | See what the local models scored and what comes next for them | [local-models-roadmap.md](local-models-roadmap.md) ([中文](local-models-roadmap.zh-CN.md)) |
 | Back up and restore a deployment | [backup-restore.md](backup-restore.md) |
+| Find a recording, diagram or screenshot to put in an article or a post | [images/README.md](images/README.md) ([中文](images/README.zh-CN.md)) |
 
 ## How it works
 

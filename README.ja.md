@@ -219,6 +219,8 @@ Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Th
 
 いちばん役に立つのは、リゾルバが間違える用語を見つけることです。`mirobody resolve "<用語>"` を実行し、答えが間違っているか空なら、[報告する](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)か、テストケースを添えて修正を送ってください。語彙はこうして新しい言語に広がってきました。ロシア語の検査項目とエストニア語のビタミンの表記は [#88](https://github.com/thetahealth/mirobody/pull/88)、トルコ語の検査報告の表記は [#140](https://github.com/thetahealth/mirobody/pull/140) で加わり、どれも用語ごとに [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) の1行とテストケース1つです。環境の準備とチェックの手順は [CONTRIBUTING.md](CONTRIBUTING.md)（英語）にあります。
 
+Mirobody について記事や投稿を書くときは、[`docs/images`](./docs/images/README.md) の動画、図、スクリーンショットをそのまま使えます。リポジトリと同じ Apache-2.0 で提供しており、各ファイルの内容は索引（英語）にまとめてあります。
+
 [HL7 FHIR](https://hl7.org/fhir/)、[Regenstrief Institute](https://www.regenstrief.org/) の [LOINC](https://loinc.org/)、[UCUM](https://ucum.org/)、[ICPC-3](https://icpc-3.info/)（WONCA）、[CPIC](https://cpicpgx.org/)、[llama.cpp](https://github.com/ggml-org/llama.cpp)、[deepagents](https://github.com/langchain-ai/deepagents) の上に作られています。感謝します。用語体系のライセンスは [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY) を参照してください。
 
 <div align="center">
