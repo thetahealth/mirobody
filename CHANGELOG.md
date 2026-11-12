@@ -1,5 +1,20 @@
 ## Unreleased
 
+### Added
+
+- **A general bug-report form.** Startup failures, broken pages and wrong
+  answers previously had only a blank issue. "Something does not work"
+  now asks for the version, deployment, model and reproduction steps,
+  with guidance to use synthetic demo files and remove personal data
+  and secrets before filing.
+
+### Fixed
+
+- **Issue forms use working version and reload commands.** The resolver
+  form now prints the package and vocabulary versions through Python;
+  the upload form points to `server_version` and uses `docker compose
+  up -d` after `.env` changes, because `restart` keeps the old environment.
+
 ## 1.6.1
 
 ### Upgrade notes
