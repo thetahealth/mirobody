@@ -33,6 +33,12 @@
   one line, `140 → 128 → 112 mg/dL`, each number opening the file it came
   from; `demo/README.md` has the codes.
 
+- **A general bug-report form.** Startup failures, broken pages and wrong
+  answers previously had only a blank issue. "Something does not work"
+  now asks for the version, deployment, model and reproduction steps,
+  with guidance to use synthetic demo files and remove personal data
+  and secrets before filing.
+
 ### Fixed
 
 - **`demo/export.py` lists every seeded panel.** Mom's older panel, seeded
@@ -43,6 +49,11 @@
   `period` stays at the device coverage (2025-09-15 through 2026-09-14)
   even when a lab panel predates it. The build workflow now runs the export
   tests and lints `demo/`, so a broken fixture no longer passes CI unnoticed.
+
+- **Issue forms use working version and reload commands.** The resolver
+  form now prints the package and vocabulary versions through Python;
+  the upload form points to `server_version` and uses `docker compose
+  up -d` after `.env` changes, because `restart` keeps the old environment.
 
 ## 1.6.1
 
