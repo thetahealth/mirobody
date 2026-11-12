@@ -60,6 +60,8 @@ def build_fixture() -> dict:
                        uploads.CSV_PANEL["collected"], uploads.CSV_PANEL["rows"]))
     files.append(_file("mom", "mom_clinic_visit_2026-07.xlsx", "upload",
                        uploads.XLSX_PANEL["collected"], uploads.XLSX_PANEL["rows"]))
+    for filename, panel in uploads.HISTORY.items():
+        files.append(_file("you", filename, "upload", panel["collected"], panel["rows"]))
     first = min(row["date"][:10] for member in members for row in member["readings"])
     fixture = {
         "schemaVersion": 1,

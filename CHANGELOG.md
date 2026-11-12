@@ -1,5 +1,23 @@
 ## Unreleased
 
+### Added
+
+- **Three synthetic reports in Chinese and in mg/dL, for the walk-through.**
+  `demo/upload/` held four files, all in English and, for `you`, all in
+  mmol/L, so a reader of Chinese who would rather not upload their own report
+  had nothing that shows one test printed three ways. Three more files give
+  `you` three earlier years from three places: a hospital lab slip in Chinese
+  that prints `LDL-C` in mmol/L (PDF), a photo of a check-up centre's sheet
+  that prints `低密度脂蛋白胆固醇` in mg/dL (JPG) and an international clinic's
+  export that prints `LDL Cholesterol` in mg/dL (XLSX), sixteen rows each,
+  every one invented. The walkthrough and the quickstart (English, Chinese,
+  Japanese) point at them. `demo/generate.py` now writes every upload file to
+  the same bytes on each run: a workbook used to carry the time it was saved,
+  so `mom_clinic_visit_2026-07.xlsx` is saved again with the same cells. How
+  to tell: upload the three, open LDL cholesterol under Indicators and it is
+  one line, `140 → 128 → 112 mg/dL`, each number opening the file it came
+  from; `demo/README.md` has the codes.
+
 ### Fixed
 
 - **`demo/export.py` lists every seeded panel.** Mom's older panel, seeded
