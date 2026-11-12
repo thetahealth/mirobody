@@ -49,6 +49,20 @@ from mirobody.kernel import query
     ("Platelets 1,234,567 /L", "1234567", True),
     ("Platelets 1,234,567 /L", "1,234,567", True),
     ("Platelets １２，３４５ /L", "12345", True),
+    # A grouping is one number: the text does not print its pieces.
+    ("Platelets 250,000 /uL", "250", False),
+    ("Platelets 250,000 /uL", "0", False),
+    # A decimal comma is the decimal the parser stores, and in running text
+    # or CSV it may also separate two numbers, so both readings are printed.
+    ("Calcium 1,25 mmol/L", "1.25", True),
+    ("Calcium 1,25 mmol/L", "12.5", False),
+    ("2026-08-01,72", "72", True),
+    ("Glucose,95,99", "95", True),
+    ("Calcium 2,15-2,55 mmol/L", "2.55", True),
+    ("Platelets 150,000-400,000 /uL", "400000", True),
+    ("Platelets 150,000-400,000 /uL", "400", False),
+    ("Platelets 2,50,000 /cumm", "250000", True),
+    ("Readings 72,66,65", "66", True),
     ("Base excess －４．５０ mmol/L", "-4.5", True),
     ("Base excess －４．５０ mmol/L", "4.5", False),
     ("ALT 32 U/L", "77.77", False),
@@ -87,6 +101,43 @@ async def test_saved_measurement_carries_evidence_verdict(monkeypatch, text, met
                                  now=datetime(2026, 10, 14, tzinfo=UTC))
     assert saved["value_num"] == 4.5
     assert saved["modality"] == expected
+
+
+@pytest.mark.parametrize("text,value,unit,value_num,modality", [
+    # A US count: stored as 250 and 12.5 (the comma read as a decimal mark),
+    # and marked as matching the report, which read the same comma as
+    # thousands.
+    ("Platelets 250,000 /uL", "250,000", "/uL", 250000.0, observations.MODALITY_LAB),
+    ("WBC 12,500 /uL", "12,500", "/uL", 12500.0, observations.MODALITY_LAB),
+    # A model that drops the thousands is caught, not credited with the 250.
+    ("Platelets 250,000 /uL", "250", "/uL", 250.0, observations.MODALITY_UNVERIFIED),
+    ("WBC 12,500 /uL", "12.5", "/uL", 12.5, observations.MODALITY_UNVERIFIED),
+    # A European decimal comma stays a decimal, copied or rewritten.
+    ("Кальций 1,25 ммоль/л", "1,25", "ммоль/л", 1.25, observations.MODALITY_LAB),
+    ("Kaltsium 1,25 mmol/L", "1.25", "mmol/L", 1.25, observations.MODALITY_LAB),
+    ("Kaltsium 1,25 mmol/L", "125", "mmol/L", 125.0, observations.MODALITY_UNVERIFIED),
+    # Three digits after one comma: thousands (`units.numerals` says why).
+    ("Vitamin B12 1,250 pg/mL", "1,250", "pg/mL", 1250.0, observations.MODALITY_LAB),
+    ("Vitamin B12 1,250 pg/mL", "1.25", "pg/mL", 1.25, observations.MODALITY_UNVERIFIED),
+])
+async def test_a_printed_comma_is_read_one_way_for_the_value_and_its_evidence(
+        monkeypatch, text, value, unit, value_num, modality):
+    """The stored number and the evidence verdict read a comma by one rule.
+    `250,000 /uL` was stored as 250 and found printed: a platelet count 1000
+    times too small, marked as matching the report."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-comma-user",
+        [{"original_indicator": text.split()[0], "value": value, "unit": unit, "detection_method": "laboratory"}],
+        datetime(2026, 10, 1), "extracted", "synthetic-comma.txt", text=text,
+    )
+    _, drafts, provenance = ingest.call_args.args
+    saved = observations.prepare(drafts[0], provenance, "synthetic-comma-user", "UTC",
+                                 now=datetime(2026, 10, 14, tzinfo=UTC))
+    assert saved["value_num"] == value_num
+    assert saved["modality"] == modality
 
 
 @pytest.mark.parametrize("name", ["", "  ", "：", ":", "。", " ， ", "\u200b", "\ufeff", "\u00ad", "\u200b："],

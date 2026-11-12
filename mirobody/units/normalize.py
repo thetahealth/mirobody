@@ -39,6 +39,7 @@ from functools import lru_cache
 
 from .tokens import ALIASES, MORPHEMES
 from .families import UCUM_FAMILY
+from .numerals import DIGITS, plain
 
 __all__ = [
     "normalize_unit", "parse_value_unit", "ParsedQuantity",
@@ -112,8 +113,9 @@ def _strip_annotations(s: str) -> str:
 # Handles ``90``, ``5.6``, ``<5.6``, ``>=5.6``, ``-5.6``, ``~5.6``,
 # ``≤5.6`` and similar. Canonical UCUM forms that legitimately start
 # with digits (``10*9/L``, ``10*12/L``) hit the alias table before this
-# pattern runs, so they're not clobbered.
-_VALUE_PREFIX = re.compile(r"^([-<>=+~≤≥≈]*)([0-9]+(?:[.,][0-9]+)?)")
+# pattern runs, so they're not clobbered. A comma in the number is read by
+# :func:`.numerals.plain`, the rule the evidence check reads the document by.
+_VALUE_PREFIX = re.compile(rf"^([-<>=+~≤≥≈]*)({DIGITS})")
 
 # A power-of-ten COUNT unit (``10*9/L``, ``10^4/uL``, ``10⁴/μL`` once NFKC has
 # folded the superscript to a digit) must never reach ``_VALUE_PREFIX``, whose
@@ -309,7 +311,14 @@ def normalize_unit(text: str | None) -> str | None:
     return None
 
 
-_VALUE_ANYWHERE = re.compile(r"[0-9]+(?:[.,][0-9]+)?")
+_VALUE_ANYWHERE = re.compile(DIGITS)
+
+
+def _number(m: re.Match[str] | None) -> re.Match[str] | None:
+    """A _VALUE_PREFIX match whose number has a reading, else None:
+    ``72,66,65`` is a list, and a value read off it would be one of its
+    items or none of them."""
+    return m if m is not None and plain(m.group(2)) is not None else None
 
 
 def _comparator_and_value(raw_cmp: str, raw_num: str) -> tuple[str, float | None]:
@@ -322,11 +331,8 @@ def _comparator_and_value(raw_cmp: str, raw_num: str) -> tuple[str, float | None
         sign, raw_cmp = "-", ""
     elif raw_cmp == "+":
         raw_cmp = ""
-    try:
-        value: float | None = float((sign + raw_num).replace(",", "."))
-    except ValueError:
-        value = None
-    return raw_cmp, value
+    reading = plain(raw_num)
+    return raw_cmp, None if reading is None else float(sign + reading)
 
 
 # ``parse_value_unit`` expects a clean ``<value><unit>``; a LOINC name needs
@@ -346,7 +352,7 @@ _DOSE_FAMILIES = frozenset({"Mass", "Vol", "CCnt", "MCnt", "Arb"})
 # ``75 grms``, but only Latin/digit-vs-non-Latin counts as a boundary, which is
 # why this pass alone misses compact CJK input.
 _LATIN_VALUE_UNIT_SCAN = re.compile(
-    r"([0-9]+(?:[.,][0-9]+)?)"
+    rf"({DIGITS})"
     r"\s*"
     r"([A-Za-zμµ°][A-Za-z0-9./*\[\]+\-]{0,11})"
     # Tail: not followed by another Latin-alnum (rejects ``75 grms``
@@ -366,7 +372,7 @@ _LATIN_VALUE_UNIT_SCAN = re.compile(
 # digit runs, skip optional whitespace, and tokenize forward using
 # the same morpheme table the rest of the module uses: stops at the
 # first un-tokenizable char, which is exactly where the unit ends.
-_DIGIT_RUN = re.compile(r"[0-9]+(?:[.,][0-9]+)?", re.UNICODE)
+_DIGIT_RUN = re.compile(DIGITS, re.UNICODE)
 
 
 def scan_value_units(text: str | None) -> list[tuple[float, str]]:
@@ -408,11 +414,10 @@ def scan_value_units(text: str | None) -> list[tuple[float, str]]:
         fam = UCUM_FAMILY.get(ucum)
         if fam not in _DOSE_FAMILIES:
             return
-        try:
-            value = float(raw_value.replace(",", "."))
-        except ValueError:
+        reading = plain(raw_value)
+        if reading is None:
             return
-        key = (value, ucum)
+        key = (float(reading), ucum)
         if key in seen:
             return
         seen.add(key)
@@ -465,7 +470,7 @@ def parse_value_unit(text: str | None) -> ParsedQuantity:
     # ── Path A: whole input is a unit ────────────────────────────────
     # A bare number is a value even where UCUM spells a unit the same way:
     # `1` is the unity unit, so a reading printed as `1` lost its number.
-    direct = None if _VALUE_PREFIX.fullmatch(cleaned) else _resolve_strict(cleaned)
+    direct = None if _number(_VALUE_PREFIX.fullmatch(cleaned)) else _resolve_strict(cleaned)
     if direct is not None:
         return ParsedQuantity("", None, direct)
 
@@ -479,7 +484,7 @@ def parse_value_unit(text: str | None) -> ParsedQuantity:
     # table exactly as bare units do in Path A.
     parts = text.split()
     if len(parts) >= 2:
-        m0 = _VALUE_PREFIX.fullmatch(_clean(parts[0]))
+        m0 = _number(_VALUE_PREFIX.fullmatch(_clean(parts[0])))
         if m0:
             rest0 = _clean("".join(parts[1:]))
             unit0 = _resolve_strict(rest0)
@@ -497,7 +502,7 @@ def parse_value_unit(text: str | None) -> ParsedQuantity:
                 return ParsedQuantity(cmp0, value0, None)
 
     # ── Path B: value at start (with optional comparator) ────────────
-    m = None if _POWER_OF_TEN_UNIT.match(cleaned) else _VALUE_PREFIX.match(cleaned)
+    m = None if _POWER_OF_TEN_UNIT.match(cleaned) else _number(_VALUE_PREFIX.match(cleaned))
     if m:
         raw_cmp, value = _comparator_and_value(m.group(1), m.group(2))
         rest = cleaned[m.end():]
@@ -518,10 +523,8 @@ def parse_value_unit(text: str | None) -> ParsedQuantity:
     # ── Path C: value anywhere (Chinese SVO: "每分钟90次") ───────────
     nm = _VALUE_ANYWHERE.search(cleaned)
     if nm:
-        try:
-            value = float(nm.group(0).replace(",", "."))
-        except ValueError:
-            value = None
+        reading = plain(nm.group(0))
+        value = None if reading is None else float(reading)
         left = cleaned[:nm.start()]
         right = cleaned[nm.end():]
         # Try joined first: preserves SVO behavior ("每分钟90次":

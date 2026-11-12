@@ -25,6 +25,7 @@ from mirobody.collect.files.services.report_date import document_date, file_sour
 from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.standardize import RANGE_SEPARATOR
+from mirobody.units import numerals
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,6 @@ FINDING_METHODS = ("Imaging", "Pathological")
 # `125--350` ends at 350, while `-5---1` ends at -1.
 _NUMERIC_TOKEN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _NUMBER = re.compile(rf"(?<![\d.])({_NUMERIC_TOKEN})(?:\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUMERIC_TOKEN}))?")
-_THOUSANDS = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
 _SPACE = re.compile(r"\s+")
 #: A non-numeric value longer than this is prose a model may rephrase; it is
 #: not checked against the text.
@@ -53,17 +53,25 @@ def text_bears_out(text: str) -> Callable[[str], bool | None]:
     the text prints it, False when it does not, None when this cannot say.
     Numbers compare by value (`5.6` is the printed `5.60`); a short word such
     as `阴性` or `++` by its letters. A model can write a value no line of the
-    page holds, and the text is the only witness left after extraction."""
-    folded = _THOUSANDS.sub("", unicodedata.normalize("NFKC", text or "").replace("−", "-"))
+    page holds, and the text is the only witness left after extraction.
+
+    Commas are read by `numerals`, the rule the stored number comes from, so
+    the verdict is about the number stored: `250,000` was stored as 250 and
+    found printed as 250000. A comma the rule reads as a decimal mark may
+    also separate two numbers in running text or CSV (`2026-08-01,72`), so
+    the text is credited with both readings; a grouping is one number."""
+    nfkc = unicodedata.normalize("NFKC", text or "").replace("−", "-")
+    folded = numerals.fold(nfkc)
     try:
-        printed = {Decimal(n) for pair in _NUMBER.findall(folded) for n in pair if n}
+        printed = {Decimal(n) for t in {folded, numerals.fold(nfkc, separators=True)}
+                   for pair in _NUMBER.findall(t) for n in pair if n}
     except InvalidOperation:
         # An unreadable exponent in one OCR token must not discard a report.
         printed = None
     letters = _SPACE.sub("", folded).casefold()
 
     def check(value: str) -> bool | None:
-        v = _THOUSANDS.sub("", unicodedata.normalize("NFKC", value or "").replace("−", "-")).strip()
+        v = numerals.fold(unicodedata.normalize("NFKC", value or "").replace("−", "-")).strip()
         if not v or not letters:
             return None
         numbers = [n for pair in _NUMBER.findall(v) for n in pair if n]
