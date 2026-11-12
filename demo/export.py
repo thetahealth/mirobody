@@ -45,11 +45,12 @@ def build_fixture() -> dict:
     files = []
     for key in ("you", "mom"):
         email = f"{key}@mirobody.ai"
-        profile = seed.profile_for(email)
         readings = [_reading(row) for row in seed._member_series(key, email)]
         members.append({"id": key, "email": email, "readings": readings})
-        collected, filename, panel = profile["lab"]
-        files.append(_file(key, filename, "seed", collected, panel))
+        # Every seeded panel, not `profile["lab"]` alone: mom has an older
+        # one, and its readings named a file this list did not carry.
+        for collected, filename, panel in seed.panels_for(email):
+            files.append(_file(key, filename, "seed", collected, panel))
 
     for name, panel in uploads.PANELS.items():
         extension = ".pdf" if name.startswith("you_") else ".jpg"

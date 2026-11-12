@@ -1,5 +1,13 @@
 ## Unreleased
 
+### Fixed
+
+- **`demo/export.py` lists every seeded panel.** Mom's older panel, seeded
+  since 1.6.1, was in her readings and not among the fixture's files, so three
+  readings named a file the fixture did not carry, and `demo/test_export.py`
+  failed on the reading count. How to tell: `python demo/test_export.py`
+  passes, and the fixture has three seed files and 2,022 seeded readings.
+
 ## 1.6.1
 
 ### Upgrade notes
