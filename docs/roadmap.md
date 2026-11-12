@@ -354,10 +354,12 @@ fix is here.
   Pathological row is stored as `kind='finding'`, and every catalogue row
   carries `kind`. The web client's Indicators tab does not read it, so
   `心影`, `两肺纹理` and `双肾` are listed with the lab analytes. That fix
-  belongs to the client. A second gap, `kind` coming from the model's `detection_method`
-  alone with no method for a physical or dental examination, is closed: an
-  `Examination` row is a finding, and one whose value is a number stays a
-  measurement. Still open: one ultrasound sentence came out as three
+  belongs to the client. A second gap, `kind` coming from the model's
+  `detection_method` alone with no method for a physical or dental
+  examination, is closed: an `Examination` row is a finding, and one whose
+  value is a number, with its unit if printed inside it, stays a
+  measurement. `Imaging` and `Pathological` rows are findings whatever their
+  value. Still open: one ultrasound sentence came out as three
   rows (`双肾彩超`, `双肾`, `双肾结晶`). Scanner settings and history headings
   are closed: `indicator_extractor.NOT_READINGS`.
 - **Indicator extraction fails on a long report and nothing surfaces.**

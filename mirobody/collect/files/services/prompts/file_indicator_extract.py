@@ -12,7 +12,11 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
 
     The imaging example is for small models: shown only a lab report,
     MiniCPM5-2B read an ultrasound report as 0 to 2 findings of 6 (5 runs),
-    and with it 6 in 5 of 5. A check-up book gained 49 exam findings.
+    and with it 6 in 5 of 5. A check-up book gained 49 exam findings. The
+    physical examination entry is for the same models: the `json_schema` they
+    are sent constrains the output but is not shown to them as text, and
+    MiniCPM5-2B labelled all six vitals of an outpatient note `Examination`
+    when only the schema described the method.
 
     Args:
         language (str): User's preferred language code (e.g., 'zh-cn', 'en', 'ja', 'ko', 'es', etc.)
@@ -86,6 +90,9 @@ Comprehensive reports containing both numerical values and descriptive conclusio
 
 #### D. Physiological Test Reports:
 ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
+
+#### E. Physical / Dental Examination:
+Dental, eye, ENT and other bedside examination written up as findings (`牙周`, `义齿`, heart sounds, range of motion): `detection_method` is "Examination", and the description is the value. A number the examiner measured stays "Physiological" with its unit in `unit`: height, weight, temperature, pulse, respiration, SpO2, and blood pressure split into systolic and diastolic. Do NOT use "Examination" for them, even under a "physical examination" heading.
 
 ---
 
@@ -172,6 +179,16 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
   "indicators": [
     {{"original_indicator": "甲状腺", "value": "形态大小正常，包膜光整，实质回声均匀", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "normal", "notes": "", "date_time": ""}},
     {{"original_indicator": "甲状腺右叶结节", "value": "低回声结节，大小约6*4mm，边界清晰", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "high", "notes": "建议随访", "date_time": ""}}
+  ]
+}}
+```
+
+### Physical Examination Example (a described finding is "Examination"; a measured number is "Physiological"):
+```json
+{{
+  "indicators": [
+    {{"original_indicator": "牙龈", "value": "未见异常", "reference_range": "", "unit": "", "detection_method": "Examination", "status": "normal", "notes": "", "date_time": ""}},
+    {{"original_indicator": "体重", "value": "52.3", "reference_range": "", "unit": "kg", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": ""}}
   ]
 }}
 ```

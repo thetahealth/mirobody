@@ -24,7 +24,8 @@ from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date, file_source_ref
 from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.standardize import RANGE_SEPARATOR
+from mirobody.standardize import RANGE_SEPARATOR, parse_value
+from mirobody.units import normalize_unit
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,8 @@ FINDING_METHODS = ("Imaging", "Pathological", "Examination")
 _NUMERIC_TOKEN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _NUMBER = re.compile(rf"(?<![\d.])({_NUMERIC_TOKEN})(?:\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUMERIC_TOKEN}))?")
 _THOUSANDS = re.compile(r"(?<=\d),(?=\d{3}(?!\d))")
-# A value that is only a number, with the comparator a report may print.
-_BARE_NUMBER = re.compile(rf"[<>≤≥=＜＞]?\s*{_NUMERIC_TOKEN}")
+# The comparator and number a value opens with; what follows is its unit or prose.
+_VALUE_HEAD = re.compile(rf"[<>≤≥=＜＞]?\s*{_NUMERIC_TOKEN}")
 _SPACE = re.compile(r"\s+")
 #: A non-numeric value longer than this is prose a model may rephrase; it is
 #: not checked against the text.
@@ -101,16 +102,30 @@ def row_time(printed: Any, report_time: datetime) -> datetime:
 def row_kind(indicator: dict[str, Any], value: str) -> str:
     """`finding` or `measurement` for a read row, given its stored `value`.
     A finding's record carries its text, never a number, so an `Examination`
-    row whose value is a number stays a measurement: a `身高 170 cm` the model
-    tagged that way keeps its 170 and its unit. `Imaging` and `Pathological`
-    are the model's explicit choice and keep their long-standing behaviour.
+    row whose value is a number, alone or with its unit printed inside it
+    (`170`, `170cm`, `72次/分`), stays a measurement: a `身高 170 cm` the model
+    tagged that way keeps its 170 and its unit. `结石 3 mm` and `120/80` are
+    findings. `Imaging` and `Pathological` are the model's explicit choice and
+    keep their long-standing behaviour.
     """
     method = str(indicator.get("detection_method") or "")
     if method not in FINDING_METHODS:
         return observations.KIND_MEASUREMENT
-    if method == "Examination" and _BARE_NUMBER.fullmatch(_THOUSANDS.sub("", value.strip())):
+    if method == "Examination" and _is_quantity(value):
         return observations.KIND_MEASUREMENT
     return observations.KIND_FINDING
+
+
+def _is_quantity(value: str) -> bool:
+    """Whether `standardize.parse_value` reads `value` as a quantity and what
+    follows the number is nothing or a unit. The parser alone also reads
+    `结石 3 mm` and `2 cm 结节` as quantities."""
+    text = _THOUSANDS.sub("", value.strip())
+    head = _VALUE_HEAD.match(text)
+    if head is None or parse_value(text).value_num is None:
+        return False
+    tail = text[head.end():].strip()
+    return not tail or normalize_unit(tail) is not None
 
 
 def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
