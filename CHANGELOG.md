@@ -8,14 +8,14 @@
   to cut frames out of a GIF, and nothing said what each file shows. Six
   1600 × 900 screenshots in Simplified Chinese are added (`*-shot.zh-CN.png`):
   an answer with its chart and one value's source opened, an indicator after
-  the demo uploads, a question about a shared record, `mirobody resolve` in a
-  terminal, the first-run choice between a model key and local models, and a
-  journal sentence split into entries. All are taken on the synthetic demo
-  accounts. `docs/images/README.md`, with a Chinese edition, lists every file
-  in the directory: what it shows, the README line it backs and the languages
-  it exists in; the three READMEs link to it. English and Japanese stills do
-  not exist yet. To tell: `docs/images/README.md` names every file that
-  `ls docs/images` prints.
+  `you`'s two 2026 uploads, a question about a shared record,
+  `mirobody resolve` in a terminal, the first-run choice between a model key
+  and local models, and a journal sentence split into entries. All are taken
+  on the synthetic demo accounts. `docs/images/README.md`, with a Chinese
+  edition, lists every file in the directory: what it shows, the README line
+  it backs and the languages it exists in; the three READMEs link to it.
+  English and Japanese stills do not exist yet. To tell:
+  `docs/images/README.md` names every file that `ls docs/images` prints.
 
 - **Three synthetic reports in Chinese and in mg/dL, for the walk-through.**
   `demo/upload/` held four files, all in English and, for `you`, all in
