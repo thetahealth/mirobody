@@ -95,8 +95,9 @@ window ends 2026-09-14 (`_LAST_DAY`).
 
     python demo/export.py --output /tmp/mirobody-demo.json
 
-Exports the same two accounts, their 2,019 seeded readings, the view-only
-sharing grant and the six source files. The four upload files are marked
+Exports the same two accounts, their 2,022 seeded readings, the view-only
+sharing grant and the seven source files. `period` is the device coverage;
+mom's older mg/dL panel predates it. The four upload files are marked
 `stage: "upload"`; they must stay outside a client's initial record. Each file
 carries its collection date, readings and SHA-256, and the fixture carries the
 source commit and a deterministic data digest. No database, model key or

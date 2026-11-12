@@ -71,7 +71,7 @@ Run the web app in your browser with your own model API key. GitHub prepares the
 
 1. **Create the codespace** and wait for the automatic setup to finish in its terminal. It starts the app, Postgres, the worker and the synthetic demo data.
 2. **Open the setup link printed in the terminal** and enter your own model API key: [OpenRouter](https://openrouter.ai/keys), [OpenAI](https://platform.openai.com/api-keys), [Gemini](https://aistudio.google.com/apikey), [Anthropic](https://platform.claude.com/settings/keys), DeepSeek, DashScope, or any OpenAI-compatible gateway. The key is saved only after a real request succeeds. The forwarded app port is private by default.
-3. **Sign in** as `you@mirobody.ai`, code `111111`, on the Email code tab. Ask **"How has my cholesterol changed?"** The demo holds **2,019 readings** across your record and `mom@mirobody.ai`'s, shared with you view-only.
+3. **Sign in** as `you@mirobody.ai`, code `111111`, on the Email code tab. Ask **"How has my cholesterol changed?"** The demo holds **2,022 readings** across your record and `mom@mirobody.ai`'s, shared with you view-only.
 4. **Upload a synthetic sample** from [`demo/upload/`](demo/) on the Data page to see a new report join the record, or switch to mom's record and ask again.
 
 The app and its records run in GitHub's cloud; the model service receives the documents and questions it processes. Use the included synthetic data to explore. Codespaces has [usage limits and billing](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces); model usage is billed by your model provider. Stop the codespace when you finish. For complete control on your own machine, use the local route below.

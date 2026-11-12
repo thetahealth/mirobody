@@ -73,7 +73,7 @@ claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 
 1. **创建 Codespace，** 等待终端中的自动设置完成。应用、Postgres、后台任务和合成示例数据会一起启动。
 2. **打开终端打印的设置链接，** 填入你自己的模型 API Key：[OpenRouter](https://openrouter.ai/keys)、[OpenAI](https://platform.openai.com/api-keys)、[Gemini](https://aistudio.google.com/apikey)、[Anthropic](https://platform.claude.com/settings/keys)、DeepSeek、DashScope，或任何 OpenAI 兼容网关均可。Key 经一次真实请求验证通过后才会保存。应用的转发端口默认仅自己可访问。
-3. **登录并提问。** 在「邮箱验证码」标签使用 `you@mirobody.ai`，验证码 `111111`，问**「我的胆固醇有什么变化？」**示例包含 **2,019 条读数**：你自己的档案，以及 `mom@mirobody.ai` 以只读方式共享给你的档案。
+3. **登录并提问。** 在「邮箱验证码」标签使用 `you@mirobody.ai`，验证码 `111111`，问**「我的胆固醇有什么变化？」**示例包含 **2,022 条读数**：你自己的档案，以及 `mom@mirobody.ai` 以只读方式共享给你的档案。
 4. **上传合成样例。** 在「数据」页上传 [`demo/upload/`](demo/) 里的一份样例，看新报告如何汇入记录；也可以切换到妈妈的档案再问一次。
 
 应用和记录运行在 GitHub 云端，需要模型处理的文档和问题会发送给模型服务商。体验时可使用随仓库提供的合成数据。Codespaces 有[使用额度和计费规则](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces)，模型调用由你选择的服务商计费；体验结束后请停止 Codespace。希望所有内容都留在自己机器上，可以选择下面的本地部署。

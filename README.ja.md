@@ -71,7 +71,7 @@ claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 
 1. **Codespace を作成し、** ターミナルで自動セットアップが終わるのを待ちます。アプリ、Postgres、ワーカー、合成デモデータが起動します。
 2. **ターミナルに表示されたセットアップリンクを開き、** 自分のモデル API キーを入力します。[OpenRouter](https://openrouter.ai/keys)、[OpenAI](https://platform.openai.com/api-keys)、[Gemini](https://aistudio.google.com/apikey)、[Anthropic](https://platform.claude.com/settings/keys)、DeepSeek、DashScope、または OpenAI 互換のゲートウェイが使えます。キーは実際のリクエストが成功してから保存されます。転送されたアプリのポートは、既定で非公開です。
-3. **ログインします。** 「メールコード」タブで `you@mirobody.ai`、コード `111111` を使い、**「コレステロールはどう変化した？」** と聞いてみてください。デモには、あなたの記録と、閲覧のみで共有された `mom@mirobody.ai` の記録を合わせて **2,019 件の測定値** が入っています。
+3. **ログインします。** 「メールコード」タブで `you@mirobody.ai`、コード `111111` を使い、**「コレステロールはどう変化した？」** と聞いてみてください。デモには、あなたの記録と、閲覧のみで共有された `mom@mirobody.ai` の記録を合わせて **2,022 件の測定値** が入っています。
 4. **合成サンプルをアップロードします。** 「データ」ページで [`demo/upload/`](demo/) のファイルをアップロードすると、新しい報告が記録に加わる様子を確認できます。お母さんの記録に切り替えて、もう一度聞くこともできます。
 
 アプリと記録は GitHub のクラウドで動き、処理する文書と質問はモデルサービスに送られます。試すときは同梱の合成データを使ってください。Codespaces には[利用上限と課金](https://docs.github.com/en/billing/concepts/product-billing/github-codespaces)があり、モデルの利用料は各モデル提供元から請求されます。終わったら Codespace を停止してください。すべてを自分のマシンで管理したい場合は、次のローカル手順を使います。

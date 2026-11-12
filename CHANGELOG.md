@@ -1,5 +1,14 @@
 ## Unreleased
 
+### Fixed
+
+- **The walkthrough export lists mom's older mg/dL panel.** `demo/export.py`
+  took one seeded document per account, so the three readings from
+  `seed/mom_lab_2025-05.md` cited a file the fixture did not carry, and the
+  device `period` started at that panel's date. The export now lists every
+  seeded panel (2,022 readings, seven files) and keeps `period` to the device
+  coverage; `demo/test_export.py` passes again.
+
 ## 1.6.1
 
 ### Upgrade notes
