@@ -19,9 +19,9 @@ readings in the catalogue's unit, ③ Agent answers over both panels at once and
 charts them against the device series.
 
 Mom's older panel is from a US clinic and prints glucose and cholesterol in
-mg/dL, where every other demo document prints mmol/L, on purpose: the two are
+mg/dL, where every other seeded panel prints mmol/L, on purpose: the two are
 one series only through the molar conversion, and every view answers it in one
-unit. This docstring said so before any seeded panel did; with every demo
+unit. Two of `you`'s uploads print mg/dL for the same reason. This docstring said so before any seeded panel did; with every demo
 file in mmol/L, no demo walk-through, screenshot or review ever showed a series
 printed in two units, and the chart's fall from 212 to 4.9 shipped (#271).
 
@@ -133,7 +133,11 @@ _PROFILES: dict[str, dict] = {
             ("Fasting Blood Glucose-FBG", 5.1, "mmol/L", "3.9-6.1", ""),
             ("Total Cholesterol-TC", 4.60, "mmol/L", "3.0-5.18", ""),
         )),
-        "uploads": ("you_annual_checkup_2026-05.pdf", "you_lipid_panel_2026-08.csv"),
+        "uploads": ("you_annual_checkup_2026-05.pdf", "you_lipid_panel_2026-08.csv",
+                    # Three earlier years from three places, in Chinese and in
+                    # mg/dL: one test under three names and two units.
+                    "you_lab_report_zh_2023-03.pdf", "you_checkup_photo_zh_2024-04.jpg",
+                    "you_lab_results_en_2025-03.xlsx"),
     },
     # The person whose record you are following: heavier, less active, sleeping
     # badly, and an

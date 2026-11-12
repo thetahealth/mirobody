@@ -2,6 +2,37 @@
 
 ### Added
 
+- **Still screenshots of the app, and an index of every picture in
+  `docs/images`.** The directory held recordings and diagrams but no still
+  picture of the Chinese interface, so anyone writing an article or a post had
+  to cut frames out of a GIF, and nothing said what each file shows. Six
+  1600 × 900 screenshots in Simplified Chinese are added (`*-shot.zh-CN.png`):
+  an answer with its chart and one value's source opened, an indicator after
+  the demo uploads, a question about a shared record, `mirobody resolve` in a
+  terminal, the first-run choice between a model key and local models, and a
+  journal sentence split into entries. All are taken on the synthetic demo
+  accounts. `docs/images/README.md`, with a Chinese edition, lists every file
+  in the directory: what it shows, the README line it backs and the languages
+  it exists in; the three READMEs link to it. English and Japanese stills do
+  not exist yet. To tell: `docs/images/README.md` names every file that
+  `ls docs/images` prints.
+
+- **Three synthetic reports in Chinese and in mg/dL, for the walk-through.**
+  `demo/upload/` held four files, all in English and, for `you`, all in
+  mmol/L, so a reader of Chinese who would rather not upload their own report
+  had nothing that shows one test printed three ways. Three more files give
+  `you` three earlier years from three places: a hospital lab slip in Chinese
+  that prints `LDL-C` in mmol/L (PDF), a photo of a check-up centre's sheet
+  that prints `低密度脂蛋白胆固醇` in mg/dL (JPG) and an international clinic's
+  export that prints `LDL Cholesterol` in mg/dL (XLSX), sixteen rows each,
+  every one invented. The walkthrough and the quickstart (English, Chinese,
+  Japanese) point at them. `demo/generate.py` now writes every upload file to
+  the same bytes on each run: a workbook used to carry the time it was saved,
+  so `mom_clinic_visit_2026-07.xlsx` is saved again with the same cells. How
+  to tell: upload the three, open LDL cholesterol under Indicators and it is
+  one line, `140 → 128 → 112 mg/dL`, each number opening the file it came
+  from; `demo/README.md` has the codes.
+
 - **A general bug-report form.** Startup failures, broken pages and wrong
   answers previously had only a blank issue. "Something does not work"
   now asks for the version, deployment, model and reproduction steps,
@@ -9,6 +40,15 @@
   and secrets before filing.
 
 ### Fixed
+
+- **`demo/export.py` lists every seeded panel.** Mom's older panel, seeded
+  since 1.6.1, was in her readings and not among the fixture's files, so three
+  readings named a file the fixture did not carry, and `demo/test_export.py`
+  failed on the reading count. How to tell: `python demo/test_export.py`
+  passes, the fixture has three seed files and 2,022 seeded readings, and
+  `period` stays at the device coverage (2025-09-15 through 2026-09-14)
+  even when a lab panel predates it. The build workflow now runs the export
+  tests and lints `demo/`, so a broken fixture no longer passes CI unnoticed.
 
 - **Issue forms use working version and reload commands.** The resolver
   form now prints the package and vocabulary versions through Python;

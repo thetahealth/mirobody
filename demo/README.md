@@ -9,7 +9,7 @@ already does) and sign in with the codes in `config.yaml`.
 | --- | --- | --- |
 | Who | healthy, active, labs in range | heavier, less active, sleeping badly, HbA1c above range |
 | Seeded | a year of device readings + `seed/you_lab_2025-11.md` | a year of device readings + `seed/mom_lab_2025-05.md` (mg/dL) + `seed/mom_lab_2025-11.md` |
-| Upload | `upload/you_annual_checkup_2026-05.pdf`, `upload/you_lipid_panel_2026-08.csv` | `upload/mom_physical_2026-06.jpg`, `upload/mom_clinic_visit_2026-07.xlsx` |
+| Upload | `upload/you_annual_checkup_2026-05.pdf`, `upload/you_lipid_panel_2026-08.csv`, and three earlier years that print one test three ways: `upload/you_lab_report_zh_2023-03.pdf`, `upload/you_checkup_photo_zh_2024-04.jpg`, `upload/you_lab_results_en_2025-03.xlsx` | `upload/mom_physical_2026-06.jpg`, `upload/mom_clinic_visit_2026-07.xlsx` |
 | Circle | reads mom's record, view-only | shares their record with you |
 
 ## `seed/` — what the database gets directly
@@ -36,6 +36,58 @@ and the family actually produce:
 | `mom_physical_2026-06.jpg` | JPG | a phone photo of a printed slip, read by the vision model | 9 |
 | `you_lipid_panel_2026-08.csv` | CSV | a different lab's export, with its own wording | 5 |
 | `mom_clinic_visit_2026-07.xlsx` | XLSX | what the clinic typed into a spreadsheet | 4 |
+| `you_lab_report_zh_2023-03.pdf` | PDF | a hospital lab slip in Chinese, analytes by abbreviation, mmol/L | 16 |
+| `you_checkup_photo_zh_2024-04.jpg` | JPG | a photo of a check-up centre's sheet in Chinese, full names, mg/dL | 16 |
+| `you_lab_results_en_2025-03.xlsx` | XLSX | an international clinic's export in English, mg/dL | 16 |
+
+## Three years, three names, two units
+
+中文说明见 [`docs/walkthrough.zh-CN.md`](../docs/walkthrough.zh-CN.md)。
+
+The four files above are in English and, for `you`, in one unit. A person's
+own decade of reports is neither, so three more files give `you` three
+earlier years from three places that share no wording:
+
+| File | Printed by | Prints LDL cholesterol as | Unit | Code | In mmol/L |
+| --- | --- | --- | --- | --- | --- |
+| `you_lab_report_zh_2023-03.pdf` | a hospital lab, Chinese | `LDL-C` | mmol/L | 22748-8 | 3.62 |
+| `you_checkup_photo_zh_2024-04.jpg` | a check-up centre, Chinese | `低密度脂蛋白胆固醇` | mg/dL | 13457-7 | 3.31 |
+| `you_lab_results_en_2025-03.xlsx` | an international clinic, English | `LDL Cholesterol` | mg/dL | 13457-7 | 2.90 |
+
+By name alone all three resolve to 13457-7 (`mirobody resolve LDL-C
+低密度脂蛋白胆固醇 "LDL Cholesterol"`). The unit then picks the code, the molar
+22748-8 for the slip in mmol/L, and both codes file under one series, so the
+three are one line. Each report carries sixteen rows (blood count, liver,
+kidney, glucose, the four lipids), and every one of the sixteen lands on one
+series across the three: `HGB` in g/L with `血红蛋白` and `Hemoglobin` in
+g/dL, `CREA` in µmol/L with `肌酐` and `Creatinine` in mg/dL, `FPG` with
+`空腹血糖` and `Glucose, Fasting`.
+
+What to expect after uploading the three, signed in as `you` or as anyone:
+
+- **Indicators** lists each of the sixteen once, with three records. On the
+  demo account, cholesterol, fasting glucose and HbA1c have four, because
+  the seeded 2025-11 panel is on the same series.
+- **The LDL drawer** draws one line through 2023, 2024 and 2025. A series
+  reads in the unit most of its readings carry, so with these three alone it
+  is `140 → 128 → 112 mg/dL`, the first converted from the slip's 3.62
+  mmol/L. Upload the two 2026 files as well and mmol/L has the majority:
+  `3.62 → 3.31 → 2.90 → 2.48 → 2.41 mmol/L`, five spellings on one line.
+  A converted row says what the report printed (`128 mg/dL`), and every row
+  opens the file it was read from.
+- **Ask** how LDL has changed over the years and the answer cites the same
+  numbers.
+
+Measured 2026-11-12 on a 1.6.1 stack running both models on the machine
+(MiniCPM5-2B answering, GLM-OCR reading the photo): sixteen readings from
+each file, filed under 2023-03-21, 2024-04-16 and 2025-03-25, and the five
+values above in the drawer and in the answer. The rows of the PDF and of the
+workbook are read by the table rules, off the text layer and the cells, not
+by a model; the photo needs a model that reads images. It was not run
+against a cloud vision model.
+
+The hospital, the check-up centre, the clinic, the people and every number
+on these three are invented, and each says so on its face.
 
 ## Two vocabularies, one code
 
@@ -52,8 +104,9 @@ its `Body weight` and `Systolic Blood Pressure` sit beside the watch's
 `bodyMasss` and `systolicPressures`, carrying **29463-7** and **8480-6** just as
 those do. Two sources, two rows, one code.
 
-Your files match in units, so they make the three-spellings point alone.
-Mom's do not, on purpose: `seed/mom_lab_2025-05.md` is from a US clinic and
+Your two 2026 files match in units, so they make the three-spellings point
+alone; your three earlier years (above) and mom's do not, on purpose:
+`seed/mom_lab_2025-05.md` is from a US clinic and
 prints glucose and cholesterol in mg/dL, the 2025-11 panel and the uploads in
 mmol/L. LOINC puts the unit in the identity (cholesterol is **2093-3** in
 mg/dL and 14647-2 in mmol/L), the two fold into one series through the molar
@@ -82,8 +135,11 @@ measured, 7 rows in and 1 row out.
 
     python demo/generate.py
 
-Rebuilds `upload/` from the panels declared in that script. The `seed/`
-markdown is hand-written, because its values have to agree with `_PROFILES` in
+Rebuilds `upload/` from the panels declared in that script, to the same bytes
+on every run: the PDFs are written out by hand and the workbooks are saved
+with a fixed timestamp. The two photos need the fonts macOS ships (Arial and
+STHeiti) and are the same bytes for one version of Pillow and of those fonts.
+The `seed/` markdown is hand-written, because its values have to agree with `_PROFILES` in
 `mirobody/server/demo.py`; `tests/server/test_member_seed.py` checks that they
 do.
 
@@ -95,8 +151,9 @@ window ends 2026-09-14 (`_LAST_DAY`).
 
     python demo/export.py --output /tmp/mirobody-demo.json
 
-Exports the same two accounts, their 2,019 seeded readings, the view-only
-sharing grant and the six source files. The four upload files are marked
+Exports the same two accounts, their 2,022 seeded readings, the view-only
+sharing grant and the ten source files. `period` is the device coverage;
+mom's older mg/dL panel predates it. The seven upload files are marked
 `stage: "upload"`; they must stay outside a client's initial record. Each file
 carries its collection date, readings and SHA-256, and the fixture carries the
 source commit and a deterministic data digest. No database, model key or
