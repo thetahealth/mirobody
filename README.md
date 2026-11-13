@@ -53,6 +53,22 @@ No repository clone, Docker, model or API key. uv prepares Python and the packag
   <img src="docs/images/resolve-demo.gif" alt="mirobody resolve: Chinese and Japanese names for haemoglobin resolve to the same LOINC code, while a broad category stays unresolved" width="880">
 </p>
 
+## External contributions to Mirobody
+
+The contributions listed below came from outside the team and are merged into `main`.
+
+| Contributor | Item | Change |
+|---|---|---|
+| @coolswood | #88 | Russian lab-panel and Estonian vitamin terms, as printed on real reports |
+| @emrealmaa | #140 | Turkish lab-report spellings, released in 1.5.5 |
+| @rtmalikian | #33 | Hardcoded CORS replaced with configurable middleware |
+| @abietic | #41 #42 | An attachment-only turn is treated as a question; uploads are named after the term used in the request |
+| @576272658 | #52 | A provider base URL was not being applied; the finding is now enforced as a project rule |
+
+Our thanks to each of them.
+
+The vocabulary expands one term at a time. If a term you rely on is missing, or does not resolve as your report prints it, please open an issue with that term. `mirobody resolve "<term>"` runs offline and requires no API key.
+
 Give the same engine to your AI agent. In Claude Code:
 
 ```bash
