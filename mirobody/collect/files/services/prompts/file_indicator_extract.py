@@ -12,7 +12,11 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
 
     The imaging example is for small models: shown only a lab report,
     MiniCPM5-2B read an ultrasound report as 0 to 2 findings of 6 (5 runs),
-    and with it 6 in 5 of 5. A check-up book gained 49 exam findings.
+    and with it 6 in 5 of 5. A check-up book gained 49 exam findings. The
+    physical examination entry is for the same models: the `json_schema` they
+    are sent constrains the output but is not shown to them as text, and
+    MiniCPM5-2B labelled all six vitals of an outpatient note `Examination`
+    when only the schema described the method.
 
     Args:
         language (str): User's preferred language code (e.g., 'zh-cn', 'en', 'ja', 'ko', 'es', etc.)
@@ -71,7 +75,7 @@ Only continue extraction if content is a **medical examination report**:
 Language code: {language}
 - All adaptable fields must use language corresponding to `{language}`
 - Keep `original_indicator` and `value` exactly as the report prints them, whatever language that is
-- Fixed English values: `status` ["normal", "high", "low"], `detection_method` ["laboratory", "Imaging", "Physiological", "Pathological", "wearable"]
+- Fixed English values: `status` ["normal", "high", "low"], `detection_method` ["laboratory", "Imaging", "Physiological", "Pathological", "Examination", "wearable"]
 
 ### Medical Report Types:
 
@@ -87,6 +91,9 @@ Comprehensive reports containing both numerical values and descriptive conclusio
 #### D. Physiological Test Reports:
 ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 
+#### E. Physical / Dental Examination:
+Dental, eye, ENT and other bedside examination written up as findings (`牙周`, `义齿`, heart sounds, range of motion): `detection_method` is "Examination", and the description is the value. A number the examiner measured stays "Physiological" with its unit in `unit`: height, weight, temperature, pulse, respiration, SpO2, and blood pressure split into systolic and diastolic. Do NOT use "Examination" for them, even under a "physical examination" heading.
+
 ---
 
 ## STEP 3: Indicator Extraction Rules
@@ -101,7 +108,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 | value | The result only: the number with its comparator if any ("5.62", "<0.5", "++", "阴性"). Do NOT put the unit here; descriptive results keep the original text exactly |
 | unit | The unit EXACTLY as printed beside the value (e.g., "g/L", "mmol/L", "×10⁹/L"), or empty string if none |
 | reference_range | The reference range EXACTLY as printed (e.g., "4.0-10.0", "<5.2"), empty string if none |
-| detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "wearable" |
+| detection_method | "laboratory" / "Imaging" / "Physiological" / "Pathological" / "Examination" / "wearable" |
 | status | "high" / "low" as the report flags it (an arrow, H/L, 偏高/偏低), or by comparing with the reference range printed on this row; "normal" when neither says otherwise. Never judge a value from general knowledge |
 | notes | Clinical significance or abnormality explanation in user's language |
 | date_time | The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a log, a table by day); empty string when the row has the document's date |
@@ -120,7 +127,7 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
 ## General Rules:
 1. **Completeness**: Extract ALL indicators from the report - do NOT omit any test results
 2. **Status**: Always one of: "normal", "high", "low", from the report's own flag or its printed range only
-3. **Detection Method**: Always one of: "laboratory", "Imaging", "Physiological", "Pathological", "wearable"
+3. **Detection Method**: Always one of: "laboratory", "Imaging", "Physiological", "Pathological", "Examination", "wearable"
 4. **Units**: `unit` holds the unit; `value` never repeats it
 5. **Language**: Only `notes` is written in the user's language ({language}). `original_indicator`, `value`, `unit` and `reference_range` are copied from the report verbatim, whatever its language, abbreviations and `#` / `%` suffixes included. The printed name is the key the standardization stage looks up — a translated one resolves to no code, or to a different measurement, and `中性粒细胞#` and `中性粒细胞%` are two different measurements
 6. **Precision**: Preserve exact numerical values as shown in the report
@@ -172,6 +179,16 @@ ECG, EEG, pulmonary function, audiometry, visual acuity, etc.
   "indicators": [
     {{"original_indicator": "甲状腺", "value": "形态大小正常，包膜光整，实质回声均匀", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "normal", "notes": "", "date_time": ""}},
     {{"original_indicator": "甲状腺右叶结节", "value": "低回声结节，大小约6*4mm，边界清晰", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "high", "notes": "建议随访", "date_time": ""}}
+  ]
+}}
+```
+
+### Physical Examination Example (a described finding is "Examination"; a measured number is "Physiological"):
+```json
+{{
+  "indicators": [
+    {{"original_indicator": "牙龈", "value": "未见异常", "reference_range": "", "unit": "", "detection_method": "Examination", "status": "normal", "notes": "", "date_time": ""}},
+    {{"original_indicator": "体重", "value": "52.3", "reference_range": "", "unit": "kg", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": ""}}
   ]
 }}
 ```
@@ -280,8 +297,8 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     },
                     "detection_method": {
                         "type": "string",
-                        "enum": ["laboratory", "Imaging", "Physiological", "Pathological", "wearable"],
-                        "description": "Detection method type: 'laboratory' (lab tests like blood/urine tests), 'Imaging' (CT/MRI/X-ray/ultrasound), 'Physiological' (vital signs like blood pressure/heart rate), 'Pathological' (biopsy/pathology), 'wearable' (smart devices/wearables).",
+                        "enum": ["laboratory", "Imaging", "Physiological", "Pathological", "Examination", "wearable"],
+                        "description": "Detection method type: 'laboratory' (lab tests like blood/urine tests), 'Imaging' (CT/MRI/X-ray/ultrasound), 'Physiological' (vital signs like blood pressure/heart rate), 'Pathological' (biopsy/pathology), 'Examination' (a physical or dental examination written up as findings, e.g. periodontal condition, dentures, heart sounds; a measured number such as height or weight stays 'Physiological'), 'wearable' (smart devices/wearables).",
                     },
                     "status": {
                         "type": "string",

@@ -2,6 +2,13 @@
 
 ### Added
 
+- **A physical or dental examination can be stored as a finding.** The file
+  extraction has a sixth `detection_method`, `Examination`, and a row with it
+  is stored with `kind='finding'`, so `牙周` and `义齿` no longer depend on the
+  model calling them Imaging. An `Examination` row whose value is a number
+  (`身高 170 cm`, or `170cm` with the unit inside the value) stays a
+  measurement and keeps its value and unit (#281).
+
 - **Still screenshots of the app, and an index of every picture in
   `docs/images`.** The directory held recordings and diagrams but no still
   picture of the Chinese interface, so anyone writing an article or a post had
