@@ -41,6 +41,18 @@
 
 ### Fixed
 
+- **A reference range written with one tilde is no longer struck through.**
+  Chinese lab reports print ranges as `7~40`, and an answer quotes them as
+  printed. The web client's Markdown renderer kept GFM's default of reading
+  any pair of single tildes as strikethrough, so in
+  `谷丙转氨酶 11 U/L（7~40）、谷草转氨酶 16 U/L（13~35）` everything between
+  the two tildes was struck out and both tildes disappeared, leaving
+  `（740）` and `（1335）` on screen; a citation on such a range also landed on
+  its two ends as separate values. Only a double tilde (`~~text~~`) strikes
+  through now. `frontend/` is rebuilt from thetahealth/mirobody-web `71d5f4a`.
+  How to tell: ask about a report that prints two `a~b` ranges in one
+  sentence; both read as written, with no line through them.
+
 - **`demo/export.py` lists every seeded panel.** Mom's older panel, seeded
   since 1.6.1, was in her readings and not among the fixture's files, so three
   readings named a file the fixture did not carry, and `demo/test_export.py`
