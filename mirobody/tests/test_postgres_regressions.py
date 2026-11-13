@@ -7,6 +7,7 @@ creates and drops its own schema; no application account or document is read.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import importlib
 import os
 import re
@@ -69,12 +70,13 @@ async def database(monkeypatch):
     from sqlalchemy.ext.asyncio import create_async_engine
     from mirobody.collect import observations
     from mirobody.task import ProfileRefreshTask
-    from mirobody.utils import db
+    from mirobody.utils import db, tasks
 
     schema = "regression_" + uuid4().hex
     driver_url = make_url(DSN).set(drivername="postgresql")
     connection = await psycopg.AsyncConnection.connect(driver_url.render_as_string(hide_password=False), autocommit=True)
     engine = None
+    spawned_before = set(tasks._BACKGROUND_TASKS)
     try:
         await connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         await connection.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
@@ -97,6 +99,14 @@ async def database(monkeypatch):
         monkeypatch.setattr(ProfileRefreshTask, "enqueue", AsyncMock())
         yield db.execute_query
     finally:
+        # Work the code under test spawned and never awaited still writes into
+        # this schema: a file delete erases its readings in the background.
+        # That erase held th_observation while DROP SCHEMA held th_extraction,
+        # and Postgres aborted one of the two (103 deadlocks in 200 runs). The
+        # schema goes once the last of them, and any they started, has ended;
+        # a failure among them is logged by `spawn`.
+        while running := [t for t in tasks._BACKGROUND_TASKS - spawned_before if not t.done()]:
+            await asyncio.gather(*running, return_exceptions=True)
         if engine is not None:
             await engine.dispose()
         await connection.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema)))

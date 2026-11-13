@@ -67,6 +67,20 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+- **The PostgreSQL regression gate no longer deadlocks in teardown.**
+  `test_a_cancel_that_lands_while_the_rows_go_in_removes_them` failed
+  intermittently in CI with `DeadlockDetected` on the fixture's `DROP SCHEMA
+  ... CASCADE`, and passed on a rerun. A file delete erases that file's
+  readings in a background task, and the test never awaited it. Teardown
+  dropped the schema while that task's transaction was still deleting from
+  `th_observation` and `th_extraction`. The fixture now awaits every
+  background task the test started, including any those tasks start, before
+  it drops the schema. How to tell: looped 200 times against PostgreSQL 17,
+  the test failed 65 times before the change; the server logged 103 deadlocks
+  and 137 statements against tables already dropped. After the change, 1,000
+  runs of the test and 20 runs of the whole file passed, and the server
+  logged no errors.
+
 ## 1.6.1
 
 ### Upgrade notes
