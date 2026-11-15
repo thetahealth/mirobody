@@ -36,6 +36,13 @@ show a source; the model's columns never carry it. A reading whose unit does
 not convert (albumin in g/L and umol/L, with no molar mass) keeps its own
 unit, is marked `unit_differs`, and is left out of every statistic.
 
+When that chosen unit is a raw storage convenience (`ms`, `s`, `J`) and the
+series' LOINC code declares a human unit of the same dimension (`93832-4`
+declares `h`, `93831-6` declares `min`), the series answers in the code's
+unit instead, keeping the person's printed spelling (`hours`) when they also
+have readings in it. A code that declares the storage unit itself (`112429-6`
+HRV in `ms`, `14979-9` aPTT in `s`) keeps it (#296).
+
 Before this, the web chart plotted 212 mg/dL and 4.90 mmol/L of one
 cholesterol as a fall from 212 to 4.9, and a stats row answered in mol/L,
 which a small model read as "these cannot be compared" (#271).
@@ -1164,6 +1171,14 @@ class SeriesUnit(NamedTuple):
     display: str = ""
 
 
+#: Units a device decoder or feed writes as a storage convenience rather than
+#: the unit a person reads (`kernel/metrics.py` stores sleep durations in `ms`).
+#: Kept when the series' LOINC code declares the unit itself (`112429-6` in `ms`,
+#: `14979-9` in `s`, `88667-1` in `J`) or when the series is uncoded; otherwise
+#: replaced by the code's first declared unit of the same canonical base.
+_STORAGE_UNITS = frozenset({"ms", "s", "J"})
+
+
 def _series_unit(groups: list[dict]) -> SeriesUnit:
     """One series' `SeriesUnit` from its (unit, count, newest) groups. The
     factor comes from `units.canonicalize`, the function that wrote every
@@ -1172,10 +1187,28 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     ucum = units.pick_display_unit((g["unit_ucum"], int(g["n"]), g["latest"]) for g in groups)
     chosen = next(g for g in groups if g["unit_ucum"] == ucum)
     base = chosen.get("base") or ""
-    folded = units.canonicalize(1.0, ucum, loinc_code=chosen.get("loinc") or "")
+    label = chosen.get("label") or ucum
+    loinc = chosen.get("loinc") or next((g["loinc"] for g in groups if g.get("loinc")), "") or ""
+    if ucum in _STORAGE_UNITS and base and loinc:
+        declared = standardize.loinc_units(loinc)
+        if ucum not in declared:
+            for target in declared:
+                cand = units.canonicalize(1.0, target, loinc_code=loinc)
+                if cand.unit == base and cand.value:
+                    existing = next((g for g in groups if g["unit_ucum"] == target), None)
+                    ucum = target
+                    if existing is not None:
+                        chosen = existing
+                        base = chosen.get("base") or base
+                        label = existing.get("label") or target
+                    else:
+                        label = target
+                    break
+    coded = chosen if chosen.get("code") else next((g for g in groups if g.get("loinc")), chosen)
+    folded = units.canonicalize(1.0, ucum, loinc_code=coded.get("loinc") or loinc)
     factor = folded.value if base and folded.unit == base and folded.value else None
-    return SeriesUnit(ucum, chosen.get("label") or ucum, base, factor,
-                      chosen.get("code_system") or "", chosen.get("code") or "", chosen.get("display") or "")
+    return SeriesUnit(ucum, label, base, factor,
+                      coded.get("code_system") or "", coded.get("code") or "", coded.get("display") or "")
 
 
 def _as_series(r: dict, su: SeriesUnit | None) -> dict:
@@ -1251,10 +1284,15 @@ _FIRST_NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
 def _like(value: float, printed: str) -> str:
     """`value` written with as many significant figures as the first number in
-    `printed`, three at least, and never fewer whole digits than it has:
-    212 mg/dL is 5.48 mmol/L and 4.90 mmol/L is 189 mg/dL."""
+    `printed`, between three and `query.SHOWN_DIGITS`, and never fewer whole
+    digits than it has: 212 mg/dL is 5.48 mmol/L, 4.90 mmol/L is 189 mg/dL, and
+    25200000 ms is 7.00 h rather than 7.0000000 h."""
     found = _FIRST_NUMBER.search(printed or "")
-    digits = max(3, len(found.group().replace(".", "").lstrip("0")) if found else 0)
+    raw = found.group() if found else ""
+    if raw.endswith(".0"):
+        raw = raw[:-2]
+    sig = raw.replace(".", "").lstrip("0") if "." in raw else raw.strip("0")
+    digits = min(query.SHOWN_DIGITS, max(3, len(sig)))
     if value == 0 or not math.isfinite(value):
         return f"{value:g}"
     decimals = max(0, digits - 1 - math.floor(math.log10(abs(value))))
