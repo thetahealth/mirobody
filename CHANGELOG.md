@@ -39,6 +39,16 @@
   with guidance to use synthetic demo files and remove personal data
   and secrets before filing.
 
+### Changed
+
+- **The READMEs no longer show Theta's user counts.** The English, Chinese
+  and Japanese READMEs ended "Numbers you can check" with two live badges
+  reading Theta's registered and daily-active users from Theta's public
+  stats. Both badges are removed in all three editions; the sentence naming
+  Theta as the consumer app this engine runs behind stays, now without
+  "with these users today". How to tell: no `README*.md` contains
+  `img.shields.io/badge/dynamic`.
+
 ### Fixed
 
 - **A reference range written with one tilde is no longer struck through.**
