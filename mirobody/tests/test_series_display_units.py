@@ -115,6 +115,7 @@ class _MemoryHealthQuery:
                 "code": ordered[0].get("code") or "",
                 "display": ordered[0].get("display") or "",
                 "loinc": loinc_rows[0]["code"] if loinc_rows else None,
+                "device_only": all(x.get("modality") == observations.MODALITY_DEVICE for x in ordered),
             })
         return {sid: _series_unit(groups) for sid, groups in grouped.items()}
 
@@ -590,6 +591,14 @@ def test_legacy_device_rows_and_mixed_demo_hours_unify_under_hours_label():
         ("dailyDistance", "device", "garmin", "5200", "m", "m", 5200.0),
         # Uncoded / device-namespace durations: keep `ms`.
         ("activeDuration", "device", "garmin", "900000", "ms", "ms", 900000.0),
+        # A unit a report printed is the person's, not a storage convenience,
+        # even where LOINC's example differs: an ECG prints QT and PR in `ms`
+        # (8634-8 and 8625-6 declare `s`), a lab may print bleeding time in `s`
+        # (11067-6 declares `min`). Before the device-only gate these answered
+        # 0.400 s and 2.50 min.
+        ("QT间期", "file", None, "400", "ms", "ms", 400.0),
+        ("PR间期", "file", None, "160", "ms", "ms", 160.0),
+        ("出血时间", "file", None, "150", "s", "s", 150.0),
     ],
 )
 def test_storage_units_convert_only_when_loinc_declares_a_human_unit(
@@ -677,7 +686,7 @@ def test_like_preserves_lab_precision_without_padding_millisecond_zeros():
 def test_tool_schema_no_longer_tells_models_sleep_durations_are_in_ms():
     desc = query.TOOL_SCHEMA["properties"]["value_min"]["description"]
     assert "sleep durations are in ms" not in desc
-    assert "h for sleep duration" in desc
+    assert "call stats once without it to read that unit" in desc
 
 
 def test_loinc_units_reads_bundle_and_repairs_sleep_nrat_defects():

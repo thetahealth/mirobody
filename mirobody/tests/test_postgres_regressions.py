@@ -1656,6 +1656,11 @@ async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(databas
             observations.Draft(name_text="hrvSDNN", value_text="42", unit_text="ms", observed_start=at),
         ]
     await observations.ingest("1", drafts, prov, user_tz="UTC")
+    # An ECG report prints QT in ms while LOINC's 8634-8 declares s: printed by
+    # a report, so not a storage unit, and `device_only` must say so in SQL.
+    await observations.ingest("1", [observations.Draft(
+        name_text="QT间期", value_text="400", unit_text="ms", observed_start=datetime(2026, 9, 2, 9, tzinfo=UTC),
+    )], observations.Provenance("lab-report", "file", "th_files:synthetic-ecg"), user_tz="UTC")
 
     reader = PostgresHealthQuery()
     service = HealthIndicatorsService(reader, outside_note=False)
@@ -1675,6 +1680,9 @@ async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(databas
     assert (by_code["112429-6"]["unit"], by_code["112429-6"]["avg"]) == ("ms", pytest.approx(42.0))
     assert "24533700" not in render_compact(stats_env)
 
+    ecg_env = await service.envelope({"user_id": "1"}, indicators=["8634-8"], view="stats")
+    assert [(r["unit"], r["avg"]) for r in ecg_env.data] == [("ms", pytest.approx(400.0))]
+
     trend_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="trend")
     assert trend_env.data[0]["unit"] == "h"
 
@@ -1684,5 +1692,5 @@ async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(databas
     assert (latest["printed"]["value"], latest["printed"]["unit"]) == ("23256000", "ms")
 
     records = await reader.records("1", keywords="dailyTotalSleepTime", limit=5)
-    exported = export_row(records["items"][0])
+    exported = export_row(records["rows"][0])
     assert (exported["unit"], exported["printed_value"], exported["printed_unit"]) == ("h", "23256000", "ms")

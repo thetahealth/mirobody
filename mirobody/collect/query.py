@@ -36,12 +36,15 @@ show a source; the model's columns never carry it. A reading whose unit does
 not convert (albumin in g/L and umol/L, with no molar mass) keeps its own
 unit, is marked `unit_differs`, and is left out of every statistic.
 
-When that chosen unit is a raw storage convenience (`ms`, `s`, `J`) and the
-series' LOINC code declares a human unit of the same dimension (`93832-4`
-declares `h`, `93831-6` declares `min`), the series answers in the code's
-unit instead, keeping the person's printed spelling (`hours`) when they also
-have readings in it. A code that declares the storage unit itself (`112429-6`
-HRV in `ms`, `14979-9` aPTT in `s`) keeps it (#296).
+When that chosen unit is a device decoder's storage convenience (`ms`, `s`,
+`J`, written only by device rows) and the series' LOINC code declares a human
+unit of the same dimension (`93832-4` declares `h`, `93831-6` declares `min`),
+the series answers in the code's unit instead, keeping the person's printed
+spelling (`hours`) when they also have readings in it. A code that declares
+the storage unit itself (`112429-6` HRV in `ms`, `14979-9` aPTT in `s`) keeps
+it (#296). A unit a report printed is never a storage convenience: an ECG
+prints QT in `ms` while LOINC's 8634-8 declares `s`, and the person's report
+wins there, as it does for mg/dL (#271).
 
 Before this, the web chart plotted 212 mg/dL and 4.90 mmol/L of one
 cholesterol as a fall from 212 to 4.9, and a stats row answered in mol/L,
@@ -75,6 +78,7 @@ from mirobody.collect.observations import (
     KIND_MEASUREMENT,
     KIND_NOTE,
     KIND_SYMPTOM,
+    MODALITY_DEVICE,
     MODALITY_UNVERIFIED,
     contains_pattern,
     user_tz,
@@ -462,13 +466,15 @@ class PostgresHealthQuery:
                    (ARRAY_AGG(code ORDER BY observed_start DESC, id DESC))[1] AS code,
                    (ARRAY_AGG(display ORDER BY observed_start DESC, id DESC))[1] AS display,
                    (ARRAY_AGG(code ORDER BY observed_start DESC, id DESC)
-                        FILTER (WHERE code_system = :loinc))[1] AS loinc
+                        FILTER (WHERE code_system = :loinc))[1] AS loinc,
+                   BOOL_AND(modality = :device) AS device_only
               FROM v_observation
              WHERE user_id = :uid AND series_id = ANY(:sids)
                AND value_num IS NOT NULL AND COALESCE(unit_ucum, '') <> ''
              GROUP BY series_id, unit_ucum
             """,
-            {"uid": str(subject_id), "sids": wanted, "loinc": standardize.LOINC_SYSTEM},
+            {"uid": str(subject_id), "sids": wanted, "loinc": standardize.LOINC_SYSTEM,
+             "device": MODALITY_DEVICE},
             log_sql=False,
         ) or []
         groups: dict[str, list[dict]] = {}
@@ -1171,11 +1177,13 @@ class SeriesUnit(NamedTuple):
     display: str = ""
 
 
-#: Units a device decoder or feed writes as a storage convenience rather than
-#: the unit a person reads (`kernel/metrics.py` stores sleep durations in `ms`).
-#: Kept when the series' LOINC code declares the unit itself (`112429-6` in `ms`,
-#: `14979-9` in `s`, `88667-1` in `J`) or when the series is uncoded; otherwise
-#: replaced by the code's first declared unit of the same canonical base.
+#: Units a device decoder writes as a storage convenience rather than the unit
+#: a person reads (`kernel/metrics.py` stores sleep durations in `ms`). Only a
+#: unit group written entirely by device rows (`device_only`) counts: the same
+#: `ms` on an ECG report is what the report printed. Kept when the series' LOINC
+#: code declares the unit itself (`112429-6` in `ms`, `14979-9` in `s`, `88667-1`
+#: in `J`) or when the series is uncoded; otherwise replaced by the code's first
+#: declared unit of the same canonical base.
 _STORAGE_UNITS = frozenset({"ms", "s", "J"})
 
 
@@ -1189,7 +1197,7 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     base = chosen.get("base") or ""
     label = chosen.get("label") or ucum
     loinc = chosen.get("loinc") or next((g["loinc"] for g in groups if g.get("loinc")), "") or ""
-    if ucum in _STORAGE_UNITS and base and loinc:
+    if ucum in _STORAGE_UNITS and chosen.get("device_only") and base and loinc:
         declared = standardize.loinc_units(loinc)
         if ucum not in declared:
             for target in declared:

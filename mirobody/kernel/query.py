@@ -665,7 +665,7 @@ TOOL_SCHEMA: dict[str, object] = {
                            "(readings in the band) and days_in_range (days with at least one reading "
                            "in it), so 'how many days above 120 bpm' is days_in_range. The bound is "
                            "in the unit the stats row reports: call stats once without it to read "
-                           "that unit (e.g. h for sleep duration, min for sleep stages). Other views ignore it.",
+                           "that unit. Other views ignore it.",
         },
         "value_max": {
             "type": "number",
