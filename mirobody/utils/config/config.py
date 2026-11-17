@@ -289,24 +289,34 @@ class Config:
 
     #-----------------------------------------------------
 
+    def _env_value(self, stripped_key: str) -> str | None:
+        """What `get()`/`get_str()` read from the environment for an already
+        `.strip()`-ed key: the name as given, then upper-cased. None means
+        the environment has nothing for it, so a caller falls back to
+        `self._raw`.
+
+        Pulled out so `placeholder_keys()` can ask the same question `get()`
+        does instead of re-deriving it: the two used to disagree (issue
+        #299) because `placeholder_keys()` scanned `self._raw` alone, so a
+        secret `deploy.sh` had written only to `.env` still read as the
+        shipped placeholder and `PRODUCTION: true` refused to start."""
+        s = os.environ.get(stripped_key)
+        if s is not None:
+            return s
+        return os.environ.get(stripped_key.upper())
+
+
     def get(self, key: str, default: Any = None) -> Any:
         stripped_key = key.strip()
         if not stripped_key:
             return default
 
-        # Check environment variables beforehand.
-        s = os.environ.get(stripped_key)
-        if s is not None:
-            return s
-
-        # Check key in upper case again.
-        upper_key = stripped_key.upper()
-        s = os.environ.get(upper_key)
+        s = self._env_value(stripped_key)
         if s is not None:
             return s
 
         # Then check the configuration variables.
-        return self._raw.get(upper_key, default)
+        return self._raw.get(stripped_key.upper(), default)
 
 
     def get_str(self, key: str, default: str = "") -> str:
@@ -314,21 +324,14 @@ class Config:
         if not stripped_key:
             return default
 
-        # Check environment variables beforehand.
-        s = os.environ.get(stripped_key)
-        if s is not None:
-            return s
-
-        # Check key in upper case again.
-        upper_key = stripped_key.upper()
-        s = os.environ.get(upper_key)
+        s = self._env_value(stripped_key)
         if s is not None:
             return s
 
         # Then check the configuration variables. A key written with no value
         # (`LOG_NAME:`) loads as None, which became the string "None": a log
         # file by that name, `None/files/...` links, a `None/1.5.3` banner.
-        s = self._raw.get(upper_key)
+        s = self._raw.get(stripped_key.upper())
         if s is None:
             return default
         return s if isinstance(s, str) else str(s)
@@ -366,16 +369,25 @@ class Config:
 
 
     def placeholder_keys(self) -> list[str]:
-        """Config keys whose value is still the shipped placeholder sentinel.
+        """Config keys whose EFFECTIVE value is still the shipped placeholder
+        sentinel: the environment's value when it has one for the key,
+        otherwise the YAML's, the same precedence `get()` uses.
 
         The demo runs fine on placeholders; a deployment that declared
         `PRODUCTION: true` must not: `server/bootstrap.py` refuses to start
-        while this list is non-empty.
+        while this list is non-empty. `deploy.sh` writes every secret it
+        generates to `.env` and never touches the YAML, so a key read from
+        `self._raw` alone looked like the placeholder even with a real value
+        in `.env` (issue #299). An environment value that is itself the
+        placeholder is still reported: setting it there does not excuse it.
         """
-        return sorted(
-            key for key, value in self._raw.items()
-            if value == PLACEHOLDER_SENTINEL
-        )
+        result = []
+        for key, raw_value in self._raw.items():
+            override = self._env_value(key)
+            effective = override if override is not None else raw_value
+            if effective == PLACEHOLDER_SENTINEL:
+                result.append(key)
+        return sorted(result)
 
 
     def get_dict(self, key: str, default: dict | None = None) -> dict:
