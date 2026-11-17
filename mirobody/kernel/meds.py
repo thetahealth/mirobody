@@ -453,14 +453,17 @@ _PRN_RE = re.compile(
 #: ``od`` is deliberately absent: in ophthalmic sigs it means the right eye,
 #: not once daily. 早晚 (morning and evening) and 早中晚 are how a Chinese sig
 #: most often says two and three a day; without them 每天早晚 read as once.
+#: The Chinese "N times a day" forms (每天/每日/一天/一日/1日 + a count + 次) are not
+#: here: they are one token (``_PER_DAY_COUNT_RE`` below), digit and numeral
+#: alike, so the bare 每天/每日 row below never has to also guess a count.
 _PER_DAY = (
     (
-        re.compile(r"\b(?:four times a day|four times daily|qid|q\.i\.d\.)\b|每天四次|每日四次|一天四次|每天4次", re.I),
+        re.compile(r"\b(?:four times a day|four times daily|qid|q\.i\.d\.)\b", re.I),
         4,
     ),
     (
         re.compile(
-            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次"
+            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b"
             r"|早[\s、,，和]*中[\s、,，和]*晚|早上[\s、,，和]*中午[\s、,，和]*晚上",
             re.I,
         ),
@@ -469,22 +472,30 @@ _PER_DAY = (
     (
         re.compile(
             r"\b(?:twice daily|twice a day|two times a day|bid|b\.i\.d\.|morning and (?:evening|night))\b"
-            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早[\s、,，和]*晚|早上[\s、,，和]*晚上",
+            r"|早[\s、,，和]*晚|早上[\s、,，和]*晚上",
             re.I,
         ),
         2,
     ),
     (
         re.compile(
-            r"\b(?:once daily|once a day|daily|qd|every day|each day)\b|每天一次|每日一次|一天一次|一日一次|每天|每日",
+            r"\b(?:once daily|once a day|daily|qd|every day|each day)\b|每天|每日",
             re.I,
         ),
         1,
     ),
 )
+#: One prefix + one count + 次: "每日2次", "一日三次", "1日 1 次". The count is a
+#: digit run or a bare numeral (半 excluded: a half dose per day is not a
+#: count); out-of-range groups still match (每日10次, 一天五次) so the caller
+#: below can refuse them instead of silently dropping the frequency, which
+#: would leave only the dose behind (the partial parse #302 reported).
+_PER_DAY_COUNT_RE = re.compile(r"(?:每天|每日|一天|一日|1日)\s*(\d+|[一两二三四五六七八九十])\s*次")
 #: A count said outright. 每天 / daily alone only says "every day", and qualifies
 #: a count rather than competing with it (每天早晚 is two a day, not a conflict).
-_ONCE_RE = re.compile(r"\b(?:once daily|once a day|qd)\b|每天一次|每日一次|一天一次|一日一次", re.I)
+#: The Chinese "once" forms (每天一次 etc.) go through ``_PER_DAY_COUNT_RE``
+#: instead, which is also how they end up in ``counts`` for the conflict check.
+_ONCE_RE = re.compile(r"\b(?:once daily|once a day|qd)\b", re.I)
 _WEEKLY_RE = re.compile(r"\b(?:once weekly|once a week|weekly|every week)\b|每周一次|每星期一次|每周", re.I)
 _RANGE_RE = re.compile(_NUM + r"\s*[-–~]\s*" + _NUM)
 
@@ -546,6 +557,15 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
     rest = raw
     counts: set[int] = set()
     said_daily = False
+    unreadable_count = False
+    for token in _PER_DAY_COUNT_RE.findall(rest):
+        n = int(token) if token.isdigit() else int(_ZH_NUM[token])
+        if n in (1, 2, 3, 4):
+            said_daily = True
+            counts.add(n)
+        else:
+            unreadable_count = True  # e.g. "每日10次": a real count, not one the table has a slot shape for
+    rest = _PER_DAY_COUNT_RE.sub(" ", rest)  # consumed either way, so the bare 每天/每日 row below can't re-read it
     for pattern, n in _PER_DAY:
         if pattern.search(rest):
             said_daily = True
@@ -554,7 +574,7 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
             rest = pattern.sub(" ", rest)
     if _ONCE_RE.search(raw):
         counts.add(1)
-    if len(counts) > 1:
+    if unreadable_count or len(counts) > 1:
         return None
     if said_daily:
         frequencies += 1  # counted even when another frequency already won: two frequencies is no parse

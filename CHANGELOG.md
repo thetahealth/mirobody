@@ -77,6 +77,18 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+- **A Chinese per-day count written with a digit is read correctly instead
+  of as once daily** (#302). `parse_dose_instruction` only recognised
+  `每天N次` (N = 2–4, no space); `每日2次`, `一天2次`, `一日2次` and `1日2次`
+  fell through to the bare `每天`/`每日` = once-daily rule and the count was
+  lost, and `一日3次，一次1片` dropped the frequency while keeping the dose —
+  a partial parse the function's own docstring forbids. The four prefixes
+  and a count (digit or numeral) before `次` are now one grammar rule; a
+  named count outside 1–4 (`每日10次`, `一天五次`) returns `None` rather than
+  guessing or defaulting to once daily. How to tell:
+  `meds.parse_dose_instruction("每日2次")[0].slots()` is length 2, and
+  `meds.parse_dose_instruction("每日2次 每天三次")` is `None`.
+
 ## 1.6.1
 
 ### Upgrade notes
