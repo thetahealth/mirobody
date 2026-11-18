@@ -160,10 +160,6 @@ class ValueRangeValidator:
         return ValidationResult(is_valid=True, indicator=indicator, value=num_val)
 
     @property
-    def is_loaded(self) -> bool:
-        return self._loaded
-
-    @property
     def indicator_count(self) -> int:
         return len(self._rules)
 

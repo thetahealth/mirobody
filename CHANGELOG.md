@@ -88,6 +88,54 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+### Removed
+
+- **~40 lines of verified-dead code**, none of it reachable from any route,
+  tool, or test, checked by transitive search before removal (no replacement;
+  none were used): `TempFileManager.cleanup_temp_file` (the upload temp copy
+  was never actually cleaned up through it); `AIClientManager.sync_for_spec`
+  (a speculative sync twin for a call site that never arrived; its now-unused
+  `OpenAI` import went with it); `PlatformUserService.base_user_service` (a
+  property exposing an internal attribute nothing ever read); `ValueRangeValidator.is_loaded`
+  (a status property nothing checked); `PostgresOverlayStore.for_target` (a
+  generic override lookup duplicating what `PostgresMedicationStore.overrides`
+  already does for the one target kind in use).
+
+- **The `windows-benchmark` CI job no longer fails at random.** It failed in
+  five of the last hundred `Test Build` runs, on `main` and on pull requests
+  that changed only Markdown, with one of three messages. Two came from the
+  test under Windows PowerShell 5.1, `Run-One left a child after probe
+  failure.` and `Child survived Stop-Server.`: after `Stop-Server` had killed
+  the child and waited for it, the test asked `Get-Process -Id` whether it was
+  gone. On .NET Framework that lookup reads the system process list, which on
+  a Windows runner still held the child in 9 of 200 tries after the wait had
+  returned, for up to 82 ms; PowerShell 7 asks the process itself and never
+  did. The test now opens its own handle to the child and asks that handle
+  whether the child exited. The third, `Cannot find a process with the process
+  identifier` under PowerShell 7, was `Stop-Server` itself: it checked
+  `HasExited` and then looked the id up again with `Stop-Process -Id`, so a
+  process that exited in between made it throw, and inside `Run-One` that
+  error replaced the one that explained the failure. It now kills through the
+  handle it already holds, treats a process that is already gone as stopped,
+  and still waits for it before returning. How to tell: pull requests stop
+  needing a rerun of `windows-benchmark`; on a Windows runner,
+  `benchmarks/windows/test-native.ps1` run 40 times in a row under
+  `powershell.exe` failed 3 times before this change and none after.
+
+- **The PostgreSQL regression gate no longer deadlocks in teardown.**
+  `test_a_cancel_that_lands_while_the_rows_go_in_removes_them` failed
+  intermittently in CI with `DeadlockDetected` on the fixture's `DROP SCHEMA
+  ... CASCADE`, and passed on a rerun. A file delete erases that file's
+  readings in a background task, and the test never awaited it. Teardown
+  dropped the schema while that task's transaction was still deleting from
+  `th_observation` and `th_extraction`. The fixture now awaits every
+  background task the test started, including any those tasks start, before
+  it drops the schema. How to tell: looped 200 times against PostgreSQL 17,
+  the test failed 65 times before the change; the server logged 103 deadlocks
+  and 137 statements against tables already dropped. After the change, 1,000
+  runs of the test and 20 runs of the whole file passed, and the server
+  logged no errors.
+
 ## 1.6.1
 
 ### Upgrade notes
