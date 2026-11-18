@@ -77,6 +77,35 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+- **A scanned lab page stamped with a printed header and footer now reaches
+  OCR.** `extract._pdf_pages` decided a page from its text layer's character
+  count alone (`MIN_PAGE_TEXT = 40`), so a checkup centre's header and
+  footer, real text on an otherwise scanned page, passed 40 characters on
+  their own and the table image behind them was never rendered for OCR: a
+  reported 14-page checkup PDF gave 0 readings from its three lab pages,
+  58 once they were uploaded as separate images (#304). A page now goes to
+  OCR regardless of its character count when its raster images cover at
+  least half its area (`SCAN_IMAGE_AREA_FRACTION`, from each image's placed
+  bounds) AND fewer than 20 of its own text-layer characters sit on top of
+  those images (`MAX_OVERLAID_SCAN_CHARS`, from their char boxes; neither
+  check renders anything): a header or footer sits outside the image, in
+  the margin, so it never clears that second count, while a letterhead
+  background under real report text or a searchable scan's own invisible
+  OCR layer does, and stays on its exact text layer rather than paying for
+  a re-OCR that could misread a digit the layer already has right. A page
+  this rule sends to OCR still gives back its own layer text, unmerged,
+  when there is no `ocr` to call or that call fails for it, same as main
+  read it before this rule existed; only the scanned table is new to lose.
+  Its header or footer text is folded back into a successful OCR call only
+  for the lines OCR did not already transcribe off the rendered page
+  (`_merge_ocr_text`), so a line is not read twice. How to tell: upload a
+  scanned page with a printed header or footer and its rows reach
+  Indicators; a report with a background letterhead or an already-searchable
+  scan is read without a model call.
+  `mirobody/tests/test_pdf_scanned_page_ocr_routing.py` builds all of these
+  in-process and asserts the OCR call count on each (skipped without
+  `[parse]`, same as `test_extraction_regressions.py` without `[app]`).
+
 ## 1.6.1
 
 ### Upgrade notes

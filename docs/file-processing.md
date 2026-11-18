@@ -49,10 +49,23 @@ contract.
 Whatever the handler, the TEXT of a document comes from one place:
 `mirobody/documents/` (`detect.kind` by extension, content type and, when
 those lie, the bytes; `extract.extract_text` by kind). A PDF gives up its
-embedded text layer page by page and only the pages that have none — scans —
-are rendered and handed to the vision model, one image at a time; a photo is
-downscaled and OCR'd; a spreadsheet or Word file never reaches a model at
-all. A text-layer page also carries its tables as HTML, laid out from where
+embedded text layer page by page; a page goes to the vision model instead,
+one image at a time, when that layer is too thin to trust
+(`extract.MIN_PAGE_TEXT`), or when BOTH its raster images cover most of the
+page (`extract.SCAN_IMAGE_AREA_FRACTION`) AND its own text sits outside
+those images rather than on them (`extract.MAX_OVERLAID_SCAN_CHARS`, from
+where each character's box falls, not a render). A scanned lab table
+stamped with a checkup centre's header and footer is this case: the header
+and footer sit in the margin, outside the image, so the page still goes to
+OCR despite a text layer long enough to otherwise look usable, and that
+header or footer text is folded back in only if the vision model did not
+already read it off the rendered page. A letterhead or watermark image
+behind a born-digital report's real text, or a scan a prior OCR pass
+already made searchable, draws its own text ON the image instead, so it
+stays on that exact text layer rather than paying for a model call that
+could misread a digit the layer already has right. A photo is downscaled
+and OCR'd; a spreadsheet or Word file never reaches a model at all. A
+text-layer page also carries its tables as HTML, laid out from where
 the layer's characters sit (`extract._layer_tables`), so the table rules read
 a born-digital report's tables without a model, whichever model reads the
 rest (a vendor's included, which then gets only what the rules left). With a
