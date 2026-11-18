@@ -51,6 +51,17 @@
 
 ### Fixed
 
+- **An Apple Health upload with no records says so.** iOS does not let a
+  Shortcut automation read Health data while the phone is locked. The
+  automation still uploads, with an empty list, and `POST /apple/health`
+  answered it "Apple Health data processed successfully", so a nightly sync
+  that read nothing looked like one that worked, on the phone and on the
+  server. An empty upload is now answered without processing, with
+  `"received": 0` and a message saying the phone must be unlocked; every
+  successful answer carries `received`, the number of records the upload
+  had. To tell: post `{"healthData": []}` and read the message;
+  `docs/apple-health.md` shows both answers.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading

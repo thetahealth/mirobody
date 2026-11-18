@@ -38,6 +38,10 @@ send each record's original unit with `startDate` and `endDate`.
 - Dates accept epoch milliseconds or Apple's date strings with an offset.
 - Percentage quantities use fractions: 98% oxygen saturation is `0.98`.
 - Category values use the corresponding `HKCategoryValue*` string.
+- A client that runs unattended, such as a Shortcuts automation, reads no
+  Health data while the phone is locked. The upload still arrives, empty, and
+  the answer says `"received": 0` with that reason: run it while the phone is
+  unlocked.
 - Clients should deduplicate live pushes before sending them.
 
 CDA documents use the application’s CDA import path.
