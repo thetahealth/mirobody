@@ -1204,6 +1204,41 @@ def test_abbreviated_override_targets_do_not_cascade_to_the_wrong_specimen():
         assert resolve(term).loinc == loinc, term
 
 
+def test_r3_lite_switches_off_a_dedicated_procedure_specimen():
+    """R3-lite (#306): `D-dimer`, as an English report prints it, answers
+    42499-4 on main -- Fibrin D-dimer in CEREBROSPINAL FLUID, a lumbar
+    puncture nobody asked for -- because that is the one row its own
+    hyphenated key posts; a plasma code sits one surface variant away
+    (`d dimer`, spaced). Unlike R3 (reverted), this never abstains: it
+    switches to the best-ranked SAME-COMPONENT row whose SYSTEM is an
+    ordinary venipuncture, among every surface variant's candidates, and
+    keeps today's answer when none exists. `Myelin basic protein` (CSF
+    vs. Serum, genuinely tied) switches the same way."""
+    from mirobody.engine.resolver import OfflineResolver, _PROCEDURE_SYSTEMS
+    from mirobody.engine import resolve
+
+    d_dimer = resolve("D-dimer")
+    assert d_dimer.loinc not in ("42499-4", "42727-8"), "must not stay on the CSF row"
+    assert d_dimer.axes[2] not in _PROCEDURE_SYSTEMS
+
+    myelin = resolve("Myelin basic protein")
+    assert myelin.loinc == "56661-2", "switched to Serum, not left on CSF's 2638-5"
+
+    # Stated, so left exactly where it is: a term that names the procedure
+    # specimen itself must keep answering it, never be switched away.
+    assert resolve("Myelin basic protein (CSF)").loinc == "2638-5"
+
+    # Untouched systems (#306's own boundary): a dedicated-procedure switch
+    # must never reach into the vocabulary a general abstain rule cost so
+    # much to touch (Urine, Stool, Isolate, Air, Bld.dot, Ventilator).
+    r = OfflineResolver()
+    for code, system in (
+        ("2965-2", "Urine"), ("2335-8", "Stool^Patient.gastrointestinal"),
+    ):
+        axes = r.axes_of(code)
+        assert axes is not None and axes[3] == system
+
+
 def test_coagulation_panel_abbreviations():
     """`凝血四项`/`血凝常规` print PT, APTT, TT, FIB and sometimes INR, D-D,
     FDP, AT-III as bare letters. PT/APTT/INR were already right; `FIB`

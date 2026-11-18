@@ -64,6 +64,70 @@ _KNOWN_TIES: dict[str, tuple[str, str]] = {
     "pct": ("33959-8", "51637-7"),  # Procalcitonin, Plateletcrit
 }
 
+# R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a
+# dedicated, invasive procedure (lumbar puncture, amniocentesis,
+# thoracentesis, paracentesis, arthrocentesis, lavage, pericardiocentesis,
+# a skin or marrow biopsy), never assumed the way a venipuncture is. Fixed
+# and small: a general abstain-on-unstated-specimen rule was tried and
+# reverted (1,418 correct answers lost for 427 catches on the maintained
+# eval set, mostly `Urine`/`Isolate`/`Air`/`Ventilator`/`Bld.dot`, none of
+# which is here). This rule only SWITCHES to a same-analyte sibling.
+_PROCEDURE_SYSTEMS = frozenset({
+    "CSF", "Amnio fld", "Plr fld", "Periton fld", "Synv fld", "Body fld",
+    "BAL", "Pericard fld", "Fibroblasts", "Tiss", "Bone mar",
+})
+# The switch target: the ordinary venipuncture a lab report's whole
+# vocabulary already assumes, smaller than R3's reverted person-level set
+# (no `XXX`/`Arterial system`/compound-building). `PPP` is the one
+# addition: centrifuged from the SAME draw, not a second procedure, and
+# where D-dimer's own plasma code lives -- without it the switch lands on
+# a METHOD-qualified `Bld` row, a narrower claim than the bare term makes.
+_PERSON_LEVEL_SYSTEMS_LITE = frozenset({"Bld", "BldV", "BldA", "BldC", "Ser", "Plas", "Ser/Plas", "PPP"})
+
+# Generic axis-SYSTEM words that name no specimen by themselves (a side, a
+# donor, a comparison group): excluded so "left"/"control" in a term is
+# never mistaken for stating the organ or fluid that carries it.
+_SYSTEM_WORD_STOPWORDS = frozenset({
+    "left", "right", "upper", "lower", "interest", "region", "specimen",
+    "system", "device", "donor", "patient", "fetus", "control", "normal",
+    "mother", "father", "newborn", "the",
+})
+_SYSTEM_WORD_SPLIT = re.compile(r"[^a-zA-Z]+")
+
+# A term (or its curated alias TARGET) names one of `_PROCEDURE_SYSTEMS` in
+# a word the axis table's own abbreviated SYSTEM text does not share:
+# Chinese, or English natural language for a LOINC abbreviation written in
+# lab jargon. Scoped to the eleven systems above, not every specimen in
+# LOINC -- R3's full table (`尿`, `breath`, `stone`, ...) answered for
+# systems this rule never touches.
+_SPECIMEN_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "脑脊液": ("csf",),
+    "cerebrospinal": ("csf",),
+    "羊水": ("amnio",),
+    "amniotic": ("amnio",),
+    "胸水": ("plr", "pleural"),
+    "胸腔积液": ("plr", "pleural"),
+    "pleural": ("plr",),
+    "腹水": ("periton", "peritoneal"),
+    "腹腔积液": ("periton", "peritoneal"),
+    "peritoneal": ("periton",),
+    "滑液": ("synv", "synovial"),
+    "关节液": ("synv", "synovial"),
+    "synovial": ("synv",),
+    "体液": ("body",),
+    "肺泡灌洗液": ("bal",),
+    "支气管肺泡灌洗液": ("bal",),
+    "bronchoalveolar": ("bal",),
+    "心包积液": ("pericard",),
+    "pericardial": ("pericard",),
+    "成纤维细胞": ("fibroblasts",),
+    "fibroblast": ("fibroblasts",),
+    "组织": ("tiss",),
+    "tissue": ("tiss",),
+    "骨髓": ("bone mar", "marrow"),
+    "marrow": ("bone mar",),
+}
+
 # Prefer the everyday specimen variants when the commonness prior ties. Bytes,
 # not str: `_pick` matches these against slices of the corpus-name blob, so
 # decoding is paid only for the row that wins.
@@ -396,6 +460,34 @@ class OfflineResolver:
                 if v
             }
         return self._system_values
+
+    def _states_specimen(self, text: str, system: str) -> bool:
+        """Whether `text` names the SPECIMEN `system` draws from -- a word
+        from the axis table's own SYSTEM text (`Amnio fld` -> "amnio"), or a
+        synonym for it in `_SPECIMEN_SYNONYMS` (R3-lite, #306's own gate on
+        switching away from a dedicated-procedure system: a term that
+        already says CSF must keep its CSF code, not be switched to a
+        serum sibling it never asked for). Checked against both the raw
+        input and, when the hit came through an alias, the curated TARGET
+        text, so a row whose own name already says "Cerebrospinal Fluid"
+        is never switched away from for not repeating the table's own
+        abbreviation of it."""
+        if not text:
+            return False
+        folded = self._normalize(text)
+        words = {w for w in _SYSTEM_WORD_SPLIT.split(system.lower()) if len(w) >= 3} - _SYSTEM_WORD_STOPWORDS
+        if any(word in folded for word in words):
+            return True
+        # A synonym is a WHOLE TOKEN for ASCII (`ur` must not match "your"
+        # or "nurse" as a bare substring), a plain substring for CJK, which
+        # has no word boundaries a split would find.
+        tokens = set(_SYSTEM_WORD_SPLIT.split(folded))
+        system_lower = system.lower()
+        for synonym, meanings in _SPECIMEN_SYNONYMS.items():
+            matched = synonym in tokens if synonym.isascii() else synonym in folded
+            if matched and any(w in system_lower for w in meanings):
+                return True
+        return False
 
     def _is_blocked(self, term: str) -> bool:
         """True when ANY surface variant of the term is a deliberate
@@ -860,6 +952,48 @@ class OfflineResolver:
             rejected_reason=f"the name alone gives {loinc} ({current[2]}/{current[3]})",
         )
 
+    def _switch_from_procedure_specimen(self, term: str, key: str, best_row: int) -> int:
+        """R3-lite (#306): when `_pick`'s choice carries a dedicated-
+        procedure SYSTEM (`_PROCEDURE_SYSTEMS`) that nothing states, switch
+        to the best-ranked SAME-COMPONENT row whose SYSTEM is an ordinary
+        venipuncture (`_PERSON_LEVEL_SYSTEMS_LITE`); `best_row` unchanged if
+        none exists. `D-dimer` (English, bare) answers 42499-4, D-dimer in
+        CSF, on main -- a lumbar puncture nobody asked for -- while 48065-7,
+        the plasma code, sits one surface variant away (`d-dimer`'s own
+        posting is the lone CSF row; `d dimer`'s, from the SAME term, has
+        both), so every candidate KEY is searched, not only the one that
+        hit first. Never a different analyte: COMPONENT is held fixed."""
+        system = self._axis.field(best_row, _SYSTEM)
+        if system not in _PROCEDURE_SYSTEMS:
+            return best_row
+        override = self._src.get(self._normalize(term))
+        if (
+            self._states_specimen(term, system)
+            or self._states_specimen(key, system)
+            or self._states_specimen(override, system)
+        ):
+            return best_row
+        component = self._axis.field_raw(best_row, _COMPONENT)
+        best_sibling, best_score = -1, float("-inf")
+        seen: set[int] = {best_row}
+        for candidate_key in self._candidate_keys(term):
+            rows = self._posting(candidate_key)
+            if rows is None:
+                continue
+            for r in rows:
+                r = int(r)
+                if r in seen:
+                    continue
+                seen.add(r)
+                if self._axis.field_raw(r, _COMPONENT) != component:
+                    continue
+                if self._axis.field(r, _SYSTEM) not in _PERSON_LEVEL_SYSTEMS_LITE:
+                    continue
+                score = float(self._rank[r])
+                if score > best_score:
+                    best_sibling, best_score = r, score
+        return best_sibling if best_sibling >= 0 else best_row
+
     def _lookup(self, term: str) -> Resolution | None:
         """First candidate key that hits the alias index, or None on a miss.
 
@@ -872,7 +1006,8 @@ class OfflineResolver:
             rows = self._posting(key)
             if rows is None or not len(rows):
                 continue
-            code, _component, prop, scale, system, _method, lcn = self._axis_row(self._pick(rows, key))
+            chosen = self._switch_from_procedure_specimen(term, key, self._pick(rows, key))
+            code, _component, prop, scale, system, _method, lcn = self._axis_row(chosen)
             return Resolution(
                 term=term,
                 canonical=lcn,
