@@ -7,6 +7,7 @@ creates and drops its own schema; no application account or document is read.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import importlib
 import os
 import re
@@ -69,12 +70,13 @@ async def database(monkeypatch):
     from sqlalchemy.ext.asyncio import create_async_engine
     from mirobody.collect import observations
     from mirobody.task import ProfileRefreshTask
-    from mirobody.utils import db
+    from mirobody.utils import db, tasks
 
     schema = "regression_" + uuid4().hex
     driver_url = make_url(DSN).set(drivername="postgresql")
     connection = await psycopg.AsyncConnection.connect(driver_url.render_as_string(hide_password=False), autocommit=True)
     engine = None
+    spawned_before = set(tasks._BACKGROUND_TASKS)
     try:
         await connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         await connection.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
@@ -97,6 +99,14 @@ async def database(monkeypatch):
         monkeypatch.setattr(ProfileRefreshTask, "enqueue", AsyncMock())
         yield db.execute_query
     finally:
+        # Work the code under test spawned and never awaited still writes into
+        # this schema: a file delete erases its readings in the background.
+        # That erase held th_observation while DROP SCHEMA held th_extraction,
+        # and Postgres aborted one of the two (103 deadlocks in 200 runs). The
+        # schema goes once the last of them, and any they started, has ended;
+        # a failure among them is logged by `spawn`.
+        while running := [t for t in tasks._BACKGROUND_TASKS - spawned_before if not t.done()]:
+            await asyncio.gather(*running, return_exceptions=True)
         if engine is not None:
             await engine.dispose()
         await connection.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema)))
@@ -1793,3 +1803,66 @@ async def test_a_new_account_refuses_a_token_minted_before_it_existed(database, 
     assert int(account["id"]) == int(row["id"])
     assert await user_module.is_active_account(account["id"], before) is False
     assert await user_module.is_active_account(account["id"], time.time()) is True
+
+
+async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(database):
+    """#296: device sleep durations arrive in `ms` (`dailyTotalSleepTime` 93832-4,
+    `dailySleepDuration` 103213-5, `dailyDeepSleep` 93831-6), while clinical HRV
+    SDNN (`hrvSDNN` 112429-6) declares `ms` in LOINC. `PostgresHealthQuery`
+    answers sleep duration and duration in bed in `h`, deep sleep in `min`, and
+    HRV in `ms` across trend, stats, bands, buckets, readings, latest, catalogue
+    and CSV export, while `printed` preserves the device's verbatim `ms`."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery, export_row
+
+    prov = observations.Provenance("device-sensed", "device", "device:garmin", vendor="garmin")
+    drafts = []
+    for day, asleep_ms in ((1, 25_200_000), (2, 24_533_700), (3, 23_256_000)):
+        at = datetime(2026, 9, day, 7, tzinfo=UTC)
+        drafts += [
+            observations.Draft(name_text="dailyTotalSleepTime", value_text=str(asleep_ms), unit_text="ms", observed_start=at),
+            observations.Draft(name_text="dailySleepDuration", value_text="27000000", unit_text="ms", observed_start=at),
+            observations.Draft(name_text="dailyDeepSleep", value_text="7200000", unit_text="ms", observed_start=at),
+            observations.Draft(name_text="hrvSDNN", value_text="42", unit_text="ms", observed_start=at),
+        ]
+    await observations.ingest("1", drafts, prov, user_tz="UTC")
+    # An ECG report prints QT in ms while LOINC's 8634-8 declares s: printed by
+    # a report, so not a storage unit, and `device_only` must say so in SQL.
+    await observations.ingest("1", [observations.Draft(
+        name_text="QT间期", value_text="400", unit_text="ms", observed_start=datetime(2026, 9, 2, 9, tzinfo=UTC),
+    )], observations.Provenance("lab-report", "file", "th_files:synthetic-ecg"), user_tz="UTC")
+
+    reader = PostgresHealthQuery()
+    service = HealthIndicatorsService(reader, outside_note=False)
+
+    stats_env = await service.envelope(
+        {"user_id": "1"},
+        indicators=["dailyTotalSleepTime", "dailySleepDuration", "dailyDeepSleep", "hrvSDNN"],
+        view="stats",
+        value_min=7.0,
+    )
+    by_code = {r["code"]: r for r in stats_env.data}
+    assert (by_code["93832-4"]["unit"], by_code["93832-4"]["days_in_range"]) == ("h", 1)
+    assert by_code["93832-4"]["avg"] == pytest.approx((25_200_000 + 24_533_700 + 23_256_000) / 3 / 3_600_000, rel=1e-5)
+    assert float(by_code["93832-4"]["last"]) == pytest.approx(6.46)
+    assert (by_code["103213-5"]["unit"], by_code["103213-5"]["avg"]) == ("h", pytest.approx(7.5))
+    assert (by_code["93831-6"]["unit"], by_code["93831-6"]["avg"]) == ("min", pytest.approx(120.0))
+    assert (by_code["112429-6"]["unit"], by_code["112429-6"]["avg"]) == ("ms", pytest.approx(42.0))
+    assert "24533700" not in render_compact(stats_env)
+
+    ecg_env = await service.envelope({"user_id": "1"}, indicators=["8634-8"], view="stats")
+    assert [(r["unit"], r["avg"]) for r in ecg_env.data] == [("ms", pytest.approx(400.0))]
+
+    trend_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="trend")
+    assert trend_env.data[0]["unit"] == "h"
+
+    latest_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="latest")
+    [latest] = latest_env.data
+    assert latest["unit"] == "h" and float(latest["value"]) == pytest.approx(6.46)
+    assert (latest["printed"]["value"], latest["printed"]["unit"]) == ("23256000", "ms")
+
+    records = await reader.records("1", keywords="dailyTotalSleepTime", limit=5)
+    exported = export_row(records["rows"][0])
+    assert (exported["unit"], exported["printed_value"], exported["printed_unit"]) == ("h", "23256000", "ms")

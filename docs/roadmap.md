@@ -392,15 +392,23 @@ fixed when it was filed, each with a regression test (the commits name
 them). Two remain open, and both are migrations rather than defects: rotating
 the database-content key, and the config encryption key's derivation.
 
-### `PG_ENCRYPTION_KEY` cannot be rotated
+### `PG_ENCRYPTION_KEY` and `DATABASE_DECRYPTION_KEY` cannot be rotated
 
 Every field `encrypt_content()` covers is encrypted with one key, and nothing
 re-encrypts them under a new one. A Compose stack first deployed with 1.5.2,
 and a native install (`scripts/install_native.sh`) from 1.5.7 to 1.5.9, used
 `config.yaml`'s placeholder, and upgrading keeps it, because a new key would
-leave those fields unreadable. The fix is a command that reads each
-covered column with the old key and writes it with the new one in one
-transaction per table, and `deploy.sh` offering it on upgrade.
+leave those fields unreadable. `DATABASE_DECRYPTION_KEY` (device credentials
+and OAuth tokens, `mirobody/utils/crypto.py`) has the same shape of problem:
+no release before issue #299's fix generated it, so an existing database's
+stored credentials were encrypted under `config.devices.yaml`'s placeholder.
+`deploy.sh` now leaves it unset in `.env` on an existing database rather than
+carry it forward the way it does `PG_ENCRYPTION_KEY`: this one reaches the
+app only through `env_file`, so a value written to `.env` would outrank a
+real key set later in a config overlay for good. The fix for both is a
+command that reads each covered column or row with the old key and writes it
+with the new one in one transaction per table, and `deploy.sh` offering it
+on upgrade.
 
 ### The config encryption key needs a real KDF, and that is a migration
 

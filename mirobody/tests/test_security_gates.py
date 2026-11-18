@@ -932,6 +932,31 @@ def test_an_unreadable_apple_upload_is_refused_without_quoting_it(body):
     assert answer.status_code == 400 and "7.3" not in answer.text
 
 
+def test_an_empty_apple_upload_says_why_instead_of_processed(monkeypatch):
+    """A Shortcut automation that runs while the phone is locked reads no Health
+    data and still uploads, and "processed successfully" made that look like a
+    sync. An empty upload is answered with `received: 0` and the reason, and
+    nothing is processed; a real one reports how many records it carried."""
+    client, apple = _router_app("apple_router")
+    calls = []
+
+    class _Platform:
+        async def post_data(self, **kw):
+            calls.append(len(kw["data"]["health_data"]))
+            return True
+
+    monkeypatch.setattr(apple.platform_manager, "get_platform", lambda name: _Platform())
+    empty = {"request_id": "r0", "metaInfo": {"timezone": "UTC"}, "healthData": []}
+    answer = client.post("/apple/health", json=empty).json()
+    assert answer["data"]["received"] == 0 and "locked" in answer["message"] and calls == []
+
+    one = {"request_id": "r1", "metaInfo": {"timezone": "UTC"}, "healthData": [{
+        "type": "HKQuantityTypeIdentifierHeartRate", "startDate": 1705284600000,
+        "endDate": 1705284600000, "value": 72, "unit": "count/min", "sourceName": "Watch"}]}
+    answer = client.post("/apple/health", json=one).json()
+    assert answer["success"] is True and answer["data"]["received"] == 1 and calls == [1]
+
+
 def test_a_failed_sign_in_step_answers_a_sentence_not_the_exception(monkeypatch):
     from mirobody.user.auth.jwt import JwtTokenValidator
     from mirobody.user.user_service import UserService
