@@ -68,6 +68,15 @@ def _what_was_invalid(e: Exception) -> list[str]:
     return [type(e).__name__]
 
 
+#: The answer to an upload with no records. The usual cause is a Shortcut
+#: automation that ran while the phone was locked: iOS keeps Health data
+#: unreadable then, the Shortcut sends an empty list, and nothing else says so.
+_EMPTY_UPLOAD = (
+    "No Health records were in this upload. iOS does not let a Shortcut read Health data "
+    "while the phone is locked: run it while the phone is unlocked."
+)
+
+
 @router.post("/health")
 async def process_apple_health_data(
         request: Request,
@@ -123,6 +132,24 @@ async def process_apple_health_data(
                     validated_data.request_id, validated_data.metaInfo.timezone, parse_ms,
                     len(validated_data.healthData))
 
+        received = len(validated_data.healthData)
+        if not received:
+            # iOS returns no Health records to a Shortcut automation that runs
+            # while the phone is locked, and the upload still arrives: answered
+            # as "processed successfully", a sync that read nothing looked like
+            # one that worked, on the phone and on the server. Say it, so the
+            # Shortcut can show it.
+            return JSONResponse(
+                status_code=status.HTTP_200_OK,
+                content={
+                    "success": True,
+                    "code": 0,
+                    "data": {"request_id": validated_data.request_id, "received": 0},
+                    "message": _EMPTY_UPLOAD,
+                    "msg": _EMPTY_UPLOAD,
+                },
+            )
+
         # Get Apple Health platform
         apple_platform = platform_manager.get_platform("apple")
         if not apple_platform:
@@ -153,7 +180,7 @@ async def process_apple_health_data(
                 content={
                     "success": True,
                     "code": 0,
-                    "data": {"request_id": validated_data.request_id},
+                    "data": {"request_id": validated_data.request_id, "received": received},
                     "message": "Apple Health data processed successfully",
                     "msg": "Apple Health data processed successfully"
                 },
