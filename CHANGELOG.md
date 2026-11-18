@@ -51,6 +51,106 @@
 
 ### Fixed
 
+- **A body-composition device's own words (脂肪, 肌肉, 血氧…) no longer code
+  to a lab specimen or an antibody test** (#301, cause 1). A smart scale's
+  bare `脂肪`/`Fat` reading in kg coded to 16853-4 `Fat [Mass] in Stool` —
+  the only LOINC specimen for a bare "fat" component — and `肌肉` was
+  refused, the name alone giving 51763-1, a MuSK antibody titer. `骨骼肌`,
+  `基础代谢`/`基础代谢率`/`BMR` and a watch's `压力` stress score reached an
+  antibody test, two metabolic PANEL codes and an unrelated obstetric blood
+  pressure respectively; none has a LOINC concept the device catalogue
+  carries, so all four now abstain instead of answering. `去脂体重`/`瘦体重`
+  now abstain too, rather than the lean-body-weight-by-immersion code they
+  shared with three other equally-ranked LOINC rows. `血氧`/`SpO2` moved
+  from the generic `Oxygen saturation in Blood` to the pulse-oximetry code
+  the catalogue's `BLOOD_OXYGEN` ships. Around forty more device names
+  (脂肪量, 体水分, 当前体重, 腹围, 安静心率, 指尖血糖, 平均动脉压, and more —
+  see `mirobody/res/loinc/resolver_overrides.tsv`) now reach the catalogue's
+  own code instead of staying unresolved. Trade-off: a stool panel's bare
+  `脂肪` result (阴性/阳性) is now refused rather than coded to stool fat;
+  a panel almost always prints `脂肪球`/`脂肪滴` instead, which is untouched.
+  A new benchmark, `mirobody/tests/test_engine_coverage_devices.py`, scores
+  this vocabulary on its own (89%, seven names an index-level ambiguity
+  still blocks), so the lab-report benchmark's own score stays a claim about
+  lab reports. How to tell: `mirobody resolve 脂肪` now names
+  `Body fat [Mass] Calculated` (73708-0), not a stool test; stored readings
+  move to the corrected code with `mirobody recode`.
+
+- **A name run straight into its own abbreviation reaches one rule, for
+  every shape a report glues them with** (#305). `白细胞WBC`, `红细胞RBC`
+  and the rest of a report's CBC/urinalysis section (no bracket, no space,
+  a CJK run straight into Latin) went uncoded while the bracketed
+  `白细胞(WBC)` and spaced `白细胞 WBC` forms already resolved: three
+  separate code paths, each with its own agreement rule, covered the
+  bracket, the hyphen/CamelCase and the space-before-an-acronym shapes, and
+  none covered this fourth one. Replaced with one split tried on every
+  shape and one agreement rule, by LOINC ANALYTE rather than exact code:
+  `BloodGlucose-OGTT`/`-FPG` and `BloodGlucose-HbA1c` now behave exactly
+  like their Chinese bracket twins `血糖(OGTT)`/`(FPG)`/`(HbA1c)` already
+  did. `乙肝病毒DNA`, `游离T3`, `维生素D` and `25羟维生素D` are unchanged.
+  A bracketed METHOD or subtype (`血型(Rh)测定`, `乙肝表面抗原(定量)测定`)
+  no longer borrows the bare stem's code either: `Rh`/`定量`/`定性` carry
+  no code of their own, so the old fallback silently answered through them.
+  How to tell: `mirobody resolve 白细胞WBC` now names Leukocytes; stored
+  readings move with `mirobody recode`.
+
+- **`肌酐(Cre)` no longer refuses as two analytes, and a bracketed
+  measurement that disagrees with its stem can be settled by the unit**
+  (#306). `Cre` (used for creatinine on many Chinese checkup reports,
+  alongside `CREA`/`Cr`) also spelled a carbapenem-resistant-
+  Enterobacterales culture flag in the shipped index, so the bracket's two
+  halves disagreed and the whole name abstained; `Cre` is now a curated
+  alias for Creatinine, the same as its `CREA`/`Cr` neighbours, and a
+  report's rarer `CRE 阴性`/`阳性` culture flag is still caught by the
+  scale gate (creatinine has no qualitative code). Separately: when a
+  bracket's two halves name different LOINC codes for the same underlying
+  measurement (`血糖(HbA1c)`, `胆固醇(HDL-C)`), `resolve()` refused with
+  both codes already named in `rejected_reason`, but a caller with a value
+  and a unit had no way to use that. `resolve_reading` now tries the unit
+  against both candidates when `resolve()` refuses this way: `血糖(HbA1c)`
+  reads as glucose in mmol/L and as HbA1c in %; `胆固醇(HDL-C)` still
+  abstains, since both halves fit the same mmol/L unit. Bare `PCT` has the
+  same disagreement with no bracket at all — plateletcrit and procalcitonin
+  tie at the same rank in the raw index — and is settled the same way: `PCT`
+  in % now reads as plateletcrit, `PCT` in ng/mL as procalcitonin. How to
+  tell: `mirobody resolve "肌酐(Cre)"` names Creatinine;
+  `resolve_reading("血糖(HbA1c)", "5.4", "mmol/L")` names glucose and the
+  same term at `"6.1", "%"` names HbA1c.
+
+- **`Glycated albumin`/`Glycosylated albumin` resolve, matching `糖化白蛋白`**
+  (reported by a tester). The Chinese name only ever worked because LOINC's
+  own Chinese translation for 13873-5 is a direct corpus hit; the alias
+  table's own redirect to the English phrase `Glycated albumin` pointed at
+  a phrase that was never itself a corpus key, so neither English spelling
+  had anything to resolve to. Both now resolve to `Albumin glycated`, the
+  two-word order the corpus already carries for this component. How to
+  tell: `mirobody resolve "Glycated albumin"` names 13873-5.
+
+- **A hyphen or space between a Latin abbreviation and a CJK or kana run no
+  longer breaks a name that resolves fine fused** (reported by a tester).
+  `LDLコレステロール` resolved while `LDL-コレステロール` and `LDL コレステロール`
+  (a half-width hyphen, or a plain space, between the Latin abbreviation
+  and the katakana) did not: the curated alias is keyed on the fused
+  spelling, and no existing surface variant produced that spelling back
+  from a hyphenated or spaced one. A new surface variant folds a hyphen or
+  space at a Latin/CJK or Latin/kana boundary, tried only after the term as
+  written has missed, so it can only turn a miss into a hit. `中性脂肪`,
+  `HDL-コレステロール`, `γ-GTP`, `25-OH维生素D`, `HbA1c(NGSP)` and `LDL-C`
+  are unchanged: none of their hyphens sits at a script boundary, or (`γ`)
+  the character on one side is Greek, not Latin. How to tell: `mirobody
+  resolve "LDL-コレステロール"` now names 13457-7, the same code as the
+  fused spelling.
+
+- **Turkish names with the all-caps İ/I lab reports print now have their
+  own vocabulary row** (Discussion #137). `ürik asit` and `açlık kan şekeri`
+  had no row at all, in any case; the all-caps forms additionally hit the
+  casefold trap `lexical.turkish_i_variants` already works around for
+  `GLUKOZ (AÇLIK)` (İ casefolds to `i` plus a combining dot, `I` to `i`
+  where Turkish reads `ı`), so once the two rows exist, `ÜRİK ASİT` and
+  `AÇLIK KAN ŞEKERİ` reach them the same way `GLUKOZ (AÇLIK)` already
+  reaches its own row. How to tell: `mirobody resolve "ÜRİK ASİT"` names
+  3084-1 Urate.
+
 - **An Apple Health upload with no records says so.** iOS does not let a
   Shortcut automation read Health data while the phone is locked. The
   automation still uploads, with an empty list, and `POST /apple/health`

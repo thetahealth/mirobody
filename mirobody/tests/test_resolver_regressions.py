@@ -59,9 +59,6 @@ def test_common_readings_keep_their_clinical_axes(name, value, unit, component, 
 @pytest.mark.parametrize(
     "name,value,unit",
     [
-        ("BloodGlucose-OGTT", "5", "mmol/L"),
-        ("BloodGlucose-FPG", "5", "mmol/L"),
-        ("BloodGlucose-HbA1c", "5", "mmol/L"),
         ("TotalCholesterol-HDL", "50", "mg/dL"),
         ("TotalCholesterol-LDL", "100", "mg/dL"),
         ("TotalCholesterol–HDL", "50", "mg/dL"),
@@ -79,10 +76,54 @@ def test_camelcase_qualifiers_are_not_dropped(name, value, unit):
     assert coding.code is None
 
 
+@pytest.mark.parametrize(
+    "name,value,unit",
+    [
+        ("BloodGlucose-OGTT", "5", "mmol/L"),
+        ("BloodGlucose-FPG", "5", "mmol/L"),
+    ],
+)
+def test_camelcase_qualifiers_that_share_the_stem_analyte_narrow_to_it(name, value, unit):
+    """#305 unifies the CamelCase/hyphen agreement check with the bracket
+    shape's: both compare by LOINC ANALYTE (COMPONENT), not exact code. An
+    OGTT or a fasting challenge is still fundamentally glucose -- the same
+    analyte head plain `血糖(GLU)` narrows to -- so `BloodGlucose-OGTT` now
+    narrows the same way `空腹血糖(GLU)` already did, where before this
+    unification the exact-code rule these two shapes used to have refused
+    it. (`resolve_reading` then still switches the mmol/L reading to the
+    moles-per-volume sibling, 15074-8 -- the UNIT doing its own, separate
+    job once the NAME has an answer.)"""
+    resolver = get_resolver()
+    assert resolver.resolve(name).loinc == "2339-0"
+    assert resolve_reading(name, value, unit).resolved
+
+
+def test_camelcase_qualifiers_that_disagree_let_the_measurement_settle_it():
+    """`BloodGlucose-HbA1c` is the CamelCase/hyphen spelling of `血糖(HbA1c)`
+    (#306's R2): glycated hemoglobin is a different ANALYTE than glucose, so
+    the bare name still refuses with both codes named, but `resolve_reading`
+    arbitrates by the unit exactly as the Chinese bracket form does -- one
+    rule, every shape, not a Chinese-only carve-out."""
+    resolver = get_resolver()
+    bare = resolver.resolve("BloodGlucose-HbA1c")
+    assert bare.method == "refused" and bare.ambiguous == ("2339-0", "4548-4")
+    as_glucose = resolve_reading("BloodGlucose-HbA1c", "5", "mmol/L")
+    assert as_glucose.resolved and as_glucose.loinc == "15074-8"
+    as_hba1c = resolve_reading("BloodGlucose-HbA1c", "6.1", "%")
+    assert as_hba1c.resolved and as_hba1c.loinc == "4548-4"
+
+
 def test_specimen_vocabulary_keeps_the_catalogue_axis_spelling():
     resolver = get_resolver()
     assert "CSF" in resolver._systems()
-    assert not resolver._trailing_token_is_an_abbreviation("Total Protein", "csf")
+    # `_is_specimen_token` alone would also flag `WBC` (#305's `白细胞WBC`):
+    # LOINC uses leukocytes as a SPECIMEN for a few molecular tests, the same
+    # three letters as the abbreviation of Leukocytes itself. The veto in
+    # `_resolve_seam` only fires when nothing independently resolved the
+    # label (`Total Protein` has nothing to agree with `csf` about), which
+    # is what this pins: the token check alone, not the full guarded path.
+    assert resolver._is_specimen_token("csf")
+    assert resolver._is_specimen_token("WBC")
 
 
 @pytest.mark.parametrize(
