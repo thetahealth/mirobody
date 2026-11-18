@@ -2,6 +2,16 @@
 
 ### Added
 
+- **`view="hour"` says when its minimum and maximum happened.** An hour
+  bucket carried only the hour's min/max value, not the clock time, so
+  "what was my lowest heart rate between 2 and 5am, and when" had no answer
+  short of `view="minute"`, which `BUCKET_CAP` may already have cut. Hour
+  rows now carry `min_at`/`max_at`, the local `HH:MM` the minimum/maximum
+  occurred (ties go to the earliest); `minute`/`day`/`week`/`month` rows do
+  not, since a minute bucket already is the minute its one value fell in.
+  How to tell: `query_health_indicators(view="hour", ...)` rows show
+  `min_at`/`max_at` beside `min`/`max`; a `minute` call's rows do not.
+
 - **Still screenshots of the app, and an index of every picture in
   `docs/images`.** The directory held recordings and diagrams but no still
   picture of the Chinese interface, so anyone writing an article or a post had
@@ -50,6 +60,30 @@
   `img.shields.io/badge/dynamic`.
 
 ### Fixed
+
+- **`query_health_indicators` can read the early hours of a busy day.**
+  `start`/`end` took only a whole calendar date, and `view=minute` keeps
+  just the newest 92 points per indicator (`BUCKET_CAP`), `view=raw` (the
+  DEFAULT) the newest 50 (`ROW_CAP`): a wearable recording about once a
+  minute has roughly 1,400 points a day, so most of such a day was
+  unreachable in either view, and the cut notice's own advice,
+  `end=<the day before>`, skipped the rest of that day instead of reaching
+  it. `start`/`end` now also accept a local date-time
+  (`YYYY-MM-DDTHH:MM`, inclusive through that minute) when `view` is `raw`,
+  `minute` or `hour`; every other view keeps dates only, since day and
+  coarser, `stats` and `trend` already answer by calendar day or over the
+  whole window regardless of the time named. The cut notice for
+  `raw`/`minute`/`hour` now points at one minute before the oldest/first
+  point shown instead of the day before (#303). A date-only window also
+  used to read a different set of rows than `view=day` for the same date
+  whenever a reading's own recorded time zone differed from the person's
+  current one (after travel, or an Apple import's default `--tz UTC`);
+  every sub-day view now filters by each row's own local day and wall
+  clock, the same way `view=day` already does. How to tell: ask for
+  `view=raw` (or `view=minute`) on a day with more points than its cap and
+  follow the notice's own `end=` suggestion, call after call — every point
+  of that day is reached, none repeated, none skipped, instead of jumping
+  to the previous day.
 
 - **Device sleep reaches the model in hours and minutes, not milliseconds.**
   Every device decoder stores sleep durations in `ms`, and the read side

@@ -74,10 +74,13 @@ class Window:
 def parse_bound(text: str, tz: str, *, end_of_day: bool = False) -> datetime | None:
     """One time bound as the model wrote it → an aware instant, or ``None``.
     A bare ``YYYY-MM-DD`` is that day's 00:00 in ``tz`` (``end_of_day``: the
-    next day's 00:00, the right edge of an inclusive day); an ISO string with
-    an offset keeps it; one without is read in ``tz``. This is the ONE answer
-    to "which instant does this date mean": a database's implicit cast
-    answers it with the session zone instead."""
+    next day's 00:00, the right edge of an inclusive day); a bare
+    ``YYYY-MM-DDTHH:MM`` (``SUBDAY_VIEWS``) is that minute's 00 seconds in
+    ``tz`` (``end_of_day``: one minute later, the right edge of an inclusive
+    minute, the same rule one grain finer); an ISO string with an offset
+    keeps it; any other one without is read in ``tz``. This is the ONE answer
+    to "which instant does this date (or date-time) mean": a database's
+    implicit cast answers it with the session zone instead."""
     if not text:
         return None
     z = zone(tz)
@@ -85,6 +88,9 @@ def parse_bound(text: str, tz: str, *, end_of_day: bool = False) -> datetime | N
         if len(text) == 10:
             d = datetime.strptime(text, "%Y-%m-%d").replace(tzinfo=z)
             return d + timedelta(days=1) if end_of_day else d
+        if len(text) == 16 and text[10] == "T":
+            d = datetime.strptime(text, "%Y-%m-%dT%H:%M").replace(tzinfo=z)
+            return d + timedelta(minutes=1) if end_of_day else d
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
         return parsed if parsed.tzinfo else parsed.replace(tzinfo=z)
     except ValueError:
@@ -603,6 +609,14 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
 
 #: One value per bucket of this size; day and coarser read the elected day.
 BUCKETS = ("minute", "hour", "day", "week", "month")
+#: Views fine enough that a local date-time (``YYYY-MM-DDTHH:MM``) narrows
+#: anything a plain date could not already. Day and coarser, `stats` and
+#: `trend` answer from the elected DAY authority or the whole window, so a
+#: time there would parse but narrow nothing. These three are also the only
+#: views a per-indicator cap (`ROW_CAP` 50, `BUCKET_CAP` 92) can cut short
+#: inside a single day: a wearable sampling once a minute has ~1,400 points
+#: on one day (#303).
+SUBDAY_VIEWS = ("raw", *BUCKETS[:2])  # ("raw", "minute", "hour")
 VIEWS = ("raw", *BUCKETS, "stats", "latest", "trend")
 #: Raw rows per indicator, newest first. A budget, not a question: the model
 #: that could raise it used to, and got a longer table instead of an answer.
@@ -653,11 +667,20 @@ TOOL_SCHEMA: dict[str, object] = {
         },
         "start": {
             "type": "string",
-            "pattern": r"^\d{4}-\d{2}-\d{2}$",
-            "description": "First local date, inclusive (YYYY-MM-DD, the person's time zone). "
-                           f"{LAST_N_DAYS_EXAMPLE} Omit both dates for the whole record.",
+            "pattern": r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$",
+            "description": "First local date, inclusive (YYYY-MM-DD, the person's time zone). With "
+                           "view=raw, view=minute or view=hour, a local date-time (YYYY-MM-DDTHH:MM) "
+                           f"is also accepted, to start partway into a day. {LAST_N_DAYS_EXAMPLE} Omit "
+                           "both dates for the whole record.",
         },
-        "end": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Last local date, inclusive."},
+        "end": {
+            "type": "string",
+            "pattern": r"^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$",
+            "description": "Last local date, inclusive. With view=raw, view=minute or view=hour, a "
+                           "local date-time (YYYY-MM-DDTHH:MM) is also accepted, inclusive through "
+                           "that minute (use this to reach further back after a cut result, rather "
+                           "than the previous day).",
+        },
         "value_min": {
             "type": "number",
             "description": "With view=stats: count the readings at or above this value. The reply "
@@ -676,7 +699,7 @@ TOOL_SCHEMA: dict[str, object] = {
             "type": "string",
             "enum": list(VIEWS),
             "default": "raw",
-            "description": "raw: the readings, newest first, each with the file it came from. minute/hour/day/week/month: one point per period, for a chart. stats: count/min/max/avg/sum/first/last/change over the window, for totals and a baseline. trend: numeric direction and shape, observed-day third means, delta, delta_pct and elapsed-day slope; at most 400 daily inputs, with partial coverage explicit. Unsupported or incomparable data keeps a reason; use day/stats for reported entries. The 2% direction threshold is descriptive, not clinical. latest: the most recent value per indicator.",
+            "description": "raw: the readings, newest first, each with the file it came from. minute/hour/day/week/month: one point per period, for a chart; hour points also carry min_at/max_at, the local clock time (HH:MM) the period's minimum/maximum occurred (ties go to the earliest), for \"when was it lowest\". stats: count/min/max/avg/sum/first/last/change over the window, for totals and a baseline. trend: numeric direction and shape, observed-day third means, delta, delta_pct and elapsed-day slope; at most 400 daily inputs, with partial coverage explicit. Unsupported or incomparable data keeps a reason; use day/stats for reported entries. The 2% direction threshold is descriptive, not clinical. latest: the most recent value per indicator.",
         },
     },
 }
@@ -743,6 +766,7 @@ class Rejection:
 
 
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$")
 
 
 def reject_unknown(args: Mapping[str, object], schema: Mapping[str, object]) -> list[Rejection]:
@@ -761,20 +785,43 @@ def reject_view(args: Mapping[str, object], views: Sequence[str]) -> list[Reject
     return [Rejection("view", f"must be one of {', '.join(views)}")]
 
 
-def reject_dates(args: Mapping[str, object]) -> list[Rejection]:
-    """``start``/``end`` that are not a calendar day written ``YYYY-MM-DD``.
-    The pattern alone let ``2025-06-31`` through: the readings tool then read
-    it as no bound at all (an end of *now*) and the medications tool raised."""
+def reject_dates(args: Mapping[str, object], *, subday_views: Sequence[str] = (),
+                  default_view: str = "") -> list[Rejection]:
+    """``start``/``end`` that are not a calendar day written ``YYYY-MM-DD``,
+    or, when the EFFECTIVE ``view`` is one of ``subday_views``, a local
+    date-time written ``YYYY-MM-DDTHH:MM``. A missing ``view`` resolves to
+    ``default_view``, the caller's own schema default, so a model that
+    relies on it rather than writing it out does not lose the date-time
+    option. The date pattern alone let ``2025-06-31`` through: the readings
+    tool then read it as no bound at all (an end of *now*) and the
+    medications tool raised.
+
+    ``subday_views`` is empty for every caller but the readings tool's own
+    ``view=raw``/``view=minute``/``view=hour`` (:data:`SUBDAY_VIEWS`): a
+    date-time bound on another view would parse but a day-or-coarser
+    bucket, or a whole-window aggregate, reads by calendar day regardless
+    of the time in it, so accepting one there would silently narrow
+    nothing while looking like it did."""
+    view = str(args.get("view") or "") or default_view
+    allow_time = view in subday_views
     out = []
     for p in ("start", "end"):
         v = args.get(p)
         if v in (None, ""):
             continue
-        if not _DATE.match(str(v)):
-            out.append(Rejection(p, "must be YYYY-MM-DD"))
+        text = str(v)
+        if allow_time and _DATETIME.match(text):
+            try:
+                datetime.strptime(text, "%Y-%m-%dT%H:%M")
+            except ValueError:
+                out.append(Rejection(p, "not a calendar date-time"))
+            continue
+        if not _DATE.match(text):
+            reason = "must be YYYY-MM-DD" + (" or YYYY-MM-DDTHH:MM (view=raw/minute/hour)" if subday_views else "")
+            out.append(Rejection(p, reason))
             continue
         try:
-            date.fromisoformat(str(v))
+            date.fromisoformat(text)
         except ValueError:
             out.append(Rejection(p, "not a calendar date"))
     return out
@@ -818,7 +865,7 @@ def validate_request(args: Mapping[str, object]) -> tuple[Rejection, ...]:
     selectors = [p for p in ("keywords", "indicators") if args.get(p) not in (None, "", [], ())]
     if len(selectors) > 1:
         out.append(Rejection("keywords+indicators", "give keywords or indicators — not both"))
-    out.extend(reject_dates(args))
+    out.extend(reject_dates(args, subday_views=SUBDAY_VIEWS, default_view="raw"))
     out.extend(reject_bounds(args))
     return tuple(out)
 
@@ -881,6 +928,7 @@ __all__ = [
     "SEMANTICS_DATE_PADDED",
     "SEMANTICS_TZ_EXACT",
     "SHOWN_DIGITS",
+    "SUBDAY_VIEWS",
     "SYNONYMS",
     "Selection",
     "TOOL_NAME",

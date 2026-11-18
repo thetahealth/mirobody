@@ -66,7 +66,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, NamedTuple
 
 from mirobody import standardize, units
@@ -539,7 +539,12 @@ class PostgresHealthQuery:
     ) -> list[dict]:
         """Individual readings, newest first, capped per series. `total` per
         series comes from the same statement. `file_key` is the handle back
-        to the ORIGINAL report."""
+        to the ORIGINAL report.
+
+        `raw` is one of `query.SUBDAY_VIEWS`, so `window` may carry a local
+        date-time bound: `_subday_window_clause` keeps `_window_clause`'s
+        day filter for every bound and narrows further, by each row's own
+        local wall clock, only when one does (#303)."""
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
@@ -547,7 +552,7 @@ class PostgresHealthQuery:
             "uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
             "reported": REPORTED_KINDS,
         }
-        where = _window_clause(params, window)
+        where = _subday_window_clause(params, window)
         rows = await execute_query(
             f"""
             SELECT * FROM (
@@ -821,13 +826,28 @@ class PostgresHealthQuery:
     ) -> list[dict]:
         params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
                                   **_unit_params(unit_of)}
-        where = _window_clause(params, window)
+        # Minute and hour (with `raw`, all of `query.SUBDAY_VIEWS`) are the
+        # only views a bound finer than a day can reach at all:
+        # `_window_clause`'s day-level filter would hand back the WHOLE day
+        # regardless of the hour asked for, so a caller narrowing `end`
+        # within a day got no fewer rows (#303).
+        where = _subday_window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
+        # `min_at`/`max_at`: the clock time a question like "when was it
+        # lowest between 2 and 5am" needs. Only `hour` buckets get them - a
+        # `minute` bucket already IS the minute its one value fell in, so a
+        # clock time would say nothing a `minute` row does not already. Ties
+        # go to the earliest occurrence, for both the minimum and maximum.
+        extremes = (
+            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC))[1] AS min_at,"
+            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC))[1] AS max_at"
+        ) if resolution == "hour" else ""
+        clock = f", to_char({_LOCAL_TS}, 'HH24:MI') AS clock, {_LOCAL_TS} AS local_ts" if resolution == "hour" else ""
         return await execute_query(
             f"""
             WITH base AS (
                 SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
-                       date_trunc('{trunc}', {_LOCAL_TS}) AS at
+                       date_trunc('{trunc}', {_LOCAL_TS}) AS at{clock}
                   FROM v_observation o{_SERIES_UNIT_JOIN}
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
             ), grouped AS (
@@ -836,7 +856,7 @@ class PostgresHealthQuery:
                        COUNT(*) AS n,
                        AVG(value_std) AS avg,
                        MIN(value_std) AS min,
-                       MAX(value_std) AS max,
+                       MAX(value_std) AS max{extremes},
                        false AS elected,
                        bool_or(unverified) AS unverified,
                        {_BUCKET_BUDGET.format(bucket="at")}
@@ -939,6 +959,37 @@ def _window_clause(params: dict[str, Any], window: query.Window | None) -> str:
     params["day_from"] = _date_of(window.start_ms, window.tz)
     params["day_to"] = _date_of(window.end_ms - 1, window.tz)
     return " AND o.local_date BETWEEN :day_from AND :day_to"
+
+
+def _subday_window_clause(params: dict[str, Any], window: query.Window | None) -> str:
+    """`_window_clause`'s day filter, for every bound including a date-only
+    one - unchanged, so the day boundary reads EXACTLY what every other view
+    reads, each row by its own stored `local_date`. A bound that also
+    carries a time of day (`query.SUBDAY_VIEWS`: `raw`, `minute`, `hour`)
+    narrows further with a SECOND filter on the row's own local wall clock,
+    `_LOCAL_TS`: the same expression a bucket's `period` and a raw row's
+    `local_time` are both labelled from. Shared by `readings()` (`raw`) and
+    `PostgresHealthQuery._subday_buckets` (`minute`/`hour`).
+
+    That second filter is built from the bound's TEXT (`window.start`/
+    `window.end`, naive local values), never from `start_ms`/`end_ms`: those
+    are instants resolved in the ACCOUNT's CURRENT zone
+    (`query.resolve_window`'s `tz`), but a row's own recorded `tz` can
+    differ - after travel, or an Apple export imported with the default
+    `--tz UTC` for a person whose profile reads Asia/Shanghai - and
+    `_LOCAL_TS` already reads each row in ITS OWN zone. Comparing an
+    absolute instant instead made these views disagree with `view=day`
+    about which calendar day a row was even on (review of #303, commit 1)."""
+    clause = _window_clause(params, window)
+    if window is None:
+        return clause
+    if len(window.start) == 16:
+        params["local_from"] = datetime.strptime(window.start, "%Y-%m-%dT%H:%M")
+        clause += f" AND ({_LOCAL_TS}) >= :local_from"
+    if len(window.end) == 16:
+        params["local_to"] = datetime.strptime(window.end, "%Y-%m-%dT%H:%M") + timedelta(minutes=1)
+        clause += f" AND ({_LOCAL_TS}) < :local_to"
+    return clause
 
 
 def _date_of(ms: int, tz: str) -> date:
@@ -1051,6 +1102,12 @@ def _bucket_row(r: dict, su: SeriesUnit | None = None) -> dict:
         "avg": _number(r.get("avg")),
         "min": _number(r.get("min")),
         "max": _number(r.get("max")),
+        # The local clock time (HH:MM) the minimum/maximum occurred, "hour"
+        # buckets only (absent from `r` otherwise); a text field, never run
+        # through `_number()` or a series unit - a time of day is not a
+        # quantity to convert.
+        "min_at": _text(r.get("min_at")),
+        "max_at": _text(r.get("max_at")),
         "n": int(r.get("n") or 0),
         "unit": su.label if su else (r.get("unit") or ""),
         "total": int(r.get("total") or 0),

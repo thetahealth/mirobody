@@ -57,7 +57,10 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 _COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
     "readings": ("indicator", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
-    "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
+    # `min_at`/`max_at` (local HH:MM) ride only on `view="hour"` rows; `compact`
+    # drops a column every row leaves empty, so a minute/day/week/month answer
+    # never shows it.
+    "buckets": ("indicator", "period", "avg", "min", "max", "min_at", "max_at", "n", "unit", "system", "code"),
     "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
               "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
