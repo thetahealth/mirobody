@@ -20,7 +20,8 @@ pytest.importorskip("ruamel.yaml")
 pytest.importorskip("cryptography")
 pytest.importorskip("openai")
 
-from mirobody.standardize import NOTE_SERIES
+from mirobody.collect.query import _flag_of
+from mirobody.standardize import NOTE_SERIES, parse_range
 from mirobody.task.profile_refresh import ProfileRefreshTask
 from mirobody.user import profile
 from mirobody.utils.config.llm import RouteSpec
@@ -34,9 +35,16 @@ TODAY = date.today().isoformat()
 
 
 def _row(name, value="", unit="", *, kind="measurement", ref="", flag="", day=TODAY, value_num=None, series=None):
+    # `flag` as `_record_row` would actually compute it (`_flag_of`): a
+    # fixture that hand-wrote "" for a numeric value outside its own `ref`
+    # stopped matching reality once `profile._out_of_range` stopped
+    # recomputing it from `ref` and `value_num` itself.
+    ref_low, ref_high = parse_range(ref)
+    computed = _flag_of({"value_num": value_num, "comparator": "", "ref_low": ref_low, "ref_high": ref_high,
+                         "flag_text": flag})
     return {"kind": kind, "name": name, "series": series or f"local:{name}", "value": value, "unit": unit,
-            "ref": ref, "flag": flag, "date": day, "value_num": value_num, "text": "" if kind == "measurement" else value,
-            "modality": "lab-report"}
+            "ref": ref, "flag": computed, "date": day, "value_num": value_num,
+            "text": "" if kind == "measurement" else value, "modality": "lab-report"}
 
 
 #: One check-up, newest first as `PostgresHealthQuery.records` returns it. The
