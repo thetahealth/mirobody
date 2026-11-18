@@ -10,7 +10,9 @@ Two things are the caller's:
 
 * ``ocr(image_bytes, mime) -> text``: the vision model that reads a scanned
   page or a photo, with the caller's prompt and its own "no text" convention
-  (return ``""``). Only the pages the text layer cannot read reach it.
+  (return ``""``). Only the pages a text layer cannot be trusted for reach
+  it: one too thin to read, or one a raster image dominates even with a
+  printed header or footer on it (``extract.SCAN_IMAGE_AREA_FRACTION``).
 * ``cache``: content-addressed (SHA-256 of the bytes) so the same file is
   never OCR'd twice. Without one nothing is cached; `MemoryTextCache` is a
   bounded in-process one, and a deployment that already stores extracted text
@@ -44,6 +46,21 @@ Ocr = Callable[[bytes, str], Awaitable[str]]
 
 #: A page whose text layer has fewer characters than this is treated as a scan.
 MIN_PAGE_TEXT = 40
+#: A page whose embedded raster images cover at least this fraction of its
+#: area is a CANDIDATE scan too, even with a text layer that clears
+#: MIN_PAGE_TEXT (below, `MAX_OVERLAID_SCAN_CHARS` decides it): a checkup
+#: centre's printed header and footer alone pass 40 characters, so the
+#: scanned table behind them kept missing OCR (#304). A full-page scan
+#: covers most of the sheet; a logo or an embedded chart does not come
+#: close to half of it.
+SCAN_IMAGE_AREA_FRACTION = 0.5
+#: A page whose dominant image (`SCAN_IMAGE_AREA_FRACTION`) has at least this
+#: many layer characters sitting on top of it is read from its layer, not
+#: OCR'd: that text sits ON the image, so it is a background graphic under
+#: real body text or a searchable scan's own invisible layer, not a scan's
+#: marginal stamp (review of #304). A header or footer sits OUTSIDE the
+#: image; 20 clears one label's width and stops well short of a paragraph.
+MAX_OVERLAID_SCAN_CHARS = 20
 #: Rendering resolution for scanned pages. DPI buys input-token cost, not speed.
 RENDER_DPI = 150
 #: Scanned pages OCR'd concurrently: the main speed lever on a multi-page scan
@@ -342,10 +359,71 @@ def _layer_tables(textpage, carried: list[tuple[float, float]] | None
 
 # --- PDF ---------------------------------------------------------------------------
 
+def _image_boxes(page) -> list[tuple[float, float, float, float]]:
+    """Every raster image's placed bounds on `page`, clipped to the page box
+    (left, bottom, right, top), from `FPDFPageObj_GetBounds`: no pixel is
+    decoded and nothing is rendered, so this is cheap enough to run on every
+    page."""
+    import pypdfium2.raw as pdfium_c
+
+    width, height = page.get_size()
+    boxes: list[tuple[float, float, float, float]] = []
+    for obj in page.get_objects(filter=[pdfium_c.FPDF_PAGEOBJ_IMAGE]):
+        left, bottom, right, top = obj.get_bounds()
+        left, right = max(left, 0.0), min(right, width)
+        bottom, top = max(bottom, 0.0), min(top, height)
+        if right > left and top > bottom:
+            boxes.append((left, bottom, right, top))
+    return boxes
+
+
+def _image_area_fraction(page, boxes: list[tuple[float, float, float, float]]) -> float:
+    """The share of `page`'s area `boxes` covers. Two images placed over the
+    same spot (a compressed layer under a clean one) would double-count
+    that overlap; a lab scan is one image, and overstating the fraction only
+    ever pushes a page towards OCR, which `_chars_over_images` can still
+    pull back from."""
+    width, height = page.get_size()
+    page_area = width * height
+    if page_area <= 0:
+        return 0.0
+    covered = sum((right - left) * (top - bottom) for left, bottom, right, top in boxes)
+    return min(covered / page_area, 1.0)
+
+
+def _chars_over_images(textpage, boxes: list[tuple[float, float, float, float]]) -> int:
+    """How many of `textpage`'s non-blank characters have their centre
+    inside one of `boxes`: the geometric signal the #304 review asked for,
+    telling a scan's marginal header or footer (drawn OUTSIDE every image,
+    in the margin) from a background graphic under real body text or a
+    searchable scan's own invisible OCR layer (drawn ON an image). Centres,
+    not full-box overlap, because a glyph box can brush an image's edge by a
+    fraction of itself without the text being laid over it. No pixel is
+    decoded."""
+    import pypdfium2.raw as raw
+
+    left_b, right_b, bottom_b, top_b = (ctypes.c_double() for _ in range(4))
+    count = 0
+    for i in range(raw.FPDFText_CountChars(textpage)):
+        code = raw.FPDFText_GetUnicode(textpage, i)
+        ch = chr(code) if 0 < code < 0x110000 else ""
+        if not ch or ch.isspace():
+            continue
+        raw.FPDFText_GetCharBox(textpage, i, left_b, right_b, bottom_b, top_b)
+        cx = (left_b.value + right_b.value) / 2
+        cy = (bottom_b.value + top_b.value) / 2
+        if any(left <= cx <= right and bottom <= cy <= top for left, bottom, right, top in boxes):
+            count += 1
+    return count
+
+
 def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = False, layer_tables: bool = False
-               ) -> tuple[list[str], list[tuple[int, bytes]], list[tuple[int, bytes]]]:
+               ) -> tuple[list[str], list[tuple[int, bytes, str]], list[tuple[int, bytes]]]:
     """Sync, CPU-bound: each page's text layer, the pages too thin to trust
-    rendered to PNG for OCR, and (`render_all`) the others rendered too, for a
+    OR dominated by an image (`SCAN_IMAGE_AREA_FRACTION`) its OWN text
+    layer is not drawn on (`MAX_OVERLAID_SCAN_CHARS`), rendered to PNG for
+    OCR with whatever text their layer had (for `pdf_text` to fold in if
+    OCR missed it), and (`render_all`) the others rendered too, for a
     tables pass. With `layer_tables`, a text page whose layer lays out a
     table gets that table appended as HTML (`_layer_tables`) and is not
     rendered: its tables are read off the layer, exactly. Run through
@@ -361,7 +439,7 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
     try:
         n = len(doc)
         texts: list[str] = [""] * n
-        to_ocr: list[tuple[int, bytes]] = []
+        to_ocr: list[tuple[int, bytes, str]] = []
         layered: list[tuple[int, bytes]] = []
         carried = None
         for i in range(n):
@@ -369,7 +447,13 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
             try:
                 textpage = page.get_textpage()
                 text = (textpage.get_text_range() or "").strip()
-                if len(text) >= min_page_text:
+                thin = len(text) < min_page_text
+                scan_like = thin
+                if not thin:
+                    boxes = _image_boxes(page)
+                    if boxes and _image_area_fraction(page, boxes) >= SCAN_IMAGE_AREA_FRACTION:
+                        scan_like = _chars_over_images(textpage, boxes) < MAX_OVERLAID_SCAN_CHARS
+                if not scan_like:
                     found = ""
                     if layer_tables:
                         found, carried = _layer_tables(textpage, carried)
@@ -378,12 +462,39 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
                         layered.append((i, png(page)))
                 else:
                     carried = None
-                    to_ocr.append((i, png(page)))
+                    # A thin layer is noise (a stray mark on a blank scan),
+                    # discarded as before; a layer that cleared min_page_text
+                    # but lost to a dominant image it is not drawn on is kept,
+                    # for `pdf_text` to fold in whatever OCR did not already
+                    # transcribe, or to fall back to with no `ocr` at all.
+                    to_ocr.append((i, png(page), "" if thin else text))
             finally:
                 page.close()
         return texts, to_ocr, layered
     finally:
         doc.close()
+
+
+def _merge_ocr_text(ocr_text: str, layer_text: str) -> str:
+    """`ocr_text` plus any line of `layer_text` it does not already contain.
+    Rendering the page for OCR draws the header and footer the layer holds as
+    pixels too, and a vision model usually transcribes what it is shown, so
+    appending the layer's text unconditionally doubled it: a footer's page
+    number was then read a second time as if it were a value (#304). Checked
+    line by line, not as one block, because a model that reads top to bottom
+    puts the table it was asked for between the header and the footer, where
+    the layer has nothing. `_chars_over_images` keeps this safe: `layer_text`
+    only ever reaches here from a page whose own text sits OUTSIDE its
+    dominant image (a margin stamp), never from a background-image or
+    searchable-scan page kept on its text layer, so there is never a second,
+    possibly misread reading of the same digit to fold in."""
+    if not layer_text:
+        return ocr_text
+    if not ocr_text:
+        return layer_text
+    seen = " ".join(ocr_text.split())
+    missing = [line for line in layer_text.splitlines() if line.strip() and " ".join(line.split()) not in seen]
+    return f"{ocr_text}\n\n" + "\n".join(missing) if missing else ocr_text
 
 
 async def pdf_text(
@@ -395,11 +506,17 @@ async def pdf_text(
     dpi: int = RENDER_DPI,
     concurrency: int = OCR_CONCURRENCY,
 ) -> str:
-    """A PDF's full text: each page's text layer, or (for a page whose layer is
-    empty or too thin (a scan)) the OCR of the rendered page, concurrently.
-    Without an ``ocr`` the scanned pages are left out, and a page whose OCR
-    failed is too: the text is then a `PartialText` naming them. A page that
-    has a text layer also gets its tables as HTML: the layer's own
+    """A PDF's full text: each page's text layer, or (for a page whose layer
+    is empty or too thin, or whose images cover most of it with no real text
+    of its own drawn on them) the OCR of the rendered page, concurrently; a
+    page routed to OCR despite having a usable layer (a scanned table under
+    a printed header and footer) keeps that layer's text too, for whatever
+    OCR did not already transcribe (`_merge_ocr_text`), and falls back to it
+    outright when there is no ``ocr`` to call or OCR itself failed for that
+    page, exactly as a page this thin was always read before the image-area
+    rule existed: only a page with NEITHER a usable layer nor a successful
+    OCR call is left out, and the text is then a `PartialText` naming it. A
+    page that has a text layer also gets its tables as HTML: the layer's own
     (`_layer_tables`) where its characters lie in columns, else, with
     ``tables`` (an OCR model's tables pass), that pass's reading of the
     rendered page.
@@ -415,6 +532,13 @@ async def pdf_text(
     texts, to_ocr, layered = await asyncio.to_thread(
         _pdf_pages, data, min_page_text=min_page_text, dpi=dpi, render_all=tables is not None,
         layer_tables=True)
+    # The default for every OCR candidate is its own layer text (empty for a
+    # genuine scan, a margin stamp otherwise): a page this fix newly sends to
+    # OCR must not come back emptier than it would have on main when there is
+    # no `ocr` to call, or that call fails, for it specifically.
+    for index, _, layer_text in to_ocr:
+        if layer_text:
+            texts[index] = layer_text
     layer_table_page_count = sum(1 for t in texts if "<table>" in t)
     gate = asyncio.Semaphore(max(1, concurrency))
     if layered and tables is not None:
@@ -432,15 +556,17 @@ async def pdf_text(
     failed: list[tuple[int, Exception]] = []
     if to_ocr and ocr is not None:
 
-        async def _one(index: int, png: bytes) -> None:
+        async def _one(index: int, png: bytes, layer_text: str) -> None:
             async with gate:
                 try:
-                    texts[index] = (await ocr(png, "image/png")).strip()
+                    result = (await ocr(png, "image/png")).strip()
                 except Exception as exc:
                     failed.append((index, exc))
                     logger.warning("pdf ocr: page failed: page_index=%d error_type=%s", index, type(exc).__name__)
+                    return
+                texts[index] = _merge_ocr_text(result, layer_text)
 
-        await asyncio.gather(*(_one(i, png) for i, png in to_ocr))
+        await asyncio.gather(*(_one(i, png, layer_text) for i, png, layer_text in to_ocr))
         # One bad page must not lose the other twenty, so a page failure is a
         # warning. But a scan whose EVERY page failed, with no text layer to
         # fall back on, would come back as "": the same answer as a blank
@@ -449,7 +575,12 @@ async def pdf_text(
         # case is the OCR's error, raised.
         if len(failed) == len(to_ocr) and not any(texts):
             raise failed[-1][1]
-    missing = sorted(i for i, _ in failed) if ocr is not None else [i for i, _ in to_ocr]
+    # A page is "missing" only when it has neither a layer to fall back to
+    # nor a successful OCR call: a thin, genuinely blank scan with no `ocr`
+    # configured, or any page OCR raised on. A page kept on its own layer
+    # text (no `ocr`, or that call's own failure) is not missing; main read
+    # it too, just without the scanned table a vision model would add.
+    missing = sorted(i for i, _ in failed) if ocr is not None else [i for i, _, layer_text in to_ocr if not layer_text]
     logger.info("pdf: page_count=%d ocr_page_count=%d missing_page_count=%d table_page_count=%d "
                 "layer_table_page_count=%d", len(texts), len(to_ocr), len(missing), len(layered),
                 layer_table_page_count)
