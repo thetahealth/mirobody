@@ -2,6 +2,16 @@
 
 ### Added
 
+- **`view="hour"` says when its minimum and maximum happened.** An hour
+  bucket carried only the hour's min/max value, not the clock time, so
+  "what was my lowest heart rate between 2 and 5am, and when" had no answer
+  short of `view="minute"`, which `BUCKET_CAP` may already have cut. Hour
+  rows now carry `min_at`/`max_at`, the local `HH:MM` the minimum/maximum
+  occurred (ties go to the earliest); `minute`/`day`/`week`/`month` rows do
+  not, since a minute bucket already is the minute its one value fell in.
+  How to tell: `query_health_indicators(view="hour", ...)` rows show
+  `min_at`/`max_at` beside `min`/`max`; a `minute` call's rows do not.
+
 - **Still screenshots of the app, and an index of every picture in
   `docs/images`.** The directory held recordings and diagrams but no still
   picture of the Chinese interface, so anyone writing an article or a post had
@@ -95,6 +105,157 @@
   negation (不头疼, 没有发烧) is never one of them and still abstains exactly
   as before.
 
+- **`query_health_indicators` can read the early hours of a busy day.**
+  `start`/`end` took only a whole calendar date, and `view=minute` keeps
+  just the newest 92 points per indicator (`BUCKET_CAP`), `view=raw` (the
+  DEFAULT) the newest 50 (`ROW_CAP`): a wearable recording about once a
+  minute has roughly 1,400 points a day, so most of such a day was
+  unreachable in either view, and the cut notice's own advice,
+  `end=<the day before>`, skipped the rest of that day instead of reaching
+  it. `start`/`end` now also accept a local date-time
+  (`YYYY-MM-DDTHH:MM`, inclusive through that minute) when `view` is `raw`,
+  `minute` or `hour`; every other view keeps dates only, since day and
+  coarser, `stats` and `trend` already answer by calendar day or over the
+  whole window regardless of the time named. The cut notice for
+  `raw`/`minute`/`hour` now points at one minute before the oldest/first
+  point shown instead of the day before (#303). A date-only window also
+  used to read a different set of rows than `view=day` for the same date
+  whenever a reading's own recorded time zone differed from the person's
+  current one (after travel, or an Apple import's default `--tz UTC`);
+  every sub-day view now filters by each row's own local day and wall
+  clock, the same way `view=day` already does. How to tell: ask for
+  `view=raw` (or `view=minute`) on a day with more points than its cap and
+  follow the notice's own `end=` suggestion, call after call — every point
+  of that day is reached, none repeated, none skipped, instead of jumping
+  to the previous day.
+
+- **Device sleep reaches the model in hours and minutes, not milliseconds.**
+  Every device decoder stores sleep durations in `ms`, and the read side
+  answered a series in the unit its rows carry, so a night's sleep reached
+  the model as `24533700 ms`; the default local 2B model read that as 24.5
+  hours (#296). A series whose rows were all written by a device in a storage
+  unit (`ms`, `s`, `J`) now answers in its LOINC code's own unit when that code
+  declares one of the same dimension: 93832-4 sleep duration and 103213-5 time
+  in bed in `h`, the sleep stages, latency and wake after onset in `min`,
+  energy in `kcal`. Every view, the web chart and the export follow it; the
+  device's value and unit stay in `printed`. A unit a report printed is left
+  as printed (an ECG's QT in `ms` stays `ms`), and so is a code that declares
+  the storage unit itself (HRV SDNN in `ms`, aPTT in `s`). Series with no
+  confident LOINC code still answer in `ms` until #297's reading units land:
+  Apple's total time asleep, its core sleep and time awake among them. To tell: import a Garmin or Oura sleep
+  export and ask `stats` for sleep duration; the row says `unit=h`.
+
+- **A body-composition device's own words (脂肪, 肌肉, 血氧…) no longer code
+  to a lab specimen or an antibody test** (#301, cause 1). A smart scale's
+  bare `脂肪`/`Fat` reading in kg coded to 16853-4 `Fat [Mass] in Stool` —
+  the only LOINC specimen for a bare "fat" component — and `肌肉` was
+  refused, the name alone giving 51763-1, a MuSK antibody titer. `骨骼肌`,
+  `基础代谢`/`基础代谢率`/`BMR` and a watch's `压力` stress score reached an
+  antibody test, two metabolic PANEL codes and an unrelated obstetric blood
+  pressure respectively; none has a LOINC concept the device catalogue
+  carries, so all four now abstain instead of answering. `去脂体重`/`瘦体重`
+  now abstain too, rather than the lean-body-weight-by-immersion code they
+  shared with three other equally-ranked LOINC rows. `血氧`/`SpO2` moved
+  from the generic `Oxygen saturation in Blood` to the pulse-oximetry code
+  the catalogue's `BLOOD_OXYGEN` ships. Around forty more device names
+  (脂肪量, 体水分, 当前体重, 腹围, 安静心率, 指尖血糖, 平均动脉压, and more —
+  see `mirobody/res/loinc/resolver_overrides.tsv`) now reach the catalogue's
+  own code instead of staying unresolved. Trade-off: a stool panel's bare
+  `脂肪` result (阴性/阳性) is now refused rather than coded to stool fat;
+  a panel almost always prints `脂肪球`/`脂肪滴` instead, which is untouched.
+  A new benchmark, `mirobody/tests/test_engine_coverage_devices.py`, scores
+  this vocabulary on its own (89%, seven names an index-level ambiguity
+  still blocks), so the lab-report benchmark's own score stays a claim about
+  lab reports. How to tell: `mirobody resolve 脂肪` now names
+  `Body fat [Mass] Calculated` (73708-0), not a stool test; stored readings
+  move to the corrected code with `mirobody recode`.
+
+- **A name run straight into its own abbreviation reaches one rule, for
+  every shape a report glues them with** (#305). `白细胞WBC`, `红细胞RBC`
+  and the rest of a report's CBC/urinalysis section (no bracket, no space,
+  a CJK run straight into Latin) went uncoded while the bracketed
+  `白细胞(WBC)` and spaced `白细胞 WBC` forms already resolved: three
+  separate code paths, each with its own agreement rule, covered the
+  bracket, the hyphen/CamelCase and the space-before-an-acronym shapes, and
+  none covered this fourth one. Replaced with one split tried on every
+  shape and one agreement rule, by LOINC ANALYTE rather than exact code:
+  `BloodGlucose-OGTT`/`-FPG` and `BloodGlucose-HbA1c` now behave exactly
+  like their Chinese bracket twins `血糖(OGTT)`/`(FPG)`/`(HbA1c)` already
+  did. `乙肝病毒DNA`, `游离T3`, `维生素D` and `25羟维生素D` are unchanged.
+  A bracketed METHOD or subtype (`血型(Rh)测定`, `乙肝表面抗原(定量)测定`)
+  no longer borrows the bare stem's code either: `Rh`/`定量`/`定性` carry
+  no code of their own, so the old fallback silently answered through them.
+  How to tell: `mirobody resolve 白细胞WBC` now names Leukocytes; stored
+  readings move with `mirobody recode`.
+
+- **`肌酐(Cre)` no longer refuses as two analytes, and a bracketed
+  measurement that disagrees with its stem can be settled by the unit**
+  (#306). `Cre` (used for creatinine on many Chinese checkup reports,
+  alongside `CREA`/`Cr`) also spelled a carbapenem-resistant-
+  Enterobacterales culture flag in the shipped index, so the bracket's two
+  halves disagreed and the whole name abstained; `Cre` is now a curated
+  alias for Creatinine, the same as its `CREA`/`Cr` neighbours, and a
+  report's rarer `CRE 阴性`/`阳性` culture flag is still caught by the
+  scale gate (creatinine has no qualitative code). Separately: when a
+  bracket's two halves name different LOINC codes for the same underlying
+  measurement (`血糖(HbA1c)`, `胆固醇(HDL-C)`), `resolve()` refused with
+  both codes already named in `rejected_reason`, but a caller with a value
+  and a unit had no way to use that. `resolve_reading` now tries the unit
+  against both candidates when `resolve()` refuses this way: `血糖(HbA1c)`
+  reads as glucose in mmol/L and as HbA1c in %; `胆固醇(HDL-C)` still
+  abstains, since both halves fit the same mmol/L unit. Bare `PCT` has the
+  same disagreement with no bracket at all — plateletcrit and procalcitonin
+  tie at the same rank in the raw index — and is settled the same way: `PCT`
+  in % now reads as plateletcrit, `PCT` in ng/mL as procalcitonin. How to
+  tell: `mirobody resolve "肌酐(Cre)"` names Creatinine;
+  `resolve_reading("血糖(HbA1c)", "5.4", "mmol/L")` names glucose and the
+  same term at `"6.1", "%"` names HbA1c.
+
+- **`Glycated albumin`/`Glycosylated albumin` resolve, matching `糖化白蛋白`**
+  (reported by a tester). The Chinese name only ever worked because LOINC's
+  own Chinese translation for 13873-5 is a direct corpus hit; the alias
+  table's own redirect to the English phrase `Glycated albumin` pointed at
+  a phrase that was never itself a corpus key, so neither English spelling
+  had anything to resolve to. Both now resolve to `Albumin glycated`, the
+  two-word order the corpus already carries for this component. How to
+  tell: `mirobody resolve "Glycated albumin"` names 13873-5.
+
+- **A hyphen or space between a Latin abbreviation and a CJK or kana run no
+  longer breaks a name that resolves fine fused** (reported by a tester).
+  `LDLコレステロール` resolved while `LDL-コレステロール` and `LDL コレステロール`
+  (a half-width hyphen, or a plain space, between the Latin abbreviation
+  and the katakana) did not: the curated alias is keyed on the fused
+  spelling, and no existing surface variant produced that spelling back
+  from a hyphenated or spaced one. A new surface variant folds a hyphen or
+  space at a Latin/CJK or Latin/kana boundary, tried only after the term as
+  written has missed, so it can only turn a miss into a hit. `中性脂肪`,
+  `HDL-コレステロール`, `γ-GTP`, `25-OH维生素D`, `HbA1c(NGSP)` and `LDL-C`
+  are unchanged: none of their hyphens sits at a script boundary, or (`γ`)
+  the character on one side is Greek, not Latin. How to tell: `mirobody
+  resolve "LDL-コレステロール"` now names 13457-7, the same code as the
+  fused spelling.
+
+- **Turkish names with the all-caps İ/I lab reports print now have their
+  own vocabulary row** (Discussion #137). `ürik asit` and `açlık kan şekeri`
+  had no row at all, in any case; the all-caps forms additionally hit the
+  casefold trap `lexical.turkish_i_variants` already works around for
+  `GLUKOZ (AÇLIK)` (İ casefolds to `i` plus a combining dot, `I` to `i`
+  where Turkish reads `ı`), so once the two rows exist, `ÜRİK ASİT` and
+  `AÇLIK KAN ŞEKERİ` reach them the same way `GLUKOZ (AÇLIK)` already
+  reaches its own row. How to tell: `mirobody resolve "ÜRİK ASİT"` names
+  3084-1 Urate.
+
+- **An Apple Health upload with no records says so.** iOS does not let a
+  Shortcut automation read Health data while the phone is locked. The
+  automation still uploads, with an empty list, and `POST /apple/health`
+  answered it "Apple Health data processed successfully", so a nightly sync
+  that read nothing looked like one that worked, on the phone and on the
+  server. An empty upload is now answered without processing, with
+  `"received": 0` and a message saying the phone must be unlocked; every
+  successful answer carries `received`, the number of records the upload
+  had. To tell: post `{"healthData": []}` and read the message;
+  `docs/apple-health.md` shows both answers.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading
@@ -120,6 +281,133 @@
   form now prints the package and vocabulary versions through Python;
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
+
+- **`PRODUCTION: true` no longer refuses to start on a secret `deploy.sh`
+  generated.** `Config.placeholder_keys()` scanned `self._raw` — the YAML
+  alone — while `get()`/`get_str()` check the environment first; `deploy.sh`
+  writes every secret it generates to `.env` and never edits the YAML, so
+  `PG_PASSWORD`, `PG_ENCRYPTION_KEY`, `JWT_KEY` and `DATABASE_DECRYPTION_KEY`
+  still read as the shipped `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder to
+  the production guard, and every `./deploy.sh` stack with `PRODUCTION: true`
+  restarted in a loop (#299). `placeholder_keys()` now shares `get()`'s own
+  environment-first lookup, so the real secret in `.env` clears the guard,
+  while a placeholder set in the environment itself is still refused.
+  `deploy.sh` also now generates `DATABASE_DECRYPTION_KEY` like the other
+  secrets on a fresh install. On an existing database it leaves `.env`
+  alone instead of writing the placeholder there, unlike `PG_ENCRYPTION_KEY`:
+  this key reaches the app only through `env_file`, not compose's own
+  variable substitution, so a value `deploy.sh` wrote to `.env` would
+  outrank a real key set afterwards in a config overlay for good. Leaving
+  it unset keeps `config.devices.yaml`'s placeholder as the effective key —
+  the same one already in use — and stored device credentials and OAuth
+  tokens keep decrypting. SECURITY.md and the quickstart guides (English,
+  Chinese, Japanese) now name `DATABASE_DECRYPTION_KEY` among the secrets to
+  set, together with re-encrypting any stored credentials. How to tell:
+  with a real value for all four only in `.env` and the YAML still holding
+  the placeholder, `Config.placeholder_keys()` is empty and
+  `enforce_production_auth_safety()` does not raise; a fresh `./deploy.sh`
+  run (no existing database) adds a generated `DATABASE_DECRYPTION_KEY` to
+  `.env`, and a run against an existing one leaves it out.
+
+- **A frequency's count — per day, per week, or the length of a period — is
+  read correctly instead of falling back to "once"** (#302). `_PER_DAY`,
+  `_EVERY_N_DAYS_RE` and `_WEEKLY_RE` each spelled out a handful of literal
+  phrases, so a count that was not one of them fell through to the bare
+  每天/每日/每周 = once rule and was silently dropped: `每日2次` ("twice a
+  day") read as once daily, `每2日1次` ("every 2 days", 日 was not in the
+  `每\s*(\d+)\s*天`-only "every N days" pattern) and `每2周1次` ("every 2
+  weeks") matched nothing and returned `None`, `隔一日一次` ("every other
+  day" spelled out) read as once daily, and `一日3次，一次1片` dropped the
+  frequency while keeping the dose — a partial parse the function's own
+  docstring forbids. `parse_dose_instruction` now reads prefix (每/一/隔) + an
+  optional count + a period (天/日/周/星期, and the English day/week/wk/hour
+  spellings) + an optional trailing count + 次/times as one grammar instead
+  of a list of phrases, the same shape for days and weeks. `Schedule` has an
+  interval and named weekdays, but no "N times a week" field, so `每周2次`
+  and `twice weekly` now return `None` rather than read as once weekly, and
+  a count the grammar names but has no slot shape for (`每日10次`, `每2天3次`,
+  two different counts or periods in one sentence) still refuses rather than
+  guessing. How to tell: `meds.parse_dose_instruction("每日2次")[0].slots()`
+  is length 2, `meds.parse_dose_instruction("每2日1次")[0].period_days == 2`,
+  `meds.parse_dose_instruction("隔一日一次")[0].period_days == 2` (not 1),
+  and `meds.parse_dose_instruction("每周2次")` is `None`.
+
+- **A scanned lab page stamped with a printed header and footer now reaches
+  OCR.** `extract._pdf_pages` decided a page from its text layer's character
+  count alone (`MIN_PAGE_TEXT = 40`), so a checkup centre's header and
+  footer, real text on an otherwise scanned page, passed 40 characters on
+  their own and the table image behind them was never rendered for OCR: a
+  reported 14-page checkup PDF gave 0 readings from its three lab pages,
+  58 once they were uploaded as separate images (#304). A page now goes to
+  OCR regardless of its character count when its raster images cover at
+  least half its area (`SCAN_IMAGE_AREA_FRACTION`, from each image's placed
+  bounds) AND fewer than 20 of its own text-layer characters sit on top of
+  those images (`MAX_OVERLAID_SCAN_CHARS`, from their char boxes; neither
+  check renders anything): a header or footer sits outside the image, in
+  the margin, so it never clears that second count, while a letterhead
+  background under real report text or a searchable scan's own invisible
+  OCR layer does, and stays on its exact text layer rather than paying for
+  a re-OCR that could misread a digit the layer already has right. A page
+  this rule sends to OCR still gives back its own layer text, unmerged,
+  when there is no `ocr` to call or that call fails for it, same as main
+  read it before this rule existed; only the scanned table is new to lose.
+  Its header or footer text is folded back into a successful OCR call only
+  for the lines OCR did not already transcribe off the rendered page
+  (`_merge_ocr_text`), so a line is not read twice. How to tell: upload a
+  scanned page with a printed header or footer and its rows reach
+  Indicators; a report with a background letterhead or an already-searchable
+  scan is read without a model call.
+  `mirobody/tests/test_pdf_scanned_page_ocr_routing.py` builds all of these
+  in-process and asserts the OCR call count on each (skipped without
+  `[parse]`, same as `test_extraction_regressions.py` without `[app]`).
+
+### Removed
+
+- **~40 lines of verified-dead code**, none of it reachable from any route,
+  tool, or test, checked by transitive search before removal (no replacement;
+  none were used): `TempFileManager.cleanup_temp_file` (the upload temp copy
+  was never actually cleaned up through it); `AIClientManager.sync_for_spec`
+  (a speculative sync twin for a call site that never arrived; its now-unused
+  `OpenAI` import went with it); `PlatformUserService.base_user_service` (a
+  property exposing an internal attribute nothing ever read); `ValueRangeValidator.is_loaded`
+  (a status property nothing checked); `PostgresOverlayStore.for_target` (a
+  generic override lookup duplicating what `PostgresMedicationStore.overrides`
+  already does for the one target kind in use).
+
+- **The `windows-benchmark` CI job no longer fails at random.** It failed in
+  five of the last hundred `Test Build` runs, on `main` and on pull requests
+  that changed only Markdown, with one of three messages. Two came from the
+  test under Windows PowerShell 5.1, `Run-One left a child after probe
+  failure.` and `Child survived Stop-Server.`: after `Stop-Server` had killed
+  the child and waited for it, the test asked `Get-Process -Id` whether it was
+  gone. On .NET Framework that lookup reads the system process list, which on
+  a Windows runner still held the child in 9 of 200 tries after the wait had
+  returned, for up to 82 ms; PowerShell 7 asks the process itself and never
+  did. The test now opens its own handle to the child and asks that handle
+  whether the child exited. The third, `Cannot find a process with the process
+  identifier` under PowerShell 7, was `Stop-Server` itself: it checked
+  `HasExited` and then looked the id up again with `Stop-Process -Id`, so a
+  process that exited in between made it throw, and inside `Run-One` that
+  error replaced the one that explained the failure. It now kills through the
+  handle it already holds, treats a process that is already gone as stopped,
+  and still waits for it before returning. How to tell: pull requests stop
+  needing a rerun of `windows-benchmark`; on a Windows runner,
+  `benchmarks/windows/test-native.ps1` run 40 times in a row under
+  `powershell.exe` failed 3 times before this change and none after.
+
+- **The PostgreSQL regression gate no longer deadlocks in teardown.**
+  `test_a_cancel_that_lands_while_the_rows_go_in_removes_them` failed
+  intermittently in CI with `DeadlockDetected` on the fixture's `DROP SCHEMA
+  ... CASCADE`, and passed on a rerun. A file delete erases that file's
+  readings in a background task, and the test never awaited it. Teardown
+  dropped the schema while that task's transaction was still deleting from
+  `th_observation` and `th_extraction`. The fixture now awaits every
+  background task the test started, including any those tasks start, before
+  it drops the schema. How to tell: looped 200 times against PostgreSQL 17,
+  the test failed 65 times before the change; the server logged 103 deadlocks
+  and 137 statements against tables already dropped. After the change, 1,000
+  runs of the test and 20 runs of the whole file passed, and the server
+  logged no errors.
 
 ## 1.6.1
 

@@ -38,6 +38,7 @@ query_health_indicators(indicators=["<結果から得た名称>"], view="latest"
 `keywords` も `indicators` も指定しない場合、ビューを指定していてもカタログが返ります。
 `start` と `end` は記録の持ち主のタイムゾーンでの、両端を含む日付です。たとえば「直近7日間」は6日前から始まります。
 測定値の日付を指定しなければ、記録全体が対象になります。
+`view=raw`（既定）、`view=minute`、`view=hour` では、`start` と `end` に現地時刻 `YYYY-MM-DDTHH:MM`（その分を含む）も指定できます。1日分のデータがそのビューの件数上限を超えたとき、その日の早い時間帯を取り出すために使います。
 
 ## 結果を読み取る
 

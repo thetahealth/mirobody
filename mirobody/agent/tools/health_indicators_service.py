@@ -159,9 +159,11 @@ class HealthIndicatorsService(RecordTool):
         person actually has, reported entries first, which is the right first
         call when you do not know the names. Ask for the shape you need:
         `view="stats"` for totals, a baseline or how often, `view="day"` for
-        a chart or dated reported entries, `view="trend"` for numeric direction
-        and shape, `view="latest"` for "what is it now". A partial trend covers
-        only the displayed source days; narrow the window for a complete result.
+        a chart or dated reported entries, `view="hour"` for a chart that also
+        says WHEN the hour's minimum/maximum happened (`min_at`/`max_at`),
+        `view="trend"` for numeric direction and shape, `view="latest"` for
+        "what is it now". A partial trend covers only the displayed source
+        days; narrow the window for a complete result.
 
         DO NOT use it for medications (`query_medications`) or for general
         medical knowledge or reference ranges. Do not call it twice with the same arguments:
@@ -171,7 +173,10 @@ class HealthIndicatorsService(RecordTool):
             A compact table plus a `meta` block saying which window was read,
             in which time zone, in which view, how many rows came back and
             whether they were cut. `truncated` means narrow the window or ask
-            for `view="stats"` (or a coarser view). No dates means the whole
+            for `view="stats"` (or a coarser view); for `view="minute"` or
+            `view="hour"`, `start`/`end` also take a local date-time
+            (`YYYY-MM-DDTHH:MM`) to narrow within a day, and a cut answer's
+            own note names the one to use. No dates means the whole
             record. Caps: 50 raw rows and 92 minute…month points per
             indicator (the newest), 400 daily inputs per trend, 200 catalogue names.
 
@@ -478,25 +483,43 @@ def _cut_note(view: str, rows: Sequence[Mapping[str, Any]], cap: int) -> str:
     The span is stated because the window line still reads "all recorded
     data": MiniCPM5-2B, handed a year of days for "the past three months",
     answered with October to December, months the record does not have
-    (2026-09-30, docs/local-models-roadmap.md)."""
+    (2026-09-30, docs/local-models-roadmap.md).
+
+    For `minute`/`hour` (two of three `query.SUBDAY_VIEWS`; `raw` is the
+    third, `_raw_cut_note` below) the day before the first point shown is
+    still THAT SAME DAY: a wearable sampling about once a minute has ~1,400
+    points a day, so `view="minute"` could only ever show the newest
+    `BUCKET_CAP`, and sending the model to the previous day skipped the
+    rest of the one it just asked about (#303). Those two name a local
+    date-time `end` one minute before it instead; day and coarser keep the
+    day before, which already reaches everything the bucket could not show."""
     cut = _cut_indicators(rows)
     periods = sorted(str(r.get("period") or "") for r in rows if r.get("period") and str(r.get("indicator") or "") in cut)
     at = query.BUCKETS.index(view) if view in query.BUCKETS else -1
     coarser = query.BUCKETS[at + 1] if 0 <= at < len(query.BUCKETS) - 1 else ""
     ways = [f"view={coarser}"] if coarser else []
-    if periods and (before := _day_before(periods[0])):
-        ways.append(f"end={before}")
+    if periods:
+        before = _minute_before(periods[0]) if view in query.SUBDAY_VIEWS else _day_before(periods[0])
+        if before:
+            ways.append(f"end={before}")
     span = f", {periods[0]} to {periods[-1]}" if periods else ""
     rest = f" For it, call again with {' or with '.join(ways)}." if ways else ""
     return f"Only part of the data is shown: the latest {cap} {view} points per indicator{span}. Earlier data {_NOT_MISSING}.{rest}"
 
 
 def _raw_cut_note(rows: Sequence[Mapping[str, Any]], cap: int) -> str:
-    """The same for raw rows, cut at `cap` per indicator, newest first."""
+    """The same for raw rows, cut at `cap` per indicator, newest first.
+
+    `raw` is the third of `query.SUBDAY_VIEWS` and the schema's DEFAULT: a
+    day with ~1,400 per-minute heart-rate readings shows only the newest
+    `ROW_CAP` (50), and the day before the oldest one shown is still THAT
+    SAME DAY. `end` one minute before it, not the day before, is what
+    reaches the rest (#303); `view=day`/`view=stats` answer a different
+    question (a value per day, or a summary), not more individual readings."""
     cut = _cut_indicators(rows)
     times = sorted(str(r.get("time") or "") for r in rows if r.get("time") and str(r.get("indicator") or "") in cut)
     ways = ["view=day", "view=stats"]
-    if times and (before := _day_before(times[0])):
+    if times and (before := _minute_before(times[0][:16])):
         ways.append(f"end={before}")
     span = f", {times[0][:16]} to {times[-1][:16]}" if times else ""
     return (f"Only part of the data is shown: the latest {cap} readings per indicator{span}. "
@@ -606,6 +629,21 @@ def _day_before(stamp: str) -> str:
         return (date.fromisoformat(stamp[:10]) - timedelta(days=1)).isoformat()
     except ValueError:
         return ""
+
+
+def _minute_before(period: str) -> str:
+    """One minute before `period` ('YYYY-MM-DD HH:MM': a bucket's own, or a
+    raw reading's local time truncated to the minute), as a local date-time
+    `end` (`query.SUBDAY_VIEWS` accept `YYYY-MM-DDTHH:MM`), or "" for none.
+    Always one MINUTE back, not one bucket: an hour bucket's period is its
+    own top of hour ('14:00'), and one minute before that ('13:59') is the
+    last minute of the PRECEDING hour, exactly where that hour ends. One
+    bucket back ('13:00') would itself be a whole hour short of it."""
+    try:
+        when = datetime.strptime(period, "%Y-%m-%d %H:%M") - timedelta(minutes=1)
+    except ValueError:
+        return ""
+    return when.strftime("%Y-%m-%dT%H:%M")
 
 
 def _cut_indicators(rows: Sequence[Mapping[str, Any]]) -> set[str]:
