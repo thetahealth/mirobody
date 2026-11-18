@@ -545,6 +545,13 @@ CASES: list[tuple[str, str, str]] = [
     ("HDL KOLESTEROL",              r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
     ("TRİGLİSERİT",                 r"triglyceride",                 r""),
     ("GLUKOZ (AÇLIK)",              r"fasting glucose",              r"tolerance|urine|post"),
+    # `ürik asit`/`açlık kan şekeri` were missing their own row (Discussion
+    # #137); capitalised, they reach it the same way `GLUKOZ (AÇLIK)` does.
+    ("ürik asit",                   r"urate|uric acid",              r""),
+    ("ÜRİK ASİT",                   r"urate|uric acid",              r""),
+    ("Ürik asit",                   r"urate|uric acid",              r""),
+    ("açlık kan şekeri",            r"fasting glucose",              r"tolerance|urine|post"),
+    ("AÇLIK KAN ŞEKERİ",            r"fasting glucose",              r"tolerance|urine|post"),
     # Estonian (Synlab Eesti): the three vitamin spellings a real report
     # prints that the release variants miss.
     ("Vitamiin D (25-OH)",         r"25.hydroxyvitamin",            r""),
@@ -827,6 +834,12 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # settles a bracketed stem/label disagreement.
     ("PCT",              "0.25", "%",      "51637-7", "plateletcrit, a volume fraction"),
     ("PCT",              "0.15", "ng/mL",  "33959-8", "procalcitonin, a mass concentration"),
+    # Turkish, through the write path (Discussion #137): capitalised and
+    # lowercase both reach the new `ürik asit`/`açlık kan şekeri` rows.
+    ("ÜRİK ASİT",        "6.5", "mg/dL",  "3084-1",  "urate, all-caps Turkish"),
+    ("ürik asit",        "6.5", "mg/dL",  "3084-1",  "urate, lowercase Turkish"),
+    ("AÇLIK KAN ŞEKERİ", "95",  "mg/dL",  "1558-6",  "fasting glucose, all-caps Turkish"),
+    ("açlık kan şekeri", "95",  "mg/dL",  "1558-6",  "fasting glucose, lowercase Turkish"),
 ]
 
 

@@ -421,12 +421,17 @@ REM睡眠	REM sleep duration
 # as answering it with one of these two.
 
 # ══ Türkçe ═══════════════════════════════════════════════════════════
-# Spellings as printed on Turkish lab reports. All-caps İ, and I for ı, are not covered: casefold
-# gives "i" plus a combining dot and "i", never "ı" (GLUKOZ (AÇLIK) lands on plain glucose).
+# Spellings as printed on Turkish lab reports. All-caps İ and I-for-ı are
+# handled at lookup time (`lexical.turkish_i_variants`, tried as a surface
+# variant), not here: these rows are written in the natural lowercase
+# Turkish spelling, and `ÜRİK ASİT`/`AÇLIK KAN ŞEKERİ` reach them the same
+# way `GLUKOZ (AÇLIK)` already did (Discussion #137).
 Total Kolesterol	Cholesterol
 HDL Kolesterol	HDL-C
 Trigliserit	Triglyceride
 Glukoz (açlık)	Fasting glucose [Mass/volume] in Serum or Plasma
+ürik asit	Urate
+açlık kan şekeri	Fasting glucose [Mass/volume] in Serum or Plasma
 
 # ══ Deliberate non-answers ════════════════════════════════════════════════
 # Target `!unresolved` means: never answer this term. These name a category

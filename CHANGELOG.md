@@ -141,6 +141,16 @@
   resolve "LDL-コレステロール"` now names 13457-7, the same code as the
   fused spelling.
 
+- **Turkish names with the all-caps İ/I lab reports print now have their
+  own vocabulary row** (Discussion #137). `ürik asit` and `açlık kan şekeri`
+  had no row at all, in any case; the all-caps forms additionally hit the
+  casefold trap `lexical.turkish_i_variants` already works around for
+  `GLUKOZ (AÇLIK)` (İ casefolds to `i` plus a combining dot, `I` to `i`
+  where Turkish reads `ı`), so once the two rows exist, `ÜRİK ASİT` and
+  `AÇLIK KAN ŞEKERİ` reach them the same way `GLUKOZ (AÇLIK)` already
+  reaches its own row. How to tell: `mirobody resolve "ÜRİK ASİT"` names
+  3084-1 Urate.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading
