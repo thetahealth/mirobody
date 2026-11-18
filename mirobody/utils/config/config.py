@@ -497,10 +497,19 @@ class Config:
     #-----------------------------------------------------
 
     def get_api_keys(self) -> dict[str, str]:
+        """Every `*_API_KEY` in effect, with the value `get_str()` returns.
+
+        Iterating `self._raw` alone reported the YAML's value for a key `.env`
+        overrides, and left out a key set only in `.env`, so the startup
+        banner named keys the server was not using (the disagreement #299
+        found in `placeholder_keys()`). `setdefault` still exports a YAML-only
+        key for SDKs that read the environment, and never overwrites one."""
         results = {}
 
-        for key, value in self._raw.items():
-            if key.endswith("_API_KEY") and value and isinstance(value, str):
+        names = {k for k in self._raw if k.endswith("_API_KEY")} | {k for k in os.environ if k.endswith("_API_KEY")}
+        for key in sorted(names):
+            value = self.get_str(key)
+            if value:
                 results[key] = value
                 os.environ.setdefault(key, value)
 

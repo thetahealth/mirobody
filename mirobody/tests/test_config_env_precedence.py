@@ -80,3 +80,16 @@ def test_get_still_checks_the_key_as_given_before_its_upper_case(monkeypatch):
     config = _config("MIXED_CASE_KEY: " + PLACEHOLDER_SENTINEL + "\n", monkeypatch)
 
     assert config.get_str("Mixed_Case_Key") == "exact-case-value"
+
+
+def test_api_keys_report_the_value_get_str_returns(monkeypatch):
+    """`api_keys` (the startup banner's list) must agree with `get_str()`: the
+    environment's value when it has one, and a key set only there included."""
+    monkeypatch.setenv("SYNTH_A_API_KEY", "from-env")
+    monkeypatch.setenv("SYNTH_B_API_KEY", "env-only")
+    cfg = _config("SYNTH_A_API_KEY: from-yaml\nSYNTH_C_API_KEY: yaml-only\n", monkeypatch)
+    monkeypatch.delenv("SYNTH_C_API_KEY", raising=False)  # exported by setdefault; keep the process clean
+    for key in ("SYNTH_A_API_KEY", "SYNTH_B_API_KEY", "SYNTH_C_API_KEY"):
+        assert cfg.api_keys.get(key) == cfg.get_str(key), key
+    assert cfg.api_keys["SYNTH_A_API_KEY"] == "from-env"
+
