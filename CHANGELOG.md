@@ -51,6 +51,38 @@
 
 ### Fixed
 
+- **A reading's high/low flag is a comparison again, not an extraction
+  model's opinion.** A report's printed flag (an arrow, a letter, a copied
+  flag column) was stored and read back unchanged, but once any reference
+  range was present at all the write side also kept whatever the
+  extraction wrote in `status` — its own judgement, not something the
+  report printed. Asked which of a check-up's values were out of range, a
+  small local model answered with every printed arrow plus an in-range
+  glucose its own `status` had called `high`; separately, an OCR run that
+  lost a printed arrow left a genuinely out-of-range triglyceride with no
+  flag at all, although its value and range both stored cleanly.
+  `collect/query.py::_flag_of` now computes `high`/`low` at read time, from
+  the stored value against the stored range (the same two columns next to
+  it), for the chat tool, the records table, the CSV/JSON export and every
+  citation; `flag_text` is read back only where no number can be compared
+  (a qualitative result, a finding, an unparseable range), and a printed
+  flag the row's own numbers contradict is no longer kept. The write side
+  (`indicator_store.value_and_flag`) stops storing `status` for a quantity
+  whose range parses to numbers, since the read side now judges it. The
+  records export (CSV and JSON) gains a `flag` column it never had. A
+  series whose readings carry more than one distinct printed range (a
+  different hospital's cutoff) is also now said explicitly: `stats` and
+  `trend` carry a `ranges_differ` marker, since an average or a trend's
+  elected days can combine readings judged by different reference ranges
+  with no range shown at all before this. How to tell: a report with a
+  value inside its own printed range, and an extraction that (wrongly)
+  marked it `high`, is not flagged in the readings list, the latest value,
+  the chat answer or the export; a value whose printed arrow is missing but
+  whose value and range both stored is still flagged from the numbers; and
+  two readings of one analyte with different printed ranges, the same
+  value flagged at one and not the other, show `ranges_differ=true` on a
+  `view=stats` or `view=trend` call for that indicator.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading
