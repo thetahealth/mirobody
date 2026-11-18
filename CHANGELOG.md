@@ -51,6 +51,22 @@
 
 ### Fixed
 
+- **Device sleep reaches the model in hours and minutes, not milliseconds.**
+  Every device decoder stores sleep durations in `ms`, and the read side
+  answered a series in the unit its rows carry, so a night's sleep reached
+  the model as `24533700 ms`; the default local 2B model read that as 24.5
+  hours (#296). A series whose rows were all written by a device in a storage
+  unit (`ms`, `s`, `J`) now answers in its LOINC code's own unit when that code
+  declares one of the same dimension: 93832-4 sleep duration and 103213-5 time
+  in bed in `h`, the sleep stages, latency and wake after onset in `min`,
+  energy in `kcal`. Every view, the web chart and the export follow it; the
+  device's value and unit stay in `printed`. A unit a report printed is left
+  as printed (an ECG's QT in `ms` stays `ms`), and so is a code that declares
+  the storage unit itself (HRV SDNN in `ms`, aPTT in `s`). Series with no
+  confident LOINC code still answer in `ms` until #297's reading units land:
+  Apple's total time asleep, its core sleep and time awake among them. To tell: import a Garmin or Oura sleep
+  export and ask `stats` for sleep duration; the row says `unit=h`.
+
 - **A body-composition device's own words (脂肪, 肌肉, 血氧…) no longer code
   to a lab specimen or an antibody test** (#301, cause 1). A smart scale's
   bare `脂肪`/`Fat` reading in kg coded to 16853-4 `Fat [Mass] in Stool` —
