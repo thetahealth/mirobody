@@ -13,6 +13,14 @@ start on every such stack.
 """
 import io
 
+import pytest
+
+# The config module needs the app's dependencies, which CI's minimal install
+# (`.[test]` only) does not have; every case here builds a real `Config`.
+pytest.importorskip("dotenv")
+pytest.importorskip("ruamel.yaml")
+pytest.importorskip("cryptography")
+
 import mirobody.utils.config.config as cfg_mod
 from mirobody.utils.config.config import PLACEHOLDER_SENTINEL, Config
 
