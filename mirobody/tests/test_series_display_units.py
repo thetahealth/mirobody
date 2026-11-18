@@ -675,12 +675,24 @@ def test_like_preserves_lab_precision_without_padding_millisecond_zeros():
     assert _like(4.90 * 38.66976, "4.90") == "189"
     assert _like(80 * 0.011312, "80") == "0.905"
     assert _like(200 / 38.66976, "<200") == "5.17"
-    assert _like(7.0, "25200000") == "7.00"
-    assert _like(7.0, "25200000.0") == "7.00"
-    assert _like(10.0, "36000000") == "10.0"
-    assert _like(90.0, "5400000") == "90.0"
-    assert _like(120.0, "7200000") == "120"
-    assert _like(24_533_700 / 3_600_000, "24533700") == "6.81492"
+    assert _like(7.0, "25200000", stored=True) == "7.00"
+    assert _like(7.0, "25200000.0", stored=True) == "7.00"
+    assert _like(10.0, "36000000", stored=True) == "10.0"
+    assert _like(90.0, "5400000", stored=True) == "90.0"
+    assert _like(120.0, "7200000", stored=True) == "120"
+    assert _like(24_533_700 / 3_600_000, "24533700", stored=True) == "6.81492"
+
+
+def test_like_keeps_a_printed_trailing_zero_outside_device_storage():
+    """A printed ".0" is precision unless a decoder wrote it: a range printed
+    "70.0-100.0 mg/dL", a weight "100.0 kg", or "1500.0" keep every digit when
+    converted, as on main. Stripping it for every conversion was a regression
+    the review of #298 measured: "100.0" became "100"."""
+    assert _like(100.0, "100.0") == "100.0"
+    assert _like(1.5, "1500.0") == "1.5000"
+    assert _like(3.456, "100.0") == "3.456"
+    assert _like(70.0 / 18.0, "70.0") == "3.89"
+    assert _like(1.2, "1200") == "1.200"
 
 
 def test_tool_schema_no_longer_tells_models_sleep_durations_are_in_ms():

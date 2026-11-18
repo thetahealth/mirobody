@@ -1074,7 +1074,7 @@ def _end(r: dict, end: str, su: SeriesUnit | None) -> str:
     text, std, ucum = r.get(end), _number(r.get(f"{end}_std")), r.get(f"{end}_ucum") or ""
     if su is None or std is None or not ucum or ucum == su.ucum:
         return _shown(text, su.label if su else r.get("unit"))
-    return _like(std, _text(text))
+    return _like(std, _text(text), stored=bool(su.from_storage) and ucum == su.from_storage)
 
 
 def _stats_row(r: dict, su: SeriesUnit | None = None) -> dict:
@@ -1166,7 +1166,12 @@ class SeriesUnit(NamedTuple):
     in that unit. A value in mmol/L is a [Moles/volume] measurement: a
     converted reading, and a statistic over the series, is named by it, not by
     the [Mass/volume] code its report was coded with, the mismatch that once
-    had a model give 1558-6 beside 5.4 mmol/L (`agent/tools/_render.py`)."""
+    had a model give 1558-6 beside 5.4 mmol/L (`agent/tools/_render.py`).
+
+    `from_storage` is the device storage unit (`ms`, `s`, `J`) the series was
+    read OUT of, when `_series_unit` swapped it for its code's unit; empty
+    otherwise. Only a reading in that unit was written by a decoder, whose
+    value carries no printed precision (`_like`'s `stored`)."""
 
     ucum: str
     label: str
@@ -1175,6 +1180,7 @@ class SeriesUnit(NamedTuple):
     code_system: str = ""
     code: str = ""
     display: str = ""
+    from_storage: str = ""
 
 
 #: Units a device decoder writes as a storage convenience rather than the unit
@@ -1197,6 +1203,7 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     base = chosen.get("base") or ""
     label = chosen.get("label") or ucum
     loinc = chosen.get("loinc") or next((g["loinc"] for g in groups if g.get("loinc")), "") or ""
+    stored_as = ""
     if ucum in _STORAGE_UNITS and chosen.get("device_only") and base and loinc:
         declared = standardize.loinc_units(loinc)
         if ucum not in declared:
@@ -1204,6 +1211,7 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
                 cand = units.canonicalize(1.0, target, loinc_code=loinc)
                 if cand.unit == base and cand.value:
                     existing = next((g for g in groups if g["unit_ucum"] == target), None)
+                    stored_as = ucum
                     ucum = target
                     if existing is not None:
                         chosen = existing
@@ -1216,7 +1224,8 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     folded = units.canonicalize(1.0, ucum, loinc_code=coded.get("loinc") or loinc)
     factor = folded.value if base and folded.unit == base and folded.value else None
     return SeriesUnit(ucum, label, base, factor,
-                      coded.get("code_system") or "", coded.get("code") or "", coded.get("display") or "")
+                      coded.get("code_system") or "", coded.get("code") or "", coded.get("display") or "",
+                      stored_as)
 
 
 def _as_series(r: dict, su: SeriesUnit | None) -> dict:
@@ -1256,8 +1265,9 @@ def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
     if ratio is None or value is None:
         return {"value": printed["value"], "unit": printed["unit"], "ref": printed["ref"], "printed": printed,
                 "unit_differs": True}
-    return {"value": _text(r.get("comparator")) + _like(value * ratio, printed["value"]), "unit": su.label,
-            "ref": _range_in(r, ratio), "printed": printed, "converted": True}
+    stored = bool(su.from_storage) and ucum == su.from_storage
+    return {"value": _text(r.get("comparator")) + _like(value * ratio, printed["value"], stored=stored),
+            "unit": su.label, "ref": _range_in(r, ratio), "printed": printed, "converted": True}
 
 
 def _ratio(r: dict, ucum: str, su: SeriesUnit) -> float | None:
@@ -1290,17 +1300,26 @@ def _range_in(r: dict, ratio: float) -> str:
 _FIRST_NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
 
-def _like(value: float, printed: str) -> str:
+def _like(value: float, printed: str, *, stored: bool = False) -> str:
     """`value` written with as many significant figures as the first number in
-    `printed`, between three and `query.SHOWN_DIGITS`, and never fewer whole
-    digits than it has: 212 mg/dL is 5.48 mmol/L, 4.90 mmol/L is 189 mg/dL, and
-    25200000 ms is 7.00 h rather than 7.0000000 h."""
+    `printed`, three at least, and never fewer whole digits than it has:
+    212 mg/dL is 5.48 mmol/L, 4.90 mmol/L is 189 mg/dL, and a printed
+    "100.0" keeps its decimal.
+
+    `stored`: `printed` is a device's storage number, not a person's print,
+    so its zeros are scale, not precision: 25200000 ms (or "25200000.0", a
+    float written out) is 7.00 h, not 7.0000000 h, and no value shows more
+    than `query.SHOWN_DIGITS`. Applying that to every conversion dropped a
+    real digit from a range printed "70.0-100.0" (review of #298)."""
     found = _FIRST_NUMBER.search(printed or "")
     raw = found.group() if found else ""
-    if raw.endswith(".0"):
-        raw = raw[:-2]
-    sig = raw.replace(".", "").lstrip("0") if "." in raw else raw.strip("0")
-    digits = min(query.SHOWN_DIGITS, max(3, len(sig)))
+    if stored:
+        if raw.endswith(".0"):
+            raw = raw[:-2]
+        sig = raw.replace(".", "").lstrip("0") if "." in raw else raw.strip("0")
+        digits = min(query.SHOWN_DIGITS, max(3, len(sig)))
+    else:
+        digits = max(3, len(raw.replace(".", "").lstrip("0")))
     if value == 0 or not math.isfinite(value):
         return f"{value:g}"
     decimals = max(0, digits - 1 - math.floor(math.log10(abs(value))))
