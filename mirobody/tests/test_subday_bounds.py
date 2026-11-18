@@ -21,8 +21,20 @@ from datetime import UTC, datetime
 
 import pytest
 
-from mirobody.agent.tools.health_indicators_service import _cut_note, _minute_before
 from mirobody.kernel import meds, query
+
+# The cut note lives in the agent's tool layer, which reads the config and so
+# needs python-dotenv: absent from CI's minimal install (`.[test]` only), where
+# the schema and window tests above it must still run.
+_service = None
+
+
+def _agent_helpers():
+    global _service
+    if _service is None:
+        pytest.importorskip("dotenv")
+        from mirobody.agent.tools import health_indicators_service as _service
+    return _service
 
 _PATTERN = re.compile(query.TOOL_SCHEMA["properties"]["start"]["pattern"])
 
@@ -124,7 +136,7 @@ def test_the_cut_note_for_minute_points_at_one_minute_before_the_first_point_sho
     # The issue's own repro: 92 of ~1,400 minute points, the newest 22:00-23:31.
     periods = [f"{hh:02d}:{mm:02d}" for hh in (22, 23) for mm in range(60)][:92]
     rows = _minute_rows("hr", "2026-03-10", periods, total=1400)
-    note = _cut_note("minute", rows, 92)
+    note = _agent_helpers()._cut_note("minute", rows, 92)
     assert "end=2026-03-10T21:59" in note
     assert "end=2026-03-09" not in note
     assert "view=hour" in note
@@ -135,7 +147,7 @@ def test_the_cut_note_for_hour_points_at_the_last_minute_of_the_preceding_hour()
     # be a whole hour short of the true edge (see `_minute_before`).
     periods = [f"{hh:02d}:00" for hh in range(10, 20)]
     rows = _minute_rows("hr", "2026-03-10", periods, total=40)
-    note = _cut_note("hour", rows, 40)
+    note = _agent_helpers()._cut_note("hour", rows, 40)
     assert "end=2026-03-10T09:59" in note
     assert "end=2026-03-09" not in note
     assert "view=day" in note
@@ -143,7 +155,7 @@ def test_the_cut_note_for_hour_points_at_the_last_minute_of_the_preceding_hour()
 
 def test_the_cut_note_for_day_still_points_at_the_day_before():
     rows = [{"indicator": "steps", "period": f"2026-06-{d:02d}", "total": 120} for d in range(1, 10)]
-    note = _cut_note("day", rows, 92)
+    note = _agent_helpers()._cut_note("day", rows, 92)
     assert "end=2026-05-31" in note
     assert "T" not in note.split("end=")[-1][:10]
 
@@ -153,8 +165,8 @@ def test_the_cut_note_for_day_still_points_at_the_day_before():
     ("2026-01-01 00:00", "2025-12-31T23:59"),
 ])
 def test_minute_before_crosses_hour_and_day_boundaries(period, expected):
-    assert _minute_before(period) == expected
+    assert _agent_helpers()._minute_before(period) == expected
 
 
 def test_minute_before_is_empty_for_an_unparseable_period():
-    assert _minute_before("not-a-period") == ""
+    assert _agent_helpers()._minute_before("not-a-period") == ""
