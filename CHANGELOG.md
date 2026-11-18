@@ -51,6 +51,16 @@
 
 ### Fixed
 
+- **A time or frequency word in front of a complaint no longer blocks its
+  code.** `standardize_complaint("最近老是头疼")` answered needs-input, and a
+  tester reported having to split a journal-style sentence into its bare
+  symptom word by hand before the tool would code it. The enumerated
+  qualifiers that only say WHEN or HOW OFTEN, never WHETHER (最近, 老是,
+  经常, 总是, 一直, 有点, 有些; recently, always, often, "a bit"), are now
+  stripped before coding and recorded as evidence on the decision; a
+  negation (不头疼, 没有发烧) is never one of them and still abstains exactly
+  as before.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading
