@@ -526,7 +526,12 @@ class PostgresHealthQuery:
     ) -> list[dict]:
         """Individual readings, newest first, capped per series. `total` per
         series comes from the same statement. `file_key` is the handle back
-        to the ORIGINAL report."""
+        to the ORIGINAL report.
+
+        `raw` is one of `query.SUBDAY_VIEWS`, so `window` may carry a local
+        date-time bound: `_subday_window_clause` keeps `_window_clause`'s
+        day filter for every bound and narrows further, by each row's own
+        local wall clock, only when one does (#303)."""
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
@@ -534,7 +539,7 @@ class PostgresHealthQuery:
             "uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
             "reported": REPORTED_KINDS,
         }
-        where = _window_clause(params, window)
+        where = _subday_window_clause(params, window)
         rows = await execute_query(
             f"""
             SELECT * FROM (
@@ -808,11 +813,11 @@ class PostgresHealthQuery:
     ) -> list[dict]:
         params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
                                   **_unit_params(unit_of)}
-        # Minute and hour are the only views a bound finer than a day can
-        # reach at all (`query.SUBDAY_VIEWS`): `_window_clause`'s day-level
-        # filter would hand back the WHOLE day regardless of the hour asked
-        # for, so a caller narrowing `end` within a day got no fewer rows
-        # (#303).
+        # Minute and hour (with `raw`, all of `query.SUBDAY_VIEWS`) are the
+        # only views a bound finer than a day can reach at all:
+        # `_window_clause`'s day-level filter would hand back the WHOLE day
+        # regardless of the hour asked for, so a caller narrowing `end`
+        # within a day got no fewer rows (#303).
         where = _subday_window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
         # `min_at`/`max_at`: the clock time a question like "when was it
@@ -947,9 +952,11 @@ def _subday_window_clause(params: dict[str, Any], window: query.Window | None) -
     """`_window_clause`'s day filter, for every bound including a date-only
     one - unchanged, so the day boundary reads EXACTLY what every other view
     reads, each row by its own stored `local_date`. A bound that also
-    carries a time of day (`query.SUBDAY_VIEWS`) narrows further with a
-    SECOND filter on the row's own local wall clock, `_LOCAL_TS`: the same
-    expression a bucket's `period` is labelled from.
+    carries a time of day (`query.SUBDAY_VIEWS`: `raw`, `minute`, `hour`)
+    narrows further with a SECOND filter on the row's own local wall clock,
+    `_LOCAL_TS`: the same expression a bucket's `period` and a raw row's
+    `local_time` are both labelled from. Shared by `readings()` (`raw`) and
+    `PostgresHealthQuery._subday_buckets` (`minute`/`hour`).
 
     That second filter is built from the bound's TEXT (`window.start`/
     `window.end`, naive local values), never from `start_ms`/`end_ms`: those
@@ -958,9 +965,8 @@ def _subday_window_clause(params: dict[str, Any], window: query.Window | None) -
     differ - after travel, or an Apple export imported with the default
     `--tz UTC` for a person whose profile reads Asia/Shanghai - and
     `_LOCAL_TS` already reads each row in ITS OWN zone. Comparing an
-    absolute instant instead made `view=minute`/`view=hour` disagree with
-    `view=day` about which calendar day a row was even on (review of #303,
-    commit 1)."""
+    absolute instant instead made these views disagree with `view=day`
+    about which calendar day a row was even on (review of #303, commit 1)."""
     clause = _window_clause(params, window)
     if window is None:
         return clause

@@ -1,17 +1,18 @@
 """`query_health_indicators`'s `start`/`end` can reach into a single day.
 
 `view="minute"` keeps the newest `query.BUCKET_CAP` (92) points per
-indicator, and a wearable sampling about once a minute has ~1,400 points a
-day, so the early hours of a busy day were unreachable: `start`/`end` only
-ever took a whole calendar date, and the cut notice's own advice,
-`end=<the day before>`, skipped the rest of the SAME day rather than
-reaching it (#303).
+indicator, `view="raw"` the newest `query.ROW_CAP` (50): a wearable sampling
+about once a minute has ~1,400 points a day, so the early hours of a busy
+day were unreachable either way. `start`/`end` only ever took a whole
+calendar date, and the cut notice's own advice, `end=<the day before>`,
+skipped the rest of the SAME day rather than reaching it (#303).
 
 `start`/`end` now also accept a local date-time (`YYYY-MM-DDTHH:MM`) when
-`view` is `minute` or `hour` (`query.SUBDAY_VIEWS`); every other view keeps
-dates only, because day and coarser already answer from the elected DAY
-authority regardless of the time of day named, so a time there would parse
-but narrow nothing while looking like it did.
+`view` is `raw` (the schema's own default), `minute` or `hour`
+(`query.SUBDAY_VIEWS`); every other view keeps dates only, because day and
+coarser, `stats` and `trend` already answer from the elected DAY authority
+or the whole window, so a time there would parse but narrow nothing while
+looking like it did.
 """
 
 from __future__ import annotations
@@ -67,10 +68,12 @@ def test_a_minute_precision_datetime_is_refused_outside_a_subday_view(view):
     assert "YYYY-MM-DD" in problems[0].reason
 
 
-def test_a_minute_precision_datetime_is_refused_with_no_view_named():
-    # `view` defaults to "raw", which is not in `SUBDAY_VIEWS`.
-    problems = query.validate_request({"end": "2026-03-10T21:59"})
-    assert problems and problems[0].parameter == "end"
+def test_a_minute_precision_datetime_is_accepted_with_no_view_named_since_raw_is_the_default():
+    # `view` defaults to "raw" (`TOOL_SCHEMA`), itself one of `SUBDAY_VIEWS`:
+    # a model that relies on the default rather than writing `view="raw"`
+    # must not lose the date-time option because of it (`default_view`).
+    assert query.validate_request({"end": "2026-03-10T21:59"}) == ()
+    assert query.parse_request({"end": "2026-03-10T21:59"}).view == "raw"
 
 
 @pytest.mark.parametrize("bad", ["2026-02-30T06:00", "2026-03-10T24:00", "2026-03-10T06:60"])
@@ -158,6 +161,29 @@ def test_the_cut_note_for_day_still_points_at_the_day_before():
     note = _agent_helpers()._cut_note("day", rows, 92)
     assert "end=2026-05-31" in note
     assert "T" not in note.split("end=")[-1][:10]
+
+
+def _raw_rows(indicator: str, times: list[str], total: int) -> list[dict]:
+    return [{"indicator": indicator, "time": t, "total": total} for t in times]
+
+
+def test_the_raw_cut_note_points_at_one_minute_before_the_oldest_reading_shown():
+    # A day with far more than ROW_CAP (50) readings: the newest 50 are
+    # shown, the oldest of them at 23:01:30 - its own MINUTE, not the day
+    # before, is what the next call must exclude to keep walking backward.
+    times = [f"2026-03-10 23:{mm:02d}:30.000000" for mm in range(1, 51)]
+    rows = _raw_rows("hr", times, total=1400)
+    note = _agent_helpers()._raw_cut_note(rows, 50)
+    assert "end=2026-03-10T23:00" in note
+    assert "end=2026-03-09" not in note
+    assert "view=day" in note and "view=stats" in note
+
+
+def test_the_raw_cut_note_crosses_into_the_previous_day_at_midnight():
+    times = [f"2026-03-10 00:{mm:02d}:00" for mm in range(50)]
+    rows = _raw_rows("hr", times, total=1400)
+    note = _agent_helpers()._raw_cut_note(rows, 50)
+    assert "end=2026-03-09T23:59" in note
 
 
 @pytest.mark.parametrize(("period", "expected"), [

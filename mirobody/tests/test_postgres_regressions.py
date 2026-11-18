@@ -917,6 +917,47 @@ async def test_a_subday_bucket_keeps_each_rows_own_local_day_not_the_accounts_cu
             f"periods {[r['period'] for r in rows]}")
 
 
+async def test_raw_readings_reach_the_whole_day_by_following_the_cut_notes_own_end(database):
+    """`view=raw`, the schema's DEFAULT, keeps the newest `ROW_CAP` (50)
+    readings per indicator; the day before the oldest of them is still the
+    SAME day. Following the cut note's own `end=` suggestion, call after
+    call, must reach every reading of the day with none repeated and none
+    skipped, oldest reading last (#303 follow-up, PR #309)."""
+    from datetime import timedelta
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+
+    drafts = [observations.Draft(name_text="Synthetic dense readings", value_text=str(i), unit_text="count",
+                                 observed_start=datetime(2026, 3, 10, tzinfo=UTC) + timedelta(minutes=12 * i))
+              for i in range(120)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-dense",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+
+    seen: list[str] = []
+    end = ""
+    for _ in range(4):  # 50 + 50 + 20 converges well inside 4 calls
+        kwargs = {"indicators": ["Synthetic dense readings"], "view": "raw", "start": "2026-03-10"}
+        if end:
+            kwargs["end"] = end
+        envelope = await service.envelope({"user_id": "1"}, **kwargs)
+        times = [r["time"] for r in envelope.data]
+        assert times == sorted(times, reverse=True)  # raw is always newest first
+        seen.extend(times)
+        if not envelope.meta.truncated:
+            break
+        assert "end=2026-03-09" not in envelope.meta.cut  # the bug: skipping to the day before
+        match = re.search(r"end=(\S+)", envelope.meta.cut)
+        assert match, envelope.meta.cut
+        end = match.group(1).rstrip(".")
+    else:
+        pytest.fail("did not converge to the whole day in 4 calls")
+
+    assert len(seen) == len(set(seen)) == 120  # every reading, none repeated, none skipped
+    assert seen[-1].startswith("2026-03-10 00:00")  # the day's first reading, reached last
+
+
 async def test_hour_buckets_say_when_the_minimum_and_maximum_happened_ties_earliest(database):
     """"What was my lowest heart rate between 2 and 5am, and when" needs a
     clock time an hour bucket's `min`/`max` alone cannot give. `min_at`/

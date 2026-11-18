@@ -63,19 +63,27 @@
 
 - **`query_health_indicators` can read the early hours of a busy day.**
   `start`/`end` took only a whole calendar date, and `view=minute` keeps
-  just the newest 92 points per indicator (`BUCKET_CAP`): a wearable
-  recording about once a minute has roughly 1,400 points a day, so
-  00:00–21:59 of such a day was unreachable, and the cut notice's own
-  advice, `end=<the day before>`, skipped the rest of that day instead of
-  reaching it. `start`/`end` now also accept a local date-time
-  (`YYYY-MM-DDTHH:MM`, inclusive through that minute) when `view=minute` or
-  `view=hour`; every other view keeps dates only, since day and coarser
-  already answer by calendar day regardless of the time named. The cut
-  notice for `minute`/`hour` now points at one minute before the first
-  point shown instead of the day before (#303). How to tell: ask for
-  `view=minute` on a day with more than 92 points and follow the notice's
-  own `end=` suggestion — the next call reaches the hours before it instead
-  of jumping to the previous day.
+  just the newest 92 points per indicator (`BUCKET_CAP`), `view=raw` (the
+  DEFAULT) the newest 50 (`ROW_CAP`): a wearable recording about once a
+  minute has roughly 1,400 points a day, so most of such a day was
+  unreachable in either view, and the cut notice's own advice,
+  `end=<the day before>`, skipped the rest of that day instead of reaching
+  it. `start`/`end` now also accept a local date-time
+  (`YYYY-MM-DDTHH:MM`, inclusive through that minute) when `view` is `raw`,
+  `minute` or `hour`; every other view keeps dates only, since day and
+  coarser, `stats` and `trend` already answer by calendar day or over the
+  whole window regardless of the time named. The cut notice for
+  `raw`/`minute`/`hour` now points at one minute before the oldest/first
+  point shown instead of the day before (#303). A date-only window also
+  used to read a different set of rows than `view=day` for the same date
+  whenever a reading's own recorded time zone differed from the person's
+  current one (after travel, or an Apple import's default `--tz UTC`);
+  every sub-day view now filters by each row's own local day and wall
+  clock, the same way `view=day` already does. How to tell: ask for
+  `view=raw` (or `view=minute`) on a day with more points than its cap and
+  follow the notice's own `end=` suggestion, call after call — every point
+  of that day is reached, none repeated, none skipped, instead of jumping
+  to the previous day.
 
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as

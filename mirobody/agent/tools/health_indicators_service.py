@@ -483,11 +483,12 @@ def _cut_note(view: str, rows: Sequence[Mapping[str, Any]], cap: int) -> str:
     answered with October to December, months the record does not have
     (2026-09-30, docs/local-models-roadmap.md).
 
-    For `minute`/`hour` the day before the first point shown is still THAT
-    SAME DAY (`query.SUBDAY_VIEWS`): a wearable sampling about once a minute
-    has ~1,400 points a day, so `view="minute"` could only ever show the
-    newest `BUCKET_CAP`, and sending the model to the previous day skipped
-    the rest of the one it just asked about (#303). Those two name a local
+    For `minute`/`hour` (two of three `query.SUBDAY_VIEWS`; `raw` is the
+    third, `_raw_cut_note` below) the day before the first point shown is
+    still THAT SAME DAY: a wearable sampling about once a minute has ~1,400
+    points a day, so `view="minute"` could only ever show the newest
+    `BUCKET_CAP`, and sending the model to the previous day skipped the
+    rest of the one it just asked about (#303). Those two name a local
     date-time `end` one minute before it instead; day and coarser keep the
     day before, which already reaches everything the bucket could not show."""
     cut = _cut_indicators(rows)
@@ -505,11 +506,18 @@ def _cut_note(view: str, rows: Sequence[Mapping[str, Any]], cap: int) -> str:
 
 
 def _raw_cut_note(rows: Sequence[Mapping[str, Any]], cap: int) -> str:
-    """The same for raw rows, cut at `cap` per indicator, newest first."""
+    """The same for raw rows, cut at `cap` per indicator, newest first.
+
+    `raw` is the third of `query.SUBDAY_VIEWS` and the schema's DEFAULT: a
+    day with ~1,400 per-minute heart-rate readings shows only the newest
+    `ROW_CAP` (50), and the day before the oldest one shown is still THAT
+    SAME DAY. `end` one minute before it, not the day before, is what
+    reaches the rest (#303); `view=day`/`view=stats` answer a different
+    question (a value per day, or a summary), not more individual readings."""
     cut = _cut_indicators(rows)
     times = sorted(str(r.get("time") or "") for r in rows if r.get("time") and str(r.get("indicator") or "") in cut)
     ways = ["view=day", "view=stats"]
-    if times and (before := _day_before(times[0])):
+    if times and (before := _minute_before(times[0][:16])):
         ways.append(f"end={before}")
     span = f", {times[0][:16]} to {times[-1][:16]}" if times else ""
     return (f"Only part of the data is shown: the latest {cap} readings per indicator{span}. "
@@ -622,12 +630,13 @@ def _day_before(stamp: str) -> str:
 
 
 def _minute_before(period: str) -> str:
-    """One minute before a bucket `period` ('YYYY-MM-DD HH:MM'), as a local
-    date-time `end` (`query.SUBDAY_VIEWS` accept `YYYY-MM-DDTHH:MM`), or ""
-    for none. Always one MINUTE back, not one bucket: an hour bucket's period
-    is its own top of hour ('14:00'), and one minute before that ('13:59') is
-    the last minute of the PRECEDING hour, exactly where that hour ends.
-    One bucket back ('13:00') would itself be a whole hour short of it."""
+    """One minute before `period` ('YYYY-MM-DD HH:MM': a bucket's own, or a
+    raw reading's local time truncated to the minute), as a local date-time
+    `end` (`query.SUBDAY_VIEWS` accept `YYYY-MM-DDTHH:MM`), or "" for none.
+    Always one MINUTE back, not one bucket: an hour bucket's period is its
+    own top of hour ('14:00'), and one minute before that ('13:59') is the
+    last minute of the PRECEDING hour, exactly where that hour ends. One
+    bucket back ('13:00') would itself be a whole hour short of it."""
     try:
         when = datetime.strptime(period, "%Y-%m-%d %H:%M") - timedelta(minutes=1)
     except ValueError:
