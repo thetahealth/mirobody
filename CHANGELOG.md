@@ -2,6 +2,16 @@
 
 ### Added
 
+- **`view="hour"` says when its minimum and maximum happened.** An hour
+  bucket carried only the hour's min/max value, not the clock time, so
+  "what was my lowest heart rate between 2 and 5am, and when" had no answer
+  short of `view="minute"`, which `BUCKET_CAP` may already have cut. Hour
+  rows now carry `min_at`/`max_at`, the local `HH:MM` the minimum/maximum
+  occurred (ties go to the earliest); `minute`/`day`/`week`/`month` rows do
+  not, since a minute bucket already is the minute its one value fell in.
+  How to tell: `query_health_indicators(view="hour", ...)` rows show
+  `min_at`/`max_at` beside `min`/`max`; a `minute` call's rows do not.
+
 - **Still screenshots of the app, and an index of every picture in
   `docs/images`.** The directory held recordings and diagrams but no still
   picture of the Chinese interface, so anyone writing an article or a post had
@@ -50,6 +60,22 @@
   `img.shields.io/badge/dynamic`.
 
 ### Fixed
+
+- **`query_health_indicators` can read the early hours of a busy day.**
+  `start`/`end` took only a whole calendar date, and `view=minute` keeps
+  just the newest 92 points per indicator (`BUCKET_CAP`): a wearable
+  recording about once a minute has roughly 1,400 points a day, so
+  00:00–21:59 of such a day was unreachable, and the cut notice's own
+  advice, `end=<the day before>`, skipped the rest of that day instead of
+  reaching it. `start`/`end` now also accept a local date-time
+  (`YYYY-MM-DDTHH:MM`, inclusive through that minute) when `view=minute` or
+  `view=hour`; every other view keeps dates only, since day and coarser
+  already answer by calendar day regardless of the time named. The cut
+  notice for `minute`/`hour` now points at one minute before the first
+  point shown instead of the day before (#303). How to tell: ask for
+  `view=minute` on a day with more than 92 points and follow the notice's
+  own `end=` suggestion — the next call reaches the hours before it instead
+  of jumping to the previous day.
 
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as

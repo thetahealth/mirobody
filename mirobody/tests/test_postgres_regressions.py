@@ -838,6 +838,127 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert set(found) == series
 
 
+async def test_a_minute_bucket_window_reaches_an_exact_clock_time_within_a_day(database):
+    """`_window_clause`'s day-level filter cannot see an hour named in
+    `end`, so `view="minute"` always read the whole day regardless; a
+    narrower `end` within the same day must actually cut what SQL returns,
+    not just the cap on top of it (#303)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    drafts = [observations.Draft(name_text="Synthetic clock probe", value_text=str(60 + hour), unit_text="count",
+                                 observed_start=datetime(2026, 1, 1, hour, tzinfo=UTC)) for hour in range(24)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-clock",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic clock probe",))
+
+    whole_day = query.resolve_window("UTC", start="2026-01-01", end="2026-01-01", hours=24,
+                                     now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, whole_day, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(24)]
+
+    # A sub-day `end` must narrow the SQL filter itself: everything after
+    # 09:00 is gone, not merely ranked behind the cap.
+    narrowed_end = query.resolve_window("UTC", start="2026-01-01", end="2026-01-01T09:00", hours=24,
+                                        now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, narrowed_end, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(10)]
+
+    # And a sub-day `start` excludes everything before it the same way.
+    narrowed_start = query.resolve_window("UTC", start="2026-01-01T09:00", end="2026-01-01", hours=24,
+                                          now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, narrowed_start, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(9, 24)]
+
+
+async def test_a_subday_bucket_keeps_each_rows_own_local_day_not_the_accounts_current_one(database):
+    """A row's own recorded `tz` can differ from the account's CURRENT zone:
+    after travel, or an Apple export imported with the default `--tz UTC`
+    for a person whose profile reads Asia/Shanghai. `_window_clause`'s day
+    filter already reads every row by ITS OWN `local_date`, written at
+    ingestion from the row's own `tz` - so `view=minute`/`view=hour` must
+    agree with `view=day` about which calendar day a row is even on.
+    Comparing an absolute instant resolved in the ACCOUNT's zone instead
+    disagreed with that (review of #303, commit 1)."""
+    from datetime import timedelta
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    await database("UPDATE health_app_user SET tz = 'Asia/Shanghai' WHERE id = 1", log_sql=False)
+    # No `tz` of its own, so `_placed` falls back to `user_tz="UTC"` below -
+    # the row's OWN zone, independent of the account's current one. Spans
+    # UTC 2026-03-09 15:00 through 2026-03-10 17:00: part of UTC day 03-09,
+    # part of UTC day 03-10.
+    drafts = [observations.Draft(name_text="Synthetic travel probe", value_text=str(h), unit_text="count",
+                                 observed_start=datetime(2026, 3, 9, 15, tzinfo=UTC) + timedelta(hours=h))
+              for h in range(27)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-travel",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    stored_days = {r["local_date"].isoformat() for r in
+                   await database("SELECT local_date FROM v_observation", log_sql=False)}
+    assert stored_days == {"2026-03-09", "2026-03-10"}  # confirms the fixture, not yet the bug
+
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic travel probe",))
+    tz = await hq.tz("1")
+    assert tz == "Asia/Shanghai"  # the account's CURRENT zone, read by every view
+
+    window = query.resolve_window(tz, start="2026-03-10", end="2026-03-10", hours=24,
+                                  now=datetime(2026, 3, 12, tzinfo=UTC))
+    for resolution in ("minute", "hour"):
+        rows = await hq.buckets("1", selection, window, resolution=resolution, limit=92)
+        assert rows, f"{resolution}: expected the rows recorded on local_date 2026-03-10"
+        assert all(r["period"].startswith("2026-03-10") for r in rows), (
+            f"{resolution}: a date-only window must read the rows view=day does, by each "
+            f"row's own local_date, not an instant resolved in the account's zone; got "
+            f"periods {[r['period'] for r in rows]}")
+
+
+async def test_hour_buckets_say_when_the_minimum_and_maximum_happened_ties_earliest(database):
+    """"What was my lowest heart rate between 2 and 5am, and when" needs a
+    clock time an hour bucket's `min`/`max` alone cannot give. `min_at`/
+    `max_at` answer it without falling back to `view=minute`, which
+    `BUCKET_CAP` may already have cut (#303)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    # Within hour 10: two readings tie at the minimum (50) and two tie at the
+    # maximum (90); the earlier of each pair must win.
+    at = [(5, 70), (10, 50), (20, 90), (30, 50), (45, 90)]
+    drafts = [observations.Draft(name_text="Synthetic hourly extremes", value_text=str(value), unit_text="count",
+                                 observed_start=datetime(2026, 1, 1, 10, minute, tzinfo=UTC)) for minute, value in at]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-extremes",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic hourly extremes",))
+    window = query.Window(0, 0, "UTC")
+
+    [hour_row] = await hq.buckets("1", selection, window, resolution="hour", limit=10)
+    assert (hour_row["min"], hour_row["min_at"]) == (50, "10:10")
+    assert (hour_row["max"], hour_row["max_at"]) == (90, "10:20")
+
+    # `minute` buckets never carry them: a minute bucket already IS the
+    # minute its one value fell in.
+    minute_rows = await hq.buckets("1", selection, window, resolution="minute", limit=10)
+    assert all(r["min_at"] == "" and r["max_at"] == "" for r in minute_rows)
+
+    # The model-facing table shows the columns only where they carry a value.
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+
+    service = HealthIndicatorsService(hq, outside_note=False)
+    hour_text = render_compact(await service.envelope({"user_id": "1"}, indicators=["Synthetic hourly extremes"],
+                                                       view="hour"))
+    assert "min_at" in hour_text and "10:10" in hour_text and "10:20" in hour_text
+    minute_text = render_compact(await service.envelope({"user_id": "1"}, indicators=["Synthetic hourly extremes"],
+                                                         view="minute"))
+    assert "min_at" not in minute_text
+
+
 @pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
 async def test_every_view_names_a_series_as_the_catalogue_does(database, view):
     """A series' name is written out in each statement that reads one, and the
