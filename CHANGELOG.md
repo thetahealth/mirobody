@@ -88,6 +88,29 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+- **A frequency's count — per day, per week, or the length of a period — is
+  read correctly instead of falling back to "once"** (#302). `_PER_DAY`,
+  `_EVERY_N_DAYS_RE` and `_WEEKLY_RE` each spelled out a handful of literal
+  phrases, so a count that was not one of them fell through to the bare
+  每天/每日/每周 = once rule and was silently dropped: `每日2次` ("twice a
+  day") read as once daily, `每2日1次` ("every 2 days", 日 was not in the
+  `每\s*(\d+)\s*天`-only "every N days" pattern) and `每2周1次` ("every 2
+  weeks") matched nothing and returned `None`, `隔一日一次` ("every other
+  day" spelled out) read as once daily, and `一日3次，一次1片` dropped the
+  frequency while keeping the dose — a partial parse the function's own
+  docstring forbids. `parse_dose_instruction` now reads prefix (每/一/隔) + an
+  optional count + a period (天/日/周/星期, and the English day/week/wk/hour
+  spellings) + an optional trailing count + 次/times as one grammar instead
+  of a list of phrases, the same shape for days and weeks. `Schedule` has an
+  interval and named weekdays, but no "N times a week" field, so `每周2次`
+  and `twice weekly` now return `None` rather than read as once weekly, and
+  a count the grammar names but has no slot shape for (`每日10次`, `每2天3次`,
+  two different counts or periods in one sentence) still refuses rather than
+  guessing. How to tell: `meds.parse_dose_instruction("每日2次")[0].slots()`
+  is length 2, `meds.parse_dose_instruction("每2日1次")[0].period_days == 2`,
+  `meds.parse_dose_instruction("隔一日一次")[0].period_days == 2` (not 1),
+  and `meds.parse_dose_instruction("每周2次")` is `None`.
+
 - **A scanned lab page stamped with a printed header and footer now reaches
   OCR.** `extract._pdf_pages` decided a page from its text layer's character
   count alone (`MIN_PAGE_TEXT = 40`), so a checkup centre's header and
