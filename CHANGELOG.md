@@ -39,7 +39,29 @@
   with guidance to use synthetic demo files and remove personal data
   and secrets before filing.
 
+### Changed
+
+- **The READMEs no longer show Theta's user counts.** The English, Chinese
+  and Japanese READMEs ended "Numbers you can check" with two live badges
+  reading Theta's registered and daily-active users from Theta's public
+  stats. Both badges are removed in all three editions; the sentence naming
+  Theta as the consumer app this engine runs behind stays, now without
+  "with these users today". How to tell: no `README*.md` contains
+  `img.shields.io/badge/dynamic`.
+
 ### Fixed
+
+- **A reference range written with one tilde is no longer struck through.**
+  Chinese lab reports print ranges as `7~40`, and an answer quotes them as
+  printed. The web client's Markdown renderer kept GFM's default of reading
+  any pair of single tildes as strikethrough, so in
+  `谷丙转氨酶 11 U/L（7~40）、谷草转氨酶 16 U/L（13~35）` everything between
+  the two tildes was struck out and both tildes disappeared, leaving
+  `（740）` and `（1335）` on screen; a citation on such a range also landed on
+  its two ends as separate values. Only a double tilde (`~~text~~`) strikes
+  through now. `frontend/` is rebuilt from thetahealth/mirobody-web `71d5f4a`.
+  How to tell: ask about a report that prints two `a~b` ranges in one
+  sentence; both read as written, with no line through them.
 
 - **`demo/export.py` lists every seeded panel.** Mom's older panel, seeded
   since 1.6.1, was in her readings and not among the fixture's files, so three
@@ -75,6 +97,20 @@
   needing a rerun of `windows-benchmark`; on a Windows runner,
   `benchmarks/windows/test-native.ps1` run 40 times in a row under
   `powershell.exe` failed 3 times before this change and none after.
+
+- **The PostgreSQL regression gate no longer deadlocks in teardown.**
+  `test_a_cancel_that_lands_while_the_rows_go_in_removes_them` failed
+  intermittently in CI with `DeadlockDetected` on the fixture's `DROP SCHEMA
+  ... CASCADE`, and passed on a rerun. A file delete erases that file's
+  readings in a background task, and the test never awaited it. Teardown
+  dropped the schema while that task's transaction was still deleting from
+  `th_observation` and `th_extraction`. The fixture now awaits every
+  background task the test started, including any those tasks start, before
+  it drops the schema. How to tell: looped 200 times against PostgreSQL 17,
+  the test failed 65 times before the change; the server logged 103 deadlocks
+  and 137 statements against tables already dropped. After the change, 1,000
+  runs of the test and 20 runs of the whole file passed, and the server
+  logged no errors.
 
 ## 1.6.1
 
