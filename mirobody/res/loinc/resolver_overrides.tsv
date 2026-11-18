@@ -49,6 +49,47 @@ enzymes	!unresolved
 # `测定` is the assay word a report prints after a name (`尿酸(UA)测定`), never
 # a name: alone it answered 41960-6, the type of an HbA1c measurement device.
 测定	!unresolved
+#
+# A bracket after a name is read as an abbreviation of the SAME analyte
+# (`尿酸(UA)测定` -> urate, `UA` resolves to urate on its own too) in
+# `OfflineResolver._resolve_seam`'s decomposition (#305). `Rh`/`定量`/`定性`
+# do not abbreviate anything: each is a METHOD or quantitation flag that
+# changes what was ordered, and none has an alias, so the stem-alone
+# fallback silently answered through it on main:
+#   血型(Rh)测定 -- `Rh` has no alias, so the fallback gave `血型`'s own
+#     883-9 (forward ABO group), a typing answer for a reading that named
+#     the Rh factor instead.
+#   乙肝表面抗原(定量)测定 -- `定量` has no alias either, so the fallback gave
+#     the stem's 5196-1, a QUALITATIVE (Ord) code, for a report that said
+#     quantitative. `定性` is blocked alongside it for the mirror case: this
+#     bundle's HBsAg code happens to already be the qualitative one, so
+#     `乙肝表面抗原(定性)测定` was never wrong, but nothing ties that to the
+#     word -- some other analyte's default code being the quantitative one
+#     is the same bug the other way round.
+Rh	!unresolved
+定量	!unresolved
+定性	!unresolved
+#
+# `ABO`, `抗体`, `抗原` and `高危型` are NOT here: `血型(ABO)测定` already
+# refuses on its own ("two analytes in one name"), since `ABO` carries its
+# OWN analyte (1303-7, different from `血型`'s 883-9) rather than falling
+# through with no alias at all; blocking it would only cost bare `ABO`'s
+# own answer. `高危型` coincides with bare HPV's own code, and `抗体`/`抗原`
+# have no alias and no observed case where the fallback answered wrong.
+#
+# `C13`/`C14` are NOT here either, on purpose: unlike `Rh`, they are real
+# printed test names in their own right -- tetradecanoylcarnitine (`C14`,
+# 30565-6) and its C13 neighbour, both on an acylcarnitine or newborn-
+# screening panel, next to `C16`/`C18` in the same family. Blocking the bare
+# term would abstain those panels to guard one bracket shape. 幽门螺杆菌
+# (C14)测定 / 幽门螺杆菌(C13)测定 (a urea-breath-test isotope paired with
+# H. pylori) and 尿素呼气试验(C14) all still abstain without the block: `C14`
+# and `C13` resolve to the carnitine analyte, a different one than either
+# stem (17859-0 H. pylori IgG Ab, 29891-9 urea breath test), so
+# `OfflineResolver.resolve`'s own "two analytes in one name" check refuses
+# them -- the same path that already protects `血型(ABO)测定`, not a
+# `!unresolved` row. See `test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation`
+# for the pinned proof that this is the path, not an accident of ranking.
 # A checkup's physical-exam rows are named by body site or department, with
 # a finding for a value (`胸廓 对称`). Each answered an unrelated assay:
 # 胸廓 a breast aspirate's microscopy, 口腔 a 1-hour glucose challenge.
@@ -600,8 +641,13 @@ daily steps	Number of steps
 睡眠時間	sleep duration
 body fat percentage	Percentage of body fat Measured
 体脂率	Percentage of body fat Measured
-SpO2	oxygen saturation
-血氧	oxygen saturation
+# `oxygen saturation` itself posts 75 corpus rows (#301): the commonness
+# prior preferred 20564-1 `Oxygen saturation in Blood`, a venous/mixed-site
+# reading nothing here states, over 59408-5, the pulse-oximetry code the
+# device catalogue (`metrics.tsv`, `BLOOD_OXYGEN`) ships for both these
+# terms. SpO2 — the "p" is pulse oximetry — never meant the generic one.
+SpO2	Oxygen saturation in Arterial blood by Pulse oximetry
+血氧	Oxygen saturation in Arterial blood by Pulse oximetry
 # Bare column headers whose keys post only specialty rows. `Height` gave
 # 15286-8, left kidney height by ultrasound, so `Height 170 cm` was filed as
 # a kidney dimension; `Systolic` gave 24372-5, a peak pressure during a
@@ -618,6 +664,119 @@ FBG	Fasting glucose [Mass/volume] in Serum or Plasma
 FPG	Fasting glucose [Mass/volume] in Serum or Plasma
 glucose, fasting	Fasting glucose [Mass/volume] in Serum or Plasma
 血糖(空腹)	Fasting glucose [Mass/volume] in Serum or Plasma
+
+# ══ body-composition, fitness and chronic-condition devices (#301) ═════════
+#
+# A smart-scale screenshot's tab bar (体重 | 脂肪 | 肌肉) names a chart by the
+# ANALYTE alone, with no specimen and no "body" qualifier — the shape a lab
+# report never prints. The bare word then resolves against whatever LOINC
+# calls that word in its biggest specimen, not the body-composition panel
+# the device catalogue (`metrics.tsv`) already carries a code for:
+#   脂肪 / Fat  -> 16853-4 `Fat [Mass] in Stool` (component `fat`, and stool
+#                  is LOINC's only specimen for a bare fat mass)
+#   肌肉        -> refused; the name alone gives 51763-1, a MuSK antibody
+#                  titer (`muscle` matched a serology component)
+# Both now target the catalogue's own LCN (`bodyFatMass` 73708-0,
+# `bodyMuscleMass` 73964-9), which `_pick` resolves without ambiguity.
+#
+# Trade-off, accepted: a stool panel printing a bare `脂肪` result of
+# 阴性/阳性 (rare — panels print 脂肪球/脂肪滴, see below) would now be
+# refused rather than coded 2270-7 `Fat [Presence] in Stool`. A scale's kg
+# reading and a stool panel's Ord result never share a unit, but `resolve()`
+# alone (no unit, e.g. `mirobody resolve`) cannot see that.
+脂肪	Body fat [Mass] Calculated
+Fat	Body fat [Mass] Calculated
+脂肪量	Body fat [Mass] Calculated
+脂肪重量	Body fat [Mass] Calculated
+体脂肪	Body fat [Mass] Calculated
+Fat Mass	Body fat [Mass] Calculated
+体脂肪率	Percentage of body fat Measured
+脂肪率	Percentage of body fat Measured
+肌肉	Body muscle mass Calculated
+肌肉量	Body muscle mass Calculated
+Muscle Mass	Body muscle mass Calculated
+肌肉率	Body muscle mass/Body weight Measured
+# `脂肪球`/`脂肪滴` (stool fat globules/droplets on a microscopy panel) are a
+# different printed string and untouched by the rows above; pinned in
+# test_engine_coverage.py so a future change to either does not quietly
+# merge them.
+#
+# `骨骼肌`/骨骼肌量/`Skeletal Muscle Mass` named 13931-1 `Striated muscle Ab
+# [Presence] in Serum` — an antibody test, for a mass a scale reports in kg.
+# The catalogue's own `bodySkeletalMuscleMass` carries no LOINC (metrics.tsv),
+# so there is no correct code to redirect to; these abstain rather than
+# answer an antibody test for a weight.
+骨骼肌	!unresolved
+骨骼肌量	!unresolved
+Skeletal Muscle Mass	!unresolved
+# `基础代谢` named 24321-2 `Basic metabolic 2000 panel`; `基础代谢率`/BMR named
+# 82259-3 `Metabolic equivalent of task and Resting metabolic rate panel` —
+# both PANEL codes, not a number a device prints. The catalogue's own
+# `basalMetabolicRate` (metrics.tsv, member BMR) carries no LOINC either, so
+# these abstain.
+基础代谢	!unresolved
+基础代谢率	!unresolved
+BMR	!unresolved
+# A watch's 0-100 stress score named 61011-3 `Umbilical vein blood pressure`
+# — a specimen (umbilical vein) nothing about a stress reading states, and
+# an unrelated PROPERTY (pressure, not a score). No LOINC concept is a
+# consumer stress index; abstain.
+压力	!unresolved
+# #301 proposed redirecting bare `内脏脂肪` to abstain, reasoning that a
+# scale prints it as a dimensionless 1-30 LEVEL (catalogue `bodyVisFatLevel`,
+# no LOINC) rather than the Area 73707-2 already answers. Left unchanged: a
+# bare `内脏脂肪`/`內臟脂肪` keeps 73707-2 because a report that prints it with
+# cm² means the area, the common clinical shorthand; a scale's unitless level
+# has no unit in the bare name either, so the two are told apart by the unit
+# gate on a reading, not by redirecting the name. Only the fuller spelling
+# below (`内脏脂肪面积`) is a new row.
+内脏脂肪面积	Visceral fat [Area] Measured
+Visceral Fat Area	Visceral fat [Area] Measured
+# `去脂体重`/`瘦体重` (aliases_src/zh.tsv, pre-existing) post all FOUR LOINC
+# rows that share the COMPONENT "lean body weight" — 91557-9 itself, 8342-8
+# (Immersion), 8343-6 (Skin fold), 88334-8 (Calculated) — every one at the
+# SAME commonness rank (0.0), so `_pick` returns whichever is first in the
+# posting array, 8342-8, by accident of storage order rather than evidence.
+# No override TARGET can separate them: it is handed to the same `_posting`
+# lookup and ties the same way (confirmed — pointing at 91557-9's own exact
+# LONG_COMMON_NAME, "Lean body weight", still posts all four and still picks
+# 8342-8). Fixing the method-less preference belongs in `_pick`, not this
+# file; blocking turns a confidently WRONG immersion-method answer into an
+# honest miss, which this project's own standard (see this file's header)
+# ranks above it.
+去脂体重	!unresolved
+瘦体重	!unresolved
+当前体重	Body weight
+体水分	Body water mass
+总体水	Body water mass
+Total Body Water	Body water mass
+水分率	Percentage of body water
+体水分率	Percentage of body water
+骨量	Body bone mass
+骨盐量	Body bone mass
+标准体重	Ideal body weight
+腹围	Waist Circumference at umbilicus by Tape measure
+安静心率	heart rate resting
+最大心率	Maximum heart rate
+最高心率	Maximum heart rate
+最大摄氧量	Oxygen consumption (VO2)/Body weight [Volume Rate Content] --peak during exercise
+VO2max	Oxygen consumption (VO2)/Body weight [Volume Rate Content] --peak during exercise
+每日步数	Number of steps
+运动时长	Exercise duration
+# A glucometer's capillary reading, a CGM's interstitial one, and the
+# chronic-condition panel terms that follow a blood-pressure cuff or a
+# follow-up lipid/renal panel — none of these had a Chinese row before #301.
+指尖血糖	Glucose [Moles/volume] in Capillary blood by Glucometer
+末梢血糖	Glucose [Moles/volume] in Capillary blood by Glucometer
+毛细血管血糖	Glucose [Moles/volume] in Capillary blood by Glucometer
+动态血糖	Glucose [Moles/volume] in Interstitial fluid
+组织间液葡萄糖	Glucose [Moles/volume] in Interstitial fluid
+目标范围内时间	Glucose measurements in range out of Total glucose measurements during reporting period
+平均动脉压	Mean blood pressure
+非HDL-C	Cholesterol non HDL [Mass/volume] in Serum or Plasma
+尿白蛋白肌酐比	Albumin/Creatinine [Mass Ratio] in Urine
+UACR	Albumin/Creatinine [Mass Ratio] in Urine
+尿微量白蛋白/肌酐	Microalbumin/Creatinine [Mass Ratio] in Urine
 
 # ══ lab-report abbreviations ══════════════════════════════════════════════
 # The short codes a CBC / 生化 printout puts in its own column. They were the
@@ -652,6 +811,17 @@ TG	Triglyceride
 GLU	Glucose
 Cr	Creatinine
 CREA	Creatinine
+# `Cre` is a different row from `Cr` above, not the same key: it casefolds
+# to `cre`, and the bare word independently answered 73834-4, a
+# carbapenem-resistant-Enterobacterales culture (#306) -- a microbiology
+# flag that shares three letters with a chemistry abbreviation, and the
+# index had no reason to prefer either. Chinese checkup reports print
+# `肌酐(Cre)` for creatinine as often as `(CREA)`/`(Cr)`, so this row answers
+# by name alone the way its two neighbours already did; a report's rarer
+# microbiology `CRE` (usually 阴性/阳性, never a number) is caught by the
+# SCALE gate instead -- creatinine has no Ord/Nom code, see
+# test_a_qualitative_cre_does_not_borrow_creatinines_scale.
+Cre	Creatinine
 UA	Urate
 TP	Protein
 GLB	Globulin
@@ -1057,6 +1227,18 @@ eGFR	Glomerular filtration rate
 白球比值	Albumin/Globulin
 白蛋白球蛋白比值	Albumin/Globulin
 白球比例	Albumin/Globulin
+# `Glycated albumin`/`Glycosylated albumin` (13873-5) are unresolved in
+# English while `糖化白蛋白` resolves — found by a tester (#F010). The cause
+# is the shipped corpus's own English name list, not the override/alias
+# split: 4548-4 (HbA1c) and 15069-8 (fructosamine) both carry an English
+# "Glycated ..." synonym the corpus ships, and 13873-5 does not, so
+# `糖化白蛋白` only ever worked because the corpus's OWN Chinese translation
+# for 13873-5 is a direct hit — its English row (zh.tsv: `糖化白蛋白 ->
+# Glycated albumin`) was never reachable, because the English phrase it
+# points at is not itself a corpus key. `Albumin glycated` is: two words,
+# the order the corpus already carries for this ratio component.
+Glycated albumin	Albumin glycated
+Glycosylated albumin	Albumin glycated
 血肌酐	Creatinine
 血尿酸	Urate
 三酰甘油	Triglyceride

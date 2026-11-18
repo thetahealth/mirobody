@@ -135,6 +135,13 @@ CASES: list[tuple[str, str, str]] = [
     ("球蛋白",                        r"^globulin \[",                 r"binding|albumin"),
     ("Globulin",                    r"^globulin \[",                 r"binding|albumin"),
     ("GLB",                         r"^globulin \[",                 r"binding|albumin"),
+    # `Glycated albumin` was unresolved in English while `糖化白蛋白` resolved
+    # (a tester's report, F010): the corpus's own English synonym for
+    # 13873-5 was never itself a corpus key, only pointed at by the zh.tsv
+    # redirect. Both languages now name the same row.
+    ("Glycated albumin",            r"albumin.*glycated|glycated.*albumin", r""),
+    ("Glycosylated albumin",        r"albumin.*glycated|glycated.*albumin", r""),
+    ("糖化白蛋白",                    r"albumin.*glycated|glycated.*albumin", r""),
     ("total bilirubin",             r"bilirubin",                    r"direct|conjugated"),
     ("Serum Total Bilirubin",       r"bilirubin",                    r"direct|conjugated|end-stage"),
     ("uric acid",                   r"urate|uric acid",              r""),
@@ -147,6 +154,9 @@ CASES: list[tuple[str, str, str]] = [
     ("天门冬氨酸氨基转氨酶",              r"aspartate aminotransferase",   r""),
     ("γ-谷氨酰基转肽酶",               r"gamma glutamyl transferase",   r""),
     ("r-GT",                        r"gamma glutamyl transferase",   r""),
+    # Kept exactly as on main (F011 pin): `γ` is Greek, not Latin, so the
+    # hyphen here is never touched by `lexical.fold_script_boundary`.
+    ("γ-GTP",                       r"gamma glutamyl transferase",   r""),
     # A hyphenated tail that names a COMPONENT of the parent analyte. The
     # hyphen rule used to strip it and answer the parent: total CK for the
     # MB isoenzyme, total LDH for LDH1, total ALP for bone ALP.
@@ -173,6 +183,9 @@ CASES: list[tuple[str, str, str]] = [
     ("alkaline phosphatase",        r"alkaline phosphatase",         r""),
     # ── endocrine & vitamins ─────────────────────────────────────────────────
     ("HbA1c",                       r"hemoglobin a1c",               r""),
+    # Kept exactly as on main (F011 pin): the bracket is a METHOD
+    # qualifier, unrelated to the script-boundary fold.
+    ("HbA1c(NGSP)",                 r"hemoglobin a1c",               r""),
     ("TSH",                         r"thyrotropin|thyroid stimulating", r""),
     ("free T4",                     r"thyroxine",                    r""),
     ("vitamin D",                   r"vitamin d|calcidiol|hydroxyvitamin", r""),
@@ -472,6 +485,14 @@ CASES: list[tuple[str, str, str]] = [
     ("HDLコレステロール",               r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
     ("血清鉄",                       r"^iron \[",                     r"binding|saturation"),
     ("フェリチン",                    r"ferritin",                     r""),
+    # A half-width hyphen (or a plain space) between the Latin abbreviation
+    # and the katakana resolves the same as the fused spelling above
+    # (a tester's report, F011): `lexical.fold_script_boundary` folds the
+    # separator away as a surface variant, tried after the fused spelling
+    # has already missed.
+    ("LDL-コレステロール",              r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
+    ("HDL-コレステロール",              r"cholesterol.*HDL|HDL.*cholesterol", r"LDL"),
+    ("LDL コレステロール",              r"cholesterol.*LDL|LDL.*cholesterol", r"HDL"),
     # ── Russian: as a Russian lab report prints it (МЕДСИ, INVITRO, Moscow
     #    state clinics). Cyrillic has no variants of its own in the release,
     #    so every term here lands through resolver_overrides.tsv. Collected
@@ -529,7 +550,56 @@ CASES: list[tuple[str, str, str]] = [
     ("Vitamiin D (25-OH)",         r"25.hydroxyvitamin",            r""),
     ("Vitamiin B12",               r"cobalamin|vitamin b12",        r""),
     ("Holotranskobalamiin",        r"transcobalamin",               r""),
+    # ── a CJK name run straight into its abbreviation (#305) ────────────────
+    # A real checkup report that printed its whole CBC and urinalysis
+    # sections this way: the Chinese name followed directly by the Latin
+    # abbreviation, no bracket, no space. `OfflineResolver._find_seam`
+    # answers these the same way the bracket shape already did, but only
+    # when BOTH halves agree (see MUST_NOT_RESOLVE for the abstentions this
+    # same split must not turn into guesses).
+    ("白细胞WBC",                     r"leukocytes",                   r""),
+    ("红细胞RBC",                     r"erythrocytes",                 r""),
+    ("血红蛋白HGB",                    r"^hemoglobin \[",               r"a1c|glycated"),
+    ("血小板PLT",                     r"platelets",                    r""),
+    # Already correct on main; pinned so the unification does not disturb them.
+    ("游离T3",                       r"triiodothyronine.*free",       r""),
+    ("维生素D",                       r"25.hydroxyvitamin",            r""),
+    ("尿微量白蛋白mALB",                 r"microalbumin",                 r""),
+    ("糖化血红蛋白HbA1c",                r"hemoglobin a1c",               r""),
+    ("促甲状腺激素TSH",                  r"thyrotropin",                  r""),
+    ("甲胎蛋白AFP",                    r"alpha-1-fetoprotein",          r""),
+    # The common CBC and urinalysis abbreviations (#305), glued to a Chinese
+    # stem that agrees: each is the catalogue's own reading, not a guess.
+    ("淋巴细胞LYMPH",                  r"lymphocytes/leukocytes",       r""),
+    ("单核细胞MONO",                   r"monocytes/leukocytes",         r""),
+    ("嗜碱性粒细胞BASO",                 r"basophils/leukocytes",         r""),
+    ("红细胞压积HCT",                   r"^hematocrit",                  r""),
+    ("平均红细胞体积MCV",                 r"mcv",                         r""),
+    ("平均血红蛋白含量MCH",                r"^mch\b",                      r"mchc"),
+    ("平均血红蛋白浓度MCHC",               r"mchc",                        r""),
+    ("红细胞分布宽度RDW",                 r"distwidth",                    r""),
+    ("平均血小板体积MPV",                 r"platelet.*entitic mean volume", r""),
+    ("血小板分布宽度PDW",                 r"platelet distribution width",  r""),
+    ("尿糖GLU",                      r"glucose.*urine",               r""),
+    # ── 肌酐(Cre) must not refuse as two analytes (#306) ─────────────────────
+    # `Cre` alone used to resolve to 73834-4, a carbapenem-resistant
+    # culture, and veto the creatinine stem. `Cre` is now a curated alias
+    # for Creatinine (resolver_overrides.tsv), the same as `CREA`/`Cr`, so
+    # this agrees BY NAME now -- R2's measurement arbitration (see the
+    # dedicated test) is for names the vocabulary has no alias for at all.
+    ("Cre",                          r"^creatinine \[",               r""),
+    ("CRE",                          r"^creatinine \[",               r""),
+    ("肌酐(Cre)",                     r"^creatinine \[",               r""),
+    ("肌酐(CREA)",                    r"^creatinine \[",               r""),
+    ("肌酐(Cr)",                     r"^creatinine \[",               r""),
 ]
+
+# NOTE: the body-composition, fitness and chronic-condition device names
+# from #301's 92-name table -- 脂肪, 肌肉, 血氧, and the rest -- are NOT here.
+# They have their own benchmark, `test_engine_coverage_devices.py`, with its
+# own printed score, so this module's lab score stays a claim about an
+# ordinary LAB REPORT: the thing every new user's first upload actually is.
+# See that file's module docstring for why.
 
 # Terms that must stay UNRESOLVED. A confident wrong code is worse than an
 # honest miss, so "answers nothing" is a behaviour worth pinning too.
@@ -559,6 +629,7 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
                   "forgivable")),
     ("腫瘤標誌物", "the same heading in 繁體"),
     ("绝对不存在的指标名xyzzy", "pure nonsense must never resolve"),
+    ("zorbitine", "an invented English-looking name must never resolve either"),
     # "名称(缩写)" where the two halves mean DIFFERENT tests. The parenthetical
     # strip must not silently prefer the stem: filing an HbA1c reading into the
     # glucose series is the same class of harm as 血红蛋白 -> HbA1c.
@@ -576,7 +647,49 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # single observation code; an abbreviation has a reading that dominates
     # ordinary use, and refusing it helps nobody. They are pinned as positive
     # cases above instead.
+
+    # ── the glued-CJK split (#305) must not guess ────────────────────────────
+    # `胆固醇HDL-C` disagrees the same way `胆固醇(HDL-C)` does -- two real
+    # analytes, not an abbreviation of each other -- and must stay unresolved.
+    ("胆固醇HDL-C", "stem is total cholesterol (2093-3), glued half is HDL (2085-9) — two analytes"),
+    # `DNA` carries no code of its own, so the strict split (#305) must not
+    # fall back to the stem the way the lenient bracket form would: answering
+    # with 乙肝病毒's own Ab-presence code for a reading named `...DNA` would
+    # be the same class of wrong as 血红蛋白 -> HbA1c.
+    ("乙肝病毒DNA", "乙肝病毒 alone resolves; DNA does not, and the strict split must not borrow its code"),
+    # Kept exactly as main resolves it (unresolved): CLASS=CELLMARK excludes
+    # bare 癌胚抗原, so the stem side of the split never resolves either.
+    ("癌胚抗原CEA", "癌胚抗原 abstains on main (CLASS=CELLMARK); CEA alone answering is not evidence the pair agrees"),
+    # Neither half resolves (`25羟维生素` is not an index key on its own, nor
+    # is bare `D`), so this is an honest miss on main and stays one.
+    ("25羟维生素D", "neither half resolves; kept as main already has it"),
+    # Kept exactly as on main (F011 pin): the hyphen sits between two ASCII
+    # runs (`25`-`OH`), not at a Latin/CJK boundary, so
+    # `lexical.fold_script_boundary` never touches it.
+    ("25-OH维生素D", "the hyphen is ASCII-ASCII, not a script boundary; kept as main already has it"),
+    # Each of these glues a real Chinese CBC/urinalysis name to an
+    # abbreviation that means something ELSE entirely, or that splits the
+    # same percent/absolute or quantitative/dipstick way `NEUT#`/`NEUT%`
+    # already does — #305's own instruction to abstain rather than guess
+    # where the stem is ambiguous.
+    ("中性粒细胞NEUT", "中性粒细胞 (26511-6, the ratio) vs NEUT (751-8, the absolute count) — percent/absolute ambiguity"),
+    ("血小板压积PCT", "血小板压积 (51637-7, plateletcrit) vs PCT (33959-8, procalcitonin) — PCT names both on real reports"),
+    ("嗜酸性粒细胞EO", "嗜酸性粒细胞 alone resolves; EO carries no code of its own"),
+    ("尿蛋白PRO", "尿蛋白 (2887-8, mass concentration) vs PRO (20655-7, a dipstick presence code) disagree"),
+    ("尿酮体KET", "尿酮体 (49779-2) vs KET (35744-2) disagree on scale"),
+    ("尿亚硝酸盐NIT", "NIT alone answers an unrelated Nitrogen component, not the nitrite dipstick"),
+    ("白细胞酯酶LEU", "LEU alone answers Leucine, not leukocyte esterase"),
+    ("尿胆原URO", "URO alone answers Prostate Specific Ag Free — an unrelated analyte, not urobilinogen"),
+    ("胆红素BIL", "胆红素 (1975-2, total bilirubin) vs BIL (a dipstick presence code) disagree"),
+    # `BLD` and `SG` carry no alias at all (neither a bracket nor the glued
+    # form reaches one), so these stay the honest miss main already gives.
+    ("尿潜血BLD", "neither 尿潜血 nor BLD alone is in the index; stays unresolved"),
+    ("尿比重SG", "SG carries no alias; 尿比重 alone resolves but the pair does not need to"),
 ]
+# The #301 body-composition device names that must abstain (骨骼肌,
+# 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
+# instead, alongside the rest of that issue's 92-name table — see this
+# module's note after CASES.
 
 # Ratchet. Every case above is expected to pass, so the floor is 1.0; raise the
 # case count, never lower this number to make a red build green. A drop here
@@ -668,10 +781,7 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("hematocrit",      "42",  "%",      "4544-3",  "% has no substance sibling"),
     ("hematocrit",      "0.42", "L/L",   "4544-3",  "L/L is a volume fraction too"),
     ("红细胞比容",          "0.42", "L/L",   "4544-3",  "the SI spelling on a Chinese report"),
-    # A checkup prints the assay word, or a flag, after the name (#234).
-    ("尿酸(UA)测定",        "420", "umol/L", "14933-6", "名称(缩写)测定, molar"),
-    ("丙氨酸氨基转移酶(ALT)测定", "30", "U/L", "1742-6",  "名称(缩写)测定"),
-    ("低密度脂蛋白胆固醇测定",   "2.5", "mmol/L", "22748-8", "名称测定"),
+    # A checkup prints a flag mark after the name.
     ("γ-谷氨酰基转移酶*",     "28",  "U/L",    "2324-2",  "a flag mark after the name"),
     ("体重指数BMI",          "22.1", "kg/m2", "39156-5", "acronym glued on"),
     ("白球比例",             "1.5", "",       "1759-0",  "ratio said in words"),
@@ -707,6 +817,16 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("Creatine Kinase-MB", "3.2", "ng/mL", "13969-1", "MB isoenzyme, mass"),
     ("Lactate Dehydrogenase-LDH1", "60", "U/L", "2537-9", "LDH1 activity, not total LDH"),
     ("Alkaline Phosphatase-BALP", "20", "ug/L", "17838-4", "bone ALP mass, in serum"),
+    # #306: now a curated alias, `肌酐(Cre)` agrees by name and the unit just
+    # picks the variant, same as its CREA/Cr neighbours.
+    ("肌酐(Cre)",        "78",  "umol/L", "14682-9", "Cre no longer vetoes the stem"),
+    ("肌酐(CREA)",       "78",  "umol/L", "14682-9", "already worked; pinned alongside Cre"),
+    ("肌酐(Cr)",         "78",  "umol/L", "14682-9", "already worked; pinned alongside Cre"),
+    # Bare `PCT` ties plateletcrit and procalcitonin at the same rank in the
+    # raw index (`_KNOWN_TIES`); the unit settles it, the same way R2
+    # settles a bracketed stem/label disagreement.
+    ("PCT",              "0.25", "%",      "51637-7", "plateletcrit, a volume fraction"),
+    ("PCT",              "0.15", "ng/mL",  "33959-8", "procalcitonin, a mass concentration"),
 ]
 
 
@@ -869,22 +989,35 @@ def test_a_differential_count_printed_as_a_percentage_finds_its_ratio_code():
 
 def test_a_component_suffix_is_not_an_abbreviation_of_its_parent():
     """`Creatine Kinase-MB` is not `Creatine Kinase` abbreviated, the way
-    `Total Cholesterol-TC` is. The parent and the suffixed child must reach
-    two different codes, or the child is being filed under the parent."""
+    `Total Cholesterol-TC` is. `split_trailing_hyphen` finds the SEAM in
+    both (#305 made it a pure syntactic split, with no opinion on whether
+    the tail is safe to drop) -- `is_component_suffix` is what tells them
+    apart, and `resolve()` must still reach two different codes for the
+    parent and the suffixed child, or the child is being filed under it."""
     from mirobody.engine import resolve
-    from mirobody.lexical import strip_trailing_abbreviation
+    from mirobody.lexical import is_component_suffix, split_trailing_hyphen
 
-    assert strip_trailing_abbreviation("Total Cholesterol-TC") == "Total Cholesterol"
-    for parent, child in (
-        ("Creatine Kinase", "Creatine Kinase-MB"),
-        ("Lactate Dehydrogenase", "Lactate Dehydrogenase-LDH1"),
-        ("Alkaline Phosphatase", "Alkaline Phosphatase-BALP"),
-        ("Vitamin D", "Vitamin D-3"),
+    assert split_trailing_hyphen("Total Cholesterol-TC") == ("Total Cholesterol", "TC")
+    assert not is_component_suffix("TC")
+    for parent, child, suffix in (
+        ("Creatine Kinase", "Creatine Kinase-MB", "MB"),
+        ("Lactate Dehydrogenase", "Lactate Dehydrogenase-LDH1", "LDH1"),
+        ("Alkaline Phosphatase", "Alkaline Phosphatase-BALP", "BALP"),
     ):
-        assert strip_trailing_abbreviation(child) == child
+        assert split_trailing_hyphen(child) == (parent, suffix)
+        assert is_component_suffix(suffix)
         p, c = resolve(parent), resolve(child)
         assert p.resolved and c.resolved, (parent, child)
-        assert p.loinc != c.loinc or parent == "Vitamin D", f"{child} filed under {parent}: {c.loinc}"
+        assert p.loinc != c.loinc, f"{child} filed under {parent}: {c.loinc}"
+
+    # "Vitamin D-3": the hyphen pattern needs 3 `\w` characters immediately
+    # before it, and the space in "Vitamin D" leaves only one ("D"), so this
+    # one never reaches the seam at all -- still safe, since `resolve()` on
+    # the whole glued string ("VitaminD3", via `surface_variants`) is the
+    # one that already answers it, unrelated to the hyphen split.
+    assert split_trailing_hyphen("Vitamin D-3") == ("", "")
+    vit_d, vit_d3 = resolve("Vitamin D"), resolve("Vitamin D-3")
+    assert vit_d.resolved and vit_d3.resolved and vit_d.loinc == vit_d3.loinc
 
 
 def test_a_unit_never_moves_a_reading_to_another_specimen():
@@ -917,10 +1050,24 @@ def test_a_name_that_holds_two_analytes_says_which_two():
     assert resolve("血脂").rejected_reason == ""
 
 
+def test_a_bare_abbreviation_can_tie_two_analytes_too():
+    """Bare `PCT` is a second shape of the same disagreement (#305's family,
+    not a bracket): the raw index ties plateletcrit and procalcitonin at the
+    SAME commonness rank, and row order alone used to pick procalcitonin
+    every time. `resolve()` now refuses it by name, both codes given, and
+    `resolve_reading` settles it from the unit (see READING_CASES)."""
+    from mirobody.engine import resolve
+
+    r = resolve("PCT")
+    assert r.method == "refused"
+    assert r.ambiguous == ("33959-8", "51637-7")
+    assert "33959-8" in r.rejected_reason and "51637-7" in r.rejected_reason
+
+
 def test_a_report_mark_is_answered_as_the_bare_name_would_be():
     """Stripping `测定` or a flag keeps every rule the bare name meets: a
     category stays refused, two analytes in one name stay two, and the word
-    alone is no name (#234)."""
+    alone is no name (#234, pre-existing on main)."""
     from mirobody.engine import resolve
 
     assert resolve("尿酸(UA)测定").term == "尿酸(UA)测定"
@@ -928,6 +1075,98 @@ def test_a_report_mark_is_answered_as_the_bare_name_would_be():
     assert "4548-4" in resolve("血糖(HbA1c)测定").rejected_reason
     assert resolve("测定").method == "refused"
     assert resolve("红细胞分布宽度-标准差").method == "refused"
+
+
+def test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation():
+    """A bracket after a name is read through `OfflineResolver._resolve_seam`
+    the same way `空腹血糖(GLU)` is, and that split's fallback -- "the bracket
+    didn't resolve, so the stem alone is the whole answer" -- is safe only
+    when the bracket genuinely abbreviates the stem (#305). `血型(Rh)测定`
+    already strips `测定` and reaches this split on main; `Rh`/`定量`/`定性`
+    carry no code of their own, so without a guard the stem would answer
+    for them too. Each pair must keep its own correct code or abstain --
+    never the other's code."""
+    from mirobody.engine import resolve
+
+    # `Rh` has no alias, so the old fallback gave it 血型's OWN code, 883-9 --
+    # a forward ABO-group answer for a reading that named the Rh factor.
+    # `血型(ABO)测定` needs no guard: `ABO` carries its own analyte (1303-7),
+    # different from 血型's, so the mismatch refuses it on its own.
+    abo = resolve("血型(ABO)测定")
+    rh = resolve("血型(Rh)测定")
+    assert not abo.resolved and not rh.resolved
+    assert abo.loinc != "883-9" and rh.loinc != "883-9"
+    assert "883-9" in abo.rejected_reason and "1303-7" in abo.rejected_reason
+    assert resolve("血型").loinc == "883-9"  # the bare analyte is untouched
+
+    # 幽门螺杆菌(C14)测定: C14 is its own real test (see
+    # test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too)
+    # and disagrees on analyte with the stem (17859-0 vs 30565-6), so this
+    # pair abstains on that mismatch, needing no guard either.
+    c14 = resolve("幽门螺杆菌(C14)测定")
+    assert not c14.resolved
+    assert c14.loinc != "17859-0"
+    assert resolve("幽门螺杆菌").loinc == "17859-0"  # the bare analyte is untouched
+
+    # 乙肝表面抗原(定量)测定 / (定性)测定: neither `定量` nor `定性` has an alias,
+    # so the fallback gave the stem's 5196-1 for `定量` too -- a QUALITATIVE
+    # (Ord) code for a report that said quantitative. `定性` is guarded
+    # alongside it for the mirror case: this bundle's HBsAg code happens to
+    # already be the qualitative one, so nothing here is yet observed wrong
+    # for `定性`, but nothing ties that agreement to the word either.
+    quant = resolve("乙肝表面抗原(定量)测定")
+    qual = resolve("乙肝表面抗原(定性)测定")
+    assert not quant.resolved and not qual.resolved
+    assert resolve("乙肝表面抗原").loinc == "5196-1"  # the bare analyte is untouched
+
+
+def test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too():
+    """`C14`/`C13` are real printed test names (tetradecanoylcarnitine and its
+    neighbour, on an acylcarnitine or newborn-screening panel beside `C16`/
+    `C18`) and must keep resolving on their own. Unlike `Rh`/`定量`/`定性`,
+    which carry no code of their own, `C14` going into
+    `resolver_overrides.tsv` as `!unresolved` would abstain those panels to
+    guard one bracket shape, 幽门螺杆菌(C14)测定. That pair, and its C13 and
+    尿素呼气试验 siblings, still abstain without a block: the bracket
+    resolves to the carnitine analyte, a different one than either stem, so
+    `OfflineResolver.resolve`'s "two analytes in one name" check refuses
+    them -- confirmed here by the refusal's own `rejected_reason` naming
+    both codes, not merely `resolved is False`, so a future change that made
+    the two analytes agree would make this test catch it too."""
+    from mirobody.engine import resolve
+
+    assert resolve("C14").loinc == "30565-6"
+    assert resolve("C13").loinc == "102321-7"
+
+    for term, stem_code in (
+        ("幽门螺杆菌(C14)测定", "17859-0"),
+        ("幽门螺杆菌(C13)测定", "17859-0"),
+        ("尿素呼气试验(C14)", "29891-9"),
+        ("尿素呼气试验(C13)", "29891-9"),
+    ):
+        r = resolve(term)
+        assert not r.resolved, f"{term!r} must abstain"
+        assert r.method == "refused"
+        # The two-analyte-mismatch path names both codes in its reason; a
+        # `!unresolved` block refusal (see `血型(Rh)测定` above) does not.
+        assert stem_code in r.rejected_reason and "two analytes" in r.rejected_reason, (
+            f"{term!r} refused for the wrong reason: {r.rejected_reason!r}"
+        )
+
+
+def test_stool_fat_globules_keep_resolving_after_bare_fat_targets_body_mass():
+    """#301 gives bare `脂肪`/`Fat` the body-composition device's code
+    (73708-0) instead of stool fat's 16853-4/2270-7. The trade-off named in
+    the issue: a stool panel's bare `脂肪` result (阴性/阳性) would now be
+    refused rather than coded to the stool analyte — accepted, because a
+    stool panel prints `脂肪球`/`脂肪滴` (fat globules/droplets), a different
+    string entirely, which this change must leave exactly as it found it."""
+    from mirobody.engine import resolve
+
+    assert resolve("脂肪").loinc != "16853-4" and resolve("脂肪").loinc != "2270-7"
+    for term in ("脂肪球", "脂肪滴"):
+        r = resolve(term)
+        assert r.loinc != "73708-0", f"{term!r} must not inherit bare 脂肪's body-fat-mass code"
 
 
 def test_a_run_of_flag_marks_does_not_backtrack():
@@ -961,6 +1200,62 @@ def test_the_unit_still_selects_between_two_real_siblings():
     assert mass.loinc == "2093-3"
     assert molar.rejected_code == "2093-3"  # the name alone would have said this
     assert "property" in molar.evidence
+
+
+def test_the_measurement_settles_a_stem_label_disagreement():
+    """#306: `resolve()` cannot see the unit, so a name-only "two analytes"
+    refusal carries both codes in `Resolution.ambiguous` rather than only in
+    `rejected_reason`'s prose. `resolve_reading` checks each candidate
+    independently with `variant_for_reading` and answers the one the
+    measurement is compatible with -- exactly one, not "whichever came
+    first". `血糖(HbA1c)` is the clean demonstration: the SAME name,
+    answered oppositely by two different units, because the measurement
+    carries the evidence the name alone does not."""
+    from mirobody.engine import resolve, resolve_reading
+
+    glucose, hba1c = "2339-0", "4548-4"
+    bare = resolve("血糖(HbA1c)")
+    assert bare.method == "refused" and bare.ambiguous == (glucose, hba1c)
+
+    as_glucose = resolve_reading("血糖(HbA1c)", "5.4", "mmol/L")
+    assert as_glucose.resolved and as_glucose.loinc == "15074-8"  # glucose, moles/volume
+    assert as_glucose.rejected_code == hba1c
+    assert as_glucose.evidence == ("name", "property")
+
+    as_hba1c = resolve_reading("血糖(HbA1c)", "6.1", "%")
+    assert as_hba1c.resolved and as_hba1c.loinc == hba1c
+    assert as_hba1c.rejected_code == glucose
+
+    # Both candidates compatible (胆固醇/HDL-C both take a lipid unit) or
+    # neither (no unit at all) is not evidence for either side, so it stays
+    # refused exactly as `resolve()` alone already has it.
+    both_compatible = resolve_reading("胆固醇(HDL-C)", "1.2", "mmol/L")
+    assert not both_compatible.resolved and not both_compatible.loinc
+    neither_has_a_unit = resolve_reading("血糖(HbA1c)", "", "")
+    assert not neither_has_a_unit.resolved and not neither_has_a_unit.loinc
+
+
+def test_a_qualitative_cre_does_not_borrow_creatinines_scale():
+    """`CRE` is now a curated alias for Creatinine (#306, next to `CREA`/
+    `Cr`), so a microbiology report's rarer `CRE 阴性` (never a number) must
+    still be refused by the SCALE gate: creatinine's only code is `Qn`
+    (`Mass/volume` or `Moles/volume`), with no `Ord`/`Nom` sibling for
+    `variant_for_reading` to switch to, so a nominal value finds nothing
+    compatible and the write path keeps the reading uncoded rather than
+    filing a qualitative microbiology flag as a creatinine number."""
+    from mirobody.collect import observations as obs
+    from mirobody.engine import resolve_reading
+
+    assert resolve_reading("CRE", "阴性", "").loinc == ""
+
+    row = {
+        "name_key": "CRE", "unit_ucum": "", "kind": obs.KIND_MEASUREMENT,
+        "source_kind": obs.SOURCE_FILE, "name_text": "CRE", "local_key": "CRE|",
+        "value_kind": "nominal", "value_text": "阴性", "unit_text": "", "value_num": None,
+    }
+    coding = obs.coding_for(row, {})
+    assert coding.outcome == obs.standardize.OUTCOME_NEEDS_INPUT
+    assert coding.code is None
 
 
 #: Codes the PROPERTY gate refuses one of their own EXAMPLE_UCUM_UNITS. A
@@ -1130,7 +1425,6 @@ def test_a_category_word_never_lands_on_a_specific_analyte():
 
     assert not resolve("尿常规").resolved            # was 19159-3, a collection method
     assert not resolve("电解质").resolved            # was 19096-7, a 24h urine narrative
-    assert not resolve("骨量").resolved              # was 34019-0, a DENTAL bone volume
 
 
 def _override_rows() -> list[tuple[int, str, str]]:
@@ -1228,8 +1522,13 @@ def test_a_class_from_another_discipline_is_not_a_lab_result():
     assert not resolve("carcinoembryonic antigen").resolved
     assert resolve("CEA").loinc == "2039-6"
 
-    # CLASS=DENTAL — a bone volume measured in a tooth space.
-    assert not resolve("骨量").resolved
+    # CLASS=DENTAL — a bone volume measured in a tooth space, 34019-0 — used to
+    # leak in for bare 骨量 before the 1.5.0 cut dropped that CLASS. #301 gave
+    # 骨量 a real target (`resolver_overrides.tsv`'s `bodyBoneMass` row, a
+    # scale's bone-mass reading in kg): the dental leak must stay gone, but the
+    # term itself is no longer expected to abstain.
+    assert resolve("骨量").loinc != "34019-0"
+    assert resolve("骨量").loinc == "101685-6"
 
 
 def test_bone_density_abstains_because_every_code_names_a_site():
