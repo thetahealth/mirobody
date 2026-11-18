@@ -51,6 +51,14 @@
 
 ### Fixed
 
+- **The documented MCP install command now has a PowerShell form next to
+  it.** `claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`, pasted
+  into a default PowerShell window, failed with `unknown option '--python'`:
+  PowerShell's `.ps1` shim for `claude` consumes the bare `--` before `uvx`
+  ever sees it. A tester reported having to switch to `claude.cmd`, CMD or
+  Git Bash to get past it. All three READMEs now show the PowerShell form
+  (`claude.cmd mcp add ...`) beside the command.
+
 - **A system proxy no longer swallows the internal hosts a trend's own
   containers exempt by default.** `compose.yaml`'s `NO_PROXY` used
   `${NO_PROXY:-default}`, which replaced the whole default list with

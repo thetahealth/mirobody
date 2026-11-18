@@ -59,6 +59,17 @@ Give the same engine to your AI agent. In Claude Code:
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
+On Windows, a default PowerShell window runs `claude` as its `.ps1` script and
+swallows the `--` before `uvx` ever sees it, failing with `unknown option
+'--python'`; call the `.cmd` shim instead, which PowerShell runs as a native
+command and passes `--` through unchanged:
+
+```powershell
+claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+CMD and Git Bash run the original command as given.
+
 Your agent can then standardize any name, reading, unit or complaint you paste, on your machine and without a key. Reading a whole report also needs `mirobody[parse]` and a model key. [Other MCP clients](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio) take the same command.
 
 → [Use the engine from Python or MCP](docs/quickstart.md#a--the-library)
