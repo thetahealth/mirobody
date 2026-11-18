@@ -51,6 +51,17 @@
 
 ### Fixed
 
+- **An Apple Health upload with no records says so.** iOS does not let a
+  Shortcut automation read Health data while the phone is locked. The
+  automation still uploads, with an empty list, and `POST /apple/health`
+  answered it "Apple Health data processed successfully", so a nightly sync
+  that read nothing looked like one that worked, on the phone and on the
+  server. An empty upload is now answered without processing, with
+  `"received": 0` and a message saying the phone must be unlocked; every
+  successful answer carries `received`, the number of records the upload
+  had. To tell: post `{"healthData": []}` and read the message;
+  `docs/apple-health.md` shows both answers.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading
@@ -103,6 +114,106 @@
   `enforce_production_auth_safety()` does not raise; a fresh `./deploy.sh`
   run (no existing database) adds a generated `DATABASE_DECRYPTION_KEY` to
   `.env`, and a run against an existing one leaves it out.
+
+- **A frequency's count — per day, per week, or the length of a period — is
+  read correctly instead of falling back to "once"** (#302). `_PER_DAY`,
+  `_EVERY_N_DAYS_RE` and `_WEEKLY_RE` each spelled out a handful of literal
+  phrases, so a count that was not one of them fell through to the bare
+  每天/每日/每周 = once rule and was silently dropped: `每日2次` ("twice a
+  day") read as once daily, `每2日1次` ("every 2 days", 日 was not in the
+  `每\s*(\d+)\s*天`-only "every N days" pattern) and `每2周1次` ("every 2
+  weeks") matched nothing and returned `None`, `隔一日一次` ("every other
+  day" spelled out) read as once daily, and `一日3次，一次1片` dropped the
+  frequency while keeping the dose — a partial parse the function's own
+  docstring forbids. `parse_dose_instruction` now reads prefix (每/一/隔) + an
+  optional count + a period (天/日/周/星期, and the English day/week/wk/hour
+  spellings) + an optional trailing count + 次/times as one grammar instead
+  of a list of phrases, the same shape for days and weeks. `Schedule` has an
+  interval and named weekdays, but no "N times a week" field, so `每周2次`
+  and `twice weekly` now return `None` rather than read as once weekly, and
+  a count the grammar names but has no slot shape for (`每日10次`, `每2天3次`,
+  two different counts or periods in one sentence) still refuses rather than
+  guessing. How to tell: `meds.parse_dose_instruction("每日2次")[0].slots()`
+  is length 2, `meds.parse_dose_instruction("每2日1次")[0].period_days == 2`,
+  `meds.parse_dose_instruction("隔一日一次")[0].period_days == 2` (not 1),
+  and `meds.parse_dose_instruction("每周2次")` is `None`.
+
+- **A scanned lab page stamped with a printed header and footer now reaches
+  OCR.** `extract._pdf_pages` decided a page from its text layer's character
+  count alone (`MIN_PAGE_TEXT = 40`), so a checkup centre's header and
+  footer, real text on an otherwise scanned page, passed 40 characters on
+  their own and the table image behind them was never rendered for OCR: a
+  reported 14-page checkup PDF gave 0 readings from its three lab pages,
+  58 once they were uploaded as separate images (#304). A page now goes to
+  OCR regardless of its character count when its raster images cover at
+  least half its area (`SCAN_IMAGE_AREA_FRACTION`, from each image's placed
+  bounds) AND fewer than 20 of its own text-layer characters sit on top of
+  those images (`MAX_OVERLAID_SCAN_CHARS`, from their char boxes; neither
+  check renders anything): a header or footer sits outside the image, in
+  the margin, so it never clears that second count, while a letterhead
+  background under real report text or a searchable scan's own invisible
+  OCR layer does, and stays on its exact text layer rather than paying for
+  a re-OCR that could misread a digit the layer already has right. A page
+  this rule sends to OCR still gives back its own layer text, unmerged,
+  when there is no `ocr` to call or that call fails for it, same as main
+  read it before this rule existed; only the scanned table is new to lose.
+  Its header or footer text is folded back into a successful OCR call only
+  for the lines OCR did not already transcribe off the rendered page
+  (`_merge_ocr_text`), so a line is not read twice. How to tell: upload a
+  scanned page with a printed header or footer and its rows reach
+  Indicators; a report with a background letterhead or an already-searchable
+  scan is read without a model call.
+  `mirobody/tests/test_pdf_scanned_page_ocr_routing.py` builds all of these
+  in-process and asserts the OCR call count on each (skipped without
+  `[parse]`, same as `test_extraction_regressions.py` without `[app]`).
+
+### Removed
+
+- **~40 lines of verified-dead code**, none of it reachable from any route,
+  tool, or test, checked by transitive search before removal (no replacement;
+  none were used): `TempFileManager.cleanup_temp_file` (the upload temp copy
+  was never actually cleaned up through it); `AIClientManager.sync_for_spec`
+  (a speculative sync twin for a call site that never arrived; its now-unused
+  `OpenAI` import went with it); `PlatformUserService.base_user_service` (a
+  property exposing an internal attribute nothing ever read); `ValueRangeValidator.is_loaded`
+  (a status property nothing checked); `PostgresOverlayStore.for_target` (a
+  generic override lookup duplicating what `PostgresMedicationStore.overrides`
+  already does for the one target kind in use).
+
+- **The `windows-benchmark` CI job no longer fails at random.** It failed in
+  five of the last hundred `Test Build` runs, on `main` and on pull requests
+  that changed only Markdown, with one of three messages. Two came from the
+  test under Windows PowerShell 5.1, `Run-One left a child after probe
+  failure.` and `Child survived Stop-Server.`: after `Stop-Server` had killed
+  the child and waited for it, the test asked `Get-Process -Id` whether it was
+  gone. On .NET Framework that lookup reads the system process list, which on
+  a Windows runner still held the child in 9 of 200 tries after the wait had
+  returned, for up to 82 ms; PowerShell 7 asks the process itself and never
+  did. The test now opens its own handle to the child and asks that handle
+  whether the child exited. The third, `Cannot find a process with the process
+  identifier` under PowerShell 7, was `Stop-Server` itself: it checked
+  `HasExited` and then looked the id up again with `Stop-Process -Id`, so a
+  process that exited in between made it throw, and inside `Run-One` that
+  error replaced the one that explained the failure. It now kills through the
+  handle it already holds, treats a process that is already gone as stopped,
+  and still waits for it before returning. How to tell: pull requests stop
+  needing a rerun of `windows-benchmark`; on a Windows runner,
+  `benchmarks/windows/test-native.ps1` run 40 times in a row under
+  `powershell.exe` failed 3 times before this change and none after.
+
+- **The PostgreSQL regression gate no longer deadlocks in teardown.**
+  `test_a_cancel_that_lands_while_the_rows_go_in_removes_them` failed
+  intermittently in CI with `DeadlockDetected` on the fixture's `DROP SCHEMA
+  ... CASCADE`, and passed on a rerun. A file delete erases that file's
+  readings in a background task, and the test never awaited it. Teardown
+  dropped the schema while that task's transaction was still deleting from
+  `th_observation` and `th_extraction`. The fixture now awaits every
+  background task the test started, including any those tasks start, before
+  it drops the schema. How to tell: looped 200 times against PostgreSQL 17,
+  the test failed 65 times before the change; the server logged 103 deadlocks
+  and 137 statements against tables already dropped. After the change, 1,000
+  runs of the test and 20 runs of the whole file passed, and the server
+  logged no errors.
 
 ## 1.6.1
 
