@@ -517,9 +517,6 @@ class PostgresOverlayStore:
             log_sql=False,
         )
 
-    async def for_target(self, target_kind: str, target_id: str) -> Sequence[overlay.Override]:
-        return await _overrides_for(target_kind, target_id)
-
 
 async def _overrides_for(target_kind: str, target_id: str) -> list[overlay.Override]:
     rows = await execute_query(

@@ -54,11 +54,6 @@ class PlatformUserService:
         self._ensure_initialized()
         return self._jwt_validator
 
-    @property
-    def base_user_service(self):
-        self._ensure_initialized()
-        return self._base_user_service
-
     async def generate_token(self, user_id: str, additional_claims: dict[str, Any] | None = None) -> str:
 
         try:
