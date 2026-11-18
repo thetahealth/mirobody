@@ -51,6 +51,19 @@
 
 ### Fixed
 
+- **A trend's percentage now reads as the change from the start.**
+  `view=trend` divided the change by the mean of all the readings, not the
+  first one, under the field name `delta_pct`, so a reader working the
+  arithmetic out by hand got a different number than the one printed: a
+  tester reported a model saying "-39.55%" for an LDL series that actually
+  fell 33.4% from its first reading. The field is renamed
+  `pct_change_from_start` and divides by the first third's mean instead,
+  left out (not zero) when that mean is zero; the mean-magnitude divisor
+  stays, internal, for the `direction` threshold alone, so a series that
+  starts near zero still does not read as a huge move. How to tell: a
+  four-point 3.62 → 3.31 → 2.90 → 2.41 mmol/L series reports -33.4%, and no
+  trend row anywhere still carries a field named `delta_pct`.
+
 - **A time or frequency word in front of a complaint no longer blocks its
   code.** `standardize_complaint("最近老是头疼")` answered needs-input, and a
   tester reported having to split a journal-style sentence into its bare

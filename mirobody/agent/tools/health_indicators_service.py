@@ -377,14 +377,16 @@ def _envelope_for(
         summaries = []
         for row in rows[:4]:
             description = f"{query.shown_name(row, names)}: direction={row.get('direction')}, shape={row.get('shape')}"
-            if row.get("delta_pct") is not None:
-                description += f" ({row['delta_pct']}% normalized change, {row.get('n')} numeric days)"
+            if row.get("pct_change_from_start") is not None:
+                description += f" ({row['pct_change_from_start']}% change from the start, {row.get('n')} numeric days)"
             else:
-                description += f" ({row.get('n')} numeric days; relative change unavailable)"
+                description += f" ({row.get('n')} numeric days; change from the start unavailable)"
             summaries.append(description)
         assumptions.append("trend: " + "; ".join(summaries))
         assumptions.append("trend compares the first and last thirds of numeric observed days; "
-                           "the 2% threshold uses mean absolute magnitude and is descriptive, not a clinical threshold")
+                           "pct_change_from_start is the change from the first third's mean, left out when it "
+                           "is zero; direction's own 2% threshold uses mean absolute magnitude instead and is "
+                           "descriptive, not a clinical threshold")
         assumptions.append(_DAY_VALUE_NOTE)
         if unavailable:
             assumptions.append("some series cannot supply a complete numeric trend; inspect each row's reason; "

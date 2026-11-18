@@ -150,10 +150,13 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 | any, with no `keywords` or `indicators` | the catalogue, and a note that the view waits for names |
 
 `trend` compares the means of the first and last thirds of **observed numeric
-days**, not equal calendar intervals. `delta_pct` divides their difference by
-the mean absolute daily magnitude; it is undefined on an all-zero scale.
-`slope_per_day` uses elapsed local calendar days, including gaps. Direction
-uses a descriptive 2% threshold; shape distinguishes a single hump or dip
+days**, not equal calendar intervals. `pct_change_from_start` divides their
+difference by the first third's mean — the change a reader means by "percent
+change" — and is left out, not zero, when that mean is zero. Direction uses a
+separate, internal check (the difference over the mean absolute daily
+magnitude, never shown) against a descriptive 2% threshold, so a series that
+starts near zero does not read as a huge move; `slope_per_day` uses elapsed
+local calendar days, including gaps. Shape distinguishes a single hump or dip
 from repeated significant reversals (`swing`). Neither is a clinical test.
 Compatible multiplicative units, including known LOINC molar conversions,
 share a numeric basis; offset or incompatible conversions return
