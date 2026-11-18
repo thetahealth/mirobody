@@ -92,21 +92,38 @@ Two notes on the table:
 ## The instruction grammar
 
 `parse_dose_instruction(text) -> Schedule | None`. Small and closed: one dose,
-one frequency, optional clock times.
+one frequency, optional clock times. The frequency grammar is one pattern,
+not a list of phrases: prefix (每/一/隔, "every"/"q") + an optional count +
+a period (天/日/周/星期, "day"/"week"/"wk"/"hour") + an optional trailing
+count + 次/"times". What a phrase resolves to depends on where the count
+sits: before the period it multiplies the period's length ("每2日" is every
+2 days); after it, for a bare day, it is the per-day count ("每天2次" is
+twice a DAY); after it, for a bare week, there is no field to hold it unless
+it is one (`Schedule` has an interval and named weekdays, not "N times a
+week") — refused rather than guessed, the same rule the per-day count
+follows.
 
 | Written | Parsed |
 |---|---|
 | `500 mg twice daily` | dose 500 mg, `doses_per_day=2` |
 | `1 tablet at 08:00 and 20:00` | dose 1 `{tablet}`, `times=("08:00","20:00")` |
 | `每天两次，每次一片` | dose 1 `{tablet}`, `doses_per_day=2` |
+| `每日3次，每次1片` / `一日3次` / `1日3次` | dose 1 `{tablet}`, `doses_per_day=3` (每天/每日/一天/一日/1日, a digit or 一两二三四, then 次: one token) |
 | `500mg 每天早晚` | dose 500 mg, `doses_per_day=2` (早晚 is two a day, 早中晚 three) |
-| `one every other day` | `period_days=2` |
+| `one every other day` / `隔天` / `隔日` / `隔一日一次` | `period_days=2`, spelled out or not |
+| `每2日1次` / `每两日一次` / `every 3 days` / `q3d` | `period_days=2` / `period_days=3`: the count before the period multiplies it |
+| `每2周1次` / `每两周一次` / `every 2 weeks` | `period_days=14` |
+| `每周` / `每周一次` / `weekly` / `once a week` | `period_days=7` |
 | `q8h` | `doses_per_day=3` (the clock times are NOT invented) |
 | `on Monday and Thursday` | `weekdays={1,4}` |
 | `as needed for pain` | `as_needed=True`, the reason kept out of `repr` |
 | `1-2 tablets` | **`None`** — a range is not a dose |
 | `1 in the morning and 0.5 in the evening` | **`None`** — two regimens, not one |
 | `with food` | **`None`** — no dose, no frequency |
+| `每日10次` | **`None`** — a count outside 1–4 has no slot shape, so it is refused rather than guessed or read as once daily |
+| `每周2次` / `twice weekly` / `2 times a week` | **`None`** — no "N times a week" field unless the weekdays are named; not read as once weekly |
+| `每2天3次` | **`None`** — a period and a per-occurrence count other than one, and no field holds both |
+| `每日2次 每天三次` / `每2周1次 每3周1次` | **`None`** — two different named counts or periods, two regimens |
 
 **No partial parses.** Half a regimen presented as a whole one is worse than no
 regimen: the caller keeps the original text either way, and a `None` is visible.

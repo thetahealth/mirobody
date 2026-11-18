@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from openai import AsyncOpenAI, OpenAI
+from openai import AsyncOpenAI
 
 from mirobody.utils.config.llm import RouteSpec
 
@@ -57,13 +57,6 @@ class AIClientManager:
             self._anthropic_clients[cache_key] = AsyncAnthropic(
                 api_key=key or "-", base_url=spec.base_url or None, **_limits(spec))
         return self._anthropic_clients[cache_key]
-
-    @staticmethod
-    def sync_for_spec(spec: RouteSpec) -> OpenAI:
-        """The sync twin, for a future sync call site: the alternative it
-        replaces is an inline `OpenAI(base_url="https://...")`."""
-        key = _key(spec)
-        return OpenAI(api_key=key or "-", base_url=spec.base_url or None, **_limits(spec))
 
 
 def _key(spec: RouteSpec) -> str:
