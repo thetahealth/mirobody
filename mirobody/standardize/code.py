@@ -107,6 +107,52 @@ def series_of(loinc: str) -> str:
     return series_id(found[0]) if found else ""
 
 
+#: Three LOINC 2.75 sleep durations carry `PROPERTY=NRat` and `EXAMPLE_UCUM_UNITS=/h`
+#: in Regenstrief's 2.83 table (`res/crosswalks/loinc_device_base.tsv`), a defect in
+#: the upstream row: each names a duration (`Duration in bed`, `Duration of out of
+#: bed`, `Wake time after sleep onset`), not a rate. `103213-5` pairs with `93832-4`
+#: (`Sleep duration`, `h`); the other two pair with `103210-1` and `103212-7` (`min`).
+_LOINC_UNIT_OVERRIDES: dict[str, tuple[str, ...]] = {
+    "103213-5": ("h",),
+    "103214-3": ("min",),
+    "103215-0": ("min",),
+}
+
+
+@lru_cache(maxsize=1)
+def _declared_loinc_units() -> dict[str, str]:
+    from mirobody._bundle import read_member
+
+    raw = read_member("loinc_units.tsv")
+    if not raw:
+        return {}
+    out: dict[str, str] = {}
+    for line in raw.decode("utf-8").splitlines()[1:]:
+        code, sep, declared = line.partition("\t")
+        if sep and code and declared:
+            out[code] = declared
+    return out
+
+
+@lru_cache(maxsize=4096)
+def loinc_units(loinc: str) -> tuple[str, ...]:
+    """Normalized `EXAMPLE_UCUM_UNITS` of a LOINC code in the shipped bundle,
+    in LOINC's order, or `()` when the code declares none or is absent."""
+    if not loinc:
+        return ()
+    if loinc in _LOINC_UNIT_OVERRIDES:
+        return _LOINC_UNIT_OVERRIDES[loinc]
+    declared = _declared_loinc_units().get(loinc, "")
+    if not declared:
+        return ()
+    out: list[str] = []
+    for token in declared.replace(",", ";").split(";"):
+        ucum = units.normalize_unit(token.strip())
+        if ucum and ucum not in out:
+            out.append(ucum)
+    return tuple(out)
+
+
 #: What a person wrote that is not a reading, a complaint or a diagnosis: a
 #: meal, a mood, a walk. It is kept as written and not coded, by design rather
 #: than for want of a match: there is no open vocabulary for meals or moods
@@ -258,4 +304,4 @@ def _coded(
     )
 
 
-__all__ = ["RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "release", "series_of"]
+__all__ = ["RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "loinc_units", "release", "series_of"]

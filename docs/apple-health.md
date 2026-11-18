@@ -185,9 +185,15 @@ which is what makes them evidence.
 ## Response
 
 ```json
-{"success": true, "data": {"request_id": "unique_request_id"},
+{"success": true, "data": {"request_id": "unique_request_id", "received": 1342},
  "message": "Apple Health data processed successfully"}
 ```
+
+`received` is how many records the upload carried. An upload with none is
+answered without processing, with `"received": 0` and a message saying why
+it is usually empty: iOS does not let a Shortcut automation read Health data
+while the phone is locked, so a nightly automation can send an empty list
+that used to be answered as a success. Show the message in the Shortcut.
 
 ```json
 {"success": false, "message": "Error message"}

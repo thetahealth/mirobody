@@ -32,8 +32,9 @@ from mirobody._bundle import (
 )
 from mirobody._strtab import StringTable
 from mirobody.lexical import (
-    fold_plural, index_fold, is_component_suffix, measure_stems, split_trailing_parenthetical,
-    strip_report_marks, strip_trailing_abbreviation, surface_variants,
+    fold_plural, index_fold, is_component_suffix, measure_stems, split_camel, split_trailing_hyphen,
+    split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym, strip_report_marks,
+    surface_variants,
 )
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
@@ -55,6 +56,78 @@ _RUNTIME_MEMBERS = (
 # Sentinel target in resolver_overrides.tsv meaning "deliberately unresolved".
 _BLOCK_SENTINEL = "!unresolved"
 
+# Bare abbreviations the raw index ties between two different analytes at
+# the SAME commonness rank, where neither reading dominates enough for a
+# CA/PT/MG-style "answer the widespread one" row: `resolve()` checks this
+# before the index, `resolve_reading` arbitrates by the unit.
+_KNOWN_TIES: dict[str, tuple[str, str]] = {
+    "pct": ("33959-8", "51637-7"),  # Procalcitonin, Plateletcrit
+}
+
+# R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a
+# dedicated, invasive procedure (lumbar puncture, amniocentesis,
+# thoracentesis, paracentesis, arthrocentesis, lavage, pericardiocentesis,
+# a skin or marrow biopsy), never assumed the way a venipuncture is. Fixed
+# and small: a general abstain-on-unstated-specimen rule was tried and
+# reverted (1,418 correct answers lost for 427 catches on the maintained
+# eval set, mostly `Urine`/`Isolate`/`Air`/`Ventilator`/`Bld.dot`, none of
+# which is here). This rule only SWITCHES to a same-analyte sibling.
+_PROCEDURE_SYSTEMS = frozenset({
+    "CSF", "Amnio fld", "Plr fld", "Periton fld", "Synv fld", "Body fld",
+    "BAL", "Pericard fld", "Fibroblasts", "Tiss", "Bone mar",
+})
+# The switch target: the ordinary venipuncture a lab report's whole
+# vocabulary already assumes, smaller than R3's reverted person-level set
+# (no `XXX`/`Arterial system`/compound-building). `PPP` is the one
+# addition: centrifuged from the SAME draw, not a second procedure, and
+# where D-dimer's own plasma code lives -- without it the switch lands on
+# a METHOD-qualified `Bld` row, a narrower claim than the bare term makes.
+_PERSON_LEVEL_SYSTEMS_LITE = frozenset({"Bld", "BldV", "BldA", "BldC", "Ser", "Plas", "Ser/Plas", "PPP"})
+
+# Generic axis-SYSTEM words that name no specimen by themselves (a side, a
+# donor, a comparison group): excluded so "left"/"control" in a term is
+# never mistaken for stating the organ or fluid that carries it.
+_SYSTEM_WORD_STOPWORDS = frozenset({
+    "left", "right", "upper", "lower", "interest", "region", "specimen",
+    "system", "device", "donor", "patient", "fetus", "control", "normal",
+    "mother", "father", "newborn", "the",
+})
+_SYSTEM_WORD_SPLIT = re.compile(r"[^a-zA-Z]+")
+
+# A term (or its curated alias TARGET) names one of `_PROCEDURE_SYSTEMS` in
+# a word the axis table's own abbreviated SYSTEM text does not share:
+# Chinese, or English natural language for a LOINC abbreviation written in
+# lab jargon. Scoped to the eleven systems above, not every specimen in
+# LOINC -- R3's full table (`尿`, `breath`, `stone`, ...) answered for
+# systems this rule never touches.
+_SPECIMEN_SYNONYMS: dict[str, tuple[str, ...]] = {
+    "脑脊液": ("csf",),
+    "cerebrospinal": ("csf",),
+    "羊水": ("amnio",),
+    "amniotic": ("amnio",),
+    "胸水": ("plr", "pleural"),
+    "胸腔积液": ("plr", "pleural"),
+    "pleural": ("plr",),
+    "腹水": ("periton", "peritoneal"),
+    "腹腔积液": ("periton", "peritoneal"),
+    "peritoneal": ("periton",),
+    "滑液": ("synv", "synovial"),
+    "关节液": ("synv", "synovial"),
+    "synovial": ("synv",),
+    "体液": ("body",),
+    "肺泡灌洗液": ("bal",),
+    "支气管肺泡灌洗液": ("bal",),
+    "bronchoalveolar": ("bal",),
+    "心包积液": ("pericard",),
+    "pericardial": ("pericard",),
+    "成纤维细胞": ("fibroblasts",),
+    "fibroblast": ("fibroblasts",),
+    "组织": ("tiss",),
+    "tissue": ("tiss",),
+    "骨髓": ("bone mar", "marrow"),
+    "marrow": ("bone mar",),
+}
+
 # Prefer the everyday specimen variants when the commonness prior ties. Bytes,
 # not str: `_pick` matches these against slices of the corpus-name blob, so
 # decoding is paid only for the row that wins.
@@ -67,8 +140,38 @@ def _specimen_tokens(system: str) -> frozenset[str]:
     return frozenset(t for t in re.split(r"[/^+]", system or "") if t)
 
 
-# "Fasting plasma glucose FPG" -> "Fasting plasma glucose" (trailing acronym).
-_TRAILING_ACRONYM = re.compile(r"\s+[A-Z][A-Z0-9-]{1,7}$")
+#: Preparations of ONE venipuncture: whole blood, serum, plasma, and
+#: plasma centrifuged for (or stripped of) platelets. `Thrombin time`'s
+#: own Interpretation row is axis SYSTEM `Bld`; its Qn sibling's is `PPP`
+#: -- the same draw, recorded at a different specimen GRANULARITY, not a
+#: different specimen, the way `Ser`/`Ser/Plas` already cross below.
+_VENIPUNCTURE_SPECIMENS = frozenset({"Bld", "Ser", "Plas", "PPP", "PRP"})
+
+
+def _is_venipuncture_draw(system: str) -> bool:
+    """Whether every specimen `_specimen_tokens` finds in `system` is one
+    of `_VENIPUNCTURE_SPECIMENS`."""
+    tokens = _specimen_tokens(system)
+    return bool(tokens) and tokens <= _VENIPUNCTURE_SPECIMENS
+
+
+def _method_identity(method: str) -> str:
+    """The identity-bearing prefix of a dotted METHOD qualifier chain, up
+    to its SECOND segment. Measured: COMPONENT "coagulation" (133 rows)
+    is the one case in the shipped axis table where many rows share a
+    COMPONENT that names no real analyte on its own -- PT, aPTT, TT and
+    Recalcification time are told apart ONLY by what induced the clot,
+    `Coag.tissue factor induced`/`Coag.surface induced`/`Coag.thrombin
+    induced`/`Coag.calcium ion induced` -- so `variant_for_reading`'s
+    sibling search must not cross between them on COMPONENT alone. A
+    method under two segments (plain, or a bare technique like `IFCC` or
+    `Automated count`) carries no such chain and returns `""`, matching
+    anything, same as an empty one always has: the existing preference
+    for a method-LESS sibling (`... by Automated count` is a narrower
+    claim than the report supports) is unaffected."""
+    parts = (method or "").split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else ""
+
 
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
 #: for anything it cannot read as a number, an ordinal or a comparator, so this
@@ -139,6 +242,14 @@ class Resolution:
     #: count the name alone gave) beside the ratio code the unit selected.
     rejected_code: str = ""
     rejected_reason: str = ""
+    #: The two codes a name-only disagreement found (stem's, then label's),
+    #: for `resolve_reading` to arbitrate with the measurement (#306):
+    #: `肌酐(Cre)` names creatinine and a carbapenem-resistant culture by
+    #: name alone, and only a unit or a value's kind can say which one the
+    #: report meant. Empty unless `method == "refused"` for exactly this
+    #: reason; `rejected_reason` already says so in prose, this is the same
+    #: fact in a field a caller can act on without parsing text.
+    ambiguous: tuple[str, str] = ()
 
     @property
     def code(self) -> str:
@@ -345,28 +456,6 @@ class OfflineResolver:
         for surface in surfaces:
             yield from fresh(self._keys_for(self._normalize(surface)))
 
-        # CamelCase splitting exposes the same qualifier as a spaced report
-        # name. `BloodGlucose-OGTT` must not become ordinary blood glucose;
-        # the vocabulary-backed guard distinguishes qualifiers from repeats.
-        for surface in surfaces:
-            stem = strip_trailing_abbreviation(surface)
-            if stem and stem != surface:
-                token = surface[len(stem):].strip(" -")
-                if self._trailing_token_is_an_abbreviation(stem, token):
-                    yield from fresh(self._keys_for(self._normalize(stem)))
-
-        # "Total cholesterol TC" -> "Total cholesterol". A lab report prints the
-        # analyte beside its abbreviation constantly, and none of those strings
-        # resolved: `Fasting plasma glucose FPG`, `总胆固醇 TC`, `甘油三酯 TG` all
-        # returned nothing while their bare stems answered. The strip used to be
-        # applied to the alias table's target inside `_keys_for`, where it could
-        # only fire on inputs that already resolved. Tested on the RAW term
-        # because the pattern is a case test and `normalize` lowercases;
-        # appended last, so it can only turn a miss into a hit.
-        stem = _TRAILING_ACRONYM.sub("", term).strip()
-        if stem and stem != term.strip():
-            if self._trailing_token_is_an_abbreviation(stem, term.strip()[len(stem):].strip()):
-                yield from fresh(self._keys_for(self._normalize(stem)))
         # "monocyte count", "中性粒细胞计数": the analyte plus the word for how
         # it was counted. The index knows the analyte and the unit then picks
         # its count or fraction code (`variant_for_reading`). Appended last,
@@ -374,51 +463,19 @@ class OfflineResolver:
         for stem in measure_stems(term):
             yield from fresh(self._keys_for(self._normalize(stem)))
 
-    def _trailing_token_is_an_abbreviation(self, stem: str, token: str) -> bool:
-        """Is the trailing token a repeat of `stem`, or does it add to it?
-
-        `Total cholesterol TC` and `Protein CSF` are the same SHAPE and opposite
-        meanings. Stripping the first is lossless; stripping the second answers a
-        serum protein for a spinal-fluid one, and the answer looks confident.
-        Four such wrong answers came out of a LIS-style `analyte + qualifier`
-        export: `Protein CSF`, `Calcium ION`, `胆固醇 HDL`, `Glucose OGTT`.
-
-        Two questions separate them, and neither is a word list:
-
-        * **does the token name a SPECIMEN?** `CSF` is a SYSTEM axis value, so
-          dropping it changes what was measured, not how it was spelled. `TC`,
-          `TG` and `FPG` are not, which is why "is this token anywhere in the
-          axis table" is too coarse a test, it fires on the abbreviations too.
-        * **does the token mean something else on its own?** `HDL` answers
-          2085-9 against `胆固醇`'s 2093-3, `ION` answers ionized calcium
-          against total, `OGTT` answers a tolerance-test glucose against a
-          plain one. A token that resolves to a DIFFERENT code than the stem is
-          carrying information the stem does not have. `TC` and `TG` resolve to
-          exactly their stem's code, which is what makes them redundant.
-
-        A token that resolves to nothing and is no specimen is treated as an
-        abbreviation: `FPG` reaches its stem through the alias table, and
-        refusing the strip on "unknown" would give back the misses this exists
-        to fix. A token the overrides block (`STOOL`, `HIV`) resolves to
-        nothing because it names a category, which is information: stripped,
-        `Glucose STOOL` would answer serum glucose.
-
-        The recursion is bounded: looking the stem up can strip a trailing
-        token of its own, one token shorter at each level.
-        """
+    def _is_specimen_token(self, label: str) -> bool:
+        """Whether `label` is itself a LOINC SYSTEM axis value -- `CSF`,
+        the one that matters, but also `WBC`: LOINC uses leukocytes as the
+        SPECIMEN for a handful of cell-derived molecular tests, the same
+        three letters #305 needs as the ABBREVIATION of 白细胞/Leukocytes
+        itself. One table, two readings, so `_resolve_seam` only treats
+        this as a veto when `label` does NOT independently name the
+        stem's own analyte -- `白细胞WBC` passes (both sides agree), `Protein
+        CSF` does not (CSF carries no code of its own, so nothing to
+        agree with, and dropping it would be a guess)."""
         if self._system_keys is None:
             self._system_keys = {self._normalize(system) for system in self._systems()}
-        if not token or self._normalize(token) in self._system_keys or is_component_suffix(token) or self._is_blocked(token):
-            return False
-        own = self._lookup(token)
-        if own is None or not own.loinc:
-            # A known `HbA1c` can repeat glycated hemoglobin, but an unknown
-            # numbered token is a member of a series, not an abbreviation.
-            return not any(ch.isdigit() for ch in token)
-        base = self._lookup(stem)
-        if any(ch.isdigit() for ch in token):
-            return bool(base and base.loinc == own.loinc)
-        return base is None or not base.loinc or base.loinc == own.loinc
+        return self._normalize(label) in self._system_keys
 
     def _systems(self) -> set[str]:
         """Every SYSTEM axis value: the specimens a trailing token could name.
@@ -436,6 +493,34 @@ class OfflineResolver:
                 if v
             }
         return self._system_values
+
+    def _states_specimen(self, text: str, system: str) -> bool:
+        """Whether `text` names the SPECIMEN `system` draws from -- a word
+        from the axis table's own SYSTEM text (`Amnio fld` -> "amnio"), or a
+        synonym for it in `_SPECIMEN_SYNONYMS` (R3-lite, #306's own gate on
+        switching away from a dedicated-procedure system: a term that
+        already says CSF must keep its CSF code, not be switched to a
+        serum sibling it never asked for). Checked against both the raw
+        input and, when the hit came through an alias, the curated TARGET
+        text, so a row whose own name already says "Cerebrospinal Fluid"
+        is never switched away from for not repeating the table's own
+        abbreviation of it."""
+        if not text:
+            return False
+        folded = self._normalize(text)
+        words = {w for w in _SYSTEM_WORD_SPLIT.split(system.lower()) if len(w) >= 3} - _SYSTEM_WORD_STOPWORDS
+        if any(word in folded for word in words):
+            return True
+        # A synonym is a WHOLE TOKEN for ASCII (`ur` must not match "your"
+        # or "nurse" as a bare substring), a plain substring for CJK, which
+        # has no word boundaries a split would find.
+        tokens = set(_SYSTEM_WORD_SPLIT.split(folded))
+        system_lower = system.lower()
+        for synonym, meanings in _SPECIMEN_SYNONYMS.items():
+            matched = synonym in tokens if synonym.isascii() else synonym in folded
+            if matched and any(w in system_lower for w in meanings):
+                return True
+        return False
 
     def _is_blocked(self, term: str) -> bool:
         """True when ANY surface variant of the term is a deliberate
@@ -472,13 +557,13 @@ class OfflineResolver:
             return keys
         if eng:
             keys.append(self._normalize(eng))
-            # The same strip on the alias table's TARGET: 429 of 48,366 targets
-            # end in an acronym, and the stem is sometimes the better index key.
-            # Its example used to be an INPUT ("Fasting plasma glucose FPG"),
-            # which is not what this line can see, that case is handled in
-            # `_candidate_keys`. Both are real: deleting this one costs 0.003
-            # coverage and RAISES the wrong-rate 0.032 -> 0.034.
-            stripped = _TRAILING_ACRONYM.sub("", eng).strip()
+            # The same split on the alias table's TARGET: 429 of 48,366
+            # targets end in an acronym, and the stem is sometimes the better
+            # index key. Its example used to be an INPUT ("Fasting plasma
+            # glucose FPG"), which is not what this line can see -- that case
+            # is `_find_seam`'s now. Both are real: deleting this one costs
+            # 0.003 coverage and RAISES the wrong-rate 0.032 -> 0.034.
+            stripped, _label = split_trailing_space_acronym(eng)
             if stripped and stripped != eng:
                 keys.append(self._normalize(stripped))
         keys.append(norm)
@@ -554,66 +639,140 @@ class OfflineResolver:
         if self._is_blocked(term):
             return Resolution(term=term, method="refused")
 
+        # `PCT` ties plateletcrit against procalcitonin at the SAME
+        # commonness rank, and row order alone picked the sepsis marker
+        # every time. A general `_pick` tie detector cost unrelated terms
+        # (`HDL-C`, `FT4`, `Lp(a)`...) their own answer (measured), so this
+        # is a named exception instead, the CA/PT/MG rows' opposite case:
+        # neither reading dominates, so it refuses by name and lets
+        # `resolve_reading` arbitrate by the unit.
+        key = self._normalize(term)
+        if key in _KNOWN_TIES:
+            code, tied = _KNOWN_TIES[key]
+            return Resolution(
+                term=term,
+                method="refused",
+                ambiguous=(code, tied),
+                rejected_reason=f"{term!r} ties {code} and {tied} at the same rank",
+            )
+
         hit = self._lookup(term)
         if hit is not None:
             return hit
 
         # `尿酸(UA)测定`, `γ-谷氨酰基转移酶*`: the name with what the report
         # printed after it. Answered as the bare name would be, blocks and the
-        # parenthetical rule below included; only reached after a miss.
+        # seam rule below included; only reached after a miss.
         bare = strip_report_marks(term)
         if bare:
             return replace(self.resolve(bare), term=term)
 
-        # "名称(缩写)", the shape a lab report prints more often than not: on
-        # production data 147 of 868 distinct indicator names have it and 70 of
-        # those carried no code. Which half is the answer is not decidable by
-        # position. ``空腹血糖(GLU)`` means the stem, ``血糖(HbA1c)`` means the
-        # parenthetical, and answering the second with glucose would file an
-        # HbA1c reading into the glucose series. So both halves are resolved and
-        # a disagreement leaves the term unresolved.
-        stem, inside = split_trailing_parenthetical(term)
-        if not stem and not inside:
+        return self._resolve_seam(term)
+
+    def _find_seam(self, term: str) -> tuple[str, str, bool]:
+        """``(stem, label, strict)`` for the first shape that matches a name
+        run into its own abbreviation; ``("", "", False)`` when none does.
+
+        #305 unifies five shapes a report glues the two with behind one
+        split: bracket ``名(缩写)``, hyphen ``Name-ABBR``, a bare space
+        before an acronym ``Name ABBR``, and a CJK run straight into Latin
+        ``白细胞WBC`` -- the last four tried again on the CamelCase-split
+        surface, so ``FastingPlasmaGlucoseFPG`` is the same shape as
+        ``Fasting Plasma Glucose FPG``. `strict` is True only for the CJK
+        shape: see `_resolve_seam` for why only it drops the
+        one-half-missing fallback the other four keep.
+        """
+        for candidate in (term, split_camel(term)):
+            stem, label = split_trailing_latin(candidate)
+            if label:
+                return stem, label, True
+            for finder in (split_trailing_parenthetical, split_trailing_hyphen, split_trailing_space_acronym):
+                stem, label = finder(candidate)
+                if label:
+                    return stem, label, False
+        return "", "", False
+
+    def _resolve_seam(self, term: str) -> Resolution:
+        """A name and its own abbreviation, in any of the shapes `_find_seam`
+        covers (#305). Which half is the answer is not decidable by
+        position: ``空腹血糖(GLU)`` means the stem, ``血糖(HbA1c)`` means the
+        label, and answering the second with glucose would file an HbA1c
+        reading into the glucose series. Both halves are resolved and
+        compared by LOINC analyte (COMPONENT), not by exact code: a
+        disagreement there leaves the term unresolved.
+        """
+        stem, label, strict = self._find_seam(term)
+        if not stem and not label:
+            return Resolution(term=term)
+
+        # A component suffix (`MB`, `BB`, an isoenzyme number, a bare digit
+        # run) names a FRACTION of the stem's analyte, never a spelling of
+        # it, whatever it would otherwise resolve to: `Creatine Kinase-MB`
+        # answered total CK before this guard existed.
+        if label and is_component_suffix(label):
             return Resolution(term=term)
         # Both halves, and the whole name without its measure words: `Serum
         # HRV (RMSSD)` is the blocked `HRV (RMSSD)`, and its stem half alone
         # answers the SDNN code that block exists to refuse.
         if (
             (stem and self._is_blocked(stem))
-            or (inside and self._is_blocked(inside))
+            or (label and self._is_blocked(label))
             or any(self._is_blocked(measured) for measured in measure_stems(term))
         ):
             return Resolution(term=term, method="refused")
 
         stem_hit = self._lookup(stem) if stem else None
-        inside_hit = self._lookup(inside) if inside else None
-        if stem_hit and inside_hit and stem_hit.loinc != inside_hit.loinc:
+        label_hit = self._lookup(label) if label else None
+        both_resolved = stem_hit is not None and label_hit is not None
+
+        if stem_hit and label_hit and stem_hit.loinc != label_hit.loinc:
             # Different codes, so ask LOINC's COMPONENT whether they are even
             # the same substance.
             #   空腹血糖(GLU)   Glucose^post CFst  vs Glucose
-            #     same analyte: the parenthetical only labels the stem, so the
-            #     stem wins
+            #     same analyte: the label only labels the stem, so the stem
+            #     wins
             #   血糖(HbA1c)    Glucose      vs Hemoglobin A1c/Hemoglobin.total
             #   胆固醇(HDL-C)  Cholesterol  vs Cholesterol.in HDL
             #     two tests in one string, so it stays unresolved
             stem_analyte = self._analyte_of(stem_hit.loinc)
-            inside_analyte = self._analyte_of(inside_hit.loinc)
-            if not stem_analyte or stem_analyte != inside_analyte:
-                # Still `refused`, but with the two answers named: a caller
-                # can put the choice to a person, which a category word's
-                # refusal never offers.
+            label_analyte = self._analyte_of(label_hit.loinc)
+            if not stem_analyte or stem_analyte != label_analyte:
+                # Still `refused`, but with the two answers named -- in
+                # `ambiguous`, a field, for `resolve_reading` to arbitrate
+                # with the measurement (#306), and in `rejected_reason` for
+                # a human; a caller can also put the choice to a person,
+                # which a category word's refusal never offers.
                 return Resolution(
                     term=term,
                     method="refused",
-                    candidates=stem_hit.candidates + inside_hit.candidates,
+                    candidates=stem_hit.candidates + label_hit.candidates,
+                    ambiguous=(stem_hit.loinc, label_hit.loinc),
                     rejected_reason=(
-                        f"{stem!r} gives {stem_hit.loinc} and {inside!r} gives {inside_hit.loinc}: "
+                        f"{stem!r} gives {stem_hit.loinc} and {label!r} gives {label_hit.loinc}: "
                         "two analytes in one name"
                     ),
                 )
-            inside_hit = None
+            label_hit = None
 
-        chosen = stem_hit or inside_hit
+        # Two guards on the ONE-SIDED fallback below, reached only when
+        # label did NOT resolve (or was narrowed away above as a repeat):
+        # a specimen token (`CSF`; `WBC` too, so checked here rather than
+        # as a pre-filter, since `白细胞WBC` already agreed above and never
+        # reaches this line) names WHERE the stem was drawn from; a label
+        # with a digit that resolves to nothing (`SomeAnalyte-D7`) is a
+        # SERIES MEMBER, not an unknown abbreviation.
+        if stem_hit and label_hit is None and label and (
+            self._is_specimen_token(label) or any(ch.isdigit() for ch in label)
+        ):
+            return Resolution(term=term)
+
+        # The CJK-glued shape drops the "one half is missing, the other
+        # still answers" fallback the other four keep: `乙肝病毒DNA` must not
+        # become an HBV antibody code through its stem alone just because
+        # `DNA` carries no code of its own (#305).
+        if strict and not both_resolved:
+            return Resolution(term=term)
+        chosen = stem_hit or label_hit
         if chosen is None:
             return Resolution(term=term)
         return replace(chosen, term=term)
@@ -742,6 +901,8 @@ class OfflineResolver:
                 axes=axes,
             )
 
+        identity = _method_identity(current[5])
+
         def _matching(component: bytes) -> list:
             return [
                 r
@@ -750,6 +911,7 @@ class OfflineResolver:
                 )
                 if ((not families) or r[2] in families)
                 and ((not scales) or r[3] in scales)
+                and (not identity or _method_identity(r[5]) == identity)
             ]
 
         siblings = _matching(current[1].encode("utf-8"))
@@ -797,6 +959,13 @@ class OfflineResolver:
             # moves from 11572-5 (Ser/Plas) to its Ql code in Ser.
             own = _specimen_tokens(current[4])
             same_system = [r for r in siblings if _specimen_tokens(r[4]) & own]
+        if not same_system and identity and _is_venipuncture_draw(current[4]):
+            # Scoped to `identity` -- set only once METHOD already agreed
+            # the sibling is the SAME test -- so this never substitutes
+            # for the specimen check on an ordinary analyte: it only
+            # widens what "one draw" already means for a component like
+            # `coagulation`, whose rows record it at varying granularity.
+            same_system = [r for r in siblings if _is_venipuncture_draw(r[4])]
         if not same_system:
             # The unit fits a sibling only in another specimen: `albumin 30
             # mg/24h` reached the URINE excretion code from a serum name. A
@@ -826,6 +995,48 @@ class OfflineResolver:
             rejected_reason=f"the name alone gives {loinc} ({current[2]}/{current[3]})",
         )
 
+    def _switch_from_procedure_specimen(self, term: str, key: str, best_row: int) -> int:
+        """R3-lite (#306): when `_pick`'s choice carries a dedicated-
+        procedure SYSTEM (`_PROCEDURE_SYSTEMS`) that nothing states, switch
+        to the best-ranked SAME-COMPONENT row whose SYSTEM is an ordinary
+        venipuncture (`_PERSON_LEVEL_SYSTEMS_LITE`); `best_row` unchanged if
+        none exists. `D-dimer` (English, bare) answers 42499-4, D-dimer in
+        CSF, on main -- a lumbar puncture nobody asked for -- while 48065-7,
+        the plasma code, sits one surface variant away (`d-dimer`'s own
+        posting is the lone CSF row; `d dimer`'s, from the SAME term, has
+        both), so every candidate KEY is searched, not only the one that
+        hit first. Never a different analyte: COMPONENT is held fixed."""
+        system = self._axis.field(best_row, _SYSTEM)
+        if system not in _PROCEDURE_SYSTEMS:
+            return best_row
+        override = self._src.get(self._normalize(term))
+        if (
+            self._states_specimen(term, system)
+            or self._states_specimen(key, system)
+            or self._states_specimen(override, system)
+        ):
+            return best_row
+        component = self._axis.field_raw(best_row, _COMPONENT)
+        best_sibling, best_score = -1, float("-inf")
+        seen: set[int] = {best_row}
+        for candidate_key in self._candidate_keys(term):
+            rows = self._posting(candidate_key)
+            if rows is None:
+                continue
+            for r in rows:
+                r = int(r)
+                if r in seen:
+                    continue
+                seen.add(r)
+                if self._axis.field_raw(r, _COMPONENT) != component:
+                    continue
+                if self._axis.field(r, _SYSTEM) not in _PERSON_LEVEL_SYSTEMS_LITE:
+                    continue
+                score = float(self._rank[r])
+                if score > best_score:
+                    best_sibling, best_score = r, score
+        return best_sibling if best_sibling >= 0 else best_row
+
     def _lookup(self, term: str) -> Resolution | None:
         """First candidate key that hits the alias index, or None on a miss.
 
@@ -838,7 +1049,8 @@ class OfflineResolver:
             rows = self._posting(key)
             if rows is None or not len(rows):
                 continue
-            code, _component, prop, scale, system, _method, lcn = self._axis_row(self._pick(rows, key))
+            chosen = self._switch_from_procedure_specimen(term, key, self._pick(rows, key))
+            code, _component, prop, scale, system, _method, lcn = self._axis_row(chosen)
             return Resolution(
                 term=term,
                 canonical=lcn,
@@ -866,6 +1078,41 @@ def resolve(term: str) -> Resolution:
     return get_resolver().resolve(term)
 
 
+def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value: str | None, unit: str | None) -> Resolution | None:
+    """Settle a name-only "two analytes" refusal with the measurement, or
+    hand back `None` to leave it refused (#306).
+
+    `resolve()` cannot see the unit, so it refuses before `variant_for_
+    reading` ever gets a say -- but the measurement routinely answers the
+    question the name alone cannot: 肌酐(Cre) names both creatinine and a
+    carbapenem-resistant culture, and only 78 µmol/L's PROPERTY says which
+    one. Both candidate codes are checked independently; exactly one
+    compatible with what was printed is the answer. Both compatible (e.g.
+    `胆固醇(HDL-C)` with any lipid unit) or neither (no unit at all, or a
+    unit that fits nothing) stays refused, same as today -- a measurement
+    that cannot decide is not evidence for either side.
+    """
+    verdicts = [(code, resolver.variant_for_reading(code, value, unit)) for code in hit.ambiguous]
+    compatible = [(code, v) for code, v in verdicts if v.outcome in ("agreed", "switched")]
+    if len(compatible) != 1:
+        return None
+    named_code, verdict = compatible[0]
+    loser = next(code for code in hit.ambiguous if code != named_code)
+    return Resolution(
+        term=hit.term,
+        canonical=resolver._name_for(verdict.code),
+        loinc=verdict.code,
+        candidates=hit.candidates,
+        resolved=True,
+        method="lexical",
+        evidence=("name", "property"),
+        unit_recognized=True,
+        rejected_code=loser,
+        axes=verdict.axes,
+        rejected_reason=f"{hit.rejected_reason}; the unit decided for {verdict.code}",
+    )
+
+
 def resolve_reading(name: str, value: str | None = None, unit: str | None = None) -> Resolution:
     """Resolve a reading, in the unit it was actually reported in.
 
@@ -890,6 +1137,10 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
     resolver = get_resolver()
     hit = resolver.resolve(name)
     if not hit.resolved or not hit.loinc:
+        if hit.ambiguous:
+            arbitrated = _arbitrate_by_measurement(resolver, hit, value, unit)
+            if arbitrated is not None:
+                return arbitrated
         return hit
     verdict = resolver.variant_for_reading(hit.loinc, value, unit)
 
