@@ -77,6 +77,19 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+### Removed
+
+- **~40 lines of verified-dead code**, none of it reachable from any route,
+  tool, or test, checked by transitive search before removal (no replacement;
+  none were used): `TempFileManager.cleanup_temp_file` (the upload temp copy
+  was never actually cleaned up through it); `AIClientManager.sync_for_spec`
+  (a speculative sync twin for a call site that never arrived; its now-unused
+  `OpenAI` import went with it); `PlatformUserService.base_user_service` (a
+  property exposing an internal attribute nothing ever read); `ValueRangeValidator.is_loaded`
+  (a status property nothing checked); `PostgresOverlayStore.for_target` (a
+  generic override lookup duplicating what `PostgresMedicationStore.overrides`
+  already does for the one target kind in use).
+
 ## 1.6.1
 
 ### Upgrade notes
