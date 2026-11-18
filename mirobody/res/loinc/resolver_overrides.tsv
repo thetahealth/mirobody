@@ -926,6 +926,13 @@ FIB	Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay
 # same dead end `Standing Height` hit, and reaches R3-lite's switch with
 # the wrong candidate pool (`D-D`'s own surface variants, not `D-dimer`'s).
 D-D	Fibrin D-dimer [Mass/volume] in Blood by rapid FEU immunoassay
+# `TT` is the same panel's abbreviation for Thrombin Time; bare `TT` had
+# no alias at all. Targets `Thrombin time` itself: the name alone still
+# answers 21032-8 (an Interpretation code, the commonness prior's own
+# pick), but a unit now switches it to 3243-3, the quantitative one, the
+# same way `TT`'s neighbours do -- see `_method_identity` in
+# `variant_for_reading` for why that switch no longer crosses to aPTT.
+TT	Thrombin time
 
 # ══ panel terms that DO have a panel code ═════════════════════════════════
 # "blood pressure" written on its own. All four spellings below name the same

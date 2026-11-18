@@ -140,6 +140,39 @@ def _specimen_tokens(system: str) -> frozenset[str]:
     return frozenset(t for t in re.split(r"[/^+]", system or "") if t)
 
 
+#: Preparations of ONE venipuncture: whole blood, serum, plasma, and
+#: plasma centrifuged for (or stripped of) platelets. `Thrombin time`'s
+#: own Interpretation row is axis SYSTEM `Bld`; its Qn sibling's is `PPP`
+#: -- the same draw, recorded at a different specimen GRANULARITY, not a
+#: different specimen, the way `Ser`/`Ser/Plas` already cross below.
+_VENIPUNCTURE_SPECIMENS = frozenset({"Bld", "Ser", "Plas", "PPP", "PRP"})
+
+
+def _is_venipuncture_draw(system: str) -> bool:
+    """Whether every specimen `_specimen_tokens` finds in `system` is one
+    of `_VENIPUNCTURE_SPECIMENS`."""
+    tokens = _specimen_tokens(system)
+    return bool(tokens) and tokens <= _VENIPUNCTURE_SPECIMENS
+
+
+def _method_identity(method: str) -> str:
+    """The identity-bearing prefix of a dotted METHOD qualifier chain, up
+    to its SECOND segment. Measured: COMPONENT "coagulation" (133 rows)
+    is the one case in the shipped axis table where many rows share a
+    COMPONENT that names no real analyte on its own -- PT, aPTT, TT and
+    Recalcification time are told apart ONLY by what induced the clot,
+    `Coag.tissue factor induced`/`Coag.surface induced`/`Coag.thrombin
+    induced`/`Coag.calcium ion induced` -- so `variant_for_reading`'s
+    sibling search must not cross between them on COMPONENT alone. A
+    method under two segments (plain, or a bare technique like `IFCC` or
+    `Automated count`) carries no such chain and returns `""`, matching
+    anything, same as an empty one always has: the existing preference
+    for a method-LESS sibling (`... by Automated count` is a narrower
+    claim than the report supports) is unaffected."""
+    parts = (method or "").split(".")
+    return ".".join(parts[:2]) if len(parts) >= 2 else ""
+
+
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
 #: for anything it cannot read as a number, an ordinal or a comparator, so this
 #: set is "the value column holds a sentence" rather than a constraint on the
@@ -868,6 +901,8 @@ class OfflineResolver:
                 axes=axes,
             )
 
+        identity = _method_identity(current[5])
+
         def _matching(component: bytes) -> list:
             return [
                 r
@@ -876,6 +911,7 @@ class OfflineResolver:
                 )
                 if ((not families) or r[2] in families)
                 and ((not scales) or r[3] in scales)
+                and (not identity or _method_identity(r[5]) == identity)
             ]
 
         siblings = _matching(current[1].encode("utf-8"))
@@ -923,6 +959,13 @@ class OfflineResolver:
             # moves from 11572-5 (Ser/Plas) to its Ql code in Ser.
             own = _specimen_tokens(current[4])
             same_system = [r for r in siblings if _specimen_tokens(r[4]) & own]
+        if not same_system and identity and _is_venipuncture_draw(current[4]):
+            # Scoped to `identity` -- set only once METHOD already agreed
+            # the sibling is the SAME test -- so this never substitutes
+            # for the specimen check on an ordinary analyte: it only
+            # widens what "one draw" already means for a component like
+            # `coagulation`, whose rows record it at varying granularity.
+            same_system = [r for r in siblings if _is_venipuncture_draw(r[4])]
         if not same_system:
             # The unit fits a sibling only in another specimen: `albumin 30
             # mg/24h` reached the URINE excretion code from a serum name. A

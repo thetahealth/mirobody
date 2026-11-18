@@ -1251,11 +1251,11 @@ def test_coagulation_panel_abbreviations():
     siblings are a different COMPONENT, "fibrin+fibrinogen fragments", not
     "fibrin degradation products"; AT-III's RelCCnc has no recognized `%`
     unit family) -- real, narrow gaps, left alone rather than patched
-    blind. `TT` is NOT pinned: `resolve_reading("Thrombin time", "17",
-    "s")` crosses to 3173-2, APTT -- a different analyte entirely -- because
-    both share the generic COMPONENT "coagulation" in `variant_for_reading`'s
-    sibling search. Pre-existing on main, out of scope here; flagged, not
-    fixed, and not given a `TT` alias that would inherit it."""
+    blind. `TT`/`Thrombin time`/`凝血酶时间` name alone still answers
+    21032-8, an Interpretation code; a unit now switches to 3243-3, the
+    quantitative one, without crossing to 3173-2 (aPTT) the way it used
+    to -- see `test_a_unit_switch_keeps_the_coagulation_test_identity`
+    for the mechanism."""
     from mirobody.engine import resolve, resolve_reading
 
     for term, loinc in (("PT", "5902-2"), ("APTT", "3173-2"), ("INR", "34714-6")):
@@ -1273,7 +1273,40 @@ def test_coagulation_panel_abbreviations():
     assert resolve("AT-III").loinc == "27811-9"
     assert not resolve_reading("AT-III", "95", "%").resolved
 
-    assert not resolve("TT").resolved
+    assert resolve("TT").loinc == "21032-8"
+    for term in ("TT", "Thrombin time", "凝血酶时间"):
+        assert resolve_reading(term, "17", "s").loinc == "3243-3", term
+
+
+def test_a_unit_switch_keeps_the_coagulation_test_identity():
+    """`variant_for_reading`'s sibling search matched by COMPONENT alone,
+    and `coagulation` (133 axis rows) is the one case in the shipped
+    table where that names no real test: PT, aPTT, TT and Recalcification
+    time are told apart ONLY by what induced the clot (`Coag.tissue
+    factor induced`/`Coag.surface induced`/`Coag.thrombin induced`/
+    `Coag.calcium ion induced`), so `resolve_reading("Thrombin time",
+    "17", "s")` crossed to 3173-2, aPTT -- a different analyte entirely.
+    `_method_identity` requires a sibling's own first two dotted METHOD
+    segments to agree once the chosen row's does, leaving an ordinary
+    analyte (a method under two segments, or none) unconstrained, exactly
+    as before. `_is_venipuncture_draw` closes the second half: Thrombin
+    time's Interpretation row is axis SYSTEM `Bld`, its Qn sibling's is
+    `PPP`, the SAME venipuncture recorded at a different specimen
+    GRANULARITY -- scoped to `identity` so it never substitutes for the
+    specimen check on a term this mechanism does not apply to."""
+    from mirobody.engine.resolver import get_resolver
+
+    r = get_resolver()
+    tt_by_unit = r.variant_for_reading("21032-8", "17", "s")
+    assert tt_by_unit.code == "3243-3" and tt_by_unit.outcome == "switched"
+
+    for code, value, unit, stays in (
+        ("5902-2", "12.1", "s", "5902-2"),   # PT keeps its own code
+        ("3173-2", "31", "s", "3173-2"),     # aPTT keeps its own code
+        ("34714-6", "1.0", "", "34714-6"),   # INR keeps its own code
+    ):
+        v = r.variant_for_reading(code, value, unit)
+        assert v.code == stays, code
 
 
 def test_stool_fat_globules_keep_resolving_after_bare_fat_targets_body_mass():
