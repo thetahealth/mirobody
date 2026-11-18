@@ -92,6 +92,19 @@ others:
   alone: a new key would leave those fields unreadable, and there is no
   command yet that re-encrypts them (`docs/roadmap.md`). Treat such a
   deployment as a local one.
+- **The device-credential key is `DATABASE_DECRYPTION_KEY`, a third value
+  from `CONFIG_ENCRYPTION_KEY` and `PG_ENCRYPTION_KEY`.** It backs the
+  AES-GCM encryption of device credentials and OAuth tokens
+  (`mirobody/utils/crypto.py`); `config.devices.yaml` ships it under the same
+  `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder. `deploy.sh` generates it
+  like the other secrets on a fresh install. On an existing database it
+  leaves `.env` alone instead: the YAML placeholder is already the value in
+  effect — the same key already in use — and a value `deploy.sh` wrote to
+  `.env` would outrank a real one set later in a config overlay, since the
+  environment always wins. Set it only together with re-encrypting stored
+  device credentials; a new key read in place of the old one would leave
+  them undecryptable, and there is no command yet that re-encrypts them
+  (`docs/roadmap.md`).
 - **`SETUP_TOKEN` guards the setup page, which decides where health data is
   sent** (a vendor key, or the address of a model server). `deploy.sh`
   generates it into `.env`; without it the server makes one per run. While no

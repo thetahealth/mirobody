@@ -88,6 +88,33 @@
   the upload form points to `server_version` and uses `docker compose
   up -d` after `.env` changes, because `restart` keeps the old environment.
 
+- **`PRODUCTION: true` no longer refuses to start on a secret `deploy.sh`
+  generated.** `Config.placeholder_keys()` scanned `self._raw` — the YAML
+  alone — while `get()`/`get_str()` check the environment first; `deploy.sh`
+  writes every secret it generates to `.env` and never edits the YAML, so
+  `PG_PASSWORD`, `PG_ENCRYPTION_KEY`, `JWT_KEY` and `DATABASE_DECRYPTION_KEY`
+  still read as the shipped `REPLACE_THIS_VALUE_IN_PRODUCTION` placeholder to
+  the production guard, and every `./deploy.sh` stack with `PRODUCTION: true`
+  restarted in a loop (#299). `placeholder_keys()` now shares `get()`'s own
+  environment-first lookup, so the real secret in `.env` clears the guard,
+  while a placeholder set in the environment itself is still refused.
+  `deploy.sh` also now generates `DATABASE_DECRYPTION_KEY` like the other
+  secrets on a fresh install. On an existing database it leaves `.env`
+  alone instead of writing the placeholder there, unlike `PG_ENCRYPTION_KEY`:
+  this key reaches the app only through `env_file`, not compose's own
+  variable substitution, so a value `deploy.sh` wrote to `.env` would
+  outrank a real key set afterwards in a config overlay for good. Leaving
+  it unset keeps `config.devices.yaml`'s placeholder as the effective key —
+  the same one already in use — and stored device credentials and OAuth
+  tokens keep decrypting. SECURITY.md and the quickstart guides (English,
+  Chinese, Japanese) now name `DATABASE_DECRYPTION_KEY` among the secrets to
+  set, together with re-encrypting any stored credentials. How to tell:
+  with a real value for all four only in `.env` and the YAML still holding
+  the placeholder, `Config.placeholder_keys()` is empty and
+  `enforce_production_auth_safety()` does not raise; a fresh `./deploy.sh`
+  run (no existing database) adds a generated `DATABASE_DECRYPTION_KEY` to
+  `.env`, and a run against an existing one leaves it out.
+
 - **A frequency's count — per day, per week, or the length of a period — is
   read correctly instead of falling back to "once"** (#302). `_PER_DAY`,
   `_EVERY_N_DAYS_RE` and `_WEEKLY_RE` each spelled out a handful of literal
