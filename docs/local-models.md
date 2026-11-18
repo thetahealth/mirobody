@@ -162,7 +162,7 @@ structured extraction, images and OCR.
 | Docker runs out of memory | Allocate at least 8 GB in Docker Desktop, or use `colima start --memory 8`. CPU deployments use `docker/local-models-cpu.ini`; GPU deployments use `docker/local-models.ini`. |
 | The log says `Is a directory` for the model preset | Check Docker can access the checkout. Colima shares the home directory by default; move the checkout there or add its path to `mounts`. |
 | Downloads cannot reach Hugging Face | Set `HF_ENDPOINT=https://<mirror>` in `.env` for Compose, or in the shell that starts `llama-server`. |
-| Local requests fail through a system proxy | In the calling shell, set `export NO_PROXY=localhost,127.0.0.1`. This also applies to WSL inheriting a Windows proxy. |
+| Local requests fail through a system proxy | Compose already exempts `pg`, `llama`, `localhost`, `127.0.0.1` and `host.docker.internal` from the proxy (`NO_PROXY`/`no_proxy` in `compose.yaml`), and keeps any `NO_PROXY`/`no_proxy` the host already sets rather than replacing it, so this should need nothing from you. Running `llama-server` directly, outside Compose: set `export NO_PROXY=localhost,127.0.0.1` in the calling shell yourself. This also applies to WSL inheriting a Windows proxy. |
 
 The model cache is the Compose project's `mirobody_models` volume. A different
 checkout or `COMPOSE_PROJECT_NAME` may create another cache and download again.

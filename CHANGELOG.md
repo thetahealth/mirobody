@@ -51,6 +51,19 @@
 
 ### Fixed
 
+- **A system proxy no longer swallows the internal hosts a trend's own
+  containers exempt by default.** `compose.yaml`'s `NO_PROXY` used
+  `${NO_PROXY:-default}`, which replaced the whole default list with
+  whatever `NO_PROXY` the host (or Docker Desktop, which passes its proxy
+  settings into containers) already had set, dropping `llama` from it: a
+  tester reported the app container's call to the local model container
+  being caught by their system proxy until they added the service name back
+  by hand. `pg`, `llama`, `localhost`, `127.0.0.1` and `host.docker.internal`
+  are now always exempt for the app and worker containers, with any
+  `NO_PROXY`/`no_proxy` the host sets appended rather than substituted. How
+  to tell: `docker compose config` with `NO_PROXY=localhost,127.0.0.1` set on
+  the host still lists `llama` in both containers' `NO_PROXY`.
+
 - **A trend's percentage now reads as the change from the start.**
   `view=trend` divided the change by the mean of all the readings, not the
   first one, under the field name `delta_pct`, so a reader working the
