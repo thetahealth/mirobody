@@ -51,6 +51,19 @@
 
 ### Fixed
 
+- **A question typed into the Records box is no longer filed as a note
+  without a word.** The box on the Data page logs what a person writes, and
+  a tester typed a question there (「我最近的血压怎么样？」); it was stored as
+  a journal note and never answered, and the only feedback was "kept as a
+  note". A question now gets a notice that this box records rather than
+  answers, with "Ask in chat", which opens the chat with the text already in
+  the input, and "Record it anyway". What counts as a question is a closed,
+  tested list: a trailing ？/?, strong Chinese forms such as 怎么样 or 是不是,
+  a sentence-final 吗/呢, and an interrogative word at the start of English or
+  Japanese. Ordinary log sentences such as 「今天没什么不舒服」 or 「多少有点
+  头疼」 do not trigger it (thetahealth/mirobody-web#33). To tell: type a
+  question into the Records box and the notice appears instead of a note.
+
 - **A reference range written with one tilde is no longer struck through.**
   Chinese lab reports print ranges as `7~40`, and an answer quotes them as
   printed. The web client's Markdown renderer kept GFM's default of reading
