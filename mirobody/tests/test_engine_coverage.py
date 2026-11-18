@@ -1167,6 +1167,80 @@ def test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too()
         )
 
 
+def test_an_override_chain_does_not_dead_end_on_an_organ():
+    """`Standing Height` answered 15286-8, a KIDNEY ultrasound, on main: its
+    row pointed at `Height`, itself redirected to `Body height`, and
+    `resolver_overrides.tsv`'s one-hop chain never took the second step,
+    so the bare key `height` reached the raw index instead and `_pick`
+    took whichever of seven Height-by-US rows ranked first. Retargeted
+    straight at `Body height`. A general abstain-on-unstated-specimen rule
+    was tried and reverted (measured against the full eval set: 1,418
+    correct answers lost for 427 catches, mostly `Urine`/`Isolate`/`Air`/
+    `Ventilator`/`Bld.dot`, none a dedicated-procedure specimen) -- this
+    fix is independent of that, a dead override chain found along the way."""
+    from mirobody.engine import resolve
+
+    assert resolve("Standing Height").loinc == "8302-2"
+
+
+def test_abbreviated_override_targets_do_not_cascade_to_the_wrong_specimen():
+    """`亚硝酸盐`/`尿亚硝酸盐` -> `Nitrite Ur Ql`: when that abbreviated hop
+    key has no posting of its own in the alias index (as it did not, here),
+    `_lookup` falls through to the next candidate -- the bare Chinese term
+    -- and a plain `亚硝酸盐` posts eleven rows, Serum/Plasma's 55948-4
+    ranked above the urine dipstick row the override meant. Several
+    `Ur`-shorthand targets (`Prot Ur Ql`, `SP GR Ur`, `Leukocyte esterase`,
+    ...) had the same latent risk; all now name their full LOINC form."""
+    from mirobody.engine import resolve
+
+    for term, loinc in (
+        ("亚硝酸盐", "32710-6"), ("尿亚硝酸盐", "32710-6"),
+        ("白细胞酯酶", "5799-2"), ("尿白细胞酯酶", "5799-2"),
+        ("specific gravity", "2965-2"), ("creatinine clearance", "2164-2"),
+        # Bare 隐血 is genuinely ambiguous (urine vs. stool occult blood);
+        # main answers the stool code and that is kept, not abstained.
+        ("隐血", "2335-8"), ("大便隐血", "2335-8"), ("粪便隐血", "2335-8"),
+    ):
+        assert resolve(term).loinc == loinc, term
+
+
+def test_coagulation_panel_abbreviations():
+    """`凝血四项`/`血凝常规` print PT, APTT, TT, FIB and sometimes INR, D-D,
+    FDP, AT-III as bare letters. PT/APTT/INR were already right; `FIB`
+    answered 76615-4 (lysosomal acid lipase, cultured fibroblasts -- the
+    only thing "FIB" shares with fibrinogen is the three letters) and is
+    now a curated alias to the Clauss (clotting) assay, the routine method
+    a panel reports; `D-D` had no alias and now reaches the same plasma
+    D-dimer code `D-dimer` itself does. `FDP`/`AT-III` resolve by name and
+    correctly ABSTAIN rather than guess once a unit is given (FDP's Qn
+    siblings are a different COMPONENT, "fibrin+fibrinogen fragments", not
+    "fibrin degradation products"; AT-III's RelCCnc has no recognized `%`
+    unit family) -- real, narrow gaps, left alone rather than patched
+    blind. `TT` is NOT pinned: `resolve_reading("Thrombin time", "17",
+    "s")` crosses to 3173-2, APTT -- a different analyte entirely -- because
+    both share the generic COMPONENT "coagulation" in `variant_for_reading`'s
+    sibling search. Pre-existing on main, out of scope here; flagged, not
+    fixed, and not given a `TT` alias that would inherit it."""
+    from mirobody.engine import resolve, resolve_reading
+
+    for term, loinc in (("PT", "5902-2"), ("APTT", "3173-2"), ("INR", "34714-6")):
+        assert resolve(term).loinc == loinc, term
+    assert resolve_reading("PT", "12", "s").loinc == "5902-2"
+    assert resolve_reading("APTT", "30", "s").loinc == "3173-2"
+
+    assert resolve("FIB").loinc == "3255-7"
+    assert resolve_reading("FIB", "3.2", "g/L").loinc == "3255-7"
+    assert resolve("D-D").loinc == resolve("D-二聚体").loinc == "71427-9"
+    assert resolve_reading("D-D", "0.3", "ug/mL").loinc == "71427-9"
+
+    assert resolve("FDP").loinc == "29263-1"
+    assert not resolve_reading("FDP", "2.5", "ug/mL").resolved
+    assert resolve("AT-III").loinc == "27811-9"
+    assert not resolve_reading("AT-III", "95", "%").resolved
+
+    assert not resolve("TT").resolved
+
+
 def test_stool_fat_globules_keep_resolving_after_bare_fat_targets_body_mass():
     """#301 gives bare `脂肪`/`Fat` the body-composition device's code
     (73708-0) instead of stool fat's 16853-4/2270-7. The trade-off named in
@@ -1424,7 +1498,11 @@ def test_a_signed_dipstick_grade_is_not_a_quantity():
 
     assert classify_value("+1") == classify_value("+2") == classify_value("-1") == "nar"
     assert classify_value("1+") == "ord"
-    for name, value, loinc in (("尿蛋白", "+1", "2887-8"), ("Urine protein", "+2", "2887-8"), ("隐血", "+1", "2335-8")):
+    # 大便隐血, not bare 隐血: "occult blood" alone names no specimen (R3) --
+    # urine and stool both print a dipstick grade this way, and the bare
+    # word answering stool by commonness alone is #301's class of defect,
+    # not a safe default. `test_the_specimen_rule...` pins the abstention.
+    for name, value, loinc in (("尿蛋白", "+1", "2887-8"), ("Urine protein", "+2", "2887-8"), ("大便隐血", "+1", "2335-8")):
         assert resolve_reading(name, value, None).loinc == loinc
 
 

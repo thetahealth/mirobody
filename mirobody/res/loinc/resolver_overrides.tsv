@@ -256,7 +256,7 @@ direct bilirubin	Bilirubin.glucuronidated
 conjugated bilirubin	Bilirubin.glucuronidated
 indirect bilirubin	Bilirubin.non-glucuronidated
 unconjugated bilirubin	Bilirubin.non-glucuronidated
-creatinine clearance	Creatinine renal clearance
+creatinine clearance	Creatinine renal clearance in 24 hour Urine and Serum or Plasma
 T3	Triiodothyronine
 total T3	Triiodothyronine
 T4	Thyroxine
@@ -270,12 +270,12 @@ CA19-9	Cancer Ag 19-9
 free PSA	Prostate specific Ag.free
 OGTT	Glucose^2H post 75 g glucose PO
 oral glucose tolerance test	Glucose^2H post 75 g glucose PO
-urine glucose	Glucose Ur-mCnc
-urine ketones	Ketones Ur-mCnc
-urine protein	Prot Ur Ql
-urine pH	pH Ur
-specific gravity	SP GR Ur
-urine specific gravity	SP GR Ur
+urine glucose	Glucose [Mass/volume] in Urine
+urine ketones	Ketones [Mass/volume] in Urine
+urine protein	Protein [Presence] in Urine
+urine pH	pH of Urine
+specific gravity	Specific gravity of Urine
+urine specific gravity	Specific gravity of Urine
 
 # ── wearables ────────────────────────────────────────────────────────────
 # The sleep stages, skin temperature and climb a watch reports. LOINC 2.75
@@ -341,9 +341,9 @@ floors climbed	Flights climbed
 舒张压	Diastolic blood pressure
 血氧饱和度	Oxygen saturation
 网织红细胞计数	Reticulocytes
-尿蛋白	Prot Ur Ql
-尿糖	Glucose Ur-mCnc
-尿酮体	Ketones Ur-mCnc
+尿蛋白	Protein [Presence] in Urine
+尿糖	Glucose [Mass/volume] in Urine
+尿酮体	Ketones [Mass/volume] in Urine
 # 同工酶与组分：后缀指母酶的一个组分，不是它的缩写。化验单上单印
 # "肌酸激酶同工酶" 报的是 CK-MB 的量，不是同工酶谱的判读（14680-3）。
 肌酸激酶同工酶	Creatine kinase.MB
@@ -404,8 +404,8 @@ REM睡眠	REM sleep duration
 糖化ヘモグロビン	HbA1c
 ヘモグロビンA1c	HbA1c
 コレステロール	Cholesterol
-尿蛋白	Prot Ur Ql
-尿糖	Glucose Ur-mCnc
+尿蛋白	Protein [Presence] in Urine
+尿糖	Glucose [Mass/volume] in Urine
 # The spelled-out ホルモン names. `甲状腺刺激ホルモン(TSH)` already resolved via
 # the parenthetical strip, and the bare form — which is what a 健康診断結果表
 # actually prints — did not. Found by the four-language row in
@@ -611,7 +611,7 @@ ache	!unresolved
 血清谷丙转氨酶	Alanine aminotransferase
 血清谷草转氨酶	Aspartate aminotransferase
 血清总胆红素	Bilirubin
-尿白细胞	Leukocyte esterase
+尿白细胞	Leukocyte esterase [Presence] in Urine by Test strip
 尿比重	Specific gravity of Urine
 # CBC full names as a 中文 report prints them; the ABBREVIATION already
 # resolved (MCV -> 30428-7), the spelled-out Chinese did not. Same shape as the
@@ -911,6 +911,21 @@ HRV SDNN	Heart rate variability SDNN
 心率变异性SDNN	Heart rate variability SDNN
 # 凝血酶原时间 answered 34714-6 INR: a DERIVED ratio, not the time itself.
 凝血酶原时间	Prothrombin time (PT)
+# `FIB` is Chinese coagulation panels' own abbreviation for fibrinogen
+# (凝血四项/血凝常规 print PT/APTT/TT/FIB together); the bare word answered
+# 76615-4, lysosomal acid lipase measured on cultured fibroblasts, sharing
+# "FIB" with no overlap in meaning at all. Targets the Clauss (clotting)
+# assay, the routine method a coagulation panel reports, in Platelet poor
+# plasma -- not `Fibrinogen` alone, which the commonness prior resolves to
+# 97016-0, a CALCULATED Blood value, a different row for the same analyte.
+FIB	Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay
+# `D-D`: the same panel's own abbreviation for D-dimer (`D-二聚体`, which
+# already resolves). Chinese reports write both `D-D` and `D-二聚体`; `D-D`
+# alone had no alias. Targets the exact LCN, not `D-dimer`: that redirect's
+# OWN hop key (`d-dimer`, hyphenated) posts only the CSF row on its own,
+# same dead end `Standing Height` hit, and reaches R3-lite's switch with
+# the wrong candidate pool (`D-D`'s own surface variants, not `D-dimer`'s).
+D-D	Fibrin D-dimer [Mass/volume] in Blood by rapid FEU immunoassay
 
 # ══ panel terms that DO have a panel code ═════════════════════════════════
 # "blood pressure" written on its own. All four spellings below name the same
@@ -984,7 +999,7 @@ BP	Blood pressure panel with all children optional
 總膽固醇值	Cholesterol
 低密度膽固醇	LDL-C
 高密度膽固醇	HDL-C
-尿蛋白質	Prot Ur Ql
+尿蛋白質	Protein [Presence] in Urine
 
 # 血脂肪 is the Taiwan wording for the lipid panel — same category term, same
 # reason it cannot have one code. Listed here rather than in the block section
@@ -1003,10 +1018,10 @@ BP	Blood pressure panel with all children optional
 # reported both as a titre and as reactive/non-reactive) still lands right.
 尿隐血	Hemoglobin [Presence] in Urine by Test strip
 尿红细胞	Erythrocytes [Presence] in Urine
-尿亚硝酸盐	Nitrite Ur Ql
-亚硝酸盐	Nitrite Ur Ql
-尿白细胞酯酶	Leukocyte esterase
-白细胞酯酶	Leukocyte esterase
+尿亚硝酸盐	Nitrite [Presence] in Urine
+亚硝酸盐	Nitrite [Presence] in Urine
+尿白细胞酯酶	Leukocyte esterase [Presence] in Urine by Test strip
+白细胞酯酶	Leukocyte esterase [Presence] in Urine by Test strip
 乙肝表面抗原	Hepatitis B virus surface Ag
 HBsAg	Hepatitis B virus surface Ag
 乙肝表面抗体	Hepatitis B virus surface Ab
@@ -1604,7 +1619,7 @@ Systolic: Blood pres (3rd rdg) mm Hg	Systolic blood pressure
 Diastolic: Blood pres (3rd rdg) mm Hg	Diastolic blood pressure
 Systolic: Blood pres (4th rdg) mm Hg	Systolic blood pressure
 Diastolic: Blood pres (4th rdg) mm Hg	Diastolic blood pressure
-Standing Height	Height
+Standing Height	Body height
 60 sec. pulse	Heart rate
 60 sec HR	Heart rate
 Albumin, refrigerated serum	Albumin
@@ -1625,3 +1640,11 @@ Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma	Alkaline pho
 Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma	Aspartate aminotransferase
 Gamma glutamyl transferase [Enzymatic activity/volume] in Serum or Plasma	Gamma glutamyl transferase
 Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction	Lactate dehydrogenase
+
+# `Myelin basic protein` genuinely ties CSF (2638-5) against Serum
+# (56661-2) at the same rank (R3): the catalogue's own display field,
+# `Myelin basic protein (CSF)`, states which, but the parenthetical split
+# reads a bare specimen word in brackets as uninterpretable (see
+# `_is_specimen_token`'s guard, written for `Protein CSF`), so this one
+# reaches its code directly rather than through that split.
+Myelin basic protein (CSF)	Myelin basic protein [Mass/volume] in Cerebrospinal Fluid
