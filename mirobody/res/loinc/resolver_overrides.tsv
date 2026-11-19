@@ -1655,3 +1655,33 @@ Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate 
 # `_is_specimen_token`'s guard, written for `Protein CSF`), so this one
 # reaches its code directly rather than through that split.
 Myelin basic protein (CSF)	Myelin basic protein [Mass/volume] in Cerebrospinal Fluid
+
+# ── vital signs as a check-up or an outpatient note prints them ─────────────
+# Found by the 1.6.2 release test (2026-11-19), running a local model over an
+# outpatient note's vitals line (`T 36.8℃ P 78次/分 R 18次/分 BP 152/96mmHg`)
+# and a check-up's physical-exam section. `脉搏` answered nothing while
+# `Pulse` answers 8867-4 from the index, so one pulse coded in English and
+# not in Chinese; `60 sec. pulse` above already goes the same way. `身長`,
+# Japanese for height, and `身长`, the Simplified spelling a paediatric
+# record prints, answered 94863-8, a transthyretin electrophoresis width
+# ("half peak height"). The single letters stay unresolved: `P` is
+# phosphorus and `T` a hormone on a lab report. `臀围` (hip) and `腰臀比` are
+# not here because the bundled index has no hip-circumference row to target.
+脉搏	Heart rate
+脈搏	Heart rate
+脉率	Heart rate
+脈率	Heart rate
+心跳	Heart rate
+Pulse rate	Heart rate
+脈拍	Heart rate
+心拍数	Heart rate
+腋温	Axillary temperature
+腰围	Waist Circumference at umbilicus by Tape measure
+腰圍	Waist Circumference at umbilicus by Tape measure
+腹囲	Waist Circumference at umbilicus by Tape measure
+身長	Body height
+身长	Body height
+最高血圧	Systolic blood pressure
+最低血圧	Diastolic blood pressure
+收缩期血压	Systolic blood pressure
+舒张期血压	Diastolic blood pressure

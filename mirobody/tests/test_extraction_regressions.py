@@ -322,6 +322,8 @@ _S, _D = observations.KIND_MEASUREMENT, observations.KIND_FINDING
     ([("血压", "120/80", "", "Imaging")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
     ([("血压", "120/80", "", "Pathological")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
     ([("血壓", "120/80", "", "Examination")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("血圧", "128/82", "mmHg", "Physiological")],
+     [("収縮期血圧", "128", "mmHg", _S), ("拡張期血圧", "82", "mmHg", _S)]),
     ([("Blood pressure", "111/65 mmHg", "", "Physiological")],
      [("Systolic blood pressure", "111", "mmHg", _S), ("Diastolic blood pressure", "65", "mmHg", _S)]),
     ([("BP", "15/10", "kPa", "Examination")],

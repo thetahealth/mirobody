@@ -599,6 +599,23 @@ CASES: list[tuple[str, str, str]] = [
     ("肌酐(Cre)",                     r"^creatinine \[",               r""),
     ("肌酐(CREA)",                    r"^creatinine \[",               r""),
     ("肌酐(Cr)",                     r"^creatinine \[",               r""),
+    # ── vital signs as a check-up or an outpatient note prints them ─────────
+    # `Pulse` answered 8867-4 and `脉搏` nothing; `身長` (ja, height) answered
+    # a transthyretin "half peak height" (1.6.2 release test).
+    ("脉搏",                          r"^heart rate$",                 r""),
+    ("脈搏",                          r"^heart rate$",                 r""),
+    ("脉率",                          r"^heart rate$",                 r""),
+    ("Pulse rate",                   r"^heart rate$",                 r""),
+    ("脈拍",                          r"^heart rate$",                 r""),
+    ("心拍数",                         r"^heart rate$",                 r""),
+    ("腋温",                          r"axillary temperature",         r""),
+    ("腰围",                          r"waist circumference",          r""),
+    ("腹囲",                          r"waist circumference",          r""),
+    ("身長",                          r"^body height$",                r"transthyretin"),
+    ("身长",                          r"^body height$",                r"transthyretin"),
+    ("最高血圧",                        r"^systolic blood pressure$",    r""),
+    ("最低血圧",                        r"^diastolic blood pressure$",   r""),
+    ("收缩期血压",                       r"^systolic blood pressure$",    r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names

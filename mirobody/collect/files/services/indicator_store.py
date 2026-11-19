@@ -60,7 +60,7 @@ _PRESSURE = "_pressure"
 # A name that already says which half it is. `collect.sentence._BP_NAME`
 # finds "blood pressure" inside `Systolic blood pressure` too, so without
 # this two systolic readings in a row were renamed systolic and diastolic.
-_HALF = re.compile(r"收缩|舒张|收縮|舒張|systolic|diastolic", re.IGNORECASE)
+_HALF = re.compile(r"收缩|舒张|收縮|舒張|収縮|拡張|systolic|diastolic", re.IGNORECASE)
 _SPACE = re.compile(r"\s+")
 #: A non-numeric value longer than this is prose a model may rephrase; it is
 #: not checked against the text.

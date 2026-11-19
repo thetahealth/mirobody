@@ -112,6 +112,23 @@
 
 ### Fixed
 
+- **A check-up's pulse, waist and Japanese height code.** An outpatient
+  note's vitals line or a check-up's physical-exam section prints `脉搏 78
+  次/分`; `脉搏` resolved to nothing, so the pulse was stored uncoded, while
+  the English `Pulse` already answered 8867-4. `脈搏`, `脉率`, `心跳`,
+  `Pulse rate`, `脈拍` and `心拍数` answered nothing too, and so did `腋温`,
+  `腰围` and the Japanese `腹囲`. `身長` (Japanese height) and `身长` were
+  worse: they answered 94863-8, a transthyretin electrophoresis width. Each
+  now resolves through `resolver_overrides.tsv` to Heart rate, Axillary
+  temperature, Waist circumference or Body height, and `最高血圧`/`最低血圧`
+  and `收缩期血压`/`舒张期血压` to systolic and diastolic blood pressure. On the
+  maintainers' resolver set this moves four cases from no answer to the
+  right analyte and nothing else. The single letters `P`, `R` and `T` still
+  answer nothing: on a lab report `P` is phosphorus. Hip circumference and
+  waist-to-hip ratio stay uncoded: the bundled index has no row for them.
+  Readings already stored pick up the code with `mirobody recode`. To tell:
+  `mirobody resolve 脉搏` prints 8867-4.
+
 - **A blood pressure the model read is stored as two numbers.** A table row
   and a journal entry already split `123/78` into 收缩压/舒张压 (8480-6 and
   8462-4); a pair the model returned was stored as given. Left as one row
@@ -122,7 +139,8 @@
   alternating 120, 80. Both are now split or renamed before they are
   stored, through the table rules' own split (`table_indicators.
   split_pressure`: unit as printed or mmHg, a paired range `90-139/60-89`
-  divided between the two), and a Traditional `血壓` is recognised too.
+  divided between the two), and a Traditional `血壓` and a Japanese `血圧`
+  (split into `収縮期血圧`/`拡張期血圧`) are recognised too.
   Readings already stored keep their shape until their file is read again
   (重新处理). To tell: upload a note printing `血压 120/80`; the record
   shows 收缩压 120 mmHg and 舒张压 80 mmHg, not one `120/80`.
