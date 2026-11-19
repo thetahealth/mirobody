@@ -887,6 +887,10 @@ class PostgresHealthQuery:
             ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS min_at,"
             " (array_agg(clock ORDER BY value_std DESC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS max_at"
         ) if resolution == "hour" else ""
+        # A day figure (`grain='day'`, Apple's daily minimum heart rate) has
+        # no hour either: its bucket is labelled with the date alone, since
+        # even without `min_at` the `00:00` label led a local model to answer
+        # "lowest 48 at 00:00" (1.6.2 release test).
         clock = (
             f", CASE WHEN o.grain IN ('{GRAIN_DAY}', '{GRAIN_WINDOW}') THEN NULL"
             f" ELSE to_char({_LOCAL_TS}, 'HH24:MI') END AS clock, {_LOCAL_TS} AS local_ts"
@@ -895,12 +899,14 @@ class PostgresHealthQuery:
             f"""
             WITH base AS (
                 SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
+                       o.grain = '{GRAIN_DAY}' AS day_figure,
                        date_trunc('{trunc}', {_LOCAL_TS}) AS at{clock}
                   FROM v_observation o{_SERIES_UNIT_JOIN}
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
             ), grouped AS (
                 SELECT series_id, {_LATEST_IDENTITY},
-                       to_char(at, 'YYYY-MM-DD HH24:MI') AS period,
+                       CASE WHEN bool_and(day_figure) THEN to_char(at, 'YYYY-MM-DD')
+                            ELSE to_char(at, 'YYYY-MM-DD HH24:MI') END AS period,
                        COUNT(*) AS n,
                        AVG(value_std) AS avg,
                        MIN(value_std) AS min,
