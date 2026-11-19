@@ -139,7 +139,8 @@
   alternating 120, 80. Both are now split or renamed before they are
   stored, through the table rules' own split (`table_indicators.
   split_pressure`: unit as printed or mmHg, a paired range `90-139/60-89`
-  divided between the two), and a Traditional `血壓` is recognised too.
+  divided between the two), and a Traditional `血壓` and a Japanese `血圧`
+  (split into `収縮期血圧`/`拡張期血圧`) are recognised too.
   Readings already stored keep their shape until their file is read again
   (重新处理). To tell: upload a note printing `血压 120/80`; the record
   shows 收缩压 120 mmHg and 舒张压 80 mmHg, not one `120/80`.

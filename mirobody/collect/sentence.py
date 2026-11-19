@@ -104,7 +104,9 @@ MAX_NAME = 200
 #: read as the future.
 _FUTURE_SLACK = timedelta(minutes=10)
 
-_BP_NAME = re.compile(r"血压|blood\s*pressure|\bbp\b", re.IGNORECASE)
+# `血圧` is the Japanese spelling, which `zh_fold` leaves alone: without it a
+# 健康診断's `血圧 128/82` stayed one value with no number in it.
+_BP_NAME = re.compile(r"血压|血圧|blood\s*pressure|\bbp\b", re.IGNORECASE)
 #: A measurement's value starts with its number (a comparator first is fine).
 #: DeepSeek V4.1 Flash once answered `"value": "收缩压 123"`, the name inside
 #: the value, and it was stored as an uncoded reading nobody could chart
@@ -466,11 +468,17 @@ def blood_pressure(name: str, value: str) -> tuple[tuple[str, str], ...] | None:
     8462-4. The table rules split a printed pair with this too, so a pair
     typed into the journal and one printed in a report are the same two
     readings. A Traditional `血壓` is folded first: matched as printed, a
-    Taiwanese or Hong Kong report's pair stayed one narrative value."""
+    Taiwanese or Hong Kong report's pair stayed one narrative value. A
+    Japanese `血圧` gets the Japanese names, which resolve the same."""
     m = _BP_VALUE.match(value)
     if not (m and _BP_NAME.search(fold_to_hans(name))):
         return None
-    names = ("收缩压", "舒张压") if _CJK.search(name) else ("Systolic blood pressure", "Diastolic blood pressure")
+    if "圧" in name:
+        names = ("収縮期血圧", "拡張期血圧")
+    elif _CJK.search(name):
+        names = ("收缩压", "舒张压")
+    else:
+        names = ("Systolic blood pressure", "Diastolic blood pressure")
     return tuple(zip(names, m.groups(), strict=True))
 
 
