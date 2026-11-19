@@ -60,10 +60,12 @@
   rows now carry `min_at`/`max_at`, the local `HH:MM` the minimum/maximum
   occurred (ties go to the earliest); `minute`/`day`/`week`/`month` rows do
   not, since a minute bucket already is the minute its one value fell in.
-  A day figure, such as an Apple export's daily minimum heart rate, gives
-  none either: it is a statistic of the day stored at local midnight, and
-  with `min_at=00:00` beside it a local model answered that the lowest
-  heart rate fell at midnight. How to tell: `query_health_indicators(view="hour", ...)` rows show
+  Only readings taken at a moment give them: a day figure (an Apple
+  export's daily minimum heart rate, stored at local midnight) and a window
+  (a sleep session's minimum, stored at its start) do not, since neither
+  time is when the extreme happened; with `min_at=00:00` beside a day
+  figure, a local model answered that the lowest heart rate fell at
+  midnight. How to tell: `query_health_indicators(view="hour", ...)` rows show
   `min_at`/`max_at` beside `min`/`max`; a `minute` call's rows do not.
 
 - **Still screenshots of the app, and an index of every picture in
@@ -331,6 +333,16 @@
   no code of their own, so the old fallback silently answered through them.
   How to tell: `mirobody resolve 白细胞WBC` now names Leukocytes; stored
   readings move with `mirobody recode`.
+
+- **A day figure no longer shows a midnight clock time.** A device's daily
+  figures (Apple's daily minimum heart rate, total sleep, step count) are
+  stored at local midnight with `grain='day'`, and the `raw` view (the
+  default), `latest` and the records list printed them as `2026-11-18
+  00:00:00`. Asked when its heart rate was lowest, a local model read that
+  as the time. They now show the date alone (`2026-11-18`); readings taken
+  at a moment keep their full time. How to tell: `query_health_indicators(
+  indicators=["dailyMinHeartRates"])` after an Apple import shows dates
+  without a clock.
 
 - **A fasting or tolerance-test label on a glucose name is no longer
   dropped.** A name and its own abbreviation are compared by LOINC analyte

@@ -1222,6 +1222,21 @@ async def test_a_day_figure_in_an_hour_bucket_names_no_clock_time(database):
     [hour_row] = await hq.buckets("1", selection, query.Window(0, 0, "UTC"), resolution="hour", limit=10)
     assert (hour_row["min"], hour_row["max"]) == (48, 48)
     assert (hour_row["min_at"], hour_row["max_at"]) == ("", "")
+    # The default `raw` view shows it as its date, with no midnight clock.
+    [raw_row] = await hq.readings("1", selection, query.Window(0, 0, "UTC"), limit=10)
+    assert raw_row["time"] == "2026-01-02"
+
+    # A window (a sleep session's minimum, stored at the session's start)
+    # gives no clock time to an hour bucket either: its extreme happened
+    # somewhere inside the window, not at 23:00.
+    night = observations.Draft(name_text="Synthetic session minimum", value_text="51", unit_text="count",
+                               observed_start=datetime(2026, 1, 3, 23, tzinfo=UTC),
+                               observed_end=datetime(2026, 1, 4, 6, tzinfo=UTC))
+    await observations.ingest("1", [night], observations.Provenance("device-sensed", "device", "synthetic-window",
+                                                                    vendor="synthetic-research"), user_tz="UTC")
+    [session] = await hq.buckets("1", query.Selection(indicators=("Synthetic session minimum",)),
+                                 query.Window(0, 0, "UTC"), resolution="hour", limit=10)
+    assert (session["min"], session["min_at"]) == (51, "")
 
 
 @pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])

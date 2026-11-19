@@ -75,6 +75,7 @@ from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
 from mirobody.collect.observations import (
     GRAIN_DAY,
+    GRAIN_WINDOW,
     KIND_CONDITION,
     KIND_MEASUREMENT,
     KIND_NOTE,
@@ -112,7 +113,14 @@ _LOCAL_TS = (
 
 # Whole-second formatting collapsed distinct device samples onto one displayed
 # instant. Keep PostgreSQL's microseconds without padding whole-second rows.
-_LOCAL_TIME = f"rtrim(rtrim(to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS.US'), '0'), '.')"
+# A day figure (`grain='day'`, a device's daily minimum or total) is a
+# statistic of the day stored at local midnight, so it shows its date alone:
+# shown "2026-11-18 00:00:00", a local model answered that the day's lowest
+# heart rate fell at midnight (1.6.2 release test).
+_LOCAL_TIME = (
+    f"CASE WHEN o.grain = '{GRAIN_DAY}' THEN to_char({_LOCAL_TS}, 'YYYY-MM-DD')"
+    f" ELSE rtrim(rtrim(to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS.US'), '0'), '.') END"
+)
 
 #: Each series' unit (`SeriesUnit`), joined to its readings: four parallel
 #: arrays from `_unit_params`, so one statement reads every series in its own
@@ -874,15 +882,17 @@ class PostgresHealthQuery:
         # `minute` bucket already IS the minute its one value fell in, so a
         # clock time would say nothing a `minute` row does not already. Ties
         # go to the earliest occurrence, for both the minimum and maximum.
-        # A day figure (`grain='day'`, Apple's `dailyMinHeartRates`) sits at
-        # local midnight and has no clock time: given one, a local model
-        # answered "lowest 48 at 00:00" (1.6.2 release test).
+        # Only a reading taken at a moment has a clock time. A day figure
+        # (`grain='day'`, Apple's `dailyMinHeartRates`) sits at local
+        # midnight: given one, a local model answered "lowest 48 at 00:00"
+        # (1.6.2 release test). A window (a sleep session's minimum) sits at
+        # its start, which is not when its extreme happened.
         extremes = (
             ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS min_at,"
             " (array_agg(clock ORDER BY value_std DESC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS max_at"
         ) if resolution == "hour" else ""
         clock = (
-            f", CASE WHEN o.grain = '{GRAIN_DAY}' THEN NULL"
+            f", CASE WHEN o.grain IN ('{GRAIN_DAY}', '{GRAIN_WINDOW}') THEN NULL"
             f" ELSE to_char({_LOCAL_TS}, 'HH24:MI') END AS clock, {_LOCAL_TS} AS local_ts"
         ) if resolution == "hour" else ""
         return await execute_query(
