@@ -73,12 +73,21 @@ services:
       # but it made a container look proxied when it was not.
       HTTP_PROXY:
       HTTPS_PROXY:
-      # host.docker.internal is a model server on this machine (LOCAL_BASE_URL):
-      # through the proxy, every request to it would leave the machine. Set
-      # with no proxy too, because .env can name one as ALL_PROXY or http_proxy.
-      # langchain-openai then logs "detected system proxy configuration" and
-      # keeps httpx's own transport, which still connects directly.
-      NO_PROXY: ${NO_PROXY:-pg,llama,localhost,127.0.0.1,host.docker.internal}
+      # pg and llama are the other containers this one calls; host.docker.internal
+      # is a model server on this machine (LOCAL_BASE_URL). Through the proxy,
+      # every request to any of them would leave the machine, and Docker Desktop
+      # passes the host's own proxy settings into the container. `${NO_PROXY:-default}`
+      # used to REPLACE the whole value with whatever NO_PROXY the host had set,
+      # so a tester whose system proxy exempted only `localhost,127.0.0.1` lost
+      # "llama" from the container's list and the proxy caught the app's calls to
+      # the local model container, until they added the name back by hand. `${VAR:+,${VAR}}`
+      # (Compose v2 interpolation) APPENDS the host's value instead, and is empty
+      # when there is none to append. Both cases, upper- and lower-case, because a
+      # caller (or `.env`) may set either; langchain-openai also reads `ALL_PROXY`/
+      # `http_proxy` and then logs "detected system proxy configuration" while
+      # still connecting directly through httpx's own transport.
+      NO_PROXY: pg,llama,localhost,127.0.0.1,host.docker.internal${NO_PROXY:+,${NO_PROXY}}
+      no_proxy: pg,llama,localhost,127.0.0.1,host.docker.internal${no_proxy:+,${no_proxy}}
     extra_hosts:
       # Docker Desktop resolves this name itself; Docker Engine on Linux needs the line.
       - "host.docker.internal:host-gateway"

@@ -141,8 +141,8 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 
 | `view` | answers with |
 |---|---|
-| `raw` | readings, newest first, at most 50 per indicator (`query.ROW_CAP`) |
-| `minute` / `hour` | one point per bucket, the newest 92 per indicator (`query.BUCKET_CAP`) |
+| `raw` | readings, newest first, at most 50 per indicator (`query.ROW_CAP`); one of the three views `start`/`end` can also narrow with a time of day |
+| `minute` / `hour` | one point per bucket, the newest 92 per indicator (`query.BUCKET_CAP`); the other two of those three views; `hour` rows also carry `min_at`/`max_at`, the local clock time the period's minimum/maximum occurred (ties to the earliest) |
 | `day` / `week` / `month` | the same, from the day authority: each day counts once |
 | `stats` | count/min/max/avg/median/stddev (sample)/sum/first/last/change over the window |
 | `trend` | numeric direction and shape from the newest 400 elected daily values, with coverage |
@@ -150,10 +150,13 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 | any, with no `keywords` or `indicators` | the catalogue, and a note that the view waits for names |
 
 `trend` compares the means of the first and last thirds of **observed numeric
-days**, not equal calendar intervals. `delta_pct` divides their difference by
-the mean absolute daily magnitude; it is undefined on an all-zero scale.
-`slope_per_day` uses elapsed local calendar days, including gaps. Direction
-uses a descriptive 2% threshold; shape distinguishes a single hump or dip
+days**, not equal calendar intervals. `pct_change_from_start` divides their
+difference by the first third's mean — the change a reader means by "percent
+change" — and is left out, not zero, when that mean is zero. Direction uses a
+separate, internal check (the difference over the mean absolute daily
+magnitude, never shown) against a descriptive 2% threshold, so a series that
+starts near zero does not read as a huge move; `slope_per_day` uses elapsed
+local calendar days, including gaps. Shape distinguishes a single hump or dip
 from repeated significant reversals (`swing`). Neither is a clinical test.
 Compatible multiplicative units, including known LOINC molar conversions,
 share a numeric basis; offset or incompatible conversions return
@@ -233,8 +236,8 @@ day, the second would drop the morning.
 
 `limit` went for the same reason: a budget, not a question. Raw rows are cut
 at `query.ROW_CAP` per indicator and say so, and what a cut means is a
-narrower window or `view=stats`. The browser's reading list is a separate
-budget (`collect.REST_ROW_MAX`).
+narrower window, `view=stats`, or `view=day`. The browser's reading list is a
+separate budget (`collect.REST_ROW_MAX`).
 
 Bucket views have one too, `query.BUCKET_CAP`: the newest 92 points per
 indicator, cut in SQL, with `truncated` set.
@@ -243,11 +246,18 @@ A cut answer says so first. `meta.cut` holds the notice in plain words, and
 `render_compact` puts it before the table: the span shown, that the earlier
 data exists and is not missing, and the calls that show it (the coarser
 view, `view=stats` for raw rows, or `end=` the day before the first one
-shown):
+shown — a local date-time one minute before the oldest/first point shown
+for `raw`/`minute`/`hour` (`query.SUBDAY_VIEWS`), since the day before that
+point is still the same day a busy wearable already filled the cap on):
 
 ```
 Only part of the data is shown: the latest 92 day points per indicator, 2026-06-01 to 2026-08-31.
 Earlier data exists and is not shown here; it is not missing. For it, call again with view=week or with end=2026-05-31.
+```
+
+```
+Only part of the data is shown: the latest 92 minute points per indicator, 2026-03-10 22:00 to 2026-03-10 23:31.
+Earlier data exists and is not shown here; it is not missing. For it, call again with view=hour or with end=2026-03-10T21:59.
 ```
 
 It used to be a note after the table, and was missed: MiniCPM5-2B, asked
@@ -282,6 +292,19 @@ blood pressures read 106.0 as `view="month"` and 111.0 over its readings
   so "the last N days" starts N-1 days before today. The schema says so
   with a worked example: given "inclusive" alone, a model wrote the last
   60 days as today minus 60 and read 61 (2026-10-31).
+* With `view=raw` (the schema's own default), `view=minute` or `view=hour`
+  (`query.SUBDAY_VIEWS`), `start`/`end` also take a local date-time
+  (`YYYY-MM-DDTHH:MM`), inclusive through that minute the same way a date
+  is inclusive through its day. Every other view answers from the elected
+  DAY authority or the whole window regardless of the time of day named,
+  so a date-time there would parse but narrow nothing; the schema refuses
+  it instead of silently ignoring it. This is the one way to reach inside
+  a day `ROW_CAP`/`BUCKET_CAP` has cut: a wearable sampling about once a
+  minute has ~1,400 points on a busy day, so `view="raw"` can only ever
+  show the newest 50 of them and `view="minute"` the newest 92 (#303).
+  The day filter itself reads each row by its own stored local day, the
+  same one `view=day` reads, even when that row's recorded time zone
+  differs from the person's current one.
 * Neither given means **the whole record**, and the answer says so
   (`window=all recorded data`). It does not silently apply a default window and
   then report that window as though the rows had come from it.

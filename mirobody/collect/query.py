@@ -36,6 +36,16 @@ show a source; the model's columns never carry it. A reading whose unit does
 not convert (albumin in g/L and umol/L, with no molar mass) keeps its own
 unit, is marked `unit_differs`, and is left out of every statistic.
 
+When that chosen unit is a device decoder's storage convenience (`ms`, `s`,
+`J`, written only by device rows) and the series' LOINC code declares a human
+unit of the same dimension (`93832-4` declares `h`, `93831-6` declares `min`),
+the series answers in the code's unit instead, keeping the person's printed
+spelling (`hours`) when they also have readings in it. A code that declares
+the storage unit itself (`112429-6` HRV in `ms`, `14979-9` aPTT in `s`) keeps
+it (#296). A unit a report printed is never a storage convenience: an ECG
+prints QT in `ms` while LOINC's 8634-8 declares `s`, and the person's report
+wins there, as it does for mg/dL (#271).
+
 Before this, the web chart plotted 212 mg/dL and 4.90 mmol/L of one
 cholesterol as a fall from 212 to 4.9, and a stats row answered in mol/L,
 which a small model read as "these cannot be compared" (#271).
@@ -56,7 +66,7 @@ from __future__ import annotations
 import logging
 import math
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any, NamedTuple
 
 from mirobody import standardize, units
@@ -68,6 +78,7 @@ from mirobody.collect.observations import (
     KIND_MEASUREMENT,
     KIND_NOTE,
     KIND_SYMPTOM,
+    MODALITY_DEVICE,
     MODALITY_UNVERIFIED,
     contains_pattern,
     user_tz,
@@ -455,13 +466,15 @@ class PostgresHealthQuery:
                    (ARRAY_AGG(code ORDER BY observed_start DESC, id DESC))[1] AS code,
                    (ARRAY_AGG(display ORDER BY observed_start DESC, id DESC))[1] AS display,
                    (ARRAY_AGG(code ORDER BY observed_start DESC, id DESC)
-                        FILTER (WHERE code_system = :loinc))[1] AS loinc
+                        FILTER (WHERE code_system = :loinc))[1] AS loinc,
+                   BOOL_AND(modality = :device) AS device_only
               FROM v_observation
              WHERE user_id = :uid AND series_id = ANY(:sids)
                AND value_num IS NOT NULL AND COALESCE(unit_ucum, '') <> ''
              GROUP BY series_id, unit_ucum
             """,
-            {"uid": str(subject_id), "sids": wanted, "loinc": standardize.LOINC_SYSTEM},
+            {"uid": str(subject_id), "sids": wanted, "loinc": standardize.LOINC_SYSTEM,
+             "device": MODALITY_DEVICE},
             log_sql=False,
         ) or []
         groups: dict[str, list[dict]] = {}
@@ -526,7 +539,12 @@ class PostgresHealthQuery:
     ) -> list[dict]:
         """Individual readings, newest first, capped per series. `total` per
         series comes from the same statement. `file_key` is the handle back
-        to the ORIGINAL report."""
+        to the ORIGINAL report.
+
+        `raw` is one of `query.SUBDAY_VIEWS`, so `window` may carry a local
+        date-time bound: `_subday_window_clause` keeps `_window_clause`'s
+        day filter for every bound and narrows further, by each row's own
+        local wall clock, only when one does (#303)."""
         names = await self._resolve(subject_id, sel, window)
         if not names:
             return []
@@ -534,7 +552,7 @@ class PostgresHealthQuery:
             "uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
             "reported": REPORTED_KINDS,
         }
-        where = _window_clause(params, window)
+        where = _subday_window_clause(params, window)
         rows = await execute_query(
             f"""
             SELECT * FROM (
@@ -843,13 +861,28 @@ class PostgresHealthQuery:
     ) -> list[dict]:
         params: dict[str, Any] = {"uid": str(subject_id), "names": names, "limit": max(1, int(limit)),
                                   **_unit_params(unit_of)}
-        where = _window_clause(params, window)
+        # Minute and hour (with `raw`, all of `query.SUBDAY_VIEWS`) are the
+        # only views a bound finer than a day can reach at all:
+        # `_window_clause`'s day-level filter would hand back the WHOLE day
+        # regardless of the hour asked for, so a caller narrowing `end`
+        # within a day got no fewer rows (#303).
+        where = _subday_window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
+        # `min_at`/`max_at`: the clock time a question like "when was it
+        # lowest between 2 and 5am" needs. Only `hour` buckets get them - a
+        # `minute` bucket already IS the minute its one value fell in, so a
+        # clock time would say nothing a `minute` row does not already. Ties
+        # go to the earliest occurrence, for both the minimum and maximum.
+        extremes = (
+            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC))[1] AS min_at,"
+            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC))[1] AS max_at"
+        ) if resolution == "hour" else ""
+        clock = f", to_char({_LOCAL_TS}, 'HH24:MI') AS clock, {_LOCAL_TS} AS local_ts" if resolution == "hour" else ""
         return await execute_query(
             f"""
             WITH base AS (
                 SELECT o.series_id, o.display, o.name_text, o.code_system, o.code, {_VALUE_STD}, {_UNVERIFIED_ROW},
-                       date_trunc('{trunc}', {_LOCAL_TS}) AS at
+                       date_trunc('{trunc}', {_LOCAL_TS}) AS at{clock}
                   FROM v_observation o{_SERIES_UNIT_JOIN}
                  WHERE o.user_id = :uid AND o.series_id = ANY(:names) AND o.value_num IS NOT NULL {where}
             ), grouped AS (
@@ -858,7 +891,7 @@ class PostgresHealthQuery:
                        COUNT(*) AS n,
                        AVG(value_std) AS avg,
                        MIN(value_std) AS min,
-                       MAX(value_std) AS max,
+                       MAX(value_std) AS max{extremes},
                        false AS elected,
                        bool_or(unverified) AS unverified,
                        {_BUCKET_BUDGET.format(bucket="at")}
@@ -961,6 +994,37 @@ def _window_clause(params: dict[str, Any], window: query.Window | None) -> str:
     params["day_from"] = _date_of(window.start_ms, window.tz)
     params["day_to"] = _date_of(window.end_ms - 1, window.tz)
     return " AND o.local_date BETWEEN :day_from AND :day_to"
+
+
+def _subday_window_clause(params: dict[str, Any], window: query.Window | None) -> str:
+    """`_window_clause`'s day filter, for every bound including a date-only
+    one - unchanged, so the day boundary reads EXACTLY what every other view
+    reads, each row by its own stored `local_date`. A bound that also
+    carries a time of day (`query.SUBDAY_VIEWS`: `raw`, `minute`, `hour`)
+    narrows further with a SECOND filter on the row's own local wall clock,
+    `_LOCAL_TS`: the same expression a bucket's `period` and a raw row's
+    `local_time` are both labelled from. Shared by `readings()` (`raw`) and
+    `PostgresHealthQuery._subday_buckets` (`minute`/`hour`).
+
+    That second filter is built from the bound's TEXT (`window.start`/
+    `window.end`, naive local values), never from `start_ms`/`end_ms`: those
+    are instants resolved in the ACCOUNT's CURRENT zone
+    (`query.resolve_window`'s `tz`), but a row's own recorded `tz` can
+    differ - after travel, or an Apple export imported with the default
+    `--tz UTC` for a person whose profile reads Asia/Shanghai - and
+    `_LOCAL_TS` already reads each row in ITS OWN zone. Comparing an
+    absolute instant instead made these views disagree with `view=day`
+    about which calendar day a row was even on (review of #303, commit 1)."""
+    clause = _window_clause(params, window)
+    if window is None:
+        return clause
+    if len(window.start) == 16:
+        params["local_from"] = datetime.strptime(window.start, "%Y-%m-%dT%H:%M")
+        clause += f" AND ({_LOCAL_TS}) >= :local_from"
+    if len(window.end) == 16:
+        params["local_to"] = datetime.strptime(window.end, "%Y-%m-%dT%H:%M") + timedelta(minutes=1)
+        clause += f" AND ({_LOCAL_TS}) < :local_to"
+    return clause
 
 
 def _date_of(ms: int, tz: str) -> date:
@@ -1073,6 +1137,12 @@ def _bucket_row(r: dict, su: SeriesUnit | None = None) -> dict:
         "avg": _number(r.get("avg")),
         "min": _number(r.get("min")),
         "max": _number(r.get("max")),
+        # The local clock time (HH:MM) the minimum/maximum occurred, "hour"
+        # buckets only (absent from `r` otherwise); a text field, never run
+        # through `_number()` or a series unit - a time of day is not a
+        # quantity to convert.
+        "min_at": _text(r.get("min_at")),
+        "max_at": _text(r.get("max_at")),
         "n": int(r.get("n") or 0),
         "unit": su.label if su else (r.get("unit") or ""),
         "total": int(r.get("total") or 0),
@@ -1096,7 +1166,7 @@ def _end(r: dict, end: str, su: SeriesUnit | None) -> str:
     text, std, ucum = r.get(end), _number(r.get(f"{end}_std")), r.get(f"{end}_ucum") or ""
     if su is None or std is None or not ucum or ucum == su.ucum:
         return _shown(text, su.label if su else r.get("unit"))
-    return _like(std, _text(text))
+    return _like(std, _text(text), stored=bool(su.from_storage) and ucum == su.from_storage)
 
 
 def _stats_row(r: dict, su: SeriesUnit | None = None) -> dict:
@@ -1238,7 +1308,12 @@ class SeriesUnit(NamedTuple):
     in that unit. A value in mmol/L is a [Moles/volume] measurement: a
     converted reading, and a statistic over the series, is named by it, not by
     the [Mass/volume] code its report was coded with, the mismatch that once
-    had a model give 1558-6 beside 5.4 mmol/L (`agent/tools/_render.py`)."""
+    had a model give 1558-6 beside 5.4 mmol/L (`agent/tools/_render.py`).
+
+    `from_storage` is the device storage unit (`ms`, `s`, `J`) the series was
+    read OUT of, when `_series_unit` swapped it for its code's unit; empty
+    otherwise. Only a reading in that unit was written by a decoder, whose
+    value carries no printed precision (`_like`'s `stored`)."""
 
     ucum: str
     label: str
@@ -1247,6 +1322,17 @@ class SeriesUnit(NamedTuple):
     code_system: str = ""
     code: str = ""
     display: str = ""
+    from_storage: str = ""
+
+
+#: Units a device decoder writes as a storage convenience rather than the unit
+#: a person reads (`kernel/metrics.py` stores sleep durations in `ms`). Only a
+#: unit group written entirely by device rows (`device_only`) counts: the same
+#: `ms` on an ECG report is what the report printed. Kept when the series' LOINC
+#: code declares the unit itself (`112429-6` in `ms`, `14979-9` in `s`, `88667-1`
+#: in `J`) or when the series is uncoded; otherwise replaced by the code's first
+#: declared unit of the same canonical base.
+_STORAGE_UNITS = frozenset({"ms", "s", "J"})
 
 
 def _series_unit(groups: list[dict]) -> SeriesUnit:
@@ -1257,10 +1343,31 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     ucum = units.pick_display_unit((g["unit_ucum"], int(g["n"]), g["latest"]) for g in groups)
     chosen = next(g for g in groups if g["unit_ucum"] == ucum)
     base = chosen.get("base") or ""
-    folded = units.canonicalize(1.0, ucum, loinc_code=chosen.get("loinc") or "")
+    label = chosen.get("label") or ucum
+    loinc = chosen.get("loinc") or next((g["loinc"] for g in groups if g.get("loinc")), "") or ""
+    stored_as = ""
+    if ucum in _STORAGE_UNITS and chosen.get("device_only") and base and loinc:
+        declared = standardize.loinc_units(loinc)
+        if ucum not in declared:
+            for target in declared:
+                cand = units.canonicalize(1.0, target, loinc_code=loinc)
+                if cand.unit == base and cand.value:
+                    existing = next((g for g in groups if g["unit_ucum"] == target), None)
+                    stored_as = ucum
+                    ucum = target
+                    if existing is not None:
+                        chosen = existing
+                        base = chosen.get("base") or base
+                        label = existing.get("label") or target
+                    else:
+                        label = target
+                    break
+    coded = chosen if chosen.get("code") else next((g for g in groups if g.get("loinc")), chosen)
+    folded = units.canonicalize(1.0, ucum, loinc_code=coded.get("loinc") or loinc)
     factor = folded.value if base and folded.unit == base and folded.value else None
-    return SeriesUnit(ucum, chosen.get("label") or ucum, base, factor,
-                      chosen.get("code_system") or "", chosen.get("code") or "", chosen.get("display") or "")
+    return SeriesUnit(ucum, label, base, factor,
+                      coded.get("code_system") or "", coded.get("code") or "", coded.get("display") or "",
+                      stored_as)
 
 
 def _as_series(r: dict, su: SeriesUnit | None) -> dict:
@@ -1300,8 +1407,9 @@ def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
     if ratio is None or value is None:
         return {"value": printed["value"], "unit": printed["unit"], "ref": printed["ref"], "printed": printed,
                 "unit_differs": True}
-    return {"value": _text(r.get("comparator")) + _like(value * ratio, printed["value"]), "unit": su.label,
-            "ref": _range_in(r, ratio), "printed": printed, "converted": True}
+    stored = bool(su.from_storage) and ucum == su.from_storage
+    return {"value": _text(r.get("comparator")) + _like(value * ratio, printed["value"], stored=stored),
+            "unit": su.label, "ref": _range_in(r, ratio), "printed": printed, "converted": True}
 
 
 def _ratio(r: dict, ucum: str, su: SeriesUnit) -> float | None:
@@ -1378,12 +1486,26 @@ def _ranges_differ(variants: Any, su: SeriesUnit | None) -> bool:
 _FIRST_NUMBER = re.compile(r"\d+(?:\.\d+)?")
 
 
-def _like(value: float, printed: str) -> str:
+def _like(value: float, printed: str, *, stored: bool = False) -> str:
     """`value` written with as many significant figures as the first number in
     `printed`, three at least, and never fewer whole digits than it has:
-    212 mg/dL is 5.48 mmol/L and 4.90 mmol/L is 189 mg/dL."""
+    212 mg/dL is 5.48 mmol/L, 4.90 mmol/L is 189 mg/dL, and a printed
+    "100.0" keeps its decimal.
+
+    `stored`: `printed` is a device's storage number, not a person's print,
+    so its zeros are scale, not precision: 25200000 ms (or "25200000.0", a
+    float written out) is 7.00 h, not 7.0000000 h, and no value shows more
+    than `query.SHOWN_DIGITS`. Applying that to every conversion dropped a
+    real digit from a range printed "70.0-100.0" (review of #298)."""
     found = _FIRST_NUMBER.search(printed or "")
-    digits = max(3, len(found.group().replace(".", "").lstrip("0")) if found else 0)
+    raw = found.group() if found else ""
+    if stored:
+        if raw.endswith(".0"):
+            raw = raw[:-2]
+        sig = raw.replace(".", "").lstrip("0") if "." in raw else raw.strip("0")
+        digits = min(query.SHOWN_DIGITS, max(3, len(sig)))
+    else:
+        digits = max(3, len(raw.replace(".", "").lstrip("0")))
     if value == 0 or not math.isfinite(value):
         return f"{value:g}"
     decimals = max(0, digits - 1 - math.floor(math.log10(abs(value))))

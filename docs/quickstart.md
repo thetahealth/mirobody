@@ -176,8 +176,9 @@ not include the web client.
 
 `dev` generates temporary secrets. To preserve sessions and encrypted
 configuration across restarts, set `JWT_KEY` and `CONFIG_ENCRYPTION_KEY`. Set
-`PG_ENCRYPTION_KEY` as well: without it, stored record fields are encrypted
-under `config.yaml`'s public placeholder (SECURITY.md).
+`PG_ENCRYPTION_KEY` and `DATABASE_DECRYPTION_KEY` as well: without them,
+stored record fields and device credentials are encrypted under the shipped
+placeholder (SECURITY.md).
 For deployment, `serve` reads the shipped configuration and
 `config.{ENV}.yaml` and expects persistent secrets.
 

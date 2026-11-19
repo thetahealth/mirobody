@@ -140,7 +140,7 @@ docker compose exec mirobody mirobody doctor --probe
 | Docker 内存不足 | 在 Docker Desktop 中分配至少 8 GB 内存，或执行 `colima start --memory 8`。CPU 使用 `docker/local-models-cpu.ini`，GPU 使用 `docker/local-models.ini`。 |
 | 预设文件报错 `Is a directory` | 确认 Docker 能访问源码目录。Colima 默认共享主目录，可将源码放在其中，或将路径加入 `mounts`。 |
 | 无法从 Hugging Face 下载 | Compose 在 `.env` 中设置 `HF_ENDPOINT=https://<mirror>`；直接运行 `llama-server` 时，在启动它的 shell 中设置。 |
-| 系统代理导致本地请求失败 | 在发起请求的 shell 中设置 `export NO_PROXY=localhost,127.0.0.1`。WSL 继承 Windows 代理时也需如此处理。 |
+| 系统代理导致本地请求失败 | Compose 已经把 `pg`、`llama`、`localhost`、`127.0.0.1`、`host.docker.internal` 排除在代理之外（`compose.yaml` 中的 `NO_PROXY`/`no_proxy`），并且会在主机已设置 `NO_PROXY`/`no_proxy` 时保留它并追加，而不是整体替换，所以通常不需要你再做什么。若直接运行 `llama-server`（不经 Compose），需自行在发起请求的 shell 中设置 `export NO_PROXY=localhost,127.0.0.1`。WSL 继承 Windows 代理时也需如此处理。 |
 
 模型缓存在当前 Compose 项目的 `mirobody_models` 卷中。更换源码目录或 `COMPOSE_PROJECT_NAME` 可能创建新的缓存并重新下载。镜像固定使用 llama.cpp b11429；如需其他构建或镜像站，可在 `.env` 中设置 `LLAMA_CPU_IMAGE` 或 `LLAMA_IMAGE`，再执行 `docker compose up -d`。
 
