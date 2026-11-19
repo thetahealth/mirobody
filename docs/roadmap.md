@@ -359,9 +359,9 @@ fix is here.
   examination, is closed (#281 item 1): an `Examination` row is a finding,
   and one whose value is a number, with its unit if printed inside it,
   stays a measurement. `Imaging` and `Pathological` rows are findings
-  whatever their value, except a blood-pressure pair, which is a
-  measurement whatever method the model gave the row: the row is named
-  blood pressure or its unit is a pressure unit. Still open: one ultrasound
+  whatever their value, except a blood pressure, which is split into its
+  systolic and diastolic readings whatever method the model gave the row,
+  as a table row or journal entry already was. Still open: one ultrasound
   sentence came out as three rows (`双肾彩超`, `双肾`, `双肾结晶`). Scanner
   settings and history headings are closed:
   `indicator_extractor.NOT_READINGS`.

@@ -22,7 +22,7 @@ from typing import Any
 
 from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date, file_source_ref
-from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
+from mirobody.collect.files.services.table_indicators import printed_flag, split_flag, split_pressure
 from mirobody.collect.sentence import blood_pressure
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.standardize import RANGE_SEPARATOR, parse_range, parse_value
@@ -45,14 +45,22 @@ FINDING_METHODS = ("Imaging", "Pathological", "Examination")
 # `125--350` ends at 350, while `-5---1` ends at -1.
 _NUMERIC_TOKEN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _NUMBER = re.compile(rf"(?<![\d.])({_NUMERIC_TOKEN})(?:\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUMERIC_TOKEN}))?")
-# The comparator and number a value opens with; what follows is its unit or prose.
-_VALUE_HEAD = re.compile(rf"[<>≤≥=＜＞]?\s*{_NUMERIC_TOKEN}")
-# A systolic/diastolic pair, with whatever the model printed after it (its
+# The comparator and number a value opens with; what follows is its unit or
+# prose. Two-character comparators are the ones `standardize.parse_value`
+# reads: with only `>` here, `>=97%` lost its head and an `Examination` SpO2
+# printed that way was stored as a finding with no number.
+_VALUE_HEAD = re.compile(rf"(?:[<>＜＞][=＝]?|[≤≥=＝])?\s*{_NUMERIC_TOKEN}")
+# A systolic/diastolic pair and whatever the model printed after it (its
 # unit, or nothing): "120/80", "111/65 mmHg". `standardize.parse_value`
-# never reads this as a quantity (`units/normalize.py` tries the slash as a
-# rate-unit prefix and refuses it), so `_is_quantity` alone cannot see a
-# blood-pressure pair and this is checked beside it, not inside it.
+# reads it as narrative (`units/normalize.py` tries the slash as a
+# rate-unit prefix and refuses it), so a pair is split before it is stored.
 _PAIR = re.compile(rf"^({_NUMERIC_TOKEN})\s*/\s*({_NUMERIC_TOKEN})\s*(.*)$")
+#: Marks the two readings `_split_blood_pressure` made out of one pair.
+_PRESSURE = "_pressure"
+# A name that already says which half it is. `collect.sentence._BP_NAME`
+# finds "blood pressure" inside `Systolic blood pressure` too, so without
+# this two systolic readings in a row were renamed systolic and diastolic.
+_HALF = re.compile(r"收缩|舒张|收縮|舒張|systolic|diastolic", re.IGNORECASE)
 _SPACE = re.compile(r"\s+")
 #: A non-numeric value longer than this is prose a model may rephrase; it is
 #: not checked against the text.
@@ -117,19 +125,15 @@ def row_kind(indicator: dict[str, Any], value: str) -> str:
     """`finding` or `measurement` for a read row, given its stored `value`.
     A finding's record carries its text, never a number, so an `Examination`
     row whose value is a number, alone or with its unit printed inside it
-    (`170`, `170cm`, `72次/分`), stays a measurement: a `身高 170 cm` the model
-    tagged that way keeps its 170 and its unit. `结石 3 mm` and `120/80` are
-    findings, UNLESS the row is a blood pressure: a pair the row is named or
-    united with a pressure unit for (`_is_pressure_pair`) is a measurement
-    whatever method the model gave it, the same as a table or journal entry
-    splits one into its systolic and diastolic readings. `Imaging` and
-    `Pathological` are otherwise the model's explicit choice and keep their
-    long-standing behaviour.
+    (`170`, `170cm`, `72次/分`, `>=97%`), stays a measurement: a `身高 170 cm`
+    the model tagged that way keeps its 170 and its unit. `结石 3 mm` and
+    `眼压 15/16 mmHg` are findings. A blood pressure's two readings
+    (`_split_blood_pressure`) are measurements whatever method the model gave
+    the row it came from. `Imaging` and `Pathological` are otherwise the
+    model's explicit choice and keep their long-standing behaviour.
     """
     method = str(indicator.get("detection_method") or "")
-    if method not in FINDING_METHODS:
-        return observations.KIND_MEASUREMENT
-    if _is_pressure_pair(indicator, value):
+    if method not in FINDING_METHODS or indicator.get(_PRESSURE):
         return observations.KIND_MEASUREMENT
     if method == "Examination" and _is_quantity(value):
         return observations.KIND_MEASUREMENT
@@ -148,49 +152,65 @@ def _is_quantity(value: str) -> bool:
     return not tail or normalize_unit(tail) is not None
 
 
-def _split_bp_pairs(indicators: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Two adjacent rows a model split off one printed pair, named for the
-    pair itself twice ("血压", "血压"), renamed to the systolic/diastolic
-    names a table or journal split already uses (`collect.sentence.
-    blood_pressure`, reused rather than a second rule): otherwise both code
-    to the SAME series (`observations.coding_for` keys a series by
-    `name_key`+`unit_ucum`), where the two numbers alternate as one line
-    instead of reading as two. A 120/80 pair stored this way reads back as
-    one series oscillating 120, 80, 120, 80, averaging 100 mmHg, worse than
-    the unsplit pair `_is_pressure_pair` otherwise keeps a measurement.
-    First-seen is systolic, the printed reading order; a row the prompt's
-    own rule already named (收缩压, Systolic blood pressure, ...) does not
-    match `_BP_NAME` and passes through untouched.
+def _split_blood_pressure(indicators: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every blood pressure among a document's rows as its systolic and
+    diastolic readings, the two a table row or a journal entry already
+    makes of one (`collect.sentence.blood_pressure` decides, `table_indicators.
+    split_pressure` splits, neither a second rule).
+
+    A model hands a blood pressure over in one of three shapes. Split into
+    `收缩压`/`舒张压`, it passes through. Left as one row (`血压 120/80`),
+    it was stored as one narrative value with no number in it, whatever the
+    method: nothing to chart, compare or flag. Split into two rows both
+    still named for the pair (`血压`, `血压`), the two shared one series
+    (`observations.coding_for` keys a series by name and unit) and read
+    back as one line alternating 120, 80, 120, 80. The last two are split
+    or renamed here, first-seen as systolic, the printed reading order; two
+    rows are one pair only when they share a printed time and neither name
+    already says its half. A unit printed after the pair is kept when it is
+    a pressure unit; any other tail (`120/80 左侧卧位`) leaves the row as
+    it was.
     """
-    out = list(indicators)
+    out: list[dict[str, Any]] = []
     i = 0
-    while i < len(out) - 1:
-        name_a = str(out[i].get("original_indicator") or "")
-        name_b = str(out[i + 1].get("original_indicator") or "")
-        pair = blood_pressure(name_a, f"{out[i].get('value', '')}/{out[i + 1].get('value', '')}") \
-            if name_a and name_a == name_b else None
-        if pair is None:
-            i += 1
-            continue
-        out[i] = {**out[i], "original_indicator": pair[0][0]}
-        out[i + 1] = {**out[i + 1], "original_indicator": pair[1][0]}
-        i += 2
+    while i < len(indicators):
+        row = indicators[i]
+        name = str(row.get("original_indicator") or "")
+        nxt = indicators[i + 1] if i + 1 < len(indicators) else None
+        if (nxt is not None and name and str(nxt.get("original_indicator") or "") == name
+                and not _HALF.search(name) and row.get("date_time") == nxt.get("date_time")):
+            pair = blood_pressure(name, f"{_bare(row)}/{_bare(nxt)}")
+            if pair is not None:
+                out += [{**row, "original_indicator": pair[0][0], _PRESSURE: True},
+                        {**nxt, "original_indicator": pair[1][0], _PRESSURE: True}]
+                i += 2
+                continue
+        out.extend(_pressure_readings(row, name) or [row])
+        i += 1
     return out
 
 
-def _is_pressure_pair(indicator: dict[str, Any], value: str) -> bool:
-    """Whether `value` is a systolic/diastolic pair that stays a measurement:
-    the row is named blood pressure (`collect.sentence.blood_pressure`,
-    reused rather than a second name list) or united with a pressure unit,
-    in its own column or printed after the pair (`units.unit_family`)."""
+def _bare(row: dict[str, Any]) -> str:
+    """A row's value without the flag printed after it (`150↑`)."""
+    return split_flag(str(row.get("value") or ""), "")[0].strip()
+
+
+def _pressure_readings(row: dict[str, Any], name: str) -> list[dict[str, Any]] | None:
+    """One row holding a whole blood pressure, as its two readings; None
+    when it does not hold one. A flag printed after the pair goes to both,
+    as a table row's does: the pair is what the report marked."""
+    value, printed = split_flag(str(row.get("value") or ""), "")
     m = _PAIR.match(value.strip())
-    if m is None:
-        return False
-    pair, tail = f"{m.group(1)}/{m.group(2)}", m.group(3).strip()
-    if blood_pressure(str(indicator.get("original_indicator") or ""), pair) is not None:
-        return True
-    unit = normalize_unit(tail) if tail else normalize_unit(str(indicator.get("unit") or ""))
-    return unit is not None and unit_family(unit) == "Pres"
+    pair = blood_pressure(name, f"{m.group(1)}/{m.group(2)}") if m else None
+    if pair is None:
+        return None
+    tail = m.group(3).strip()
+    unit = normalize_unit(tail) if tail else None
+    if tail and (unit is None or unit_family(unit) != "Pres"):
+        return None
+    flag = {"_printed_flag": printed} if printed else {}
+    reading = {**row, "unit": str(row.get("unit") or "") or tail, **flag}
+    return [{**r, _PRESSURE: True} for r in split_pressure(reading, pair)]
 
 
 def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
@@ -255,7 +275,7 @@ async def save_indicators_to_db(
     failed write raises: answered with 0, it read as a document with no
     readings in it.
     """
-    indicators = _split_bp_pairs(indicators)
+    indicators = _split_blood_pressure(indicators)
     drafts = []
     bears_out = text_bears_out(text) if text else None
     unverified_count = 0

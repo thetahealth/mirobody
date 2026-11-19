@@ -43,24 +43,15 @@
   extraction has a sixth `detection_method`, `Examination`, and a row with it
   is stored with `kind='finding'`, so `牙周` and `义齿` no longer depend on the
   model calling them Imaging. An `Examination` row whose value is a number,
-  alone or with its unit printed inside it (`身高 170cm`, `72次/分`, `97%`;
-  read by `standardize.parse_value` and `normalize_unit`, not a narrower
-  regex), stays a measurement and keeps its value and unit. A blood-pressure
-  pair (`120/80`, `111/65 mmHg`) stays a measurement whatever method the
-  model gave the row: the row is named blood pressure or its unit is a
-  pressure unit, the same way a table or journal entry splits one into its
-  systolic and diastolic readings. A model that splits the pair into two
-  rows but names both for the pair itself (`血压`, `血压`) is caught too:
-  `observations.coding_for` would have keyed one series off the shared
-  name and unit, so the two numbers alternated as one reading instead of
-  two 8480-6/8462-4 series; the rows are renamed `收缩压`/`舒张压` before
-  they reach it, the same names a table or journal split already uses. The
-  prompt now states the Physiological/Examination split as text, not only
-  in the schema's description, so a local model sent `json_schema` without
-  seeing that text (MiniCPM5-2B labelled all six vitals of an outpatient
-  note `Examination`, 4 of 4 runs) keeps a measured vital `Physiological`,
-  and asks for the split pair's halves to be named for themselves rather
-  than their pair (#281).
+  alone or with its unit printed inside it (`身高 170cm`, `72次/分`, `97%`,
+  `>=97%`; read by `standardize.parse_value` and `normalize_unit`, not a
+  narrower regex), stays a measurement and keeps its value and unit; `眼压
+  15/16 mmHg` and `结石 3 mm` stay findings. The prompt states the
+  Physiological/Examination split as text, not only in the schema's
+  description, so a local model sent `json_schema` without seeing that text
+  (MiniCPM5-2B labelled all six vitals of an outpatient note `Examination`,
+  4 of 4 runs) keeps a measured vital `Physiological`, and asks for a
+  split blood pressure's halves to be named for themselves (#281, #284).
 
 - **`view="hour"` says when its minimum and maximum happened.** An hour
   bucket carried only the hour's min/max value, not the clock time, so
@@ -120,6 +111,21 @@
   `img.shields.io/badge/dynamic`.
 
 ### Fixed
+
+- **A blood pressure the model read is stored as two numbers.** A table row
+  and a journal entry already split `123/78` into 收缩压/舒张压 (8480-6 and
+  8462-4); a pair the model returned was stored as given. Left as one row
+  (`血压 120/80`), it was one narrative value with no number in it whatever
+  the method: nothing to chart or compare, and a finding once the model
+  called the vitals `Examination`. Split into two rows both still named
+  `血压`, the two coded to one series that read back as one line
+  alternating 120, 80. Both are now split or renamed before they are
+  stored, through the table rules' own split (`table_indicators.
+  split_pressure`: unit as printed or mmHg, a paired range `90-139/60-89`
+  divided between the two), and a Traditional `血壓` is recognised too.
+  Readings already stored keep their shape until their file is read again
+  (重新处理). To tell: upload a note printing `血压 120/80`; the record
+  shows 收缩压 120 mmHg and 舒张压 80 mmHg, not one `120/80`.
 
 - **Examination findings are listed apart from lab analytes.** The backend
   stores an imaging or pathology row as `kind='finding'`, and every
