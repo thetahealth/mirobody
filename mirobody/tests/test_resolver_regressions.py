@@ -76,26 +76,39 @@ def test_camelcase_qualifiers_are_not_dropped(name, value, unit):
     assert coding.code is None
 
 
+@pytest.mark.parametrize("name", ["BloodGlucose-FPG", "血糖(FPG)", "Glucose FPG", "血糖FPG"])
+def test_a_fasting_label_on_glucose_names_fasting_glucose(name):
+    """#305 compares a name's two halves by LOINC analyte head, so `Glucose`
+    and `Glucose^post CFst` agree. Which half answers then matters: the stem
+    alone would drop the fasting state the label carries, so the label is
+    the measurement, as `空腹血糖` and bare `FPG` already answer 1558-6. In
+    mmol/L the unit switches it to the moles sibling, 14771-0."""
+    assert get_resolver().resolve(name).loinc == "1558-6"
+    assert resolve_reading(name, "5.2", "mmol/L").loinc == "14771-0"
+
+
 @pytest.mark.parametrize(
-    "name,value,unit",
-    [
-        ("BloodGlucose-OGTT", "5", "mmol/L"),
-        ("BloodGlucose-FPG", "5", "mmol/L"),
-    ],
+    "name", ["BloodGlucose-OGTT", "血糖(OGTT)", "Glucose OGTT", "血糖OGTT", "葡萄糖OGTT", "Glucose (OGTT)"],
 )
-def test_camelcase_qualifiers_that_share_the_stem_analyte_narrow_to_it(name, value, unit):
-    """#305 unifies the CamelCase/hyphen agreement check with the bracket
-    shape's: both compare by LOINC ANALYTE (COMPONENT), not exact code. An
-    OGTT or a fasting challenge is still fundamentally glucose -- the same
-    analyte head plain `血糖(GLU)` narrows to -- so `BloodGlucose-OGTT` now
-    narrows the same way `空腹血糖(GLU)` already did, where before this
-    unification the exact-code rule these two shapes used to have refused
-    it. (`resolve_reading` then still switches the mmol/L reading to the
-    moles-per-volume sibling, 15074-8 -- the UNIT doing its own, separate
-    job once the NAME has an answer.)"""
+def test_a_tolerance_test_label_on_glucose_stays_unresolved(name):
+    """`OGTT` answers 1518-0, the 2-hour draw of a 75 g load, by the index's
+    commonness prior alone: the name says neither which draw nor which load.
+    Answered with the stem instead, a post-load 9.5 mmol/L joined the plain
+    glucose series (1.6.1 did that for `血糖(OGTT)`, #305 for every other
+    shape). Both halves fit mmol/L, so the reading's unit cannot settle it
+    either."""
+    hit = get_resolver().resolve(name)
+    assert not hit.resolved
+    assert hit.ambiguous == ("2339-0", "1518-0")
+    assert not resolve_reading(name, "9.5", "mmol/L").resolved
+
+
+def test_a_label_without_a_challenge_still_only_labels_the_stem():
+    """The rule `空腹血糖(GLU)` was written for is unchanged: the stem carries
+    the fasting state, the label is plain glucose, and the stem answers."""
     resolver = get_resolver()
-    assert resolver.resolve(name).loinc == "2339-0"
-    assert resolve_reading(name, value, unit).resolved
+    assert resolver.resolve("空腹血糖(GLU)").loinc == "1558-6"
+    assert resolver.resolve("血糖(GLU)").loinc == "2339-0"
 
 
 def test_camelcase_qualifiers_that_disagree_let_the_measurement_settle_it():
