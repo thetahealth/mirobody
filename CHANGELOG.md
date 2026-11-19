@@ -42,9 +42,18 @@
 - **A physical or dental examination can be stored as a finding.** The file
   extraction has a sixth `detection_method`, `Examination`, and a row with it
   is stored with `kind='finding'`, so `牙周` and `义齿` no longer depend on the
-  model calling them Imaging. An `Examination` row whose value is a number
-  (`身高 170 cm`, or `170cm` with the unit inside the value) stays a
-  measurement and keeps its value and unit (#281).
+  model calling them Imaging. An `Examination` row whose value is a number,
+  alone or with its unit printed inside it (`身高 170cm`, `72次/分`, `97%`;
+  read by `standardize.parse_value` and `normalize_unit`, not a narrower
+  regex), stays a measurement and keeps its value and unit. A blood-pressure
+  pair (`120/80`, `111/65 mmHg`) stays a measurement whatever method the
+  model gave the row: the row is named blood pressure or its unit is a
+  pressure unit, the same way a table or journal entry splits one into its
+  systolic and diastolic readings. The prompt now states the
+  Physiological/Examination split as text, not only in the schema's
+  description, so a local model sent `json_schema` without seeing that text
+  (MiniCPM5-2B labelled all six vitals of an outpatient note `Examination`,
+  4 of 4 runs) keeps a measured vital `Physiological` (#281).
 
 - **`view="hour"` says when its minimum and maximum happened.** An hour
   bucket carried only the hour's min/max value, not the clock time, so

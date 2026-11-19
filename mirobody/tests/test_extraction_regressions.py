@@ -287,7 +287,9 @@ async def test_a_numeric_examination_row_stays_a_measurement(monkeypatch, value,
     """A finding's record carries its text, never a number: `身高 170 cm`
     tagged `Examination` keeps its value and unit as a measurement, whether
     the unit is in its own column, printed inside the value, or spaced from
-    it."""
+    it. `120/80` under this generic name stays a finding: `身高 120/80` is
+    not a blood pressure (`test_a_blood_pressure_pair_stays_a_measurement`
+    covers the row that is)."""
     method = "Examination"
     ingest = AsyncMock(return_value=observations.Report())
     monkeypatch.setattr(observations, "ingest", ingest)
@@ -295,6 +297,42 @@ async def test_a_numeric_examination_row_stays_a_measurement(monkeypatch, value,
     await indicator_store.save_indicators_to_db(
         "synthetic-281-user", [_row("身高", value, unit, method=method)],
         datetime(2026, 3, 4), "extracted", "synthetic-281.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert drafts[0].kind == kind
+    assert drafts[0].value_text == value
+
+
+@pytest.mark.parametrize("name,value,unit,method,kind", [
+    # Named blood pressure: a measurement whatever method the model gave
+    # it, the same as a table or journal entry splits one into its two
+    # readings (`collect.sentence.blood_pressure`).
+    ("血压", "120/80", "", "Examination", observations.KIND_MEASUREMENT),
+    ("血压", "111/65", "mmHg", "Examination", observations.KIND_MEASUREMENT),
+    ("Blood pressure", "120/80", "", "Examination", observations.KIND_MEASUREMENT),
+    ("血压", "120/80", "", "Imaging", observations.KIND_MEASUREMENT),
+    ("血压", "120/80", "", "Pathological", observations.KIND_MEASUREMENT),
+    # United with a pressure unit: a measurement even off a name that says
+    # nothing about blood pressure, so the rule is the unit, not a name
+    # list.
+    ("脉压", "120/80", "mmHg", "Examination", observations.KIND_MEASUREMENT),
+    # A pair this is not: `_BP_VALUE` wants 2-3 digits a side, the same
+    # guard that keeps a muscle-strength grade (`5/5`) off a generic name.
+    ("血压", "5/5", "", "Examination", observations.KIND_FINDING),
+    # No name, no pressure unit: `120/80` stays what it always was.
+    ("身高", "120/80", "", "Examination", observations.KIND_FINDING),
+])
+async def test_a_blood_pressure_pair_stays_a_measurement(monkeypatch, name, value, unit, method, kind):
+    """A systolic/diastolic pair is a measurement, not a finding, regardless
+    of the `detection_method` a model gave the row: `standardize.parse_value`
+    never reads `120/80` as a quantity (the slash fails as a rate-unit
+    prefix), so this is checked beside `_is_quantity`, not inside it."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-bp-user", [_row(name, value, unit, method=method)],
+        datetime(2026, 3, 4), "extracted", "synthetic-281-bp.pdf",
     )
     _, drafts, _ = ingest.call_args.args
     assert drafts[0].kind == kind

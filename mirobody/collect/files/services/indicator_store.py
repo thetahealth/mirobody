@@ -23,9 +23,10 @@ from typing import Any
 from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date, file_source_ref
 from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
+from mirobody.collect.sentence import blood_pressure
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.standardize import RANGE_SEPARATOR, parse_range, parse_value
-from mirobody.units import normalize_unit, numerals
+from mirobody.units import normalize_unit, numerals, unit_family
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,12 @@ _NUMERIC_TOKEN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _NUMBER = re.compile(rf"(?<![\d.])({_NUMERIC_TOKEN})(?:\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUMERIC_TOKEN}))?")
 # The comparator and number a value opens with; what follows is its unit or prose.
 _VALUE_HEAD = re.compile(rf"[<>≤≥=＜＞]?\s*{_NUMERIC_TOKEN}")
+# A systolic/diastolic pair, with whatever the model printed after it (its
+# unit, or nothing): "120/80", "111/65 mmHg". `standardize.parse_value`
+# never reads this as a quantity (`units/normalize.py` tries the slash as a
+# rate-unit prefix and refuses it), so `_is_quantity` alone cannot see a
+# blood-pressure pair and this is checked beside it, not inside it.
+_PAIR = re.compile(rf"^({_NUMERIC_TOKEN})\s*/\s*({_NUMERIC_TOKEN})\s*(.*)$")
 _SPACE = re.compile(r"\s+")
 #: A non-numeric value longer than this is prose a model may rephrase; it is
 #: not checked against the text.
@@ -112,11 +119,17 @@ def row_kind(indicator: dict[str, Any], value: str) -> str:
     row whose value is a number, alone or with its unit printed inside it
     (`170`, `170cm`, `72次/分`), stays a measurement: a `身高 170 cm` the model
     tagged that way keeps its 170 and its unit. `结石 3 mm` and `120/80` are
-    findings. `Imaging` and `Pathological` are the model's explicit choice and
-    keep their long-standing behaviour.
+    findings, UNLESS the row is a blood pressure: a pair the row is named or
+    united with a pressure unit for (`_is_pressure_pair`) is a measurement
+    whatever method the model gave it, the same as a table or journal entry
+    splits one into its systolic and diastolic readings. `Imaging` and
+    `Pathological` are otherwise the model's explicit choice and keep their
+    long-standing behaviour.
     """
     method = str(indicator.get("detection_method") or "")
     if method not in FINDING_METHODS:
+        return observations.KIND_MEASUREMENT
+    if _is_pressure_pair(indicator, value):
         return observations.KIND_MEASUREMENT
     if method == "Examination" and _is_quantity(value):
         return observations.KIND_MEASUREMENT
@@ -133,6 +146,21 @@ def _is_quantity(value: str) -> bool:
         return False
     tail = text[head.end():].strip()
     return not tail or normalize_unit(tail) is not None
+
+
+def _is_pressure_pair(indicator: dict[str, Any], value: str) -> bool:
+    """Whether `value` is a systolic/diastolic pair that stays a measurement:
+    the row is named blood pressure (`collect.sentence.blood_pressure`,
+    reused rather than a second name list) or united with a pressure unit,
+    in its own column or printed after the pair (`units.unit_family`)."""
+    m = _PAIR.match(value.strip())
+    if m is None:
+        return False
+    pair, tail = f"{m.group(1)}/{m.group(2)}", m.group(3).strip()
+    if blood_pressure(str(indicator.get("original_indicator") or ""), pair) is not None:
+        return True
+    unit = normalize_unit(tail) if tail else normalize_unit(str(indicator.get("unit") or ""))
+    return unit is not None and unit_family(unit) == "Pres"
 
 
 def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:

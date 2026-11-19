@@ -356,12 +356,15 @@ fix is here.
   `心影`, `两肺纹理` and `双肾` are listed with the lab analytes. That fix
   belongs to the client. A second gap, `kind` coming from the model's
   `detection_method` alone with no method for a physical or dental
-  examination, is closed: an `Examination` row is a finding, and one whose
-  value is a number, with its unit if printed inside it, stays a
-  measurement. `Imaging` and `Pathological` rows are findings whatever their
-  value. Still open: one ultrasound sentence came out as three
-  rows (`双肾彩超`, `双肾`, `双肾结晶`). Scanner settings and history headings
-  are closed: `indicator_extractor.NOT_READINGS`.
+  examination, is closed (#281 item 1): an `Examination` row is a finding,
+  and one whose value is a number, with its unit if printed inside it,
+  stays a measurement. `Imaging` and `Pathological` rows are findings
+  whatever their value, except a blood-pressure pair, which is a
+  measurement whatever method the model gave the row: the row is named
+  blood pressure or its unit is a pressure unit. Still open: one ultrasound
+  sentence came out as three rows (`双肾彩超`, `双肾`, `双肾结晶`). Scanner
+  settings and history headings are closed:
+  `indicator_extractor.NOT_READINGS`.
 - **Indicator extraction fails on a long report and nothing surfaces.**
   `async_get_structured_output` ran 175s against a 12-page panel and came back
   with truncated JSON (`Unterminated string`); with only one provider configured
