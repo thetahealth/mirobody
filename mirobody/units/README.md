@@ -49,7 +49,7 @@ unit_families("%")       # → frozenset({"MFr", "NFr", "AFr", "VFr", ...})  (am
 - Unicode normalization (`°C`, `µg/L`, `10⁹/L`, full-width `ｍｇ／ｄＬ`)
 - UCUM annotation strip (`ug/g{creat}` → `ug/g`; `{copies}/mL` → `/mL`) while preserving canonical annotation forms (`mL/min/{1.73_m2}` round-trips)
 - Value-anywhere parsing (`每分钟90次` Chinese SVO order, `mg/dL 90` unit-before-value)
-- European decimal comma (`5,6 mmol/L`)
+- Commas inside a number, by one rule (`numerals.py`): a decimal comma (`5,6 mmol/L`, `1,25`) and a thousands grouping (`250,000 /uL`, `1,250,000`, the lakh `2,50,000`); three digits after one comma (`1,250`) read as thousands
 - Wearable count "units" via UCUM annotation form (`600步` → `(0, 600, {steps})`, family `Num`)
 - Imperial units (`ft` / `lb` / `oz` / `gallon` etc., normalized to bracketed UCUM `[ft_us]` / `[lb_av]` / ...)
 - Ambiguity API: `unit_family("%")` returns the primary (`MFr`); `unit_families("%")` returns every PROPERTY the gate admits `%` for
