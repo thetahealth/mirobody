@@ -1240,6 +1240,21 @@ async def test_a_day_figure_names_no_clock_time(database):
                                  query.Window(0, 0, "UTC"), resolution="hour", limit=10)
     assert (session["min"], session["min_at"]) == (51, "")
 
+    # One series holding a day figure (40, at midnight) and a reading taken at
+    # 00:15 (90) in the same hour: the minimum is the day figure, which has
+    # no time, so `min_at` is empty rather than the other reading's 00:15.
+    mixed = observations.Provenance("device-sensed", "device", "synthetic-mixed", vendor="synthetic-research")
+    await observations.ingest("1", [
+        observations.Draft(name_text="Synthetic mixed bucket", value_text="40", unit_text="count",
+                           observed_start=datetime(2026, 1, 5, tzinfo=UTC), observed_end=datetime(2026, 1, 6, tzinfo=UTC),
+                           grain=observations.GRAIN_DAY, stat="minimum"),
+        observations.Draft(name_text="Synthetic mixed bucket", value_text="90", unit_text="count",
+                           observed_start=datetime(2026, 1, 5, 0, 15, tzinfo=UTC)),
+    ], mixed, user_tz="UTC")
+    [both] = await hq.buckets("1", query.Selection(indicators=("Synthetic mixed bucket",)),
+                              query.Window(0, 0, "UTC"), resolution="hour", limit=10)
+    assert (both["min"], both["min_at"], both["max"], both["max_at"]) == (40, "", 90, "00:15")
+
 
 @pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
 async def test_every_view_names_a_series_as_the_catalogue_does(database, view):
