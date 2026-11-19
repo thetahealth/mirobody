@@ -57,6 +57,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
+from typing import Any
 
 from mirobody import standardize
 from mirobody.collect.sentence import blood_pressure
@@ -847,9 +848,20 @@ def _reading(row: list[str], columns: dict[str, int], *, borrowed: bool) -> list
         # which missed it: 3 of 4 cloud models (DeepSeek V4.1 Flash, Claude
         # Sonnet 5.5, GPT-6 Luna) dropped a check-up book's `Blood Pressure |
         # 123/78 | mmHg | 90-139/60-89` (benchmarks/local_models, 2026-10-07).
-        return [{**reading, "original_indicator": n, "value": v, "unit": unit or "mmHg", "reference_range": r}
-                for (n, v), r in zip(pair, _pair_range(ref), strict=True)]
+        return split_pressure(reading, pair)
     return [reading]
+
+
+def split_pressure(reading: dict[str, Any], pair: tuple[tuple[str, str], ...]) -> list[dict[str, Any]]:
+    """A blood pressure printed as one pair, as its two readings: the names
+    and numbers `collect.sentence.blood_pressure` read (`pair`), the unit as
+    printed or mmHg, a paired range split between them. A table row and a
+    model's row (`indicator_store`) both land a pair through this, so one
+    printed `123/78` is the same two readings whichever of them read it."""
+    unit = str(reading.get("unit") or "") or "mmHg"
+    ranges = _pair_range(str(reading.get("reference_range") or ""))
+    return [{**reading, "original_indicator": n, "value": v, "unit": unit, "reference_range": r}
+            for (n, v), r in zip(pair, ranges, strict=True)]
 
 
 def _pair_range(ref: str) -> tuple[str, str]:
