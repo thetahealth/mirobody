@@ -338,11 +338,12 @@
   figures (Apple's daily minimum heart rate, total sleep, step count) are
   stored at local midnight with `grain='day'`, and the `raw` view (the
   default), `latest` and the records list printed them as `2026-11-18
-  00:00:00`. Asked when its heart rate was lowest, a local model read that
-  as the time. They now show the date alone (`2026-11-18`); readings taken
-  at a moment keep their full time. How to tell: `query_health_indicators(
-  indicators=["dailyMinHeartRates"])` after an Apple import shows dates
-  without a clock.
+  00:00:00`, and an hour or minute view labelled its bucket `2026-11-18
+  00:00`. Asked when its heart rate was lowest, a local model read either
+  as the time. They now show the date alone (`2026-11-18`) in every view;
+  readings taken at a moment keep their full time. How to tell:
+  `query_health_indicators(indicators=["dailyMinHeartRates"], view="hour")`
+  after an Apple import labels each bucket with a date and no clock.
 
 - **A fasting or tolerance-test label on a glucose name is no longer
   dropped.** A name and its own abbreviation are compared by LOINC analyte

@@ -1201,12 +1201,12 @@ async def test_hour_buckets_say_when_the_minimum_and_maximum_happened_ties_earli
     assert "min_at" not in minute_text
 
 
-async def test_a_day_figure_in_an_hour_bucket_names_no_clock_time(database):
+async def test_a_day_figure_names_no_clock_time(database):
     """A day figure (`grain='day'`, as Apple's `dailyMinHeartRates`) is
     stored at local midnight; it is a statistic of the whole day, not a
-    reading taken then. Given `min_at=00:00`, a local model answered "the
-    lowest was 48, at 00:00" (1.6.2 release test). Its hour bucket keeps the
-    value and names no time."""
+    reading taken then. Shown at 00:00 (an hour bucket, its `min_at`, a raw
+    timestamp), a local model answered "the lowest was 48, at 00:00" (1.6.2
+    release test). Every view shows it as its date alone."""
     from mirobody.collect import observations
     from mirobody.collect.query import PostgresHealthQuery
     from mirobody.kernel import query
@@ -1219,9 +1219,11 @@ async def test_a_day_figure_in_an_hour_bucket_names_no_clock_time(database):
                                                                   vendor="synthetic-research"), user_tz="UTC")
     hq = PostgresHealthQuery()
     selection = query.Selection(indicators=("Synthetic daily minimum",))
-    [hour_row] = await hq.buckets("1", selection, query.Window(0, 0, "UTC"), resolution="hour", limit=10)
-    assert (hour_row["min"], hour_row["max"]) == (48, 48)
-    assert (hour_row["min_at"], hour_row["max_at"]) == ("", "")
+    # It has no hour: a sub-day bucket of it is labelled with the date alone
+    # (with `00:00` in the label, the local model still answered "at 00:00").
+    for resolution in ("hour", "minute"):
+        [row] = await hq.buckets("1", selection, query.Window(0, 0, "UTC"), resolution=resolution, limit=10)
+        assert (row["period"], row["min"], row["min_at"], row["max_at"]) == ("2026-01-02", 48, "", "")
     # The default `raw` view shows it as its date, with no midnight clock.
     [raw_row] = await hq.readings("1", selection, query.Window(0, 0, "UTC"), limit=10)
     assert raw_row["time"] == "2026-01-02"
