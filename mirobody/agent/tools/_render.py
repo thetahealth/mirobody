@@ -62,7 +62,7 @@ _COLUMNS: dict[str, tuple[str, ...]] = {
     # never shows it.
     "buckets": ("indicator", "period", "avg", "min", "max", "min_at", "max_at", "n", "unit", "system", "code"),
     "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
-              "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
+              "delta", "pct_change_from_start", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
     "stats": ("indicator", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
               "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "system", "code"),
@@ -78,7 +78,7 @@ _REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
     "readings": ("indicator", "name", "kind", "time", "system", "code", "reason", "note"),
     "buckets": ("indicator", "period", "n", "system", "code"),
     "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
-              "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
+              "delta", "pct_change_from_start", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
     "stats": ("indicator", "count", "first_date", "last_date", "system", "code"),
     "latest": ("indicator", "name", "kind", "date", "time", "system", "code", "reason", "note"),

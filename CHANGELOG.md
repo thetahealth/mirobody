@@ -61,6 +61,50 @@
 
 ### Fixed
 
+- **The documented MCP install command now has a PowerShell form next to
+  it.** `claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`, pasted
+  into a default PowerShell window, failed with `unknown option '--python'`:
+  PowerShell's `.ps1` shim for `claude` consumes the bare `--` before `uvx`
+  ever sees it. A tester reported having to switch to `claude.cmd`, CMD or
+  Git Bash to get past it. All three READMEs now show the PowerShell form
+  (`claude.cmd mcp add ...`) beside the command.
+
+- **A system proxy no longer swallows the internal hosts a trend's own
+  containers exempt by default.** `compose.yaml`'s `NO_PROXY` used
+  `${NO_PROXY:-default}`, which replaced the whole default list with
+  whatever `NO_PROXY` the host (or Docker Desktop, which passes its proxy
+  settings into containers) already had set, dropping `llama` from it: a
+  tester reported the app container's call to the local model container
+  being caught by their system proxy until they added the service name back
+  by hand. `pg`, `llama`, `localhost`, `127.0.0.1` and `host.docker.internal`
+  are now always exempt for the app and worker containers, with any
+  `NO_PROXY`/`no_proxy` the host sets appended rather than substituted. How
+  to tell: `docker compose config` with `NO_PROXY=localhost,127.0.0.1` set on
+  the host still lists `llama` in both containers' `NO_PROXY`.
+
+- **A trend's percentage now reads as the change from the start.**
+  `view=trend` divided the change by the mean of all the readings, not the
+  first one, under the field name `delta_pct`, so a reader working the
+  arithmetic out by hand got a different number than the one printed: a
+  tester reported a model saying "-39.55%" for an LDL series that actually
+  fell 33.4% from its first reading. The field is renamed
+  `pct_change_from_start` and divides by the first third's mean instead,
+  left out (not zero) when that mean is zero; the mean-magnitude divisor
+  stays, internal, for the `direction` threshold alone, so a series that
+  starts near zero still does not read as a huge move. How to tell: a
+  four-point 3.62 → 3.31 → 2.90 → 2.41 mmol/L series reports -33.4%, and no
+  trend row anywhere still carries a field named `delta_pct`.
+
+- **A time or frequency word in front of a complaint no longer blocks its
+  code.** `standardize_complaint("最近老是头疼")` answered needs-input, and a
+  tester reported having to split a journal-style sentence into its bare
+  symptom word by hand before the tool would code it. The enumerated
+  qualifiers that only say WHEN or HOW OFTEN, never WHETHER (最近, 老是,
+  经常, 总是, 一直, 有点, 有些; recently, always, often, "a bit"), are now
+  stripped before coding and recorded as evidence on the decision; a
+  negation (不头疼, 没有发烧) is never one of them and still abstains exactly
+  as before.
+
 - **`query_health_indicators` can read the early hours of a busy day.**
   `start`/`end` took only a whole calendar date, and `view=minute` keeps
   just the newest 92 points per indicator (`BUCKET_CAP`), `view=raw` (the

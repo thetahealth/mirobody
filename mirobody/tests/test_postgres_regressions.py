@@ -421,6 +421,39 @@ async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(da
     assert dates == {"FPG": "2026-02-01", "TC": "2026-02-01", "：": "2026-01-01"}
 
 
+async def test_reuploading_the_same_report_does_not_duplicate_its_readings(database):
+    """A tester reported the app "automatically removing duplicate scanned
+    pages" on a re-upload, with no reproduction given; this pins what the
+    identity index actually does, so the claim can be checked rather than
+    just repeated. `ingest()`'s default policy is `ON_CONFLICT_SKIP`: a
+    second batch with the same user, readings, time and `source_ref` (the
+    file key) collides on the identity index's unique constraint and is
+    counted `skipped`, not written again."""
+    from mirobody.collect import observations
+
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    drafts = [
+        observations.Draft(name_text="Total Cholesterol", value_text="4.50", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="LDL", value_text="2.40", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="HDL", value_text="1.30", unit_text="mmol/L", observed_start=at),
+    ]
+    source = observations.Provenance("lab-report", "file", "th_files:synthetic-reupload")
+
+    first = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert first.inserted == 3 and first.skipped == 0
+    assert first.outcomes == [observations.OUTCOME_INSERTED] * 3
+
+    # The same report, uploaded a second time: identical drafts, identical
+    # provenance, same `source_ref` and nothing corrected in between.
+    second = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert second.inserted == 0 and second.skipped == 3
+    assert second.outcomes == [observations.OUTCOME_SKIPPED] * 3
+
+    rows = await database("SELECT name_text FROM v_observation WHERE source_ref=:source",
+                          {"source": "th_files:synthetic-reupload"}, log_sql=False)
+    assert sorted(r["name_text"] for r in rows) == ["HDL", "LDL", "Total Cholesterol"]
+
+
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])
 @pytest.mark.parametrize("same_instant", [False, True], ids=["overlapping", "same-instant"])
 async def test_apple_import_selects_one_device_before_cumulative_aggregation(database, monkeypatch, tmp_path, source_order, same_instant):

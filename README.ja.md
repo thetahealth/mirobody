@@ -59,6 +59,17 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
+Windows では、既定の PowerShell ウィンドウは `claude` を自身の `.ps1` スクリプト
+として実行し、`uvx` が見る前に `--` を飲み込んでしまい、`unknown option
+'--python'` で失敗します。代わりに `.cmd` シムを呼んでください。PowerShell は
+これをネイティブコマンドとして実行するので、`--` がそのまま渡ります。
+
+```powershell
+claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+CMD と Git Bash では、元のコマンドをそのまま実行できます。
+
 エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)でも同じコマンドを使います。
 
 → [Python や MCP からエンジンを使う](docs/quickstart.ja.md#a--the-library)
