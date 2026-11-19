@@ -267,12 +267,17 @@ async def test_an_imaging_row_is_stored_as_a_finding(monkeypatch, name, method, 
     ("牙周炎", "", observations.KIND_FINDING),
     ("义齿修复", "", observations.KIND_FINDING),
     ("缺牙（26）", "", observations.KIND_FINDING),
+    ("双肾未见异常", "", observations.KIND_FINDING),
     ("170", "cm", observations.KIND_MEASUREMENT),
     ("<0.5", "", observations.KIND_MEASUREMENT),
     ("170cm", "", observations.KIND_MEASUREMENT),
+    ("170 cm", "", observations.KIND_MEASUREMENT),
     ("36.5℃", "", observations.KIND_MEASUREMENT),
     ("72次/分", "", observations.KIND_MEASUREMENT),
     ("97%", "", observations.KIND_MEASUREMENT),
+    # A grouping under #289's rule (`units.numerals`): neither is a decimal.
+    ("1,250", "", observations.KIND_MEASUREMENT),
+    ("250,000", "", observations.KIND_MEASUREMENT),
     ("结石 3 mm", "", observations.KIND_FINDING),
     ("2 cm 结节", "", observations.KIND_FINDING),
     ("120/80", "", observations.KIND_FINDING),
@@ -281,7 +286,8 @@ async def test_an_imaging_row_is_stored_as_a_finding(monkeypatch, name, method, 
 async def test_a_numeric_examination_row_stays_a_measurement(monkeypatch, value, unit, kind):
     """A finding's record carries its text, never a number: `身高 170 cm`
     tagged `Examination` keeps its value and unit as a measurement, whether
-    the unit is in its own column or printed inside the value."""
+    the unit is in its own column, printed inside the value, or spaced from
+    it."""
     method = "Examination"
     ingest = AsyncMock(return_value=observations.Report())
     monkeypatch.setattr(observations, "ingest", ingest)
