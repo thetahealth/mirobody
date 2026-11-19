@@ -20,10 +20,10 @@ the `agent/base` package and the ChatGPT Apps widgets under `agent/resources`
 were removed; do not reintroduce a second harness or a per-agent config
 suffix. A deployment that wants its own harness REPLACES `MirobodyAgent` by
 pointing `AGENT_DIRS` at its own directory (`agent/registry.py`). External
-clients get the engine through `mirobody/mcp/` (seven tools: `resolve_indicator`,
+clients get the engine through `mirobody/mcp/` (nine tools: `resolve_indicator`,
 `convert_unit`, `normalize_unit`, `query_health_indicators`, `query_medications`,
-`query_genetic_data`, `query_pharmacogenomics`) —
-and that list is asserted exactly by the local suite.
+`query_genetic_data`, `query_pharmacogenomics`, `search_medical_knowledge`,
+`read_medical_source`); `examples/04_mcp_tool_surface.py` prints the list.
 The agent's config keys are `MODELS`, `PROMPTS`, `ALLOWED_TOOLS`,
 `DISALLOWED_TOOLS`, `DEFAULT_MODEL`, `AGENT_NAME` — no suffix, and no "provider"
 (in this project a provider is a device; `PROVIDERS` was the 1.4.0 spelling).
@@ -48,8 +48,8 @@ running the minimal suite while reporting the full one. If a doc says `[agents]`
 ```bash
 ruff check mirobody examples   # rule set in pyproject.toml; 0 findings on main
 python -m compileall -q mirobody
-pytest -q               # 1752 in a clone with [app]: 1566 pass, 17 strict xfails,
-                        # 169 database cases skip until MIROBODY_TEST_POSTGRES_DSN
+pytest -q               # 2038 in a clone with [app]: 1843 pass, 17 strict xfails,
+                        # 178 database cases skip until MIROBODY_TEST_POSTGRES_DSN
                         # is set (docs/testing.md). The regression suite is gitignored
 lint-imports            # 6 contracts, must say "0 broken"
 python3 -c "import mirobody.kernel.meds, mirobody.kernel.query"   # the library layer, bare interpreter
