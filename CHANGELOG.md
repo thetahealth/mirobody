@@ -49,11 +49,18 @@
   pair (`120/80`, `111/65 mmHg`) stays a measurement whatever method the
   model gave the row: the row is named blood pressure or its unit is a
   pressure unit, the same way a table or journal entry splits one into its
-  systolic and diastolic readings. The prompt now states the
-  Physiological/Examination split as text, not only in the schema's
-  description, so a local model sent `json_schema` without seeing that text
-  (MiniCPM5-2B labelled all six vitals of an outpatient note `Examination`,
-  4 of 4 runs) keeps a measured vital `Physiological` (#281).
+  systolic and diastolic readings. A model that splits the pair into two
+  rows but names both for the pair itself (`血压`, `血压`) is caught too:
+  `observations.coding_for` would have keyed one series off the shared
+  name and unit, so the two numbers alternated as one reading instead of
+  two 8480-6/8462-4 series; the rows are renamed `收缩压`/`舒张压` before
+  they reach it, the same names a table or journal split already uses. The
+  prompt now states the Physiological/Examination split as text, not only
+  in the schema's description, so a local model sent `json_schema` without
+  seeing that text (MiniCPM5-2B labelled all six vitals of an outpatient
+  note `Examination`, 4 of 4 runs) keeps a measured vital `Physiological`,
+  and asks for the split pair's halves to be named for themselves rather
+  than their pair (#281).
 
 - **`view="hour"` says when its minimum and maximum happened.** An hour
   bucket carried only the hour's min/max value, not the clock time, so

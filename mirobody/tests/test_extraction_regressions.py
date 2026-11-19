@@ -339,6 +339,45 @@ async def test_a_blood_pressure_pair_stays_a_measurement(monkeypatch, name, valu
     assert drafts[0].value_text == value
 
 
+@pytest.mark.parametrize("name_a,name_b,value_a,value_b,renamed", [
+    # A model that splits the pair but leaves both halves named for the
+    # pair itself: renamed, or both would code to one series and the two
+    # numbers would alternate as if they were one reading.
+    ("血压", "血压", "120", "80", ("收缩压", "舒张压")),
+    ("Blood pressure", "Blood pressure", "120", "80", ("Systolic blood pressure", "Diastolic blood pressure")),
+    ("BP", "BP", "120", "80", ("Systolic blood pressure", "Diastolic blood pressure")),
+    # Already named for its half: nothing to rename, and the two rows are
+    # not adjacent duplicates of the same name any more.
+    ("收缩压", "舒张压", "120", "80", ("收缩压", "舒张压")),
+    # Two different analytes that happen to repeat a name are not a pair:
+    # `_BP_NAME` does not match, so `blood_pressure()` returns None.
+    ("K", "K", "4.1", "4.3", ("K", "K")),
+    # `_BP_VALUE` wants 2-3 digits a side, the same guard
+    # `test_a_blood_pressure_pair_stays_a_measurement` pins for a single
+    # row: a 1-digit pair under the BP name is not renamed either.
+    ("血压", "血压", "5", "5", ("血压", "血压")),
+])
+async def test_a_split_blood_pressure_pair_is_renamed_systolic_diastolic(
+    monkeypatch, name_a, name_b, value_a, value_b, renamed,
+):
+    """Two adjacent rows a model split off one printed pair must come out
+    named for their own half (收缩压/舒张压, or the pair's language), not
+    the pair's own name twice: `observations.coding_for` keys a series by
+    name and unit, so two `血压` rows would share one series and its value
+    would alternate 120, 80, 120, 80 instead of reading as two series."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-284-bp-rename-user",
+        [_row(name_a, value_a, "mmHg", method="Physiological"), _row(name_b, value_b, "mmHg", method="Physiological")],
+        datetime(2026, 3, 4), "extracted", "synthetic-284-bp-rename.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [d.name_text for d in drafts] == list(renamed)
+    assert [d.value_text for d in drafts] == [value_a, value_b]
+
+
 def test_the_extraction_offers_every_finding_method():
     """A method the model cannot choose is a kind it can never store."""
     from mirobody.collect.files.services.prompts import file_indicator_extract as prompt

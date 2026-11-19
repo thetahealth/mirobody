@@ -148,6 +148,36 @@ def _is_quantity(value: str) -> bool:
     return not tail or normalize_unit(tail) is not None
 
 
+def _split_bp_pairs(indicators: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Two adjacent rows a model split off one printed pair, named for the
+    pair itself twice ("血压", "血压"), renamed to the systolic/diastolic
+    names a table or journal split already uses (`collect.sentence.
+    blood_pressure`, reused rather than a second rule): otherwise both code
+    to the SAME series (`observations.coding_for` keys a series by
+    `name_key`+`unit_ucum`), where the two numbers alternate as one line
+    instead of reading as two. A 120/80 pair stored this way reads back as
+    one series oscillating 120, 80, 120, 80, averaging 100 mmHg, worse than
+    the unsplit pair `_is_pressure_pair` otherwise keeps a measurement.
+    First-seen is systolic, the printed reading order; a row the prompt's
+    own rule already named (收缩压, Systolic blood pressure, ...) does not
+    match `_BP_NAME` and passes through untouched.
+    """
+    out = list(indicators)
+    i = 0
+    while i < len(out) - 1:
+        name_a = str(out[i].get("original_indicator") or "")
+        name_b = str(out[i + 1].get("original_indicator") or "")
+        pair = blood_pressure(name_a, f"{out[i].get('value', '')}/{out[i + 1].get('value', '')}") \
+            if name_a and name_a == name_b else None
+        if pair is None:
+            i += 1
+            continue
+        out[i] = {**out[i], "original_indicator": pair[0][0]}
+        out[i + 1] = {**out[i + 1], "original_indicator": pair[1][0]}
+        i += 2
+    return out
+
+
 def _is_pressure_pair(indicator: dict[str, Any], value: str) -> bool:
     """Whether `value` is a systolic/diastolic pair that stays a measurement:
     the row is named blood pressure (`collect.sentence.blood_pressure`,
@@ -225,6 +255,7 @@ async def save_indicators_to_db(
     failed write raises: answered with 0, it read as a document with no
     readings in it.
     """
+    indicators = _split_bp_pairs(indicators)
     drafts = []
     bears_out = text_bears_out(text) if text else None
     unverified_count = 0

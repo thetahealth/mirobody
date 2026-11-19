@@ -119,7 +119,7 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 3. **For descriptive reports** (imaging/pathology): Extract each organ/region finding as separate indicator
 4. **Preserve precision**: Keep exact numerical values and units as shown in report
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
-6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators (systolic, diastolic), each with its own value
+6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators, each with its own value and named for its half — 收缩压/舒张压, or Systolic/Diastolic blood pressure — never the pair's own printed name ("血压") twice
 7. **Rows with their own dates**: In a log or a table by day, each row's values are separate indicators carrying that row's `date_time`; the same name on twelve days is twelve indicators
 
 ---
