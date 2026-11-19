@@ -22,10 +22,11 @@ from typing import Any
 
 from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date, file_source_ref
-from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
+from mirobody.collect.files.services.table_indicators import printed_flag, split_flag, split_pressure
+from mirobody.collect.sentence import blood_pressure
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.standardize import RANGE_SEPARATOR, parse_range, parse_value
-from mirobody.units import numerals
+from mirobody.units import normalize_unit, numerals, unit_family
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +36,31 @@ logger = logging.getLogger(__name__)
 STORED_FLAGS = ("high", "low")
 
 
-#: The extraction's `detection_method` values whose rows are findings, not measurements.
-FINDING_METHODS = ("Imaging", "Pathological")
+#: The extraction's `detection_method` values whose rows are findings, not
+#: measurements. `Examination` is a physical or dental examination read by
+#: the clinician: `牙周`, `义齿`, a heart sound, a range of motion.
+FINDING_METHODS = ("Imaging", "Pathological", "Examination")
 
 # A doubled dash is one range separator, as in `standardize.parse_range`:
 # `125--350` ends at 350, while `-5---1` ends at -1.
 _NUMERIC_TOKEN = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 _NUMBER = re.compile(rf"(?<![\d.])({_NUMERIC_TOKEN})(?:\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUMERIC_TOKEN}))?")
+# The comparator and number a value opens with; what follows is its unit or
+# prose. Two-character comparators are the ones `standardize.parse_value`
+# reads: with only `>` here, `>=97%` lost its head and an `Examination` SpO2
+# printed that way was stored as a finding with no number.
+_VALUE_HEAD = re.compile(rf"(?:[<>＜＞][=＝]?|[≤≥=＝])?\s*{_NUMERIC_TOKEN}")
+# A systolic/diastolic pair and whatever the model printed after it (its
+# unit, or nothing): "120/80", "111/65 mmHg". `standardize.parse_value`
+# reads it as narrative (`units/normalize.py` tries the slash as a
+# rate-unit prefix and refuses it), so a pair is split before it is stored.
+_PAIR = re.compile(rf"^({_NUMERIC_TOKEN})\s*/\s*({_NUMERIC_TOKEN})\s*(.*)$")
+#: Marks the two readings `_split_blood_pressure` made out of one pair.
+_PRESSURE = "_pressure"
+# A name that already says which half it is. `collect.sentence._BP_NAME`
+# finds "blood pressure" inside `Systolic blood pressure` too, so without
+# this two systolic readings in a row were renamed systolic and diastolic.
+_HALF = re.compile(r"收缩|舒张|收縮|舒張|systolic|diastolic", re.IGNORECASE)
 _SPACE = re.compile(r"\s+")
 #: A non-numeric value longer than this is prose a model may rephrase; it is
 #: not checked against the text.
@@ -102,6 +121,98 @@ def row_time(printed: Any, report_time: datetime) -> datetime:
     return document_date(printed) or report_time
 
 
+def row_kind(indicator: dict[str, Any], value: str) -> str:
+    """`finding` or `measurement` for a read row, given its stored `value`.
+    A finding's record carries its text, never a number, so an `Examination`
+    row whose value is a number, alone or with its unit printed inside it
+    (`170`, `170cm`, `72次/分`, `>=97%`), stays a measurement: a `身高 170 cm`
+    the model tagged that way keeps its 170 and its unit. `结石 3 mm` and
+    `眼压 15/16 mmHg` are findings. A blood pressure's two readings
+    (`_split_blood_pressure`) are measurements whatever method the model gave
+    the row it came from. `Imaging` and `Pathological` are otherwise the
+    model's explicit choice and keep their long-standing behaviour.
+    """
+    method = str(indicator.get("detection_method") or "")
+    if method not in FINDING_METHODS or indicator.get(_PRESSURE):
+        return observations.KIND_MEASUREMENT
+    if method == "Examination" and _is_quantity(value):
+        return observations.KIND_MEASUREMENT
+    return observations.KIND_FINDING
+
+
+def _is_quantity(value: str) -> bool:
+    """Whether `standardize.parse_value` reads `value` as a quantity and what
+    follows the number is nothing or a unit. The parser alone also reads
+    `结石 3 mm` and `2 cm 结节` as quantities."""
+    text = numerals.fold(value.strip())
+    head = _VALUE_HEAD.match(text)
+    if head is None or parse_value(text).value_num is None:
+        return False
+    tail = text[head.end():].strip()
+    return not tail or normalize_unit(tail) is not None
+
+
+def _split_blood_pressure(indicators: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Every blood pressure among a document's rows as its systolic and
+    diastolic readings, the two a table row or a journal entry already
+    makes of one (`collect.sentence.blood_pressure` decides, `table_indicators.
+    split_pressure` splits, neither a second rule).
+
+    A model hands a blood pressure over in one of three shapes. Split into
+    `收缩压`/`舒张压`, it passes through. Left as one row (`血压 120/80`),
+    it was stored as one narrative value with no number in it, whatever the
+    method: nothing to chart, compare or flag. Split into two rows both
+    still named for the pair (`血压`, `血压`), the two shared one series
+    (`observations.coding_for` keys a series by name and unit) and read
+    back as one line alternating 120, 80, 120, 80. The last two are split
+    or renamed here, first-seen as systolic, the printed reading order; two
+    rows are one pair only when they share a printed time and neither name
+    already says its half. A unit printed after the pair is kept when it is
+    a pressure unit; any other tail (`120/80 左侧卧位`) leaves the row as
+    it was.
+    """
+    out: list[dict[str, Any]] = []
+    i = 0
+    while i < len(indicators):
+        row = indicators[i]
+        name = str(row.get("original_indicator") or "")
+        nxt = indicators[i + 1] if i + 1 < len(indicators) else None
+        if (nxt is not None and name and str(nxt.get("original_indicator") or "") == name
+                and not _HALF.search(name) and row.get("date_time") == nxt.get("date_time")):
+            pair = blood_pressure(name, f"{_bare(row)}/{_bare(nxt)}")
+            if pair is not None:
+                out += [{**row, "original_indicator": pair[0][0], _PRESSURE: True},
+                        {**nxt, "original_indicator": pair[1][0], _PRESSURE: True}]
+                i += 2
+                continue
+        out.extend(_pressure_readings(row, name) or [row])
+        i += 1
+    return out
+
+
+def _bare(row: dict[str, Any]) -> str:
+    """A row's value without the flag printed after it (`150↑`)."""
+    return split_flag(str(row.get("value") or ""), "")[0].strip()
+
+
+def _pressure_readings(row: dict[str, Any], name: str) -> list[dict[str, Any]] | None:
+    """One row holding a whole blood pressure, as its two readings; None
+    when it does not hold one. A flag printed after the pair goes to both,
+    as a table row's does: the pair is what the report marked."""
+    value, printed = split_flag(str(row.get("value") or ""), "")
+    m = _PAIR.match(value.strip())
+    pair = blood_pressure(name, f"{m.group(1)}/{m.group(2)}") if m else None
+    if pair is None:
+        return None
+    tail = m.group(3).strip()
+    unit = normalize_unit(tail) if tail else None
+    if tail and (unit is None or unit_family(unit) != "Pres"):
+        return None
+    flag = {"_printed_flag": printed} if printed else {}
+    reading = {**row, "unit": str(row.get("unit") or "") or tail, **flag}
+    return [{**r, _PRESSURE: True} for r in split_pressure(reading, pair)]
+
+
 def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
     """`(value, flag)` of a read row. A flag the report printed after the
     number (`6.49↑`, `5.6 H`) is moved out of the value the way the table
@@ -124,14 +235,14 @@ def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
     its own 3.9–6.1 range was still handed to a reader as `high` because this
     function kept whatever the model wrote once any range was present
     (2026-11-18). `status` is still kept for what the read side cannot judge: a
-    qualitative result (阳性/阴性, no number to compare) and an imaging or
-    pathology finding, whose `high` means abnormal, not above a range it
-    does not print. Left in, `6.49↑` was stored as a narrative with no
-    number: all 16 value errors of GLM-OCR's end-to-end run
-    (benchmarks/local_ocr, 2026-10-06)."""
+    qualitative result (阳性/阴性, no number to compare) and a finding (an
+    imaging, pathology or examination row, per `row_kind`), whose `high`
+    means abnormal, not above a range it does not print. Left in, `6.49↑`
+    was stored as a narrative with no number: all 16 value errors of
+    GLM-OCR's end-to-end run (benchmarks/local_ocr, 2026-10-06)."""
     ref = str(indicator.get("reference_range") or "")
     value, printed = split_flag(str(indicator.get("value") or ""), ref)
-    is_finding = str(indicator.get("detection_method") or "") in FINDING_METHODS
+    is_finding = row_kind(indicator, value) == observations.KIND_FINDING
     numeric_judgment = (not is_finding and parse_value(value, str(indicator.get("unit") or "")).value_kind == "quantity"
                         and parse_range(ref) != (None, None))
     judged = is_finding or (bool(ref.strip()) and not numeric_judgment)
@@ -164,6 +275,7 @@ async def save_indicators_to_db(
     failed write raises: answered with 0, it read as a document with no
     readings in it.
     """
+    indicators = _split_blood_pressure(indicators)
     drafts = []
     bears_out = text_bears_out(text) if text else None
     unverified_count = 0
@@ -172,8 +284,8 @@ async def save_indicators_to_db(
         if not original_indicator:
             continue
         method = str(indicator.get("detection_method") or "")
-        kind = observations.KIND_FINDING if method in FINDING_METHODS else observations.KIND_MEASUREMENT
         value, flag = value_and_flag(indicator)
+        kind = row_kind(indicator, value)
         modality = ""
         if bears_out is not None and kind == observations.KIND_MEASUREMENT and bears_out(value) is False:
             modality = observations.MODALITY_UNVERIFIED

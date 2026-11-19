@@ -14,7 +14,7 @@ pytest.importorskip("openai")
 
 from mirobody.agent.tools.health_indicators_service import _envelope_for
 from mirobody.collect import observations
-from mirobody.collect.files.services import indicator_store
+from mirobody.collect.files.services import indicator_store, table_indicators
 from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
 from mirobody.collect.query import _bucket_row, _catalog_row, _stats_row
 from mirobody.kernel import query
@@ -244,6 +244,7 @@ async def test_the_table_rules_rows_pass_the_same_gate(monkeypatch):
 @pytest.mark.parametrize("name,method,kind", [
     ("心影", "Imaging", observations.KIND_FINDING),
     ("双肾结晶", "Imaging", observations.KIND_FINDING),
+    ("牙周", "Examination", observations.KIND_FINDING),
     ("HR", "Physiological", observations.KIND_MEASUREMENT),
     ("K", "laboratory", observations.KIND_MEASUREMENT),
 ])
@@ -260,3 +261,160 @@ async def test_an_imaging_row_is_stored_as_a_finding(monkeypatch, name, method, 
     )
     _, drafts, _ = ingest.call_args.args
     assert drafts[0].kind == kind
+
+
+@pytest.mark.parametrize("value,unit,kind", [
+    ("牙周炎", "", observations.KIND_FINDING),
+    ("义齿修复", "", observations.KIND_FINDING),
+    ("缺牙（26）", "", observations.KIND_FINDING),
+    ("双肾未见异常", "", observations.KIND_FINDING),
+    ("170", "cm", observations.KIND_MEASUREMENT),
+    ("<0.5", "", observations.KIND_MEASUREMENT),
+    ("170cm", "", observations.KIND_MEASUREMENT),
+    ("170 cm", "", observations.KIND_MEASUREMENT),
+    ("36.5℃", "", observations.KIND_MEASUREMENT),
+    ("72次/分", "", observations.KIND_MEASUREMENT),
+    ("97%", "", observations.KIND_MEASUREMENT),
+    # Two-character comparators: `>` alone lost the head of `>=97%`, and
+    # the row was stored as a finding with no number.
+    (">=97%", "", observations.KIND_MEASUREMENT),
+    ("<=38", "℃", observations.KIND_MEASUREMENT),
+    ("≥97 %", "", observations.KIND_MEASUREMENT),
+    # A grouping under #289's rule (`units.numerals`): neither is a decimal.
+    ("1,250", "", observations.KIND_MEASUREMENT),
+    ("250,000", "", observations.KIND_MEASUREMENT),
+    ("结石 3 mm", "", observations.KIND_FINDING),
+    ("2 cm 结节", "", observations.KIND_FINDING),
+    ("120/80", "", observations.KIND_FINDING),
+    ("5/5", "", observations.KIND_FINDING),
+    # An eye pressure is a pair in a pressure unit, not a blood pressure:
+    # the two eyes, not systolic and diastolic.
+    ("15/16 mmHg", "", observations.KIND_FINDING),
+])
+async def test_a_numeric_examination_row_stays_a_measurement(monkeypatch, value, unit, kind):
+    """A finding's record carries its text, never a number: `身高 170 cm`
+    tagged `Examination` keeps its value and unit as a measurement, whether
+    the unit is in its own column, printed inside the value, or spaced from
+    it. `120/80` under this generic name stays a finding: `身高 120/80` is
+    not a blood pressure (`test_a_blood_pressure_lands_as_its_two_readings`
+    covers the row that is)."""
+    method = "Examination"
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-user", [_row("身高", value, unit, method=method)],
+        datetime(2026, 3, 4), "extracted", "synthetic-281.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert drafts[0].kind == kind
+    assert drafts[0].value_text == value
+
+
+_S, _D = observations.KIND_MEASUREMENT, observations.KIND_FINDING
+
+
+@pytest.mark.parametrize("rows,expected", [
+    # One row holding the pair, whatever method the model gave it: two
+    # readings, named in the row's script, unit as printed or mmHg.
+    ([("血压", "120/80", "", "Examination")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("血压", "120/80", "", "laboratory")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("血压", "120/80", "", "Imaging")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("血压", "120/80", "", "Pathological")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("血壓", "120/80", "", "Examination")], [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("Blood pressure", "111/65 mmHg", "", "Physiological")],
+     [("Systolic blood pressure", "111", "mmHg", _S), ("Diastolic blood pressure", "65", "mmHg", _S)]),
+    ([("BP", "15/10", "kPa", "Examination")],
+     [("Systolic blood pressure", "15", "kPa", _S), ("Diastolic blood pressure", "10", "kPa", _S)]),
+    # Two rows both named for the pair: renamed, or the two shared one
+    # series and read back as one line alternating 120, 80.
+    ([("血压", "120", "mmHg", "Physiological"), ("血压", "80", "mmHg", "Physiological")],
+     [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("BP", "120", "mmHg", "Physiological"), ("BP", "80", "mmHg", "Physiological")],
+     [("Systolic blood pressure", "120", "mmHg", _S), ("Diastolic blood pressure", "80", "mmHg", _S)]),
+    # Two pairs in a row: each split on its own, not joined into one.
+    ([("血压", "120/80", "", "Physiological"), ("血压", "118/76", "", "Physiological")],
+     [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S),
+      ("收缩压", "118", "mmHg", _S), ("舒张压", "76", "mmHg", _S)]),
+    # Not a blood pressure, or not one pair: left as the model gave it.
+    ([("收缩压", "120", "mmHg", "Physiological"), ("舒张压", "80", "mmHg", "Physiological")],
+     [("收缩压", "120", "mmHg", _S), ("舒张压", "80", "mmHg", _S)]),
+    ([("Systolic blood pressure", "120", "mmHg", "Physiological"),
+      ("Systolic blood pressure", "118", "mmHg", "Physiological")],
+     [("Systolic blood pressure", "120", "mmHg", _S), ("Systolic blood pressure", "118", "mmHg", _S)]),
+    ([("K", "4.1", "mmol/L", "laboratory"), ("K", "4.3", "mmol/L", "laboratory")],
+     [("K", "4.1", "mmol/L", _S), ("K", "4.3", "mmol/L", _S)]),
+    ([("血压", "5/5", "", "Examination")], [("血压", "5/5", "", _D)]),
+    ([("血压", "5", "", "Examination"), ("血压", "5", "", "Examination")],
+     [("血压", "5", "", _S), ("血压", "5", "", _S)]),
+    ([("眼压", "15/16", "mmHg", "Examination")], [("眼压", "15/16", "mmHg", _D)]),
+    ([("血压", "120/80 左侧卧位", "", "Examination")], [("血压", "120/80 左侧卧位", "", _D)]),
+    ([("身高", "120/80", "", "Examination")], [("身高", "120/80", "", _D)]),
+])
+async def test_a_blood_pressure_lands_as_its_two_readings(monkeypatch, rows, expected):
+    """A blood pressure the model left as one pair, or split into two rows
+    both still named for the pair, is stored as the systolic and diastolic
+    readings a table row or a journal entry already makes of one. Left as
+    one row it had no number in it (`standardize.parse_value` reads `120/80`
+    as narrative), so a vital the model tagged `Examination` was a finding
+    and one tagged anything else was a measurement nothing could chart."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-284-bp-user", [_row(*r) for r in rows],
+        datetime(2026, 3, 4), "extracted", "synthetic-284-bp.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [(d.name_text, d.value_text, d.unit_text, d.kind) for d in drafts] == expected
+
+
+async def test_a_pair_split_by_rows_needs_one_printed_time(monkeypatch):
+    """Two `血压` rows a home log prints on different days are two readings
+    of that day's pair, not one pair: they are not renamed."""
+    rows = [{**_row("血压", "120", "mmHg", "Physiological"), "date_time": "2026-03-01"},
+            {**_row("血压", "80", "mmHg", "Physiological"), "date_time": "2026-03-02"}]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-284-bp-days-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-284-bp-days.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [d.name_text for d in drafts] == ["血压", "血压"]
+
+
+async def test_a_model_row_and_a_table_row_split_one_pair_alike(monkeypatch):
+    """The printed `Blood Pressure | 123/78↑ | mmHg | 90-139/60-89` comes out
+    as the same two readings, ranges and flag whether the table rules read
+    it or the model did (`table_indicators.split_pressure`, one split)."""
+    row = {**_row("Blood Pressure", "123/78↑", "mmHg"), "reference_range": "90-139/60-89"}
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-284-bp-table-user", [row], datetime(2026, 3, 4), "extracted", "synthetic-284-bp-table.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    model = [(d.name_text, d.value_text, d.unit_text, d.ref_text, d.flag_text) for d in drafts]
+    # A second row, because a one-row table is not read as a table.
+    table, _, _ = table_indicators.table_indicators(
+        "<table><tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+        "<tr><td>Blood Pressure</td><td>123/78↑</td><td>mmHg</td><td>90-139/60-89</td></tr>"
+        "<tr><td>葡萄糖</td><td>5.6</td><td>mmol/L</td><td>3.9-6.1</td></tr></table>")
+    table = table[:2]
+    assert model == [("Systolic blood pressure", "123", "mmHg", "90-139", "high"),
+                     ("Diastolic blood pressure", "78", "mmHg", "60-89", "high")]
+    assert [(r["original_indicator"], r["value"], r["unit"], r["reference_range"]) for r in table] == \
+        [(n, v, u, ref) for n, v, u, ref, _ in model]
+
+
+def test_the_extraction_offers_every_finding_method():
+    """A method the model cannot choose is a kind it can never store."""
+    from mirobody.collect.files.services.prompts import file_indicator_extract as prompt
+    schema = prompt.RESPONSE_SCHEMA_EXTRACT_INDICATORS
+    offered = repr(schema)
+    text = prompt.get_extract_indicators_prompt("en")
+    for method in indicator_store.FINDING_METHODS:
+        assert f"'{method}'" in offered
+        assert f'"{method}"' in text

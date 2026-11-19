@@ -36,6 +36,7 @@ from typing import Any
 
 from mirobody.collect import observations as obs
 from mirobody.kernel import meds
+from mirobody.zh_fold import fold_to_hans
 
 logger = logging.getLogger(__name__)
 
@@ -464,9 +465,10 @@ def blood_pressure(name: str, value: str) -> tuple[tuple[str, str], ...] | None:
     in the script `name` is in, and the vocabulary codes them 8480-6 and
     8462-4. The table rules split a printed pair with this too, so a pair
     typed into the journal and one printed in a report are the same two
-    readings."""
+    readings. A Traditional `血壓` is folded first: matched as printed, a
+    Taiwanese or Hong Kong report's pair stayed one narrative value."""
     m = _BP_VALUE.match(value)
-    if not (m and _BP_NAME.search(name)):
+    if not (m and _BP_NAME.search(fold_to_hans(name))):
         return None
     names = ("收缩压", "舒张压") if _CJK.search(name) else ("Systolic blood pressure", "Diastolic blood pressure")
     return tuple(zip(names, m.groups(), strict=True))
