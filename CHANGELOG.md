@@ -346,6 +346,22 @@
   `mirobody recode`. To tell: `mirobody resolve "血糖(OGTT)"` refuses with
   the reason, and `mirobody resolve "血糖(FPG)"` names 1558-6.
 
+- **A check-up's PSA codes as total PSA again.** `前列腺特异性抗原 0.55
+  ng/mL`, the prostate screening test on most Chinese check-ups, was coded
+  2857-1 by 1.6.1 and refused by this release before it shipped: the name
+  alone answers 15324-7, PSA divided by prostate volume, and the unit used
+  to drop that ratio's denominator to reach PSA itself. The METHOD check
+  that keeps Thrombin time off aPTT (same component, `coagulation`) was
+  also applied to that step, and 15324-7's `Calculated.PLN` matched no
+  plain PSA assay. It now applies to siblings of the same component only;
+  Thrombin time still answers 3243-3. The names themselves are fixed too:
+  `前列腺特异性抗原`, `总前列腺特异性抗原`, `tPSA` and bare `PSA` (which answered
+  10886-0, the free fraction) now answer total PSA 2857-1, and `f/tPSA` the
+  free/total ratio. On the maintainers' resolver set two cases move, both
+  from wrong to right, by name and with a unit; nothing else moves. Stored
+  readings move with `mirobody recode`. To tell: `mirobody resolve PSA`
+  names 2857-1.
+
 - **`肌酐(Cre)` no longer refuses as two analytes, and a bracketed
   measurement that disagrees with its stem can be settled by the unit**
   (#306). `Cre` (used for creatinine on many Chinese checkup reports,

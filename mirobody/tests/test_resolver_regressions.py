@@ -174,3 +174,16 @@ def test_camelcase_numbered_and_isoenzyme_suffixes_keep_their_identity(name, par
     hit = resolver.resolve(name)
     parent_hit = resolver.resolve(parent)
     assert not hit.loinc or hit.loinc != parent_hit.loinc
+
+
+def test_a_ratios_numerator_is_reached_whatever_method_the_ratio_carries():
+    """A unit that does not fit a ratio code drops its denominator and asks
+    the numerator's codes (`variant_for_reading`). METHOD identity, which
+    keeps Thrombin time off aPTT inside "coagulation", binds siblings of the
+    SAME component only: required here, 15324-7's `Calculated.PLN` (PSA per
+    prostate volume, from planimetry) shut out PSA itself, and a check-up's
+    `前列腺特异性抗原 0.55 ng/mL` was refused on 1.6.2 where 1.6.1 coded it."""
+    resolver = get_resolver()
+    assert resolver.variant_for_reading("15324-7", "0.55", "ng/mL").code == "2857-1"
+    assert resolve_reading("Thrombin time", "17", "s").loinc == "3243-3"
+    assert resolve_reading("APTT", "31", "s").loinc == "3173-2"
