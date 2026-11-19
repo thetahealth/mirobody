@@ -421,6 +421,39 @@ async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(da
     assert dates == {"FPG": "2026-02-01", "TC": "2026-02-01", "：": "2026-01-01"}
 
 
+async def test_reuploading_the_same_report_does_not_duplicate_its_readings(database):
+    """A tester reported the app "automatically removing duplicate scanned
+    pages" on a re-upload, with no reproduction given; this pins what the
+    identity index actually does, so the claim can be checked rather than
+    just repeated. `ingest()`'s default policy is `ON_CONFLICT_SKIP`: a
+    second batch with the same user, readings, time and `source_ref` (the
+    file key) collides on the identity index's unique constraint and is
+    counted `skipped`, not written again."""
+    from mirobody.collect import observations
+
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    drafts = [
+        observations.Draft(name_text="Total Cholesterol", value_text="4.50", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="LDL", value_text="2.40", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="HDL", value_text="1.30", unit_text="mmol/L", observed_start=at),
+    ]
+    source = observations.Provenance("lab-report", "file", "th_files:synthetic-reupload")
+
+    first = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert first.inserted == 3 and first.skipped == 0
+    assert first.outcomes == [observations.OUTCOME_INSERTED] * 3
+
+    # The same report, uploaded a second time: identical drafts, identical
+    # provenance, same `source_ref` and nothing corrected in between.
+    second = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert second.inserted == 0 and second.skipped == 3
+    assert second.outcomes == [observations.OUTCOME_SKIPPED] * 3
+
+    rows = await database("SELECT name_text FROM v_observation WHERE source_ref=:source",
+                          {"source": "th_files:synthetic-reupload"}, log_sql=False)
+    assert sorted(r["name_text"] for r in rows) == ["HDL", "LDL", "Total Cholesterol"]
+
+
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])
 @pytest.mark.parametrize("same_instant", [False, True], ids=["overlapping", "same-instant"])
 async def test_apple_import_selects_one_device_before_cumulative_aggregation(database, monkeypatch, tmp_path, source_order, same_instant):
@@ -846,6 +879,168 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert len(series) == 2  # a device reading keeps its own namespace, not the lab's LOINC
     found = await PostgresHealthQuery()._by_keywords("1", ("glucose",), None)
     assert set(found) == series
+
+
+async def test_a_minute_bucket_window_reaches_an_exact_clock_time_within_a_day(database):
+    """`_window_clause`'s day-level filter cannot see an hour named in
+    `end`, so `view="minute"` always read the whole day regardless; a
+    narrower `end` within the same day must actually cut what SQL returns,
+    not just the cap on top of it (#303)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    drafts = [observations.Draft(name_text="Synthetic clock probe", value_text=str(60 + hour), unit_text="count",
+                                 observed_start=datetime(2026, 1, 1, hour, tzinfo=UTC)) for hour in range(24)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-clock",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic clock probe",))
+
+    whole_day = query.resolve_window("UTC", start="2026-01-01", end="2026-01-01", hours=24,
+                                     now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, whole_day, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(24)]
+
+    # A sub-day `end` must narrow the SQL filter itself: everything after
+    # 09:00 is gone, not merely ranked behind the cap.
+    narrowed_end = query.resolve_window("UTC", start="2026-01-01", end="2026-01-01T09:00", hours=24,
+                                        now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, narrowed_end, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(10)]
+
+    # And a sub-day `start` excludes everything before it the same way.
+    narrowed_start = query.resolve_window("UTC", start="2026-01-01T09:00", end="2026-01-01", hours=24,
+                                          now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, narrowed_start, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(9, 24)]
+
+
+async def test_a_subday_bucket_keeps_each_rows_own_local_day_not_the_accounts_current_one(database):
+    """A row's own recorded `tz` can differ from the account's CURRENT zone:
+    after travel, or an Apple export imported with the default `--tz UTC`
+    for a person whose profile reads Asia/Shanghai. `_window_clause`'s day
+    filter already reads every row by ITS OWN `local_date`, written at
+    ingestion from the row's own `tz` - so `view=minute`/`view=hour` must
+    agree with `view=day` about which calendar day a row is even on.
+    Comparing an absolute instant resolved in the ACCOUNT's zone instead
+    disagreed with that (review of #303, commit 1)."""
+    from datetime import timedelta
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    await database("UPDATE health_app_user SET tz = 'Asia/Shanghai' WHERE id = 1", log_sql=False)
+    # No `tz` of its own, so `_placed` falls back to `user_tz="UTC"` below -
+    # the row's OWN zone, independent of the account's current one. Spans
+    # UTC 2026-03-09 15:00 through 2026-03-10 17:00: part of UTC day 03-09,
+    # part of UTC day 03-10.
+    drafts = [observations.Draft(name_text="Synthetic travel probe", value_text=str(h), unit_text="count",
+                                 observed_start=datetime(2026, 3, 9, 15, tzinfo=UTC) + timedelta(hours=h))
+              for h in range(27)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-travel",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    stored_days = {r["local_date"].isoformat() for r in
+                   await database("SELECT local_date FROM v_observation", log_sql=False)}
+    assert stored_days == {"2026-03-09", "2026-03-10"}  # confirms the fixture, not yet the bug
+
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic travel probe",))
+    tz = await hq.tz("1")
+    assert tz == "Asia/Shanghai"  # the account's CURRENT zone, read by every view
+
+    window = query.resolve_window(tz, start="2026-03-10", end="2026-03-10", hours=24,
+                                  now=datetime(2026, 3, 12, tzinfo=UTC))
+    for resolution in ("minute", "hour"):
+        rows = await hq.buckets("1", selection, window, resolution=resolution, limit=92)
+        assert rows, f"{resolution}: expected the rows recorded on local_date 2026-03-10"
+        assert all(r["period"].startswith("2026-03-10") for r in rows), (
+            f"{resolution}: a date-only window must read the rows view=day does, by each "
+            f"row's own local_date, not an instant resolved in the account's zone; got "
+            f"periods {[r['period'] for r in rows]}")
+
+
+async def test_raw_readings_reach_the_whole_day_by_following_the_cut_notes_own_end(database):
+    """`view=raw`, the schema's DEFAULT, keeps the newest `ROW_CAP` (50)
+    readings per indicator; the day before the oldest of them is still the
+    SAME day. Following the cut note's own `end=` suggestion, call after
+    call, must reach every reading of the day with none repeated and none
+    skipped, oldest reading last (#303 follow-up, PR #309)."""
+    from datetime import timedelta
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+
+    drafts = [observations.Draft(name_text="Synthetic dense readings", value_text=str(i), unit_text="count",
+                                 observed_start=datetime(2026, 3, 10, tzinfo=UTC) + timedelta(minutes=12 * i))
+              for i in range(120)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-dense",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+
+    seen: list[str] = []
+    end = ""
+    for _ in range(4):  # 50 + 50 + 20 converges well inside 4 calls
+        kwargs = {"indicators": ["Synthetic dense readings"], "view": "raw", "start": "2026-03-10"}
+        if end:
+            kwargs["end"] = end
+        envelope = await service.envelope({"user_id": "1"}, **kwargs)
+        times = [r["time"] for r in envelope.data]
+        assert times == sorted(times, reverse=True)  # raw is always newest first
+        seen.extend(times)
+        if not envelope.meta.truncated:
+            break
+        assert "end=2026-03-09" not in envelope.meta.cut  # the bug: skipping to the day before
+        match = re.search(r"end=(\S+)", envelope.meta.cut)
+        assert match, envelope.meta.cut
+        end = match.group(1).rstrip(".")
+    else:
+        pytest.fail("did not converge to the whole day in 4 calls")
+
+    assert len(seen) == len(set(seen)) == 120  # every reading, none repeated, none skipped
+    assert seen[-1].startswith("2026-03-10 00:00")  # the day's first reading, reached last
+
+
+async def test_hour_buckets_say_when_the_minimum_and_maximum_happened_ties_earliest(database):
+    """"What was my lowest heart rate between 2 and 5am, and when" needs a
+    clock time an hour bucket's `min`/`max` alone cannot give. `min_at`/
+    `max_at` answer it without falling back to `view=minute`, which
+    `BUCKET_CAP` may already have cut (#303)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    # Within hour 10: two readings tie at the minimum (50) and two tie at the
+    # maximum (90); the earlier of each pair must win.
+    at = [(5, 70), (10, 50), (20, 90), (30, 50), (45, 90)]
+    drafts = [observations.Draft(name_text="Synthetic hourly extremes", value_text=str(value), unit_text="count",
+                                 observed_start=datetime(2026, 1, 1, 10, minute, tzinfo=UTC)) for minute, value in at]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-extremes",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic hourly extremes",))
+    window = query.Window(0, 0, "UTC")
+
+    [hour_row] = await hq.buckets("1", selection, window, resolution="hour", limit=10)
+    assert (hour_row["min"], hour_row["min_at"]) == (50, "10:10")
+    assert (hour_row["max"], hour_row["max_at"]) == (90, "10:20")
+
+    # `minute` buckets never carry them: a minute bucket already IS the
+    # minute its one value fell in.
+    minute_rows = await hq.buckets("1", selection, window, resolution="minute", limit=10)
+    assert all(r["min_at"] == "" and r["max_at"] == "" for r in minute_rows)
+
+    # The model-facing table shows the columns only where they carry a value.
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+
+    service = HealthIndicatorsService(hq, outside_note=False)
+    hour_text = render_compact(await service.envelope({"user_id": "1"}, indicators=["Synthetic hourly extremes"],
+                                                       view="hour"))
+    assert "min_at" in hour_text and "10:10" in hour_text and "10:20" in hour_text
+    minute_text = render_compact(await service.envelope({"user_id": "1"}, indicators=["Synthetic hourly extremes"],
+                                                         view="minute"))
+    assert "min_at" not in minute_text
 
 
 @pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
@@ -1641,3 +1836,66 @@ async def test_a_new_account_refuses_a_token_minted_before_it_existed(database, 
     assert int(account["id"]) == int(row["id"])
     assert await user_module.is_active_account(account["id"], before) is False
     assert await user_module.is_active_account(account["id"], time.time()) is True
+
+
+async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(database):
+    """#296: device sleep durations arrive in `ms` (`dailyTotalSleepTime` 93832-4,
+    `dailySleepDuration` 103213-5, `dailyDeepSleep` 93831-6), while clinical HRV
+    SDNN (`hrvSDNN` 112429-6) declares `ms` in LOINC. `PostgresHealthQuery`
+    answers sleep duration and duration in bed in `h`, deep sleep in `min`, and
+    HRV in `ms` across trend, stats, bands, buckets, readings, latest, catalogue
+    and CSV export, while `printed` preserves the device's verbatim `ms`."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery, export_row
+
+    prov = observations.Provenance("device-sensed", "device", "device:garmin", vendor="garmin")
+    drafts = []
+    for day, asleep_ms in ((1, 25_200_000), (2, 24_533_700), (3, 23_256_000)):
+        at = datetime(2026, 9, day, 7, tzinfo=UTC)
+        drafts += [
+            observations.Draft(name_text="dailyTotalSleepTime", value_text=str(asleep_ms), unit_text="ms", observed_start=at),
+            observations.Draft(name_text="dailySleepDuration", value_text="27000000", unit_text="ms", observed_start=at),
+            observations.Draft(name_text="dailyDeepSleep", value_text="7200000", unit_text="ms", observed_start=at),
+            observations.Draft(name_text="hrvSDNN", value_text="42", unit_text="ms", observed_start=at),
+        ]
+    await observations.ingest("1", drafts, prov, user_tz="UTC")
+    # An ECG report prints QT in ms while LOINC's 8634-8 declares s: printed by
+    # a report, so not a storage unit, and `device_only` must say so in SQL.
+    await observations.ingest("1", [observations.Draft(
+        name_text="QT间期", value_text="400", unit_text="ms", observed_start=datetime(2026, 9, 2, 9, tzinfo=UTC),
+    )], observations.Provenance("lab-report", "file", "th_files:synthetic-ecg"), user_tz="UTC")
+
+    reader = PostgresHealthQuery()
+    service = HealthIndicatorsService(reader, outside_note=False)
+
+    stats_env = await service.envelope(
+        {"user_id": "1"},
+        indicators=["dailyTotalSleepTime", "dailySleepDuration", "dailyDeepSleep", "hrvSDNN"],
+        view="stats",
+        value_min=7.0,
+    )
+    by_code = {r["code"]: r for r in stats_env.data}
+    assert (by_code["93832-4"]["unit"], by_code["93832-4"]["days_in_range"]) == ("h", 1)
+    assert by_code["93832-4"]["avg"] == pytest.approx((25_200_000 + 24_533_700 + 23_256_000) / 3 / 3_600_000, rel=1e-5)
+    assert float(by_code["93832-4"]["last"]) == pytest.approx(6.46)
+    assert (by_code["103213-5"]["unit"], by_code["103213-5"]["avg"]) == ("h", pytest.approx(7.5))
+    assert (by_code["93831-6"]["unit"], by_code["93831-6"]["avg"]) == ("min", pytest.approx(120.0))
+    assert (by_code["112429-6"]["unit"], by_code["112429-6"]["avg"]) == ("ms", pytest.approx(42.0))
+    assert "24533700" not in render_compact(stats_env)
+
+    ecg_env = await service.envelope({"user_id": "1"}, indicators=["8634-8"], view="stats")
+    assert [(r["unit"], r["avg"]) for r in ecg_env.data] == [("ms", pytest.approx(400.0))]
+
+    trend_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="trend")
+    assert trend_env.data[0]["unit"] == "h"
+
+    latest_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="latest")
+    [latest] = latest_env.data
+    assert latest["unit"] == "h" and float(latest["value"]) == pytest.approx(6.46)
+    assert (latest["printed"]["value"], latest["printed"]["unit"]) == ("23256000", "ms")
+
+    records = await reader.records("1", keywords="dailyTotalSleepTime", limit=5)
+    exported = export_row(records["rows"][0])
+    assert (exported["unit"], exported["printed_value"], exported["printed_unit"]) == ("h", "23256000", "ms")

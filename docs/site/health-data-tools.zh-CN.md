@@ -37,6 +37,7 @@ query_health_indicators(indicators=["<从结果中复制的名称>"], view="late
 
 未提供 `keywords` 或 `indicators` 时，返回指标目录，指定的视图不会直接应用。
 `start`、`end` 按记录所属用户的时区解释，包含起止当天，所以“最近 7 天”从六天前开始；指标查询未指定日期时，范围为全部记录。
+使用 `view=raw`（默认）、`view=minute` 或 `view=hour` 时，`start`、`end` 也可以写成当地时间 `YYYY-MM-DDTHH:MM`，包含该分钟；某一天的数据超过该视图的条数上限时，用它取到当天更早的部分。
 
 ## 阅读结果
 

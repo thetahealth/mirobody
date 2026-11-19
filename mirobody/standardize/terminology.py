@@ -142,7 +142,16 @@ def standardize_complaint(text: str, kind: str = "symptom") -> dict[str, Any]:
         code["coding"] = [{"system": ICPC3_SYSTEM, "code": coding.code, "display": coding.display}]
     from mirobody.engine.observation import decision_extension
 
-    fields = {"kind": kind, "outcome": coding.outcome, "release": coding.release, "reason": coding.reason}
+    fields = {
+        "kind": kind,
+        "outcome": coding.outcome,
+        "release": coding.release,
+        "reason": coding.reason,
+        # icpc3.resolve's evidence: which rule matched, and which leading
+        # time/frequency words (if any) were stripped before it did, so a
+        # caller can see "最近老是头疼" coded as 头疼 rather than guess it.
+        "evidence": list(coding.evidence),
+    }
     return {"resourceType": "Observation", "status": "final", "code": code, "extension": [decision_extension(fields)]}
 
 

@@ -77,7 +77,7 @@ from .outcome import (
 )
 from .parse import RANGE_SEPARATOR, Parsed, parse_range, parse_value
 from .series import Axes, local_series_id, property_dim, series_id, symptom_series_id
-from .code import NOTE_SERIES, code, code_note, decision_id, release, series_of
+from .code import NOTE_SERIES, code, code_note, decision_id, loinc_units, release, series_of
 from .icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 from .names import Names, label_for, names_for
 
@@ -101,6 +101,7 @@ _SEAM = [
     "local_day",
     "label_for",
     "local_series_id",
+    "loinc_units",
     "name_key",
     "names_for",
     "parse_range",
