@@ -541,7 +541,7 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
             "provenance": "reported" if reported else str(latest.get("provenance") or "computed"),
             "first_date": periods[0], "last_date": periods[-1],
             "unit": "", "direction": "unsupported", "shape": "unavailable", "reason": "",
-            **dict.fromkeys(("first_third_mean", "last_third_mean", "delta", "delta_pct",
+            **dict.fromkeys(("first_third_mean", "last_third_mean", "delta", "pct_change_from_start",
                              "slope_per_day", "min", "max")),
         }
         if latest.get("kind"):
@@ -584,9 +584,19 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
         first_third, last_third = statistics.mean(values[:cut]), statistics.mean(values[-cut:])
         delta = last_third - first_third
         magnitude = statistics.mean(abs(value) for value in values)
+        # `relative` stays INTERNAL to the `direction`/`shape` threshold: a series
+        # that starts near zero (temperature deltas, a hormone at the edge of its
+        # range) must not blow the 2% test up over nothing. It is never shown: a
+        # model read the column next to `first_third_mean`/`last_third_mean` as
+        # "percent change from first to last" and reported -39.55% for a series
+        # whose actual first-to-last change was -33.4% (#297).
         relative = delta / magnitude * 100 if magnitude else None
         direction = ("flat" if relative is None or _below(abs(relative), 2.0)
                      else "up" if delta > 0 else "down")
+        # What a reader means by "percent change": against the start (the first
+        # third's mean), not the series' average magnitude. Left out, not zero,
+        # when the start is zero: a percentage of zero is not a number.
+        pct_change_from_start = (delta / abs(first_third) * 100) if first_third != 0 else None
         origin = days[0]
         xs = [(date.fromisoformat(str(row.get("period") or row.get("date"))) - origin).days for row, _ in numeric]
         x_mean, mean = statistics.mean(xs), statistics.mean(values)
@@ -597,7 +607,8 @@ def trend_rows(daily: Sequence[Mapping[str, object]]) -> list[dict[str, object]]
             # rounds to zero at three decimals while `direction` still reads "up", so the row
             # would report a movement it cannot express.
             first_third_mean=_significant(first_third), last_third_mean=_significant(last_third),
-            delta=_significant(delta), delta_pct=round(relative, 2) if relative is not None else None,
+            delta=_significant(delta),
+            pct_change_from_start=round(pct_change_from_start, 2) if pct_change_from_start is not None else None,
             slope_per_day=_significant(slope, 6), direction=direction,
             shape=_trend_shape(values, magnitude, direction),
             min=_significant(min(values)), max=_significant(max(values)),
@@ -699,7 +710,7 @@ TOOL_SCHEMA: dict[str, object] = {
             "type": "string",
             "enum": list(VIEWS),
             "default": "raw",
-            "description": "raw: the readings, newest first, each with the file it came from. minute/hour/day/week/month: one point per period, for a chart; hour points also carry min_at/max_at, the local clock time (HH:MM) the period's minimum/maximum occurred (ties go to the earliest), for \"when was it lowest\". stats: count/min/max/avg/sum/first/last/change over the window, for totals and a baseline. trend: numeric direction and shape, observed-day third means, delta, delta_pct and elapsed-day slope; at most 400 daily inputs, with partial coverage explicit. Unsupported or incomparable data keeps a reason; use day/stats for reported entries. The 2% direction threshold is descriptive, not clinical. latest: the most recent value per indicator.",
+            "description": "raw: the readings, newest first, each with the file it came from. minute/hour/day/week/month: one point per period, for a chart; hour points also carry min_at/max_at, the local clock time (HH:MM) the period's minimum/maximum occurred (ties go to the earliest), for \"when was it lowest\". stats: count/min/max/avg/sum/first/last/change over the window, for totals and a baseline. trend: numeric direction and shape, observed-day third means, delta, pct_change_from_start (the change from the first third's mean, left out when that mean is zero) and elapsed-day slope; at most 400 daily inputs, with partial coverage explicit. Unsupported or incomparable data keeps a reason; use day/stats for reported entries. The 2% direction threshold is a separate, internal check on mean absolute magnitude and is descriptive, not clinical. latest: the most recent value per indicator.",
         },
     },
 }
@@ -903,7 +914,10 @@ class HealthQuery(Protocol):
     authority: the same numbers a dashboard shows, by construction; raw
     rows are newest first; buckets are the newest ``limit`` per series,
     oldest first; both carry ``total`` per series so a cut can say so;
-    ``latest`` is the most recent value *inside the window*."""
+    ``latest`` is the most recent value *inside the window*. ``ranges_differ``
+    says per series id whether its readings in the window print more than one
+    reference range: the tool layer merges it into ``trend_rows``, which has
+    no database to ask, so an implementation without it broke every trend."""
 
     def tz(self, subject_id: str) -> str: ...
     def on_read(self, subject_id: str) -> None: ...
@@ -913,6 +927,7 @@ class HealthQuery(Protocol):
     def stats(self, subject_id: str, sel: Selection, window: Window, *,
               value_min: float | None = None, value_max: float | None = None) -> Rows: ...
     def latest(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
+    def ranges_differ(self, subject_id: str, sel: Selection, window: Window) -> dict[str, bool]: ...
 
 
 __all__ = [

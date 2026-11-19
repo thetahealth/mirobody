@@ -238,8 +238,8 @@ RECORDS_PAGE_MAX = 200
 #: download until it is named here.
 RECORD_EXPORT_COLUMNS = (
     "row_id", "kind", "indicator", "name", "code", "system", "series", "time", "date",
-    "value", "unit", "ref", "printed_value", "printed_unit", "printed_ref", "value_canonical", "unit_canonical",
-    "modality", "source_kind", "file", "file_key", "created_at", "provenance", "text",
+    "value", "unit", "ref", "flag", "printed_value", "printed_unit", "printed_ref", "value_canonical",
+    "unit_canonical", "modality", "source_kind", "file", "file_key", "created_at", "provenance", "text",
 )
 
 
@@ -660,7 +660,42 @@ class PostgresHealthQuery:
             params,
             log_sql=False,
         ) or []
+        differs = await self.ranges_differ(subject_id, sel, window)
+        for r in rows:
+            r["ranges_differ"] = differs.get(str(r["series_id"]), False)
         return [_stats_row(r, unit_of.get(r["series_id"])) for r in rows]
+
+    async def ranges_differ(self, subject_id: str, sel: query.Selection, window: query.Window) -> dict[str, bool]:
+        """Per series `sel` resolves to, whether its readings inside `window`
+        print more than one DISTINCT reference range once every bound is
+        placed in the series' unit (`_ranges_differ`): a hospital's own
+        cutoff, not this person's physiology, can be why one reading reads
+        high and the next does not. `stats()` merges this into its own rows
+        by series id; `trend_rows` (kernel, pure) has no database to ask, so
+        the tool layer (`agent/tools/health_indicators_service.py`) merges it
+        into `trend_rows`' result the same way."""
+        names = await self._resolve(subject_id, sel, window)
+        if not names:
+            return {}
+        params: dict[str, Any] = {"uid": str(subject_id), "names": names, "reported": REPORTED_KINDS}
+        where = _window_clause(params, window)
+        rows = await execute_query(
+            f"""
+            SELECT o.series_id,
+                   ARRAY_AGG(DISTINCT (COALESCE(o.ref_low::text, '') || '|' || COALESCE(o.ref_high::text, '') || '|'
+                                        || COALESCE(o.unit_ucum, '') || '|' || COALESCE(o.code, '') || '|'
+                                        || COALESCE(o.code_system, '')))
+                     FILTER (WHERE o.ref_low IS NOT NULL OR o.ref_high IS NOT NULL) AS ref_variants
+              FROM v_observation o
+             WHERE o.user_id = :uid AND o.series_id = ANY(:names) {where}
+             GROUP BY o.series_id
+            """,
+            params,
+            log_sql=False,
+        ) or []
+        unit_of = await self.series_units(subject_id, names)
+        return {str(r["series_id"]): _ranges_differ(r.get("ref_variants") or [], unit_of.get(str(r["series_id"])))
+                for r in rows}
 
     async def latest(self, subject_id: str, sel: query.Selection, window: query.Window) -> list[dict]:
         """The most recent value per series INSIDE the window: the newest
@@ -1075,10 +1110,10 @@ def _reading_row(r: dict, su: SeriesUnit | None = None) -> dict:
         # `value`, `unit` and `ref` are in the series' unit; what the report
         # printed is `printed` (`_in_series_unit`). The range is there because
         # without one a model judged against a range it remembered (1.5.4
-        # local runs). The flag is high or low as the report printed it, else
-        # empty (`collect/files/services/indicator_store.value_and_flag`).
+        # local runs). The flag is high or low as the stored value compares
+        # against the stored range, else as the report printed it (`_flag_of`).
         **shown,
-        "flag": r.get("flag_text") or "",
+        "flag": _flag_of(r),
         "value_canonical": _number(r.get("value_canonical")),
         "unit_canonical": r.get("unit_canonical") or "",
         # `file_key` opens the document; `file` is what a person calls it. The
@@ -1163,6 +1198,11 @@ def _stats_row(r: dict, su: SeriesUnit | None = None) -> dict:
         "unit": su.label if su else (r.get("unit") or ""),
         # Printed in more than one unit; every number above is in `unit`.
         "mixed_units": bool(r.get("mixed_units")),
+        # More than one printed reference range once every bound is placed in
+        # `unit` (`PostgresHealthQuery.ranges_differ`): a hospital's cutoff,
+        # not a change in this person, so `min`/`max`/`avg` above must not be
+        # read against any one reading's own range.
+        "ranges_differ": bool(r.get("ranges_differ")),
         "day_known": True,
         "unverified": bool(r.get("unverified")),
         "provenance": PROVENANCE_REPORTED if r.get("reported") else "computed",
@@ -1210,6 +1250,51 @@ def _number(value: object) -> float | None:
         return float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
+
+
+def _flag_of(r: dict) -> str:
+    """`high` / `low` / `""` of one reading, the one place every reader asks
+    (the chat tool, a citation, the records table and its export, the
+    profile): a comparison of the stored `value_num` against `ref_low` /
+    `ref_high`, the SAME row's printed range (`standardize.parse_range`, run
+    at write time), never a comparison against the series' display unit.
+    `value_num` and the two bounds are always in the unit the row itself was
+    printed in, whichever unit `_in_series_unit` shows the reading in.
+
+    The comparison wins whenever it is possible: a quantity with no
+    comparator (`<0.5` is not one: the true value is only bounded, and
+    guessing which side of a range an unknown sits on is exactly the
+    judgement this function replaces) and a numeric low, a high, or both.
+    `flag_text` (a flag the report printed: an arrow, a letter, a copied
+    flag column; or, for a row no number can be compared, the kind this
+    project still trusts an extraction's own word for: a qualitative
+    result, a finding) is used only when the comparison cannot be made.
+
+    A printed flag the numbers contradict (an arrow on a value the same
+    row's range places inside it) is NOT kept. Asked which values were out
+    of range, a small local model answered with every printed arrow plus an
+    in-range glucose it had marked `high` itself with no arrow printed
+    beside it (2026-11, this fix's evidence): the model's own word on a
+    value disagreeing with its own row's numbers was already known
+    untrustworthy (`indicator_store.value_and_flag`, 2026-10-13: an
+    outpatient glucose with no printed range was stored `high` on the
+    model's say-so alone), and `split_flag` already drops a bare `L`/`H`
+    that the row's own numbers say is not a flag rather than keep it.
+    Trusting the digits beside a flag that disagrees with them, over the
+    flag, is the same rule for the same reason: the digits are what every
+    other column here already reads off, and a flag glyph OCR can drop
+    outright (this fix's other piece of evidence: a triglyceride's printed
+    `↑` lost, storing no flag although its value and range both stored
+    cleanly) is no less likely to misread than invert."""
+    value, comparator = _number(r.get("value_num")), str(r.get("comparator") or "")
+    low, high = _number(r.get("ref_low")), _number(r.get("ref_high"))
+    if value is None or comparator or (low is None and high is None):
+        return str(r.get("flag_text") or "")
+    if high is not None and value > high:
+        return "high"
+    if low is not None and value < low:
+        return "low"
+    return ""
 
 
 class SeriesUnit(NamedTuple):
@@ -1352,6 +1437,50 @@ def _range_in(r: dict, ratio: float) -> str:
     if lo:
         return ("≥" if re.search(r"≥|>=|＞=", text) else ">") + lo
     return text
+
+
+def _variant_ratio(unit_ucum: str, code: str, code_system: str, su: SeriesUnit) -> float | None:
+    """What one of `unit_ucum` is in the series' unit, for a bound no stored
+    reading's own `unit_canonical` answers for (a printed reference range,
+    not a value): through the canonical unit both fold to (`units.canonicalize`),
+    the same pair `_ratio` uses once a reading's OWN canonical column has
+    already confirmed it folds to the series' base. None when they do not."""
+    if not su.factor:
+        return None
+    folded = units.canonicalize(1.0, unit_ucum, loinc_code=code if code_system == standardize.LOINC_SYSTEM else "")
+    return folded.value / su.factor if folded.unit == su.base else None
+
+
+def _ranges_differ(variants: Any, su: SeriesUnit | None) -> bool:
+    """Whether more than one DISTINCT (low, high) survives placing every one
+    of `variants` in the series' unit. `variants` is `"low|high|unit|code|
+    system"` per distinct printed range a series' readings carried over some
+    window (`PostgresHealthQuery.ranges_differ`'s SQL), one string per
+    reading where the window is a single day (a bucket's).
+
+    The same value can sit inside one report's range and outside another's
+    (a different lab, an age or sex cutoff, a unit change), and an average, a
+    count-in-range, or a trend that reads one elected day's reading said
+    nothing about the other until this existed. A bound whose unit will not
+    fold to the series' own is kept apart from every other: not knowing two
+    bounds agree is not the same as knowing they do, and (`None`, `None`,
+    the value's own printed bounds) is itself one more distinct entry when a
+    reading nearby prints a range at all."""
+    seen = set()
+    for variant in variants or []:
+        low_s, high_s, unit, code, system = (str(variant).split("|") + [""] * 5)[:5]
+        low, high = _number(low_s), _number(high_s)
+        if low is None and high is None:
+            continue
+        if su is not None and unit and unit != su.ucum:
+            ratio = _variant_ratio(unit, code, system, su)
+            if ratio is None:
+                seen.add(("unconverted", unit, low, high))
+                continue
+            low = low * ratio if low is not None else None
+            high = high * ratio if high is not None else None
+        seen.add((round(low, 6) if low is not None else None, round(high, 6) if high is not None else None))
+    return len(seen) > 1
 
 
 _FIRST_NUMBER = re.compile(r"\d+(?:\.\d+)?")

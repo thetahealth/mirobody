@@ -17,7 +17,7 @@ long-lived venv:
 | `'.[test,app]'` | 147 | 1230 passed, 169 skipped, 12 xfailed |
 
 The extras change less of what a clone can run than the package counts
-suggest. Forty-seven public modules are kept in `mirobody/tests`, described
+suggest. Forty-eight public modules are kept in `mirobody/tests`, described
 below, and most need no extra, so every install runs them in a clone.
 `[parse]` adds 98 tests, most of them the capability probes (48), which
 import the parser's dependencies, the profile refresh (22), which imports the
@@ -35,7 +35,8 @@ until `MIROBODY_TEST_POSTGRES_DSN` names a database (see below); CI supplies
 one. The skills module also ships in the wheel as inspectable release
 evidence, but skips when the wheel is installed without the repository-root
 `skills/` directory. The 12 xfails are the known cross-language splits,
-described below. What the extras still decide is what the SERVER needs, which
+described below; since this measurement, `test_printed_commas.py` adds five
+for comma shapes the answer check still reads its own way. What the extras still decide is what the SERVER needs, which
 is what the package counts are for.
 
 <sub>Measured 2026-11-10 for 1.6.1 on a clone-shaped tree, each install in a
@@ -118,7 +119,8 @@ a clone can re-run it.
 | `test_collect_regressions.py` | Apple hub priority, report-printed H/L markers and VCF `loc:` citation identities | application cases skip safely on a minimal install |
 | `test_confirmation_regressions.py` | confirmed aliases still need units; explicit units use observation amendments | pure coding checks run without `[app]`; route checks need it |
 | `test_postgres_regressions.py` | actual schema, writer, confirmation, statistics, Apple import/re-import and citation lifecycle | needs `[app,test]` and `MIROBODY_TEST_POSTGRES_DSN`; CI supplies PostgreSQL 17 |
-| `test_extraction_regressions.py` | signed values, range endpoints, unreadable exponents and unverified answer provenance | application tests; the database gate additionally checks all nine views, windows and elected inputs |
+| `test_extraction_regressions.py` | signed values, range endpoints, unreadable exponents, printed commas and unverified answer provenance | application tests; the database gate additionally checks all nine views, windows and elected inputs |
+| `test_printed_commas.py` | one reading of a comma inside a number (`units.numerals`): `250,000` is thousands, `1,25` a decimal, for the parser, ranges and the answer check | library-only; where `kernel.citations`' own stdlib copy still differs, the case is a strict xfail |
 | `test_citations.py` | every number in an answer traced to the rows it cites (`kernel.citations`) | library-only; the agent, the benchmark and the training judge run the same check |
 | `test_plugin_dir_regressions.py` | configured directories retain relative imports through symlinked packages and import roots; a checkout beside a non-editable install still reaches the installed copy, including below a namespace parent; plain directories keep their own files | library-only; toy packages under `tmp_path` |
 | `test_local_model_contract.py` | the GPU and CPU presets agree on weights, context and the chat template | reads `docker/*.ini` and `docker/minicpm5-2b.jinja`; no model download |

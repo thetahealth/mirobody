@@ -317,6 +317,164 @@ async def test_a_series_printed_in_two_units_is_answered_in_one(database):
     assert "5.48" in render_compact(raw)
 
 
+async def test_a_readings_flag_judges_the_stored_value_not_the_extractors_opinion(database):
+    """A report's printed flag, or the extraction's own `status`, used to be
+    stored and read back exactly as given. Asked which values a check-up
+    put outside their reference range, a small local model answered with
+    every printed arrow plus an in-range glucose its own `status` had
+    marked `high`; separately, an OCR pass that lost a printed `↑` left a
+    genuinely out-of-range reading with no flag stored at all, although its
+    value and range both parsed cleanly. `collect/query.py::_flag_of` now
+    judges the stored value against the stored range at read time, for the
+    readings list, the latest value, the records export and every citation;
+    the write side (`indicator_store.value_and_flag`) keeps a model's
+    `status` only where no number can be compared.
+
+    Triglycerides carries two readings in two units (mg/dL, g/L; a plain
+    mass-over-volume conversion, so it needs no molar mass or a recognized
+    name to fold): one above its own range with no printed flag, one inside
+    its own range that the extractor marked `high`. Whichever unit the
+    series ends up DISPLAYED in, each reading's flag must still come from
+    its OWN stored value against its OWN stored range, never the other's,
+    and never the display conversion of either."""
+    from mirobody.collect.files.services.indicator_store import save_indicators_to_db
+    from mirobody.collect.query import PostgresHealthQuery, export_row
+    from mirobody.kernel import query
+
+    indicators = [
+        {"original_indicator": "ALT", "value": "92↑", "unit": "U/L", "reference_range": "7-40",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "WBC", "value": "2.9↓", "unit": "10^9/L", "reference_range": "4.0-10.0",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "TSH", "value": "0.1 L", "unit": "mIU/L", "reference_range": "0.4-4.0",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        # The printed arrow an OCR pass lost: no flag stored, but the stored
+        # value and range still parse, so the read side judges it anyway.
+        {"original_indicator": "Triglycerides", "value": "280", "unit": "mg/dL", "reference_range": "0-170",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "Creatinine", "value": "130", "unit": "umol/L", "reference_range": "44-115",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        # Inside its OWN range (0-1.70 g/L), printed later in a different
+        # unit than the first Triglycerides row: the extractor's `high` must
+        # not survive, whichever unit the series displays in.
+        {"original_indicator": "Triglycerides", "value": "1.00", "unit": "g/L", "reference_range": "0-1.70",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-05"},
+        # The evidence this fix is for: printed with no flag, inside its own
+        # range, the extractor's `status` said `high` anyway.
+        {"original_indicator": "Glucose", "value": "5.6", "unit": "mmol/L", "reference_range": "3.9-6.1",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "HBsAg", "value": "阳性", "unit": "", "reference_range": "阴性",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-01"},
+    ]
+    report = await save_indicators_to_db(
+        "1", indicators, datetime(2026, 1, 1, tzinfo=UTC), "extracted", "synthetic-flags-report",
+    )
+    assert report.inserted == len(indicators)
+
+    series_rows = await database(
+        "SELECT DISTINCT name_text, series_id FROM v_observation WHERE user_id = '1'", log_sql=False)
+    series_of = {r["name_text"]: r["series_id"] for r in series_rows}
+    triglyceride_sid = series_of["Triglycerides"]
+    assert {r["series_id"] for r in series_rows if r["name_text"] == "Triglycerides"} == {triglyceride_sid}
+
+    hq = PostgresHealthQuery(reported=False)
+    sel = query.Selection(indicators=tuple(series_of.values()))
+    window = query.Window(0, 0, "UTC")
+
+    # Every series but Triglycerides (two readings, two units) has one.
+    expected_single = {"ALT": "high", "WBC": "low", "TSH": "low", "Creatinine": "high",
+                       "Glucose": "", "HBsAg": "high"}
+    name_of = {sid: name for name, sid in series_of.items()}
+
+    def shape(rows):
+        single, triglycerides = {}, []
+        for r in rows:
+            if r["series"] == triglyceride_sid:
+                triglycerides.append(r)
+            else:
+                single[name_of[r["series"]]] = r["flag"]
+        return single, triglycerides
+
+    readings = await hq.readings("1", sel, window, limit=10)
+    single, triglycerides = shape(readings)
+    assert single == expected_single
+    assert len(triglycerides) == 2
+    by_unit = {t["printed"]["unit"]: t["flag"] for t in triglycerides}
+    assert by_unit == {"mg/dL": "high", "g/L": ""}
+    # Exactly six readings are flagged: the five numeric ones out of their
+    # own range, and the one qualitative result.
+    assert sum(1 for r in readings if r["flag"]) == 6
+
+    # `latest` is one row per series, the newest inside the window: the
+    # Triglycerides pair's own newer reading (g/L, in range), still judged
+    # by its own value and range, never the older mg/dL row's.
+    latest = await hq.latest("1", sel, window)
+    single, [newest] = shape(latest)
+    assert single == expected_single
+    assert (newest["printed"]["unit"], newest["flag"]) == ("g/L", "")
+
+    records = await PostgresHealthQuery(reported=False).records("1", kind="all", limit=None)
+    exported = [export_row(r) for r in records["rows"]]
+    assert sum(1 for r in exported if r["flag"]) == 6
+    by_series_export: dict[str, list[dict]] = {}
+    for r in exported:
+        by_series_export.setdefault(r["series"], []).append(r)
+    for name, flag in expected_single.items():
+        [row] = by_series_export[series_of[name]]
+        assert row["flag"] == flag
+    triglyceride_export = {r["printed_unit"]: r["flag"] for r in by_series_export[series_of["Triglycerides"]]}
+    assert triglyceride_export == {"mg/dL": "high", "g/L": ""}
+
+
+async def test_stats_and_trend_say_when_a_series_prints_more_than_one_range(database):
+    """Public feedback: a trend across hospitals can ignore differing
+    reference ranges, the same value in range at one and out of it at
+    another, with nothing saying so. Two readings of one analyte, the same
+    value, from two "hospitals" whose printed ranges disagree: `readings`
+    already judges each against its OWN range (`_flag_of`), but `stats` and
+    `trend` combine both into one average, one count-in-range, one trend
+    point, and said nothing about the mismatch before `ranges_differ`
+    (`PostgresHealthQuery.ranges_differ`, merged into both)."""
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    drafts = [
+        observations.Draft(name_text="Synthetic creatinine", value_text="1.1", unit_text="mg/dL",
+                           ref_text="0.6-1.2", observed_start=datetime(2026, 1, 1, tzinfo=UTC)),
+        observations.Draft(name_text="Synthetic creatinine", value_text="1.1", unit_text="mg/dL",
+                           ref_text="0.7-1.0", observed_start=datetime(2026, 1, 2, tzinfo=UTC)),
+        # A control with one range throughout: `ranges_differ` must stay False.
+        observations.Draft(name_text="Synthetic potassium", value_text="4.2", unit_text="mmol/L",
+                           ref_text="3.5-5.5", observed_start=datetime(2026, 1, 1, tzinfo=UTC)),
+    ]
+    report = await observations.ingest("1", drafts, observations.Provenance(
+        modality="lab-report", source_kind="file", source_ref="th_files:synthetic-two-hospitals"), user_tz="UTC")
+    assert report.inserted == len(drafts)
+
+    hq = PostgresHealthQuery(reported=False)
+    window = query.Window(0, 0, "UTC")
+    sel = query.Selection(indicators=("Synthetic creatinine",))
+
+    readings = await hq.readings("1", sel, window, limit=10)
+    assert {r["ref"]: r["flag"] for r in readings} == {"0.6-1.2": "", "0.7-1.0": "high"}
+
+    [stats] = await hq.stats("1", sel, window)
+    assert stats["ranges_differ"] is True
+    [potassium_stats] = await hq.stats("1", query.Selection(indicators=("Synthetic potassium",)), window)
+    assert potassium_stats["ranges_differ"] is False
+
+    differs = await hq.ranges_differ("1", sel, window)
+    assert differs == {readings[0]["series"]: True}
+
+    service = HealthIndicatorsService(hq, outside_note=False)
+    trend = await service.envelope({"user_id": "1"}, indicators=["Synthetic creatinine"], view="trend")
+    assert trend.data[0]["ranges_differ"] is True
+    no_control = await service.envelope({"user_id": "1"}, indicators=["Synthetic potassium"], view="trend")
+    assert no_control.data[0]["ranges_differ"] is False
+
+
 @pytest.mark.parametrize("values", [("1", "2", "9"), ("1", "3"), ("0",), ("4", "4")])
 async def test_median_and_sample_spread_use_every_numeric_reading(database, values):
     from mirobody.collect import observations
@@ -419,6 +577,39 @@ async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(da
                           {"source": source}, log_sql=False)
     dates = {r["name_text"]: r["observed_start"].date().isoformat() for r in rows}
     assert dates == {"FPG": "2026-02-01", "TC": "2026-02-01", "：": "2026-01-01"}
+
+
+async def test_reuploading_the_same_report_does_not_duplicate_its_readings(database):
+    """A tester reported the app "automatically removing duplicate scanned
+    pages" on a re-upload, with no reproduction given; this pins what the
+    identity index actually does, so the claim can be checked rather than
+    just repeated. `ingest()`'s default policy is `ON_CONFLICT_SKIP`: a
+    second batch with the same user, readings, time and `source_ref` (the
+    file key) collides on the identity index's unique constraint and is
+    counted `skipped`, not written again."""
+    from mirobody.collect import observations
+
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    drafts = [
+        observations.Draft(name_text="Total Cholesterol", value_text="4.50", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="LDL", value_text="2.40", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="HDL", value_text="1.30", unit_text="mmol/L", observed_start=at),
+    ]
+    source = observations.Provenance("lab-report", "file", "th_files:synthetic-reupload")
+
+    first = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert first.inserted == 3 and first.skipped == 0
+    assert first.outcomes == [observations.OUTCOME_INSERTED] * 3
+
+    # The same report, uploaded a second time: identical drafts, identical
+    # provenance, same `source_ref` and nothing corrected in between.
+    second = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert second.inserted == 0 and second.skipped == 3
+    assert second.outcomes == [observations.OUTCOME_SKIPPED] * 3
+
+    rows = await database("SELECT name_text FROM v_observation WHERE source_ref=:source",
+                          {"source": "th_files:synthetic-reupload"}, log_sql=False)
+    assert sorted(r["name_text"] for r in rows) == ["HDL", "LDL", "Total Cholesterol"]
 
 
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])

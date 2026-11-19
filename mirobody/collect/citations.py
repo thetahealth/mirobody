@@ -25,7 +25,7 @@ from mirobody import standardize
 from mirobody.utils import execute_query
 from mirobody.utils.req_ctx import request_language
 
-from .query import REPORTED_KINDS, _DAY_AUTHORITY_CTE, _FILE_JOIN, _FILE_KEY, _FILE_NAME, _LOCAL_TS, _shown
+from .query import REPORTED_KINDS, _DAY_AUTHORITY_CTE, _FILE_JOIN, _FILE_KEY, _FILE_NAME, _LOCAL_TS, _flag_of, _shown
 
 #: How many of an aggregate's readings `resolve_rids` lists, newest first.
 MEMBERS_SHOWN = 50
@@ -135,9 +135,13 @@ async def resolve_rids(session_id: str, subject_id: str, rids: Sequence[str]) ->
     return out
 
 
+#: `value_num`, `comparator`, `ref_low` and `ref_high` are read only to
+#: compute `flag` (`_flag_of`, the same function `collect/query.py` uses for
+#: every other view); `_public` drops them before a row reaches a client.
 _READING_COLUMNS = f"""o.id, o.display AS indicator, o.code_system AS system, o.code, o.name_text AS name,
        o.value_text AS value,
-       o.unit_text AS unit, o.ref_text AS ref, o.flag_text AS flag, o.kind AS record_kind, o.modality, o.source_kind,
+       o.unit_text AS unit, o.ref_text AS ref, o.flag_text, o.value_num, o.comparator, o.ref_low, o.ref_high,
+       o.kind AS record_kind, o.modality, o.source_kind,
        to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS') AS time, {_FILE_KEY} AS file_key, {_FILE_NAME}"""
 
 
@@ -248,8 +252,14 @@ def aggregate_definition(method: str, view: str, row: Mapping[str, Any], start: 
     return {**detail, "from": first.isoformat(), "to": last.isoformat()}
 
 
+#: Columns read only to compute `flag`, never shown to a client.
+_FLAG_INPUTS = ("flag_text", "value_num", "comparator", "ref_low", "ref_high")
+
+
 def _public(row: Mapping[str, Any]) -> dict[str, Any]:
-    out = {k: ("" if v is None else v) for k, v in row.items() if k != "id"}
+    flag = _flag_of(row)
+    out = {k: ("" if v is None else v) for k, v in row.items() if k != "id" and k not in _FLAG_INPUTS}
+    out["flag"] = flag
     out["value"] = _shown(out.get("value"), out.get("unit"))
     out["file"] = out.pop("file_name", "") or ""
     # The same name the indicator list shows (#231): a cite on a device reading or

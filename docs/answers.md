@@ -150,10 +150,13 @@ And `view` is a dispatch TABLE, not a chain of `if`s (`query.DISPATCH`):
 | any, with no `keywords` or `indicators` | the catalogue, and a note that the view waits for names |
 
 `trend` compares the means of the first and last thirds of **observed numeric
-days**, not equal calendar intervals. `delta_pct` divides their difference by
-the mean absolute daily magnitude; it is undefined on an all-zero scale.
-`slope_per_day` uses elapsed local calendar days, including gaps. Direction
-uses a descriptive 2% threshold; shape distinguishes a single hump or dip
+days**, not equal calendar intervals. `pct_change_from_start` divides their
+difference by the first third's mean — the change a reader means by "percent
+change" — and is left out, not zero, when that mean is zero. Direction uses a
+separate, internal check (the difference over the mean absolute daily
+magnitude, never shown) against a descriptive 2% threshold, so a series that
+starts near zero does not read as a huge move; `slope_per_day` uses elapsed
+local calendar days, including gaps. Shape distinguishes a single hump or dip
 from repeated significant reversals (`swing`). Neither is a clinical test.
 Compatible multiplicative units, including known LOINC molar conversions,
 share a numeric basis; offset or incompatible conversions return
@@ -200,6 +203,22 @@ rule for "latest": the catalogue takes the newest row, `view="latest"` the
 day's elected one, so on a day a watch and a phone both reported the two
 would print different numbers. And it would cost a column on every catalogue,
 up to 200 rows, to save one call in the case a small model gets wrong.
+
+A reading's `flag` (`high`/`low`, on `readings` and `latest`) is a
+comparison, never an opinion: `collect/query.py::_flag_of` reads the stored
+value against the SAME row's stored range, the two columns beside it, so a
+reader can repeat the answer back from what it was already shown. The
+extraction's own word (`status`) is used only where no number can be
+compared — a qualitative result, a finding, a range this reader could not
+parse — and a printed flag the row's own numbers contradict is not kept: a
+small local model, asked which of a check-up's values were out of range,
+answered with every printed arrow plus an in-range glucose its own `status`
+field had called `high` with no arrow printed beside it. `stats` and
+`trend` carry a second, narrower signal, `ranges_differ`: whether the
+readings an average, a count-in-range, or a trend's one-elected-day points
+combine print more than one DISTINCT range once placed in the series' unit —
+a hospital's own cutoff, not a change in this person, and `min`/`max`/`avg`
+alone never said so.
 
 It replaced `resolution` × `aggregate`: eighteen cells, two refused, `limit`
 valid in one, and two prompt paragraphs teaching which was which. The

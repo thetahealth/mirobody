@@ -1,5 +1,42 @@
 ## Unreleased
 
+### Fixed
+
+- **A number printed with a thousands comma is stored as printed.** A US
+  platelet count, `250,000 /uL`, was stored as 250: the value parser read
+  every comma as a decimal mark (`12,500` was 12.5, `1,250` was 1.25), while
+  the check of a value against the report's text read the same comma as
+  thousands, found it printed, and so did not mark the wrong number
+  `llm-unverified`. `1,250,000` was not read as a number at all. A comma is
+  now read by one rule, `mirobody/units/numerals.py`, which the value parser,
+  the reference-range parser and that check all use: several commas, or one
+  before a decimal point, group thousands (`1,250,000`, the lakh
+  `2,50,000`, `1,250.5`); one comma with exactly three digits after it groups
+  thousands (`1,250`, `12,500`); any other comma is a decimal mark (`1,25`,
+  `0,125`). The three-digit case is the one both conventions can print: none
+  of the 583 such numbers in the repository's benchmarks, demo data, docs
+  and tests is a decimal comma (they are counts, and a few lists of two
+  readings), and the decimal commas it does print have one or two digits
+  after the mark. What it costs is a European value with exactly three decimals,
+  such as a specific gravity printed `1,015`, which reads as 1015. Three
+  more things follow from the same rule. A reference range printed with
+  commas (`150,000-400,000`, `2,15-2,55`) was read as no range and is now
+  read. The printed unit of `250,000 /uL` was kept as `,000 /uL` and is now
+  `/uL`. And a report printing `1,25` whose value the model wrote as `1.25`
+  was marked `llm-unverified` and now is not. The evidence check's own
+  thousands pattern is gone; it differed from the rule only where no
+  grouping is possible (`0,125`, `1234,567`), which it read as 125 and
+  1234567 and now reads as decimals. The answer check
+  (`kernel.citations`) must stay stdlib-only and keeps its own copy; it
+  agrees on single commas, and `mirobody/tests/test_printed_commas.py` lists
+  the shapes where it still differs as strict xfails. Readings already
+  stored keep the number they were stored with until their file is read
+  again (重新处理 in 数据 › 文件, `POST /api/v1/data/reprocess-file`). To
+  tell: `standardize.parse_value("250,000", "/uL").value_num` is `250000.0`
+  (it was `250.0`); to list readings stored before the fix, `SELECT
+  source_ref, count(*) FROM th_observation WHERE value_text ~
+  '(^|[^0-9.,])[1-9][0-9]{0,2}(,[0-9]{3})+([^0-9,.]|$)' GROUP BY source_ref`.
+
 ### Added
 
 - **A physical or dental examination can be stored as a finding.** The file
@@ -67,6 +104,107 @@
   `img.shields.io/badge/dynamic`.
 
 ### Fixed
+
+- **Examination findings are listed apart from lab analytes.** The backend
+  stores an imaging or pathology row as `kind='finding'`, and every
+  catalogue row carries that `kind`, but the Indicators panel never read
+  it: on a Chinese check-up book, organs whose value is a sentence (心影,
+  两肺纹理, 双肾) sat in one list with K, ALT and LDL-C. Findings now get
+  their own group after the measured analytes, headed 检查所见 /
+  Examination findings, with the sentence in place of a value, unit and
+  code. A finding's drawer leads with the sentence and draws no trend chart
+  or reference range (thetahealth/mirobody-web#34, for web#31). To tell:
+  upload a check-up book with an ultrasound section and its organs are
+  listed under 检查所见.
+
+- **A question typed into the Records box is no longer filed as a note
+  without a word.** The box on the Data page logs what a person writes, and
+  a tester typed a question there (「我最近的血压怎么样？」); it was stored as
+  a journal note and never answered, and the only feedback was "kept as a
+  note". A question now gets a notice that this box records rather than
+  answers, with "Ask in chat", which opens the chat with the text already in
+  the input, and "Record it anyway". What counts as a question is a closed,
+  tested list: a trailing ？/?, strong Chinese forms such as 怎么样 or 是不是,
+  a sentence-final 吗/呢, and an interrogative word at the start of English or
+  Japanese. Ordinary log sentences such as 「今天没什么不舒服」 or 「多少有点
+  头疼」 do not trigger it (thetahealth/mirobody-web#33). To tell: type a
+  question into the Records box and the notice appears instead of a note.
+
+- **A reading's high/low flag is a comparison again, not an extraction
+  model's opinion.** A report's printed flag (an arrow, a letter, a copied
+  flag column) was stored and read back unchanged, but once any reference
+  range was present at all the write side also kept whatever the
+  extraction wrote in `status` — its own judgement, not something the
+  report printed. Asked which of a check-up's values were out of range, a
+  small local model answered with every printed arrow plus an in-range
+  glucose its own `status` had called `high`; separately, an OCR run that
+  lost a printed arrow left a genuinely out-of-range triglyceride with no
+  flag at all, although its value and range both stored cleanly.
+  `collect/query.py::_flag_of` now computes `high`/`low` at read time, from
+  the stored value against the stored range (the same two columns next to
+  it), for the chat tool, the records table, the CSV/JSON export and every
+  citation; `flag_text` is read back only where no number can be compared
+  (a qualitative result, a finding, an unparseable range), and a printed
+  flag the row's own numbers contradict is no longer kept. The write side
+  (`indicator_store.value_and_flag`) stops storing `status` for a quantity
+  whose range parses to numbers, since the read side now judges it. The
+  records export (CSV and JSON) gains a `flag` column it never had. A
+  series whose readings carry more than one distinct printed range (a
+  different hospital's cutoff) is also now said explicitly: `stats` and
+  `trend` carry a `ranges_differ` marker, since an average or a trend's
+  elected days can combine readings judged by different reference ranges
+  with no range shown at all before this. How to tell: a report with a
+  value inside its own printed range, and an extraction that (wrongly)
+  marked it `high`, is not flagged in the readings list, the latest value,
+  the chat answer or the export; a value whose printed arrow is missing but
+  whose value and range both stored is still flagged from the numbers; and
+  two readings of one analyte with different printed ranges, the same
+  value flagged at one and not the other, show `ranges_differ=true` on a
+  `view=stats` or `view=trend` call for that indicator.
+
+- **The documented MCP install command now has a PowerShell form next to
+  it.** `claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`, pasted
+  into a default PowerShell window, failed with `unknown option '--python'`:
+  PowerShell's `.ps1` shim for `claude` consumes the bare `--` before `uvx`
+  ever sees it. A tester reported having to switch to `claude.cmd`, CMD or
+  Git Bash to get past it. All three READMEs now show the PowerShell form
+  (`claude.cmd mcp add ...`) beside the command.
+
+- **A system proxy no longer swallows the internal hosts a trend's own
+  containers exempt by default.** `compose.yaml`'s `NO_PROXY` used
+  `${NO_PROXY:-default}`, which replaced the whole default list with
+  whatever `NO_PROXY` the host (or Docker Desktop, which passes its proxy
+  settings into containers) already had set, dropping `llama` from it: a
+  tester reported the app container's call to the local model container
+  being caught by their system proxy until they added the service name back
+  by hand. `pg`, `llama`, `localhost`, `127.0.0.1` and `host.docker.internal`
+  are now always exempt for the app and worker containers, with any
+  `NO_PROXY`/`no_proxy` the host sets appended rather than substituted. How
+  to tell: `docker compose config` with `NO_PROXY=localhost,127.0.0.1` set on
+  the host still lists `llama` in both containers' `NO_PROXY`.
+
+- **A trend's percentage now reads as the change from the start.**
+  `view=trend` divided the change by the mean of all the readings, not the
+  first one, under the field name `delta_pct`, so a reader working the
+  arithmetic out by hand got a different number than the one printed: a
+  tester reported a model saying "-39.55%" for an LDL series that actually
+  fell 33.4% from its first reading. The field is renamed
+  `pct_change_from_start` and divides by the first third's mean instead,
+  left out (not zero) when that mean is zero; the mean-magnitude divisor
+  stays, internal, for the `direction` threshold alone, so a series that
+  starts near zero still does not read as a huge move. How to tell: a
+  four-point 3.62 → 3.31 → 2.90 → 2.41 mmol/L series reports -33.4%, and no
+  trend row anywhere still carries a field named `delta_pct`.
+
+- **A time or frequency word in front of a complaint no longer blocks its
+  code.** `standardize_complaint("最近老是头疼")` answered needs-input, and a
+  tester reported having to split a journal-style sentence into its bare
+  symptom word by hand before the tool would code it. The enumerated
+  qualifiers that only say WHEN or HOW OFTEN, never WHETHER (最近, 老是,
+  经常, 总是, 一直, 有点, 有些; recently, always, often, "a bit"), are now
+  stripped before coding and recorded as evidence on the decision; a
+  negation (不头疼, 没有发烧) is never one of them and still abstains exactly
+  as before.
 
 - **`query_health_indicators` can read the early hours of a busy day.**
   `start`/`end` took only a whole calendar date, and `view=minute` keeps

@@ -264,7 +264,15 @@ class HealthIndicatorsService(RecordTool):
             return await awaited(hq.buckets(subject_id, sel, window, resolution=request.view, limit=self._bucket_cap))
         if method == "trend":
             daily = await awaited(hq.buckets(subject_id, sel, window, resolution="day", limit=400))
-            return query.trend_rows(daily)
+            rows = query.trend_rows(daily)
+            # `trend_rows` is pure (kernel layer, no database): the marker a
+            # trend's own several elected days need is merged in here, by
+            # series id, the same one `stats()` computes for its own rows
+            # (`PostgresHealthQuery.ranges_differ`).
+            differs = await awaited(hq.ranges_differ(subject_id, sel, window))
+            for row in rows:
+                row["ranges_differ"] = differs.get(str(row.get("series") or ""), False)
+            return rows
         if method == "stats":
             if not request.banded:
                 return await awaited(hq.stats(subject_id, sel, window))
@@ -382,14 +390,16 @@ def _envelope_for(
         summaries = []
         for row in rows[:4]:
             description = f"{query.shown_name(row, names)}: direction={row.get('direction')}, shape={row.get('shape')}"
-            if row.get("delta_pct") is not None:
-                description += f" ({row['delta_pct']}% normalized change, {row.get('n')} numeric days)"
+            if row.get("pct_change_from_start") is not None:
+                description += f" ({row['pct_change_from_start']}% change from the start, {row.get('n')} numeric days)"
             else:
-                description += f" ({row.get('n')} numeric days; relative change unavailable)"
+                description += f" ({row.get('n')} numeric days; change from the start unavailable)"
             summaries.append(description)
         assumptions.append("trend: " + "; ".join(summaries))
         assumptions.append("trend compares the first and last thirds of numeric observed days; "
-                           "the 2% threshold uses mean absolute magnitude and is descriptive, not a clinical threshold")
+                           "pct_change_from_start is the change from the first third's mean, left out when it "
+                           "is zero; direction's own 2% threshold uses mean absolute magnitude instead and is "
+                           "descriptive, not a clinical threshold")
         assumptions.append(_DAY_VALUE_NOTE)
         if unavailable:
             assumptions.append("some series cannot supply a complete numeric trend; inspect each row's reason; "

@@ -204,7 +204,17 @@ async def test_printed_flags_survive_rule_parsing_and_the_observation_writer(
     ("4.76", "mmol/L", "high", "", ("4.76", "")),
     ("1.5 L", "", "low", "", ("1.5 L", "")),
     ("92↑", "U/L", "", "", ("92", "high")),
-    ("2.9", "10^9/L", "low", "4.0-10.0", ("2.9", "low")),
+    # A quantity whose printed range also parses to numbers is no longer
+    # judged here at all, correct or not: `collect/query.py::_flag_of`
+    # compares the stored value against the stored range at read time, off
+    # the same two columns, so the model's `low` here (true, by luck - 2.9 is
+    # under 4.0) is dropped exactly as a wrong one would be. Before this, a
+    # 5.6 glucose printed inside its own 3.9-6.1 range, with the extractor's
+    # `status` set to `high`, was stored `high` on the model's word alone.
+    ("2.9", "10^9/L", "low", "4.0-10.0", ("2.9", "")),
+    # A qualitative result has no number to compare against a range, so its
+    # `status` is still the only source of a flag.
+    ("阳性", "", "high", "阴性", ("阳性", "high")),
 ])
 def test_model_status_requires_evidence_and_litres_remain_a_unit(
     file_store, value, unit, status, reference, expected,
@@ -216,9 +226,55 @@ def test_model_status_requires_evidence_and_litres_remain_a_unit(
 
 
 @pytest.fixture
+def query_module():
+    pytest.importorskip("fastapi")
+    return import_module("mirobody.collect.query")
+
+
+@pytest.mark.parametrize("name,value_num,comparator,ref_low,ref_high,flag_text,expected", [
+    ("in range", 5.6, "", 3.9, 6.1, "", ""),
+    ("above", 92.0, "", 7.0, 40.0, "", "high"),
+    ("below", 2.9, "", 4.0, 10.0, "", "low"),
+    ("open-ended high bound, above it", 6.0, "", None, 5.2, "", "high"),
+    ("open-ended high bound, below it (no low bound to judge by)", 3.0, "", None, 5.2, "", ""),
+    ("open-ended low bound, below it", 30.0, "", 40.0, None, "", "low"),
+    ("open-ended low bound, above it (no high bound to judge by)", 50.0, "", 40.0, None, "", ""),
+    ("a comparator value, below detection, no printed flag", 0.5, "<", 1.0, 3.0, "", ""),
+    ("a comparator value, below detection, with a printed flag", 0.5, "<", 1.0, 3.0, "low", "low"),
+    ("qualitative, no number to compare", None, "", None, None, "high", "high"),
+    ("qualitative, nothing printed either", None, "", None, None, "", ""),
+    # The computed comparison wins whenever it can be made, whatever
+    # `flag_text` holds: a printed flag disagreeing with the row's own
+    # numbers is evidence an OCR glyph, or a digit, was misread, not a
+    # second fact about the reading (`_flag_of`'s docstring).
+    ("printed flag contradicted by the row's own range (in range)", 5.6, "", 3.9, 6.1, "high", ""),
+    ("printed flag contradicted by the row's own range (out of range)", 92.0, "", 7.0, 40.0, "low", "high"),
+    ("missing range, no printed flag", 5.6, "", None, None, "", ""),
+    ("missing range, a printed flag stands", 5.6, "", None, None, "high", "high"),
+])
+def test_flag_of_judges_the_stored_value_against_the_stored_range(
+    query_module, name, value_num, comparator, ref_low, ref_high, flag_text, expected,
+):
+    row = {"value_num": value_num, "comparator": comparator, "ref_low": ref_low, "ref_high": ref_high,
+           "flag_text": flag_text}
+    assert query_module._flag_of(row) == expected, name
+
+
+@pytest.fixture
 def citation_store():
     pytest.importorskip("fastapi")
     return import_module("mirobody.collect.citations")
+
+
+def test_a_citation_computes_its_flag_and_drops_the_columns_that_fed_it(citation_store):
+    # A stored `high` the row's own number and range contradict (5.6 inside
+    # 3.9-6.1) must not reach a cited row either: citations.py used to select
+    # `flag_text` straight off the row, the same bug the chat tool had.
+    row = {"id": 1, "indicator": "Glucose", "value": "5.6", "unit": "mmol/L",
+           "value_num": 5.6, "comparator": "", "ref_low": 3.9, "ref_high": 6.1, "flag_text": "high"}
+    public = citation_store._public(row)
+    assert public["flag"] == ""
+    assert "value_num" not in public and "ref_low" not in public and "flag_text" not in public
 
 
 @pytest.mark.parametrize("identity", ["rs1000000001", "loc:synthetic-position-hash"])
