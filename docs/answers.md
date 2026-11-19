@@ -52,13 +52,19 @@ tools). "How did my blood pressure move after I switched drugs" is
 `query_health_indicators(start=…)` — two calls whose second input is a date
 the person can read, not an opaque handle.
 
-The MCP surface is exactly seven tools:
+The MCP surface is nine tools:
 
 ```
 query_health_indicators  query_medications  query_genetic_data
 query_pharmacogenomics
 resolve_indicator  convert_unit  normalize_unit
+search_medical_knowledge  read_medical_source
 ```
+
+The first four read a person's record; the three terminology tools need no
+sign-in; the last two search and read the medical reference passages
+(MedlinePlus, FDA labels) and need a signed-in user. `/api/health` counts
+them (`tools`, `public_tools`, `authenticated_tools`).
 
 A second, separate surface needs no server: `mirobody mcp` speaks MCP over
 stdio on a bare `pip install mirobody`, with no database and no key. It serves

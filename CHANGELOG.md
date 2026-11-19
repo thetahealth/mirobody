@@ -1,41 +1,34 @@
 ## Unreleased
 
-### Fixed
+## 1.6.2
 
-- **A number printed with a thousands comma is stored as printed.** A US
-  platelet count, `250,000 /uL`, was stored as 250: the value parser read
-  every comma as a decimal mark (`12,500` was 12.5, `1,250` was 1.25), while
-  the check of a value against the report's text read the same comma as
-  thousands, found it printed, and so did not mark the wrong number
-  `llm-unverified`. `1,250,000` was not read as a number at all. A comma is
-  now read by one rule, `mirobody/units/numerals.py`, which the value parser,
-  the reference-range parser and that check all use: several commas, or one
-  before a decimal point, group thousands (`1,250,000`, the lakh
-  `2,50,000`, `1,250.5`); one comma with exactly three digits after it groups
-  thousands (`1,250`, `12,500`); any other comma is a decimal mark (`1,25`,
-  `0,125`). The three-digit case is the one both conventions can print: none
-  of the 583 such numbers in the repository's benchmarks, demo data, docs
-  and tests is a decimal comma (they are counts, and a few lists of two
-  readings), and the decimal commas it does print have one or two digits
-  after the mark. What it costs is a European value with exactly three decimals,
-  such as a specific gravity printed `1,015`, which reads as 1015. Three
-  more things follow from the same rule. A reference range printed with
-  commas (`150,000-400,000`, `2,15-2,55`) was read as no range and is now
-  read. The printed unit of `250,000 /uL` was kept as `,000 /uL` and is now
-  `/uL`. And a report printing `1,25` whose value the model wrote as `1.25`
-  was marked `llm-unverified` and now is not. The evidence check's own
-  thousands pattern is gone; it differed from the rule only where no
-  grouping is possible (`0,125`, `1234,567`), which it read as 125 and
-  1234567 and now reads as decimals. The answer check
-  (`kernel.citations`) must stay stdlib-only and keeps its own copy; it
-  agrees on single commas, and `mirobody/tests/test_printed_commas.py` lists
-  the shapes where it still differs as strict xfails. Readings already
-  stored keep the number they were stored with until their file is read
-  again (重新处理 in 数据 › 文件, `POST /api/v1/data/reprocess-file`). To
-  tell: `standardize.parse_value("250,000", "/uL").value_num` is `250000.0`
-  (it was `250.0`); to list readings stored before the fix, `SELECT
-  source_ref, count(*) FROM th_observation WHERE value_text ~
-  '(^|[^0-9.,])[1-9][0-9]{0,2}(,[0-9]{3})+([^0-9,.]|$)' GROUP BY source_ref`.
+### Upgrade notes
+
+- **No schema change; run one command afterwards.** Upgrade a Docker install
+  with `git pull` and `./deploy.sh`, with the same `COMPOSE_PROFILES` it was
+  started with; it pulls `thetahealth4mirobody/mirobody:1.6.2`. The
+  vocabulary now answers some names differently: a check-up's pulse, waist
+  and Japanese height, a body-composition scale's own words, a name glued to
+  its abbreviation, a glucose name with a fasting or tolerance-test label.
+  Readings stored before keep their old code (or none) until `docker compose
+  exec mirobody mirobody recode` moves them; every change it makes is kept
+  in the code history.
+- **Some readings change only when their file is read again.** A number
+  printed with a thousands comma (`250,000`), a blood-pressure pair the model
+  returned as one row, and a scanned PDF page with a printed header or footer
+  are read correctly from now on. A file read before keeps what was stored
+  until you choose 重新处理 on its row in 数据 › 文件
+  (`POST /api/v1/data/reprocess-file`), which erases that file's readings and
+  reads it again from the stored file.
+- **High and low are judged when a reading is shown.** Nothing stored is
+  rewritten, but a value inside its own printed range that the extraction
+  model had marked `high` stops being flagged as soon as the new image runs,
+  and the records export (CSV and JSON) gains a `flag` column.
+- **A stack with `PRODUCTION: true` starts.** On 1.6.1 it restarted in a loop
+  even with every secret set in `.env` (#299). An existing install keeps the
+  `DATABASE_DECRYPTION_KEY` it has been using: `deploy.sh` generates one only
+  for a fresh database, because stored device credentials are encrypted with
+  the current key. SECURITY.md says how to replace it.
 
 ### Added
 
@@ -117,6 +110,41 @@
   `img.shields.io/badge/dynamic`.
 
 ### Fixed
+
+- **A number printed with a thousands comma is stored as printed.** A US
+  platelet count, `250,000 /uL`, was stored as 250: the value parser read
+  every comma as a decimal mark (`12,500` was 12.5, `1,250` was 1.25), while
+  the check of a value against the report's text read the same comma as
+  thousands, found it printed, and so did not mark the wrong number
+  `llm-unverified`. `1,250,000` was not read as a number at all. A comma is
+  now read by one rule, `mirobody/units/numerals.py`, which the value parser,
+  the reference-range parser and that check all use: several commas, or one
+  before a decimal point, group thousands (`1,250,000`, the lakh
+  `2,50,000`, `1,250.5`); one comma with exactly three digits after it groups
+  thousands (`1,250`, `12,500`); any other comma is a decimal mark (`1,25`,
+  `0,125`). The three-digit case is the one both conventions can print: none
+  of the 583 such numbers in the repository's benchmarks, demo data, docs
+  and tests is a decimal comma (they are counts, and a few lists of two
+  readings), and the decimal commas it does print have one or two digits
+  after the mark. What it costs is a European value with exactly three decimals,
+  such as a specific gravity printed `1,015`, which reads as 1015. Three
+  more things follow from the same rule. A reference range printed with
+  commas (`150,000-400,000`, `2,15-2,55`) was read as no range and is now
+  read. The printed unit of `250,000 /uL` was kept as `,000 /uL` and is now
+  `/uL`. And a report printing `1,25` whose value the model wrote as `1.25`
+  was marked `llm-unverified` and now is not. The evidence check's own
+  thousands pattern is gone; it differed from the rule only where no
+  grouping is possible (`0,125`, `1234,567`), which it read as 125 and
+  1234567 and now reads as decimals. The answer check
+  (`kernel.citations`) must stay stdlib-only and keeps its own copy; it
+  agrees on single commas, and `mirobody/tests/test_printed_commas.py` lists
+  the shapes where it still differs as strict xfails. Readings already
+  stored keep the number they were stored with until their file is read
+  again (重新处理 in 数据 › 文件, `POST /api/v1/data/reprocess-file`). To
+  tell: `standardize.parse_value("250,000", "/uL").value_num` is `250000.0`
+  (it was `250.0`); to list readings stored before the fix, `SELECT
+  source_ref, count(*) FROM th_observation WHERE value_text ~
+  '(^|[^0-9.,])[1-9][0-9]{0,2}(,[0-9]{3})+([^0-9,.]|$)' GROUP BY source_ref`.
 
 - **A check-up's pulse, waist and Japanese height code.** An outpatient
   note's vitals line or a check-up's physical-exam section prints `脉搏 78
@@ -287,10 +315,13 @@
   energy in `kcal`. Every view, the web chart and the export follow it; the
   device's value and unit stay in `printed`. A unit a report printed is left
   as printed (an ECG's QT in `ms` stays `ms`), and so is a code that declares
-  the storage unit itself (HRV SDNN in `ms`, aPTT in `s`). Series with no
-  confident LOINC code still answer in `ms` until #297's reading units land:
-  Apple's total time asleep, its core sleep and time awake among them. To tell: import a Garmin or Oura sleep
-  export and ask `stats` for sleep duration; the row says `unit=h`.
+  the storage unit itself (HRV SDNN in `ms`, aPTT in `s`). Apple Health's
+  sleep still answers in `ms` until #297's reading units land: what an
+  import or a push leaves for every view to read is its daily figures
+  (`dailyTotalSleepAnalysis_*`), which carry no LOINC code, so every stage
+  and the time in bed stay in `ms` (measured on the 1.6.2 release image).
+  To tell: import a Garmin or Oura sleep export and ask `stats` for sleep
+  duration; the row says `unit=h`.
 
 - **A body-composition device's own words (脂肪, 肌肉, 血氧…) no longer code
   to a lab specimen or an antibody test** (#301, cause 1). A smart scale's
@@ -328,7 +359,8 @@
   shape and one agreement rule, by LOINC ANALYTE rather than exact code:
   `BloodGlucose-FPG`, `-OGTT` and `-HbA1c` now behave exactly like their
   Chinese bracket twins `血糖(FPG)`/`(OGTT)`/`(HbA1c)` (see the next entry
-  for what those two glucose labels answer now). `乙肝病毒DNA`, `游离T3`, `维生素D` and `25羟维生素D` are unchanged.
+  for what those two glucose labels answer now). `乙肝病毒DNA`, `游离T3`,
+  `维生素D` and `25羟维生素D` are unchanged.
   A bracketed METHOD or subtype (`血型(Rh)测定`, `乙肝表面抗原(定量)测定`)
   no longer borrows the bare stem's code either: `Rh`/`定量`/`定性` carry
   no code of their own, so the old fallback silently answered through them.
@@ -552,19 +584,6 @@
   in-process and asserts the OCR call count on each (skipped without
   `[parse]`, same as `test_extraction_regressions.py` without `[app]`).
 
-### Removed
-
-- **~40 lines of verified-dead code**, none of it reachable from any route,
-  tool, or test, checked by transitive search before removal (no replacement;
-  none were used): `TempFileManager.cleanup_temp_file` (the upload temp copy
-  was never actually cleaned up through it); `AIClientManager.sync_for_spec`
-  (a speculative sync twin for a call site that never arrived; its now-unused
-  `OpenAI` import went with it); `PlatformUserService.base_user_service` (a
-  property exposing an internal attribute nothing ever read); `ValueRangeValidator.is_loaded`
-  (a status property nothing checked); `PostgresOverlayStore.for_target` (a
-  generic override lookup duplicating what `PostgresMedicationStore.overrides`
-  already does for the one target kind in use).
-
 - **The `windows-benchmark` CI job no longer fails at random.** It failed in
   five of the last hundred `Test Build` runs, on `main` and on pull requests
   that changed only Markdown, with one of three messages. Two came from the
@@ -599,6 +618,20 @@
   and 137 statements against tables already dropped. After the change, 1,000
   runs of the test and 20 runs of the whole file passed, and the server
   logged no errors.
+
+### Removed
+
+- **~40 lines of verified-dead code**, none of it reachable from any route,
+  tool, or test, checked by transitive search before removal (no replacement;
+  none were used): `TempFileManager.cleanup_temp_file` (the upload temp copy
+  was never actually cleaned up through it); `AIClientManager.sync_for_spec`
+  (a speculative sync twin for a call site that never arrived; its now-unused
+  `OpenAI` import went with it); `PlatformUserService.base_user_service` (a
+  property exposing an internal attribute nothing ever read);
+  `ValueRangeValidator.is_loaded` (a status property nothing checked);
+  `PostgresOverlayStore.for_target` (a generic override lookup duplicating
+  what `PostgresMedicationStore.overrides` already does for the one target
+  kind in use).
 
 ## 1.6.1
 
