@@ -127,10 +127,11 @@ ensure_secret() {
     if overlay_defines "$name"; then
         plain="$(overlay_plain "$name")"
         case "$name" in
-            JWT_KEY|PG_ENCRYPTION_KEY)
+            JWT_KEY|PG_ENCRYPTION_KEY|DATABASE_DECRYPTION_KEY)
                 # The overlay is still mounted and the app decrypts it, so its
                 # value stays in charge. A new one here would sign everyone out,
-                # or leave every encrypted field unreadable.
+                # or leave every encrypted field (or device credential)
+                # unreadable.
                 if [[ "$plain" != REPLACE_THIS_VALUE_IN_PRODUCTION ]]; then
                     return
                 fi
@@ -161,6 +162,21 @@ ensure_secret() {
                 printf 'Existing database: %s keeps the placeholder value 1.5.2 used. See SECURITY.md before exposing this deployment.\n' "$name" >&2
                 return
                 ;;
+            DATABASE_DECRYPTION_KEY)
+                # Unlike PG_PASSWORD/PG_ENCRYPTION_KEY above, nothing reads
+                # this one through compose's variable substitution: it
+                # reaches the app only via env_file. Writing the placeholder
+                # here would stick in .env for good (has_setting returns
+                # early on every later run) and, because the environment
+                # outranks the YAML, would then shadow a real key set
+                # afterwards in a config overlay -- the #299 reporter's own
+                # hand workaround. Printing the notice and leaving .env
+                # untouched keeps config.devices.yaml's placeholder in
+                # effect, the same key already in use, and leaves the
+                # overlay path open.
+                printf 'Existing database: %s is left unset in .env, so the config.devices.yaml placeholder stays the effective key. Set it only together with re-encrypting stored device credentials; see SECURITY.md before exposing this deployment.\n' "$name" >&2
+                return
+                ;;
         esac
     fi
     if ! command -v openssl >/dev/null 2>&1; then
@@ -172,6 +188,11 @@ ensure_secret() {
 
 ensure_secret PG_PASSWORD
 ensure_secret PG_ENCRYPTION_KEY
+# Decrypts device credentials and OAuth tokens (mirobody/utils/crypto.py).
+# Generated fresh on a new install; left unset in .env on an existing
+# database, where writing it would outrank a real value given later in a
+# config overlay (see the DATABASE_DECRYPTION_KEY case above).
+ensure_secret DATABASE_DECRYPTION_KEY
 ensure_secret CONFIG_ENCRYPTION_KEY
 ensure_secret JWT_KEY
 # What the first-run page asks for before it changes where health data goes.

@@ -39,14 +39,18 @@ import unicodedata
 __all__ = [
     "TRAILING_PARENTHETICAL",
     "fold_plural",
+    "fold_script_boundary",
     "index_fold",
     "is_component_suffix",
     "join_series_suffix",
     "measure_stems",
     "normalize",
-    "strip_report_marks",
-    "strip_trailing_abbreviation",
+    "split_camel",
+    "split_trailing_hyphen",
+    "split_trailing_latin",
     "split_trailing_parenthetical",
+    "split_trailing_space_acronym",
+    "strip_report_marks",
     "surface_variants",
     "word_tokens",
 ]
@@ -200,11 +204,31 @@ def fold_plural(token: str) -> str:
     return t
 
 
-# "Total Cholesterol-TC" -> "Total Cholesterol": the analyte and its
+# A hyphen or plain space directly between a Latin/digit run and a run of
+# CJK ideographs or kana, in either order: `LDL-コレステロール` and `LDL
+# コレステロール` both print the fused `LDLコレステロール` that
+# resolver_overrides.tsv carries, with a separator the corpus key never had
+# (#F011). `25-OH维生素D` is untouched: its hyphen sits between two ASCII
+# runs, not at a script boundary.
+_LATIN_RUN = r"[A-Za-z0-9]"
+_CJK_KANA_RUN = r"[㐀-鿿豈-﫿぀-ヿ]"
+_SCRIPT_BOUNDARY_SEPARATOR = re.compile(
+    rf"(?<={_LATIN_RUN})[ \t-]+(?={_CJK_KANA_RUN})"
+    rf"|(?<={_CJK_KANA_RUN})[ \t-]+(?={_LATIN_RUN})"
+)
+
+
+def fold_script_boundary(term: str) -> str:
+    """``term`` with a hyphen/space removed at a Latin<->CJK/kana boundary;
+    unchanged when there is no such boundary."""
+    return _SCRIPT_BOUNDARY_SEPARATOR.sub("", term or "")
+
+
+# "Total Cholesterol-TC" -> "Total Cholesterol", "TC": the analyte and its
 # abbreviation hyphen-joined, which is what `mirobody parse` emits. On the
 # shipped demo report 12 of 12 extracted names had this shape and 0 resolved;
-# `engine.resolver._TRAILING_ACRONYM` handles the space-separated form.
-# Bounded both sides so it strips a suffix and not a word:
+# `split_trailing_space_acronym` below handles the space-separated form.
+# Bounded both sides so it splits off a suffix and not a word:
 # three characters minimum before the hyphen, seven maximum after, tail
 # starting alphanumeric. "High-Density Lipoprotein" and "25-Hydroxyvitamin D3"
 # are untouched.
@@ -223,13 +247,16 @@ def is_component_suffix(token: str) -> bool:
     return bool(_COMPONENT_SUFFIX.match((token or "").strip()))
 
 
-def strip_trailing_abbreviation(term: str) -> str:
-    """``"Total Cholesterol-TC"`` to ``"Total Cholesterol"``; unchanged when
-    the tail is a component suffix or there is no hyphenated tail."""
+def split_trailing_hyphen(term: str) -> tuple[str, str]:
+    """``"Total Cholesterol-TC"`` → ``("Total Cholesterol", "TC")``; ``("", "")``
+    when there is no hyphenated tail. Pure syntax: whether `TC` is safe to
+    read as an abbreviation of the stem (a component suffix like `-MB` is
+    not) is for the caller's agreement check, not this split -- see
+    `OfflineResolver.resolve` for why the two are kept apart (#305)."""
     m = _TRAILING_HYPHEN_ABBREV.search(term or "")
-    if not m or is_component_suffix(m.group(1)):
-        return term or ""
-    return term[: m.start()].strip()
+    if not m:
+        return "", ""
+    return term[: m.start()].strip(), m.group(1)
 
 
 # "Vitamin D-3", "Complement C-3": a single letter, a hyphen, a number. The
@@ -253,6 +280,47 @@ _CAMEL_BOUNDARY = re.compile(r"(?<=[a-z]{2})(?=[A-Z])")
 def split_camel(term: str) -> str:
     """``"TotalCholesterol"`` to ``"Total Cholesterol"``; unchanged otherwise."""
     return _CAMEL_BOUNDARY.sub(" ", term or "")
+
+
+# "Fasting plasma glucose FPG" -> "Fasting plasma glucose", "FPG": the
+# analyte and its abbreviation space-joined, the shape `split_camel` also
+# produces from "FastingPlasmaGlucoseFPG". Needs whitespace before the
+# token, unlike the hyphen shape above.
+_TRAILING_SPACE_ACRONYM = re.compile(r"\s+([A-Z][A-Z0-9-]{1,7})$")
+
+
+def split_trailing_space_acronym(term: str) -> tuple[str, str]:
+    """``"Fasting plasma glucose FPG"`` → ``("Fasting plasma glucose", "FPG")``;
+    ``("", "")`` when there is no such tail. Case-sensitive on purpose: this
+    is a case test (an ALL-CAPS trailing word), and the caller must pass the
+    term as printed, not `normalize`d, or every trailing word would match."""
+    m = _TRAILING_SPACE_ACRONYM.search(term or "")
+    if not m:
+        return "", ""
+    return term[: m.start()].strip(), m.group(1)
+
+
+# A CJK run followed directly by Latin letters, with no bracket and no space
+# between them: `白细胞WBC`, `胆固醇HDL-C`, `糖化血红蛋白HbA1c`. The lookbehind
+# requires at least one CJK codepoint right before the match, so a term that
+# is already all-Latin (`HDL-C` on its own) never matches, and the match
+# starts on a LETTER so a trailing bare number is not read as an abbreviation.
+_TRAILING_LATIN = re.compile(r"(?<=[㐀-鿿豈-﫿])([A-Za-z][A-Za-z0-9-]*)$")
+
+
+def split_trailing_latin(term: str) -> tuple[str, str]:
+    """``"白细胞WBC"`` → ``("白细胞", "WBC")``; ``("", "")`` when there is none.
+
+    The glued shape of a name and its abbreviation (#305): the same report
+    that writes `血红蛋白(HGB)` or `血红蛋白 HGB` writes `血红蛋白HGB` just as
+    often, with the script change standing in for the bracket or the space.
+    """
+    match = _TRAILING_LATIN.search(term or "")
+    if not match:
+        return "", ""
+    inside = match.group(1)
+    stem = term[: match.start()].strip()
+    return (stem, inside) if stem else ("", "")
 
 
 #: Turkish writes two i's that Unicode casefolding does not round-trip: `İ`
@@ -305,6 +373,7 @@ def surface_variants(term: str) -> list[str]:
         join_series_suffix(term),
         fold_to_hans(term or ""),
         split_camel(term),
+        fold_script_boundary(term),
         *turkish_i_variants(term or ""),
     )
     for candidate in candidates:

@@ -54,15 +54,27 @@ RID_NOTE = "cite the rows a number comes from: <statement>…<cite>[r3][r9]</cit
 #: "Units"). `printed`, what the report printed, name included, stays out, and
 #: so does `mixed_units`: a series printed in mg/dL and mmol/L reached the
 #: model in both, and the model called its two readings incomparable (#271).
+
+#: `ranges_differ` on `stats`/`trend` (`PostgresHealthQuery.ranges_differ`):
+#: more than one DISTINCT printed range among the readings an average, a
+#: count-in-range, or a trend's one-elected-day-per-point combines. A value
+#: can sit inside one report's range and outside another's for no reason in
+#: this person (a different lab's cutoff), and `min`/`max`/`avg` alone never
+#: said so; a per-reading `flag` (`readings`/`latest`) already judges each
+#: reading against its OWN range and needs no marker.
 _COLUMNS: dict[str, tuple[str, ...]] = {
     "catalog": ("indicator", "system", "code", "count", "first_date", "last_date", "reason"),
     "readings": ("indicator", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
-    "buckets": ("indicator", "period", "avg", "min", "max", "n", "unit", "system", "code"),
+    # `min_at`/`max_at` (local HH:MM) ride only on `view="hour"` rows; `compact`
+    # drops a column every row leaves empty, so a minute/day/week/month answer
+    # never shows it.
+    "buckets": ("indicator", "period", "avg", "min", "max", "min_at", "max_at", "n", "unit", "system", "code"),
     "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
-              "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
-              "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
+              "delta", "pct_change_from_start", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
+              "source_days", "total_days", "missing_numeric_days", "mixed_units", "ranges_differ", "reason"),
     "stats": ("indicator", "count", "count_in_range", "days", "days_in_range", "min", "max", "avg", "median",
-              "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "system", "code"),
+              "stddev", "sum", "first", "first_date", "last", "last_date", "change", "unit", "ranges_differ",
+              "system", "code"),
     "latest": ("indicator", "date", "time", "value", "unit", "ref", "flag", "system", "code", "file"),
 }
 
@@ -75,7 +87,7 @@ _REPORTED_COLUMNS: dict[str, tuple[str, ...]] = {
     "readings": ("indicator", "name", "kind", "time", "system", "code", "reason", "note"),
     "buckets": ("indicator", "period", "n", "system", "code"),
     "trend": ("indicator", "n", "first_date", "last_date", "first_third_mean", "last_third_mean",
-              "delta", "delta_pct", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
+              "delta", "pct_change_from_start", "slope_per_day", "direction", "shape", "min", "max", "unit", "system", "code",
               "source_days", "total_days", "missing_numeric_days", "mixed_units", "reason"),
     "stats": ("indicator", "count", "first_date", "last_date", "system", "code"),
     "latest": ("indicator", "name", "kind", "date", "time", "system", "code", "reason", "note"),

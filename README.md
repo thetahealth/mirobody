@@ -59,6 +59,17 @@ Give the same engine to your AI agent. In Claude Code:
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
+On Windows, a default PowerShell window runs `claude` as its `.ps1` script and
+swallows the `--` before `uvx` ever sees it, failing with `unknown option
+'--python'`; call the `.cmd` shim instead, which PowerShell runs as a native
+command and passes `--` through unchanged:
+
+```powershell
+claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+CMD and Git Bash run the original command as given.
+
 Your agent can then standardize any name, reading, unit or complaint you paste, on your machine and without a key. Reading a whole report also needs `mirobody[parse]` and a model key. [Other MCP clients](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio) take the same command.
 
 → [Use the engine from Python or MCP](docs/quickstart.md#a--the-library)
@@ -212,8 +223,7 @@ resolve("血脂").resolved                                     # False    a cate
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), a live consumer health app on the web and mobile, with these users today:<br>
-[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
+Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), a live consumer health app on the web and mobile.
 
 ## Contributing
 

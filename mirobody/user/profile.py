@@ -18,7 +18,6 @@ from mirobody.collect.observations import (
 )
 from mirobody.collect.query import PostgresHealthQuery
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.standardize.parse import parse_range
 from mirobody.utils import execute_query
 from mirobody.utils.llm import async_get_text_completion
 from mirobody.utils.config import safe_read_cfg
@@ -668,20 +667,12 @@ def _reading(row: dict, *, flag: bool = True) -> str:
 
 
 def _out_of_range(row: dict) -> str:
-    """`high` or `low` as printed, else as the printed range reads the value, else empty."""
-    if row.get("flag"):
-        return row["flag"]
-    # `value_num` is the number as printed, so the range is the printed one:
-    # `ref` is in the series' unit, 5.17 for a report's <200 mg/dL.
-    low, high = parse_range((row.get("printed") or {}).get("ref", row.get("ref")) or "")
-    value = row.get("value_num")
-    if value is None:
-        return ""
-    if high is not None and float(value) > high:
-        return "high"
-    if low is not None and float(value) < low:
-        return "low"
-    return ""
+    """`high` or `low`, else empty: `row["flag"]`, exactly as `_record_row`
+    (`collect/query.py::_flag_of`) already computed it from the stored value
+    against the stored range, so this must not compare them a second time.
+    Two copies of the same comparison is how a profile and a chat answer
+    disagreed about the same reading before this function was this short."""
+    return row.get("flag") or ""
 
 
 def _finding(row: dict) -> str:

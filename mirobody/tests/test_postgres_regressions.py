@@ -7,6 +7,7 @@ creates and drops its own schema; no application account or document is read.
 from __future__ import annotations
 
 import argparse
+import asyncio
 import importlib
 import os
 import re
@@ -69,12 +70,13 @@ async def database(monkeypatch):
     from sqlalchemy.ext.asyncio import create_async_engine
     from mirobody.collect import observations
     from mirobody.task import ProfileRefreshTask
-    from mirobody.utils import db
+    from mirobody.utils import db, tasks
 
     schema = "regression_" + uuid4().hex
     driver_url = make_url(DSN).set(drivername="postgresql")
     connection = await psycopg.AsyncConnection.connect(driver_url.render_as_string(hide_password=False), autocommit=True)
     engine = None
+    spawned_before = set(tasks._BACKGROUND_TASKS)
     try:
         await connection.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
         await connection.execute(sql.SQL("SET search_path TO {}").format(sql.Identifier(schema)))
@@ -97,6 +99,14 @@ async def database(monkeypatch):
         monkeypatch.setattr(ProfileRefreshTask, "enqueue", AsyncMock())
         yield db.execute_query
     finally:
+        # Work the code under test spawned and never awaited still writes into
+        # this schema: a file delete erases its readings in the background.
+        # That erase held th_observation while DROP SCHEMA held th_extraction,
+        # and Postgres aborted one of the two (103 deadlocks in 200 runs). The
+        # schema goes once the last of them, and any they started, has ended;
+        # a failure among them is logged by `spawn`.
+        while running := [t for t in tasks._BACKGROUND_TASKS - spawned_before if not t.done()]:
+            await asyncio.gather(*running, return_exceptions=True)
         if engine is not None:
             await engine.dispose()
         await connection.execute(sql.SQL("DROP SCHEMA IF EXISTS {} CASCADE").format(sql.Identifier(schema)))
@@ -307,6 +317,164 @@ async def test_a_series_printed_in_two_units_is_answered_in_one(database):
     assert "5.48" in render_compact(raw)
 
 
+async def test_a_readings_flag_judges_the_stored_value_not_the_extractors_opinion(database):
+    """A report's printed flag, or the extraction's own `status`, used to be
+    stored and read back exactly as given. Asked which values a check-up
+    put outside their reference range, a small local model answered with
+    every printed arrow plus an in-range glucose its own `status` had
+    marked `high`; separately, an OCR pass that lost a printed `↑` left a
+    genuinely out-of-range reading with no flag stored at all, although its
+    value and range both parsed cleanly. `collect/query.py::_flag_of` now
+    judges the stored value against the stored range at read time, for the
+    readings list, the latest value, the records export and every citation;
+    the write side (`indicator_store.value_and_flag`) keeps a model's
+    `status` only where no number can be compared.
+
+    Triglycerides carries two readings in two units (mg/dL, g/L; a plain
+    mass-over-volume conversion, so it needs no molar mass or a recognized
+    name to fold): one above its own range with no printed flag, one inside
+    its own range that the extractor marked `high`. Whichever unit the
+    series ends up DISPLAYED in, each reading's flag must still come from
+    its OWN stored value against its OWN stored range, never the other's,
+    and never the display conversion of either."""
+    from mirobody.collect.files.services.indicator_store import save_indicators_to_db
+    from mirobody.collect.query import PostgresHealthQuery, export_row
+    from mirobody.kernel import query
+
+    indicators = [
+        {"original_indicator": "ALT", "value": "92↑", "unit": "U/L", "reference_range": "7-40",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "WBC", "value": "2.9↓", "unit": "10^9/L", "reference_range": "4.0-10.0",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "TSH", "value": "0.1 L", "unit": "mIU/L", "reference_range": "0.4-4.0",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        # The printed arrow an OCR pass lost: no flag stored, but the stored
+        # value and range still parse, so the read side judges it anyway.
+        {"original_indicator": "Triglycerides", "value": "280", "unit": "mg/dL", "reference_range": "0-170",
+         "status": "", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "Creatinine", "value": "130", "unit": "umol/L", "reference_range": "44-115",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        # Inside its OWN range (0-1.70 g/L), printed later in a different
+        # unit than the first Triglycerides row: the extractor's `high` must
+        # not survive, whichever unit the series displays in.
+        {"original_indicator": "Triglycerides", "value": "1.00", "unit": "g/L", "reference_range": "0-1.70",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-05"},
+        # The evidence this fix is for: printed with no flag, inside its own
+        # range, the extractor's `status` said `high` anyway.
+        {"original_indicator": "Glucose", "value": "5.6", "unit": "mmol/L", "reference_range": "3.9-6.1",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-01"},
+        {"original_indicator": "HBsAg", "value": "阳性", "unit": "", "reference_range": "阴性",
+         "status": "high", "detection_method": "laboratory", "date_time": "2026-01-01"},
+    ]
+    report = await save_indicators_to_db(
+        "1", indicators, datetime(2026, 1, 1, tzinfo=UTC), "extracted", "synthetic-flags-report",
+    )
+    assert report.inserted == len(indicators)
+
+    series_rows = await database(
+        "SELECT DISTINCT name_text, series_id FROM v_observation WHERE user_id = '1'", log_sql=False)
+    series_of = {r["name_text"]: r["series_id"] for r in series_rows}
+    triglyceride_sid = series_of["Triglycerides"]
+    assert {r["series_id"] for r in series_rows if r["name_text"] == "Triglycerides"} == {triglyceride_sid}
+
+    hq = PostgresHealthQuery(reported=False)
+    sel = query.Selection(indicators=tuple(series_of.values()))
+    window = query.Window(0, 0, "UTC")
+
+    # Every series but Triglycerides (two readings, two units) has one.
+    expected_single = {"ALT": "high", "WBC": "low", "TSH": "low", "Creatinine": "high",
+                       "Glucose": "", "HBsAg": "high"}
+    name_of = {sid: name for name, sid in series_of.items()}
+
+    def shape(rows):
+        single, triglycerides = {}, []
+        for r in rows:
+            if r["series"] == triglyceride_sid:
+                triglycerides.append(r)
+            else:
+                single[name_of[r["series"]]] = r["flag"]
+        return single, triglycerides
+
+    readings = await hq.readings("1", sel, window, limit=10)
+    single, triglycerides = shape(readings)
+    assert single == expected_single
+    assert len(triglycerides) == 2
+    by_unit = {t["printed"]["unit"]: t["flag"] for t in triglycerides}
+    assert by_unit == {"mg/dL": "high", "g/L": ""}
+    # Exactly six readings are flagged: the five numeric ones out of their
+    # own range, and the one qualitative result.
+    assert sum(1 for r in readings if r["flag"]) == 6
+
+    # `latest` is one row per series, the newest inside the window: the
+    # Triglycerides pair's own newer reading (g/L, in range), still judged
+    # by its own value and range, never the older mg/dL row's.
+    latest = await hq.latest("1", sel, window)
+    single, [newest] = shape(latest)
+    assert single == expected_single
+    assert (newest["printed"]["unit"], newest["flag"]) == ("g/L", "")
+
+    records = await PostgresHealthQuery(reported=False).records("1", kind="all", limit=None)
+    exported = [export_row(r) for r in records["rows"]]
+    assert sum(1 for r in exported if r["flag"]) == 6
+    by_series_export: dict[str, list[dict]] = {}
+    for r in exported:
+        by_series_export.setdefault(r["series"], []).append(r)
+    for name, flag in expected_single.items():
+        [row] = by_series_export[series_of[name]]
+        assert row["flag"] == flag
+    triglyceride_export = {r["printed_unit"]: r["flag"] for r in by_series_export[series_of["Triglycerides"]]}
+    assert triglyceride_export == {"mg/dL": "high", "g/L": ""}
+
+
+async def test_stats_and_trend_say_when_a_series_prints_more_than_one_range(database):
+    """Public feedback: a trend across hospitals can ignore differing
+    reference ranges, the same value in range at one and out of it at
+    another, with nothing saying so. Two readings of one analyte, the same
+    value, from two "hospitals" whose printed ranges disagree: `readings`
+    already judges each against its OWN range (`_flag_of`), but `stats` and
+    `trend` combine both into one average, one count-in-range, one trend
+    point, and said nothing about the mismatch before `ranges_differ`
+    (`PostgresHealthQuery.ranges_differ`, merged into both)."""
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    drafts = [
+        observations.Draft(name_text="Synthetic creatinine", value_text="1.1", unit_text="mg/dL",
+                           ref_text="0.6-1.2", observed_start=datetime(2026, 1, 1, tzinfo=UTC)),
+        observations.Draft(name_text="Synthetic creatinine", value_text="1.1", unit_text="mg/dL",
+                           ref_text="0.7-1.0", observed_start=datetime(2026, 1, 2, tzinfo=UTC)),
+        # A control with one range throughout: `ranges_differ` must stay False.
+        observations.Draft(name_text="Synthetic potassium", value_text="4.2", unit_text="mmol/L",
+                           ref_text="3.5-5.5", observed_start=datetime(2026, 1, 1, tzinfo=UTC)),
+    ]
+    report = await observations.ingest("1", drafts, observations.Provenance(
+        modality="lab-report", source_kind="file", source_ref="th_files:synthetic-two-hospitals"), user_tz="UTC")
+    assert report.inserted == len(drafts)
+
+    hq = PostgresHealthQuery(reported=False)
+    window = query.Window(0, 0, "UTC")
+    sel = query.Selection(indicators=("Synthetic creatinine",))
+
+    readings = await hq.readings("1", sel, window, limit=10)
+    assert {r["ref"]: r["flag"] for r in readings} == {"0.6-1.2": "", "0.7-1.0": "high"}
+
+    [stats] = await hq.stats("1", sel, window)
+    assert stats["ranges_differ"] is True
+    [potassium_stats] = await hq.stats("1", query.Selection(indicators=("Synthetic potassium",)), window)
+    assert potassium_stats["ranges_differ"] is False
+
+    differs = await hq.ranges_differ("1", sel, window)
+    assert differs == {readings[0]["series"]: True}
+
+    service = HealthIndicatorsService(hq, outside_note=False)
+    trend = await service.envelope({"user_id": "1"}, indicators=["Synthetic creatinine"], view="trend")
+    assert trend.data[0]["ranges_differ"] is True
+    no_control = await service.envelope({"user_id": "1"}, indicators=["Synthetic potassium"], view="trend")
+    assert no_control.data[0]["ranges_differ"] is False
+
+
 @pytest.mark.parametrize("values", [("1", "2", "9"), ("1", "3"), ("0",), ("4", "4")])
 async def test_median_and_sample_spread_use_every_numeric_reading(database, values):
     from mirobody.collect import observations
@@ -409,6 +577,39 @@ async def test_a_report_with_a_row_stored_without_a_name_can_still_be_redated(da
                           {"source": source}, log_sql=False)
     dates = {r["name_text"]: r["observed_start"].date().isoformat() for r in rows}
     assert dates == {"FPG": "2026-02-01", "TC": "2026-02-01", "：": "2026-01-01"}
+
+
+async def test_reuploading_the_same_report_does_not_duplicate_its_readings(database):
+    """A tester reported the app "automatically removing duplicate scanned
+    pages" on a re-upload, with no reproduction given; this pins what the
+    identity index actually does, so the claim can be checked rather than
+    just repeated. `ingest()`'s default policy is `ON_CONFLICT_SKIP`: a
+    second batch with the same user, readings, time and `source_ref` (the
+    file key) collides on the identity index's unique constraint and is
+    counted `skipped`, not written again."""
+    from mirobody.collect import observations
+
+    at = datetime(2026, 1, 1, tzinfo=UTC)
+    drafts = [
+        observations.Draft(name_text="Total Cholesterol", value_text="4.50", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="LDL", value_text="2.40", unit_text="mmol/L", observed_start=at),
+        observations.Draft(name_text="HDL", value_text="1.30", unit_text="mmol/L", observed_start=at),
+    ]
+    source = observations.Provenance("lab-report", "file", "th_files:synthetic-reupload")
+
+    first = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert first.inserted == 3 and first.skipped == 0
+    assert first.outcomes == [observations.OUTCOME_INSERTED] * 3
+
+    # The same report, uploaded a second time: identical drafts, identical
+    # provenance, same `source_ref` and nothing corrected in between.
+    second = await observations.ingest("1", drafts, source, user_tz="UTC")
+    assert second.inserted == 0 and second.skipped == 3
+    assert second.outcomes == [observations.OUTCOME_SKIPPED] * 3
+
+    rows = await database("SELECT name_text FROM v_observation WHERE source_ref=:source",
+                          {"source": "th_files:synthetic-reupload"}, log_sql=False)
+    assert sorted(r["name_text"] for r in rows) == ["HDL", "LDL", "Total Cholesterol"]
 
 
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])
@@ -836,6 +1037,168 @@ async def test_a_keyword_reaches_a_lab_and_a_device_series_under_one_name(databa
     assert len(series) == 2  # a device reading keeps its own namespace, not the lab's LOINC
     found = await PostgresHealthQuery()._by_keywords("1", ("glucose",), None)
     assert set(found) == series
+
+
+async def test_a_minute_bucket_window_reaches_an_exact_clock_time_within_a_day(database):
+    """`_window_clause`'s day-level filter cannot see an hour named in
+    `end`, so `view="minute"` always read the whole day regardless; a
+    narrower `end` within the same day must actually cut what SQL returns,
+    not just the cap on top of it (#303)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    drafts = [observations.Draft(name_text="Synthetic clock probe", value_text=str(60 + hour), unit_text="count",
+                                 observed_start=datetime(2026, 1, 1, hour, tzinfo=UTC)) for hour in range(24)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-clock",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic clock probe",))
+
+    whole_day = query.resolve_window("UTC", start="2026-01-01", end="2026-01-01", hours=24,
+                                     now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, whole_day, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(24)]
+
+    # A sub-day `end` must narrow the SQL filter itself: everything after
+    # 09:00 is gone, not merely ranked behind the cap.
+    narrowed_end = query.resolve_window("UTC", start="2026-01-01", end="2026-01-01T09:00", hours=24,
+                                        now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, narrowed_end, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(10)]
+
+    # And a sub-day `start` excludes everything before it the same way.
+    narrowed_start = query.resolve_window("UTC", start="2026-01-01T09:00", end="2026-01-01", hours=24,
+                                          now=datetime(2026, 1, 2, tzinfo=UTC))
+    rows = await hq.buckets("1", selection, narrowed_start, resolution="minute", limit=92)
+    assert [r["period"] for r in rows] == [f"2026-01-01 {h:02d}:00" for h in range(9, 24)]
+
+
+async def test_a_subday_bucket_keeps_each_rows_own_local_day_not_the_accounts_current_one(database):
+    """A row's own recorded `tz` can differ from the account's CURRENT zone:
+    after travel, or an Apple export imported with the default `--tz UTC`
+    for a person whose profile reads Asia/Shanghai. `_window_clause`'s day
+    filter already reads every row by ITS OWN `local_date`, written at
+    ingestion from the row's own `tz` - so `view=minute`/`view=hour` must
+    agree with `view=day` about which calendar day a row is even on.
+    Comparing an absolute instant resolved in the ACCOUNT's zone instead
+    disagreed with that (review of #303, commit 1)."""
+    from datetime import timedelta
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    await database("UPDATE health_app_user SET tz = 'Asia/Shanghai' WHERE id = 1", log_sql=False)
+    # No `tz` of its own, so `_placed` falls back to `user_tz="UTC"` below -
+    # the row's OWN zone, independent of the account's current one. Spans
+    # UTC 2026-03-09 15:00 through 2026-03-10 17:00: part of UTC day 03-09,
+    # part of UTC day 03-10.
+    drafts = [observations.Draft(name_text="Synthetic travel probe", value_text=str(h), unit_text="count",
+                                 observed_start=datetime(2026, 3, 9, 15, tzinfo=UTC) + timedelta(hours=h))
+              for h in range(27)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-travel",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    stored_days = {r["local_date"].isoformat() for r in
+                   await database("SELECT local_date FROM v_observation", log_sql=False)}
+    assert stored_days == {"2026-03-09", "2026-03-10"}  # confirms the fixture, not yet the bug
+
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic travel probe",))
+    tz = await hq.tz("1")
+    assert tz == "Asia/Shanghai"  # the account's CURRENT zone, read by every view
+
+    window = query.resolve_window(tz, start="2026-03-10", end="2026-03-10", hours=24,
+                                  now=datetime(2026, 3, 12, tzinfo=UTC))
+    for resolution in ("minute", "hour"):
+        rows = await hq.buckets("1", selection, window, resolution=resolution, limit=92)
+        assert rows, f"{resolution}: expected the rows recorded on local_date 2026-03-10"
+        assert all(r["period"].startswith("2026-03-10") for r in rows), (
+            f"{resolution}: a date-only window must read the rows view=day does, by each "
+            f"row's own local_date, not an instant resolved in the account's zone; got "
+            f"periods {[r['period'] for r in rows]}")
+
+
+async def test_raw_readings_reach_the_whole_day_by_following_the_cut_notes_own_end(database):
+    """`view=raw`, the schema's DEFAULT, keeps the newest `ROW_CAP` (50)
+    readings per indicator; the day before the oldest of them is still the
+    SAME day. Following the cut note's own `end=` suggestion, call after
+    call, must reach every reading of the day with none repeated and none
+    skipped, oldest reading last (#303 follow-up, PR #309)."""
+    from datetime import timedelta
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+
+    drafts = [observations.Draft(name_text="Synthetic dense readings", value_text=str(i), unit_text="count",
+                                 observed_start=datetime(2026, 3, 10, tzinfo=UTC) + timedelta(minutes=12 * i))
+              for i in range(120)]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-dense",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    service = HealthIndicatorsService(PostgresHealthQuery(), outside_note=False)
+
+    seen: list[str] = []
+    end = ""
+    for _ in range(4):  # 50 + 50 + 20 converges well inside 4 calls
+        kwargs = {"indicators": ["Synthetic dense readings"], "view": "raw", "start": "2026-03-10"}
+        if end:
+            kwargs["end"] = end
+        envelope = await service.envelope({"user_id": "1"}, **kwargs)
+        times = [r["time"] for r in envelope.data]
+        assert times == sorted(times, reverse=True)  # raw is always newest first
+        seen.extend(times)
+        if not envelope.meta.truncated:
+            break
+        assert "end=2026-03-09" not in envelope.meta.cut  # the bug: skipping to the day before
+        match = re.search(r"end=(\S+)", envelope.meta.cut)
+        assert match, envelope.meta.cut
+        end = match.group(1).rstrip(".")
+    else:
+        pytest.fail("did not converge to the whole day in 4 calls")
+
+    assert len(seen) == len(set(seen)) == 120  # every reading, none repeated, none skipped
+    assert seen[-1].startswith("2026-03-10 00:00")  # the day's first reading, reached last
+
+
+async def test_hour_buckets_say_when_the_minimum_and_maximum_happened_ties_earliest(database):
+    """"What was my lowest heart rate between 2 and 5am, and when" needs a
+    clock time an hour bucket's `min`/`max` alone cannot give. `min_at`/
+    `max_at` answer it without falling back to `view=minute`, which
+    `BUCKET_CAP` may already have cut (#303)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    # Within hour 10: two readings tie at the minimum (50) and two tie at the
+    # maximum (90); the earlier of each pair must win.
+    at = [(5, 70), (10, 50), (20, 90), (30, 50), (45, 90)]
+    drafts = [observations.Draft(name_text="Synthetic hourly extremes", value_text=str(value), unit_text="count",
+                                 observed_start=datetime(2026, 1, 1, 10, minute, tzinfo=UTC)) for minute, value in at]
+    await observations.ingest("1", drafts, observations.Provenance("device-sensed", "device", "synthetic-extremes",
+                                                                   vendor="synthetic-research"), user_tz="UTC")
+    hq = PostgresHealthQuery()
+    selection = query.Selection(indicators=("Synthetic hourly extremes",))
+    window = query.Window(0, 0, "UTC")
+
+    [hour_row] = await hq.buckets("1", selection, window, resolution="hour", limit=10)
+    assert (hour_row["min"], hour_row["min_at"]) == (50, "10:10")
+    assert (hour_row["max"], hour_row["max_at"]) == (90, "10:20")
+
+    # `minute` buckets never carry them: a minute bucket already IS the
+    # minute its one value fell in.
+    minute_rows = await hq.buckets("1", selection, window, resolution="minute", limit=10)
+    assert all(r["min_at"] == "" and r["max_at"] == "" for r in minute_rows)
+
+    # The model-facing table shows the columns only where they carry a value.
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+
+    service = HealthIndicatorsService(hq, outside_note=False)
+    hour_text = render_compact(await service.envelope({"user_id": "1"}, indicators=["Synthetic hourly extremes"],
+                                                       view="hour"))
+    assert "min_at" in hour_text and "10:10" in hour_text and "10:20" in hour_text
+    minute_text = render_compact(await service.envelope({"user_id": "1"}, indicators=["Synthetic hourly extremes"],
+                                                         view="minute"))
+    assert "min_at" not in minute_text
 
 
 @pytest.mark.parametrize("view", ["raw", "minute", "hour", "day", "week", "month", "stats", "latest", "trend"])
@@ -1631,3 +1994,66 @@ async def test_a_new_account_refuses_a_token_minted_before_it_existed(database, 
     assert int(account["id"]) == int(row["id"])
     assert await user_module.is_active_account(account["id"], before) is False
     assert await user_module.is_active_account(account["id"], time.time()) is True
+
+
+async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(database):
+    """#296: device sleep durations arrive in `ms` (`dailyTotalSleepTime` 93832-4,
+    `dailySleepDuration` 103213-5, `dailyDeepSleep` 93831-6), while clinical HRV
+    SDNN (`hrvSDNN` 112429-6) declares `ms` in LOINC. `PostgresHealthQuery`
+    answers sleep duration and duration in bed in `h`, deep sleep in `min`, and
+    HRV in `ms` across trend, stats, bands, buckets, readings, latest, catalogue
+    and CSV export, while `printed` preserves the device's verbatim `ms`."""
+    from mirobody.agent.tools._render import render_compact
+    from mirobody.agent.tools.health_indicators_service import HealthIndicatorsService
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery, export_row
+
+    prov = observations.Provenance("device-sensed", "device", "device:garmin", vendor="garmin")
+    drafts = []
+    for day, asleep_ms in ((1, 25_200_000), (2, 24_533_700), (3, 23_256_000)):
+        at = datetime(2026, 9, day, 7, tzinfo=UTC)
+        drafts += [
+            observations.Draft(name_text="dailyTotalSleepTime", value_text=str(asleep_ms), unit_text="ms", observed_start=at),
+            observations.Draft(name_text="dailySleepDuration", value_text="27000000", unit_text="ms", observed_start=at),
+            observations.Draft(name_text="dailyDeepSleep", value_text="7200000", unit_text="ms", observed_start=at),
+            observations.Draft(name_text="hrvSDNN", value_text="42", unit_text="ms", observed_start=at),
+        ]
+    await observations.ingest("1", drafts, prov, user_tz="UTC")
+    # An ECG report prints QT in ms while LOINC's 8634-8 declares s: printed by
+    # a report, so not a storage unit, and `device_only` must say so in SQL.
+    await observations.ingest("1", [observations.Draft(
+        name_text="QT间期", value_text="400", unit_text="ms", observed_start=datetime(2026, 9, 2, 9, tzinfo=UTC),
+    )], observations.Provenance("lab-report", "file", "th_files:synthetic-ecg"), user_tz="UTC")
+
+    reader = PostgresHealthQuery()
+    service = HealthIndicatorsService(reader, outside_note=False)
+
+    stats_env = await service.envelope(
+        {"user_id": "1"},
+        indicators=["dailyTotalSleepTime", "dailySleepDuration", "dailyDeepSleep", "hrvSDNN"],
+        view="stats",
+        value_min=7.0,
+    )
+    by_code = {r["code"]: r for r in stats_env.data}
+    assert (by_code["93832-4"]["unit"], by_code["93832-4"]["days_in_range"]) == ("h", 1)
+    assert by_code["93832-4"]["avg"] == pytest.approx((25_200_000 + 24_533_700 + 23_256_000) / 3 / 3_600_000, rel=1e-5)
+    assert float(by_code["93832-4"]["last"]) == pytest.approx(6.46)
+    assert (by_code["103213-5"]["unit"], by_code["103213-5"]["avg"]) == ("h", pytest.approx(7.5))
+    assert (by_code["93831-6"]["unit"], by_code["93831-6"]["avg"]) == ("min", pytest.approx(120.0))
+    assert (by_code["112429-6"]["unit"], by_code["112429-6"]["avg"]) == ("ms", pytest.approx(42.0))
+    assert "24533700" not in render_compact(stats_env)
+
+    ecg_env = await service.envelope({"user_id": "1"}, indicators=["8634-8"], view="stats")
+    assert [(r["unit"], r["avg"]) for r in ecg_env.data] == [("ms", pytest.approx(400.0))]
+
+    trend_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="trend")
+    assert trend_env.data[0]["unit"] == "h"
+
+    latest_env = await service.envelope({"user_id": "1"}, indicators=["93832-4"], view="latest")
+    [latest] = latest_env.data
+    assert latest["unit"] == "h" and float(latest["value"]) == pytest.approx(6.46)
+    assert (latest["printed"]["value"], latest["printed"]["unit"]) == ("23256000", "ms")
+
+    records = await reader.records("1", keywords="dailyTotalSleepTime", limit=5)
+    exported = export_row(records["rows"][0])
+    assert (exported["unit"], exported["printed_value"], exported["printed_unit"]) == ("h", "23256000", "ms")

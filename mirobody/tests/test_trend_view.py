@@ -24,20 +24,21 @@ def series(values: list[float], indicator: str = "x") -> list[dict]:
 def test_a_rise_is_up_with_a_positive_slope() -> None:
     row = trend_rows(series([1 + 0.3 * i for i in range(30)]))[0]
     assert row["direction"] == "up"
-    assert row["delta_pct"] > 100
+    assert row["pct_change_from_start"] > 100
     assert row["slope_per_day"] > 0
 
 
 def test_a_fall_is_down() -> None:
     row = trend_rows(series([10 - 0.3 * i for i in range(30)]))[0]
     assert row["direction"] == "down"
-    assert row["delta_pct"] < -100
+    # Against the start (8.65 -> 2.65), not the series' mean magnitude: -69.36%, not -106.19%.
+    assert row["pct_change_from_start"] < -50
 
 
 def test_a_series_that_only_jitters_is_flat() -> None:
     row = trend_rows(series([7.0 + (0.05 if i % 2 else -0.05) for i in range(30)]))[0]
     assert row["direction"] == "flat"
-    assert abs(row["delta_pct"]) < 2
+    assert abs(row["pct_change_from_start"]) < 2
 
 
 def test_a_single_hump_is_named_not_called_flat() -> None:
@@ -64,7 +65,7 @@ def test_first_and_last_alone_would_have_missed_the_decline() -> None:
     row = trend_rows(series(values))[0]
     assert values[-1] > values[0]           # ends say "up"
     assert row["direction"] == "down"       # thirds say "down", and that is the trend
-    assert row["delta_pct"] < 0
+    assert row["pct_change_from_start"] < 0
 
 
 def test_too_few_points_says_so() -> None:
@@ -72,7 +73,7 @@ def test_too_few_points_says_so() -> None:
     assert row["direction"] == "insufficient"
 
 
-STATISTICS = {"first_third_mean", "last_third_mean", "delta", "delta_pct", "slope_per_day", "min", "max"}
+STATISTICS = {"first_third_mean", "last_third_mean", "delta", "pct_change_from_start", "slope_per_day", "min", "max"}
 
 
 def test_missing_dates_do_not_turn_sample_slope_into_daily_slope():
@@ -123,13 +124,15 @@ def test_zero_centered_temperature_deltas_keep_their_direction():
     result = trend_rows(rows)[0]
     assert result["direction"] == "up"
     assert result["delta"] == 2
-    assert result["delta_pct"] == 300
+    # From the start (first_third_mean=-1): (1 - -1) / |-1| * 100 = 200, not the
+    # mean-magnitude 300 `direction` uses internally.
+    assert result["pct_change_from_start"] == 200
 
 
 def test_all_zero_values_have_no_relative_percentage():
     result = trend_rows(series([0.0] * 6))[0]
     assert result["direction"] == result["shape"] == "flat"
-    assert result["delta_pct"] is None
+    assert result["pct_change_from_start"] is None
     assert result["slope_per_day"] == 0
 
 
