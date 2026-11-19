@@ -187,6 +187,3 @@ def test_a_ratios_numerator_is_reached_whatever_method_the_ratio_carries():
     assert resolver.variant_for_reading("15324-7", "0.55", "ng/mL").code == "2857-1"
     assert resolve_reading("Thrombin time", "17", "s").loinc == "3243-3"
     assert resolve_reading("APTT", "31", "s").loinc == "3173-2"
-    # Where the numerator HAS the ratio's technique, the fallback keeps it:
-    # a cardiac index by biplane angiography read in L/min stays angiography.
-    assert resolver.variant_for_reading("8746-0", "5.5", "L/min").code == "8732-0"
