@@ -59,6 +59,16 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
+在 Windows 上，默认的 PowerShell 窗口会把 `claude` 当作它自己的 `.ps1` 脚本运行，
+在 `uvx` 看到 `--` 之前就把它吞掉了，报错 `unknown option '--python'`；改用
+`.cmd` 这个外壳即可，PowerShell 会把它当作原生命令运行，`--` 会原样传下去：
+
+```powershell
+claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+CMD 和 Git Bash 运行原来那条命令即可。
+
 之后，你贴给 agent 的指标名称、读数、单位或症状，它都能在本机标准化，不需要 Key。
 读取整份报告还需要 `mirobody[parse]` 和一个模型 Key。
 [其他 MCP 客户端](https://docs.mirobody.ai/zh/tools/mcp-integration#通过-stdio-使用本地术语工具)使用同一条命令。
@@ -220,12 +230,13 @@ resolve("血脂").resolved                                     # False    一个
 | 包会说明是哪份词表在回答：`mirobody.BUNDLE_VERSION` 是 `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公开的健康 agent 评测集：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md)（英文） |
 
-Mirobody 也是 [Theta](https://www.thetahealth.ai/) 背后的健康数据引擎。Theta 是一款已上线的个人健康应用，有网页版和移动 App，当前用户数：<br>
-[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
+Mirobody 也是 [Theta](https://www.thetahealth.ai/) 背后的健康数据引擎。Theta 是一款已上线的个人健康应用，有网页版和移动 App。
 
 ## 参与贡献
 
 最有价值的贡献，是找出解析器答错的术语。运行 `mirobody resolve "<术语>"`，结果错误或为空时，[提交 issue](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)，或附上测试用例直接提交修复。词表就是这样扩展到新语言的：俄文的检验项目和爱沙尼亚文的维生素写法来自 [#88](https://github.com/thetahealth/mirobody/pull/88)，土耳其文化验单的写法来自 [#140](https://github.com/thetahealth/mirobody/pull/140)，每个术语都只是 [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) 里的一行，加一个测试用例。环境搭建和检查命令见 [CONTRIBUTING.md](CONTRIBUTING.md)（英文）。
+
+想写文章或发帖介绍 Mirobody？[`docs/images`](./docs/images/README.zh-CN.md) 里的动图、示意图和截图随仓库以 Apache-2.0 提供，可以直接使用；索引页写明了每个文件展示的内容。
 
 本项目基于 [HL7 FHIR](https://hl7.org/fhir/)、[Regenstrief Institute](https://www.regenstrief.org/) 的 [LOINC](https://loinc.org/)、[UCUM](https://ucum.org/)、[ICPC-3](https://icpc-3.info/)（WONCA）、[CPIC](https://cpicpgx.org/)、[llama.cpp](https://github.com/ggml-org/llama.cpp) 与 [deepagents](https://github.com/langchain-ai/deepagents)，在此致谢。术语许可见 [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY)。
 

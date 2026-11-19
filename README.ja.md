@@ -59,6 +59,17 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
+Windows では、既定の PowerShell ウィンドウは `claude` を自身の `.ps1` スクリプト
+として実行し、`uvx` が見る前に `--` を飲み込んでしまい、`unknown option
+'--python'` で失敗します。代わりに `.cmd` シムを呼んでください。PowerShell は
+これをネイティブコマンドとして実行するので、`--` がそのまま渡ります。
+
+```powershell
+claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+CMD と Git Bash では、元のコマンドをそのまま実行できます。
+
 エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)でも同じコマンドを使います。
 
 → [Python や MCP からエンジンを使う](docs/quickstart.ja.md#a--the-library)
@@ -212,12 +223,13 @@ resolve("血脂").resolved                                     # False    1つ�
 | パッケージは自分の語彙を名乗ります：`mirobody.BUNDLE_VERSION` は `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | 公開している健康エージェントのベンチマーク：[ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench)、[MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench)、[MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Theta](https://www.thetahealth.ai/) のエンジンでもあります。現在の利用者数：<br>
-[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
+Mirobody は、Web とモバイルで提供中の個人向け健康アプリ [Theta](https://www.thetahealth.ai/) のエンジンでもあります。
 
 ## コントリビューション
 
 いちばん役に立つのは、リゾルバが間違える用語を見つけることです。`mirobody resolve "<用語>"` を実行し、答えが間違っているか空なら、[報告する](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml)か、テストケースを添えて修正を送ってください。語彙はこうして新しい言語に広がってきました。ロシア語の検査項目とエストニア語のビタミンの表記は [#88](https://github.com/thetahealth/mirobody/pull/88)、トルコ語の検査報告の表記は [#140](https://github.com/thetahealth/mirobody/pull/140) で加わり、どれも用語ごとに [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) の1行とテストケース1つです。環境の準備とチェックの手順は [CONTRIBUTING.md](CONTRIBUTING.md)（英語）にあります。
+
+Mirobody について記事や投稿を書くときは、[`docs/images`](./docs/images/README.md) の動画、図、スクリーンショットをそのまま使えます。リポジトリと同じ Apache-2.0 で提供しており、各ファイルの内容は索引（英語）にまとめてあります。
 
 [HL7 FHIR](https://hl7.org/fhir/)、[Regenstrief Institute](https://www.regenstrief.org/) の [LOINC](https://loinc.org/)、[UCUM](https://ucum.org/)、[ICPC-3](https://icpc-3.info/)（WONCA）、[CPIC](https://cpicpgx.org/)、[llama.cpp](https://github.com/ggml-org/llama.cpp)、[deepagents](https://github.com/langchain-ai/deepagents) の上に作られています。感謝します。用語体系のライセンスは [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY) を参照してください。
 

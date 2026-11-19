@@ -45,11 +45,12 @@ def build_fixture() -> dict:
     files = []
     for key in ("you", "mom"):
         email = f"{key}@mirobody.ai"
-        profile = seed.profile_for(email)
         readings = [_reading(row) for row in seed._member_series(key, email)]
         members.append({"id": key, "email": email, "readings": readings})
-        collected, filename, panel = profile["lab"]
-        files.append(_file(key, filename, "seed", collected, panel))
+        # Every seeded panel, not `profile["lab"]` alone: mom has an older
+        # one, and its readings named a file this list did not carry.
+        for collected, filename, panel in seed.panels_for(email):
+            files.append(_file(key, filename, "seed", collected, panel))
 
     for name, panel in uploads.PANELS.items():
         extension = ".pdf" if name.startswith("you_") else ".jpg"
@@ -59,7 +60,11 @@ def build_fixture() -> dict:
                        uploads.CSV_PANEL["collected"], uploads.CSV_PANEL["rows"]))
     files.append(_file("mom", "mom_clinic_visit_2026-07.xlsx", "upload",
                        uploads.XLSX_PANEL["collected"], uploads.XLSX_PANEL["rows"]))
-    first = min(row["date"][:10] for member in members for row in member["readings"])
+    for filename, panel in uploads.HISTORY.items():
+        files.append(_file("you", filename, "upload", panel["collected"], panel["rows"]))
+    # `period` is the device coverage; a seeded lab panel may predate it.
+    first = min(row["date"][:10] for member in members for row in member["readings"]
+                if not row["fileId"])
     fixture = {
         "schemaVersion": 1,
         "asOf": seed._LAST_DAY.isoformat(),

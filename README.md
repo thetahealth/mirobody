@@ -59,6 +59,17 @@ Give the same engine to your AI agent. In Claude Code:
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
+On Windows, a default PowerShell window runs `claude` as its `.ps1` script and
+swallows the `--` before `uvx` ever sees it, failing with `unknown option
+'--python'`; call the `.cmd` shim instead, which PowerShell runs as a native
+command and passes `--` through unchanged:
+
+```powershell
+claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
+```
+
+CMD and Git Bash run the original command as given.
+
 Your agent can then standardize any name, reading, unit or complaint you paste, on your machine and without a key. Reading a whole report also needs `mirobody[parse]` and a model key. [Other MCP clients](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio) take the same command.
 
 → [Use the engine from Python or MCP](docs/quickstart.md#a--the-library)
@@ -212,12 +223,13 @@ resolve("血脂").resolved                                     # False    a cate
 | The package names its vocabulary: `mirobody.BUNDLE_VERSION` is `loinc-2.83+2026.10.27-126ecba69782` | `python -c "import mirobody; print(mirobody.BUNDLE_VERSION)"` |
 | Public health-agent benchmarks: [ESL-Bench](https://huggingface.co/datasets/mirobody/ESL-Bench), [MedHall-Bench](https://huggingface.co/datasets/mirobody/MedHall-Bench), [MedHarm-Bench](https://huggingface.co/datasets/mirobody/MedHarm-Bench) | [`mirobody-eval`](https://github.com/thetahealth/mirobody-eval) · [`benchmarks/`](benchmarks/README.md) |
 
-Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), a live consumer health app on the web and mobile, with these users today:<br>
-[![Theta registered users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.registered_users.value&label=Theta%20users&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/) [![Theta daily active users, live](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgeneral-api.thetahealth.ai%2Fsmart%2Fapi%2Fv1%2Fpublic%2Fstats&query=%24.data.daily_active_users.value&label=daily%20active&color=0E3880&cacheSeconds=3600)](https://www.thetahealth.ai/)
+Mirobody is the health data engine behind [Theta](https://www.thetahealth.ai/), a live consumer health app on the web and mobile.
 
 ## Contributing
 
 The most useful contribution is a term the resolver gets wrong. Run `mirobody resolve "<term>"`; if the answer is wrong or empty, [report it](https://github.com/thetahealth/mirobody/issues/new?template=wrong-term.yml) or send a fix with a test case. That is how the vocabulary grows into new languages: Russian panel and Estonian vitamin terms arrived in [#88](https://github.com/thetahealth/mirobody/pull/88) and Turkish lab-report spellings in [#140](https://github.com/thetahealth/mirobody/pull/140), each one row of [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) and one test case per term. [CONTRIBUTING.md](CONTRIBUTING.md) has the setup and the checks.
+
+Writing about Mirobody? The recordings, diagrams and screenshots in [`docs/images`](./docs/images/README.md) ship under Apache-2.0 and are ready to use in an article or a post; the index says what each one shows.
 
 Built on [HL7 FHIR](https://hl7.org/fhir/), [LOINC](https://loinc.org/) from the [Regenstrief Institute](https://www.regenstrief.org/), [UCUM](https://ucum.org/), [ICPC-3](https://icpc-3.info/) (WONCA), [CPIC](https://cpicpgx.org/), [llama.cpp](https://github.com/ggml-org/llama.cpp) and [deepagents](https://github.com/langchain-ai/deepagents), with thanks. Terminology licences: [`LICENSE-3RD-PARTY`](LICENSE-3RD-PARTY).
 

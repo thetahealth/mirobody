@@ -80,24 +80,3 @@ class TempFileManager:
                     logger.error("temporary copy not deleted: error_type=%s", type(ex).__name__)
             raise
 
-    @staticmethod
-    def cleanup_temp_file(temp_file_path: str) -> bool:
-        """
-        Clean up temporary file
-
-        Args:
-            temp_file_path: Temporary file path
-
-        Returns:
-            bool: Whether successfully deleted
-        """
-        if not temp_file_path or not os.path.exists(temp_file_path):
-            return True
-
-        try:
-            os.unlink(temp_file_path)
-            return True
-        except OSError as e:
-            logger.error("temporary upload copy not deleted: error_type=%s", type(e).__name__)
-            return False
-

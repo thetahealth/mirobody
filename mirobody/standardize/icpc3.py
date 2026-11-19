@@ -248,6 +248,46 @@ def _find(hit: dict, key: str):
     return found
 
 
+#: Leading qualifiers that say WHEN or HOW OFTEN a complaint happens, never
+#: WHETHER it happens: "最近老是头疼" and "头疼" name the same headache, so
+#: stripping them before the lookup cannot change which code a term
+#: resolves to (a tester had to pre-split "最近老是头疼" into "头疼" by hand
+#: before standardize_complaint coded it). A closed, enumerated list, not
+#: sentence extraction: a *negation* ("不", "没", "没有", "never", "no",
+#: "not") is never in it, on purpose, so "不头疼" keeps abstaining instead
+#: of being coded to the headache it denies.
+_CJK_MODIFIERS = ("最近", "老是", "经常", "总是", "一直", "有点", "有些")
+_LATIN_MODIFIERS = ("recently", "always", "often", "a bit")
+
+
+def _leading_modifier(key: str) -> tuple[str, str] | None:
+    """`(remainder, word)` when `key` starts with one qualifier, else None."""
+    for modifier in _CJK_MODIFIERS:
+        if key.startswith(modifier):
+            return key[len(modifier):], modifier
+    for modifier in _LATIN_MODIFIERS:
+        if key == modifier:
+            return "", modifier
+        prefix = modifier + " "
+        if key.startswith(prefix):
+            return key[len(prefix):], modifier
+    return None
+
+
+def _strip_modifiers(key: str) -> tuple[str, tuple[str, ...]]:
+    """Drop leading qualifiers from `_CJK_MODIFIERS`/`_LATIN_MODIFIERS`,
+    repeatedly (bounded, so a crafted key cannot loop), and report the words
+    removed, outermost first, for the decision's evidence."""
+    stripped: list[str] = []
+    for _ in range(4):
+        hit = _leading_modifier(key)
+        if hit is None:
+            break
+        key, modifier = hit
+        stripped.append(modifier)
+    return key, tuple(stripped)
+
+
 def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
     """One term to one `Coding` on one axis, or an abstention that says why."""
     rel = release()
@@ -276,6 +316,17 @@ def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
         hans = name_key(fold_to_hans(text))
         if hans != key:
             found = _find(hit, hans)
+    modifiers: tuple[str, ...] = ()
+    if found is None:
+        reduced, modifiers = _strip_modifiers(key)
+        if modifiers:
+            found = _find(hit, reduced)
+            if found is None:
+                hans_reduced = name_key(fold_to_hans(reduced))
+                if hans_reduced != reduced:
+                    found = _find(hit, hans_reduced)
+            if found is None:
+                modifiers = ()
     if found is None:
         if key in tied:
             did = decision_id(key, component, rel, RULE_INCLUSION)
@@ -291,11 +342,14 @@ def resolve(text: str, component: str, *, alias: Alias | None = None) -> Coding:
 
     code, rule = found
     did = decision_id(key, component, rel, rule)
+    evidence = (f"term={text}", f"rule={rule}")
+    if modifiers:
+        evidence = evidence + (f"modifiers={','.join(modifiers)}",)
     if code == BLOCK_TOO_BROAD:
         return Coding(OUTCOME_REFUSED, local, did, rule, rel, reason="icpc3:too-broad", evidence=(f"term={text}",))
     if code == BLOCK_AMBIGUOUS:
         return Coding(OUTCOME_NEEDS_INPUT, local, did, rule, rel, reason="icpc3:ambiguous", evidence=(f"term={text}",))
-    return _coded(code, did, rule, rel, local, (f"term={text}", f"rule={rule}"))
+    return _coded(code, did, rule, rel, local, evidence)
 
 
 def resolve_symptom(text: str, *, alias: Alias | None = None) -> Coding:

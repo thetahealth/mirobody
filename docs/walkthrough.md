@@ -58,10 +58,10 @@ there, or a password where the deployment sends no mail), the account and
 everything in it becomes theirs, and they choose what you keep: edit, view or
 nothing. If the address already has an account, the record is merged into it.
 
-**2 · ① Collect.** [`demo/upload/`](../demo/) holds four files the seed
-deliberately leaves out, so uploading one is not a no-op — and they are four
-different formats, because a health record arrives as whatever the lab, the
-clinic and the family actually produce:
+**2 · ① Collect.** [`demo/upload/`](../demo/) holds seven files the seed
+deliberately leaves out, so uploading one is not a no-op. The first four are
+four different formats, because a health record arrives as whatever the lab,
+the clinic and the family actually produce:
 
 | File | Format | What it is | Readings |
 | --- | --- | --- | --- |
@@ -69,6 +69,22 @@ clinic and the family actually produce:
 | `mom_physical_2026-06.jpg` | JPG | a phone photo of a printed slip | 9 |
 | `you_lipid_panel_2026-08.csv` | CSV | a different lab's export, in its own wording | 5 |
 | `mom_clinic_visit_2026-07.xlsx` | XLSX | what the clinic typed into a spreadsheet | 4 |
+
+The other three are `you`'s three earlier years, from three places that word
+one test three ways and print it in two units:
+
+| File | What it is | Prints LDL cholesterol as | Unit |
+| --- | --- | --- | --- |
+| `you_lab_report_zh_2023-03.pdf` | a hospital lab slip, in Chinese | `LDL-C` | mmol/L |
+| `you_checkup_photo_zh_2024-04.jpg` | a photo of a check-up centre's sheet, in Chinese | `低密度脂蛋白胆固醇` | mg/dL |
+| `you_lab_results_en_2025-03.xlsx` | an international clinic's export, in English | `LDL Cholesterol` | mg/dL |
+
+Upload the three, open LDL cholesterol under Indicators, and they are one
+line: `140 → 128 → 112 mg/dL` with these three alone, and
+`3.62 → 3.31 → 2.90 → 2.48 → 2.41 mmol/L` once the two 2026 files are in as
+well, each number opening the file it was read from. The photo needs a model
+that reads images. [`demo/README.md`](../demo/README.md#three-years-three-names-two-units)
+has the codes and what each view shows.
 
 Drop one on the Data page and the file is stored first, verbatim and traceable.
 That is all ① Collect does, and the split matters: what a lab said is one fact,

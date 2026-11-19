@@ -34,7 +34,7 @@ async def test_complete_trend_keeps_compact_and_rest_numeric_contract():
     result = await envelope(daily([1, 2, 3, 2, 1]))
     assert result.status == "ok" and result.meta.truncated is False
     compact = render_compact(result)
-    for expected in ("first_third_mean", "delta_pct", "slope_per_day", "unit=kg", "shape=hump", "source_days=5"):
+    for expected in ("first_third_mean", "pct_change_from_start", "slope_per_day", "unit=kg", "shape=hump", "source_days=5"):
         assert expected in compact
     assert "shape=hump" in " ".join(result.assumptions)
     assert render_rest(result)["rows"] == result.data

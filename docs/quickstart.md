@@ -120,6 +120,11 @@ On the Email code tab, sign in as `you@mirobody.ai` with code `111111`.
 No mail service is needed. Ask “How has my cholesterol changed?”, then upload
 a synthetic file from [`demo/upload/`](../demo/) on the Data page. Those files
 are not included in the seeded records, so uploading one tests document processing.
+Three of them (`you_lab_report_zh_2023-03.pdf`, `you_checkup_photo_zh_2024-04.jpg`,
+`you_lab_results_en_2025-03.xlsx`) are three years of reports that print one
+test under three names and in two units. Upload all three and open LDL
+cholesterol under Indicators: they are one line, and each number opens the
+file it came from.
 
 **Before the first start of a deployment for real data, set
 `SEED_DEMO_DATA=false`.** Otherwise the app creates the two public demo accounts.
@@ -171,8 +176,9 @@ not include the web client.
 
 `dev` generates temporary secrets. To preserve sessions and encrypted
 configuration across restarts, set `JWT_KEY` and `CONFIG_ENCRYPTION_KEY`. Set
-`PG_ENCRYPTION_KEY` as well: without it, stored record fields are encrypted
-under `config.yaml`'s public placeholder (SECURITY.md).
+`PG_ENCRYPTION_KEY` and `DATABASE_DECRYPTION_KEY` as well: without them,
+stored record fields and device credentials are encrypted under the shipped
+placeholder (SECURITY.md).
 For deployment, `serve` reads the shipped configuration and
 `config.{ENV}.yaml` and expects persistent secrets.
 

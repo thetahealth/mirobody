@@ -133,7 +133,7 @@ docker compose exec mirobody mirobody doctor --probe
 | Docker のメモリ不足 | Docker Desktop で 8 GB 以上を割り当てるか、`colima start --memory 8` を使います。CPU デプロイは `docker/local-models-cpu.ini`、GPU デプロイは `docker/local-models.ini` を使います。 |
 | ログがモデルプリセットについて `Is a directory` と表示する | Docker がチェックアウトにアクセスできるか確認してください。Colima は既定でホームディレクトリを共有します。チェックアウトをその中に置くか、パスを `mounts` に追加してください。 |
 | ダウンロードが Hugging Face に届かない | Compose では `.env` に、直接起動する場合は `llama-server` を起動するシェルに `HF_ENDPOINT=https://<mirror>` を設定してください。 |
-| システムのプロキシ経由でローカルのリクエストが失敗する | リクエスト元のシェルで `export NO_PROXY=localhost,127.0.0.1` を設定してください。WSL が Windows のプロキシを引き継ぐ場合も同様です。 |
+| システムのプロキシ経由でローカルのリクエストが失敗する | Compose は `pg`、`llama`、`localhost`、`127.0.0.1`、`host.docker.internal` をすでにプロキシの対象外にしており（`compose.yaml` の `NO_PROXY`/`no_proxy`）、ホスト側で `NO_PROXY`/`no_proxy` が設定されていても上書きせずそれを残して追加するので、通常は何もする必要はありません。Compose を使わず `llama-server` を直接起動する場合は、リクエスト元のシェルで `export NO_PROXY=localhost,127.0.0.1` を自分で設定してください。WSL が Windows のプロキシを引き継ぐ場合も同様です。 |
 
 モデルのキャッシュは、Compose プロジェクトの `mirobody_models` ボリュームです。別のチェックアウトや `COMPOSE_PROJECT_NAME` を使うと、別のキャッシュが作られて再ダウンロードされることがあります。イメージは llama.cpp b11429 に固定されています。別のビルドやレジストリミラーが必要な場合は、`.env` で `LLAMA_CPU_IMAGE` または `LLAMA_IMAGE` を上書きしたうえで `docker compose up -d` を実行してください。
 

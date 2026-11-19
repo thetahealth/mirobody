@@ -437,8 +437,23 @@ _FORMS_ZH = "片|粒|胶囊|滴|吸|喷|贴|袋|包|栓|支|瓶|勺|剂"
 _DOSE_RE = re.compile(_NUM + r"\s*([A-Za-z\[\]{}%µ/]+|" + _FORMS_ZH + ")")
 _DOSE_ZH_RE = re.compile(r"([半一两二三四五六七八九十])\s*(" + _FORMS_ZH + ")")
 _TIMES_RE = re.compile(r"\b(\d{1,2}:\d{2})\b")
-_EVERY_N_DAYS_RE = re.compile(r"(?:every|q)\s*(\d+)\s*(?:days?|d)\b|每\s*(\d+)\s*天", re.I)
-_EVERY_OTHER_DAY_RE = re.compile(r"\bevery other day\b|\bqod\b|隔天|隔日", re.I)
+
+
+def _zh_count(token: str | None, default: int) -> int:
+    """A digit run or a bare zh numeral (never ``半``: every call site's own
+    character class excludes it) to an int; ``default`` when ``token`` is
+    absent, since a frequency's trailing count is often left implicit (每周,
+    隔日 both mean one occurrence)."""
+    if token is None:
+        return default
+    return int(token) if token.isdigit() else int(_ZH_NUM[token])
+
+
+#: "every/q N days|weeks|wk" (English only: the Chinese equivalent is
+#: ``_ZH_PERIOD_RE`` below, which also reads the numeral forms this can't).
+_EVERY_N_PERIOD_RE = re.compile(r"\b(?:every|q)\s*(\d+)\s*(day|week|wk|d)s?\b", re.I)
+#: "every other day/week", "qod" (English only, for the same reason).
+_EVERY_OTHER_PERIOD_RE = re.compile(r"\bevery other (day|week)\b|\bqod\b", re.I)
 _EVERY_N_HOURS_RE = re.compile(r"(?:every|q)\s*(\d+)\s*(?:hours?|h)\b|每\s*(\d+)\s*(?:小时|h)", re.I)
 _WEEKDAY_RE = re.compile(r"\b(mon|tue|wed|thu|fri|sat|sun)[a-z]*\b", re.I)
 _ZH_WEEKDAYS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "日": 7, "天": 7}
@@ -453,14 +468,17 @@ _PRN_RE = re.compile(
 #: ``od`` is deliberately absent: in ophthalmic sigs it means the right eye,
 #: not once daily. 早晚 (morning and evening) and 早中晚 are how a Chinese sig
 #: most often says two and three a day; without them 每天早晚 read as once.
+#: The Chinese "N times a day" forms (每天/每日/一天/一日/1日 + a count + 次) are not
+#: here: they are one token (``_PER_DAY_COUNT_RE`` below), digit and numeral
+#: alike, so the bare 每天/每日 row below never has to also guess a count.
 _PER_DAY = (
     (
-        re.compile(r"\b(?:four times a day|four times daily|qid|q\.i\.d\.)\b|每天四次|每日四次|一天四次|每天4次", re.I),
+        re.compile(r"\b(?:four times a day|four times daily|qid|q\.i\.d\.)\b", re.I),
         4,
     ),
     (
         re.compile(
-            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b|每天三次|每日三次|一天三次|一日三次|每天3次"
+            r"\b(?:three times a day|three times daily|tid|t\.i\.d\.)\b"
             r"|早[\s、,，和]*中[\s、,，和]*晚|早上[\s、,，和]*中午[\s、,，和]*晚上",
             re.I,
         ),
@@ -469,23 +487,49 @@ _PER_DAY = (
     (
         re.compile(
             r"\b(?:twice daily|twice a day|two times a day|bid|b\.i\.d\.|morning and (?:evening|night))\b"
-            r"|每天两次|每日两次|一天两次|一日两次|每天2次|早[\s、,，和]*晚|早上[\s、,，和]*晚上",
+            r"|早[\s、,，和]*晚|早上[\s、,，和]*晚上",
             re.I,
         ),
         2,
     ),
     (
         re.compile(
-            r"\b(?:once daily|once a day|daily|qd|every day|each day)\b|每天一次|每日一次|一天一次|一日一次|每天|每日",
+            r"\b(?:once daily|once a day|daily|qd|every day|each day)\b|每天|每日",
             re.I,
         ),
         1,
     ),
 )
+#: One prefix + one count + 次: "每日2次", "一日三次", "1日 1 次". The count is a
+#: digit run or a bare numeral (半 excluded: a half dose per day is not a
+#: count); out-of-range groups still match (每日10次, 一天五次) so the caller
+#: below can refuse them instead of silently dropping the frequency, which
+#: would leave only the dose behind (the partial parse #302 reported).
+_PER_DAY_COUNT_RE = re.compile(r"(?:每天|每日|一天|一日|1日)\s*(\d+|[一两二三四五六七八九十])\s*次")
 #: A count said outright. 每天 / daily alone only says "every day", and qualifies
 #: a count rather than competing with it (每天早晚 is two a day, not a conflict).
-_ONCE_RE = re.compile(r"\b(?:once daily|once a day|qd)\b|每天一次|每日一次|一天一次|一日一次", re.I)
-_WEEKLY_RE = re.compile(r"\b(?:once weekly|once a week|weekly|every week)\b|每周一次|每星期一次|每周", re.I)
+#: The Chinese "once" forms (每天一次 etc.) go through ``_PER_DAY_COUNT_RE``
+#: instead, which is also how they end up in ``counts`` for the conflict check.
+_ONCE_RE = re.compile(r"\b(?:once daily|once a day|qd)\b", re.I)
+#: "每/隔" + an optional count + "天/日/周/星期" + an optional trailing count + 次:
+#: "每2天", "每两周1次", "隔日", "隔一日一次". Bare 每天/每日/每周/每星期 (no digit
+#: between the prefix and the unit) is left to the callers below: a trailing
+#: count on those means something else (每天2次 is twice a DAY, not a 2-day
+#: period) and 每周/每星期 alone, with nothing after, is weekly. 一/1 are not
+#: prefixes here: that explicit-period form is "每2天", never "一2天".
+_ZH_PERIOD_RE = re.compile(
+    r"(每|隔)\s*(\d+|[一两二三四五六七八九十])?\s*(天|日|周|星期)(?:\s*(\d+|[一两二三四五六七八九十])\s*次)?"
+)
+#: An explicit weekly count: "每周2次", "一周两次". ``Schedule`` has no "N times
+#: a week" field (only an interval or named weekdays), so unless N is 1 this
+#: is refused below rather than read as the bare 每周/一周 = once-weekly rule.
+_ZH_WEEKLY_COUNT_RE = re.compile(r"(?:每周|每星期|一周|一星期)\s*(\d+|[一两二三四五六七八九十])\s*次")
+#: The English spellings of the same unrepresentable count.
+_WEEKLY_COUNT_RE = re.compile(r"\btwice\s*(?:a\s*week|weekly)\b|\b(\d+)\s*times?\s*(?:a\s*week|weekly)\b", re.I)
+#: Bare, no count said: "every day" by itself for weeks. The Chinese "once"
+#: forms (每周一次 etc.) go through ``_ZH_WEEKLY_COUNT_RE`` instead, which is
+#: also how they end up in ``period_candidates`` for the conflict check.
+_WEEKLY_RE = re.compile(r"\b(?:once weekly|once a week|weekly|every week)\b|每周|每星期", re.I)
 _RANGE_RE = re.compile(_NUM + r"\s*[-–~]\s*" + _NUM)
 
 
@@ -494,12 +538,14 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
     ``"每天两次，每次一片"``.
 
     The grammar is small and closed (``docs/medications.md``): one dose
-    (number + unit or form), one frequency (n per day / every N days / every N
-    hours / weekdays / weekly / as needed), optional clock times. Returns a
-    one-element schedule, or ``None`` when nothing is recognised: the caller
-    keeps the original text either way. **No partial parses**: a dose range
-    (``"1-2 tablets"``), two different doses, two frequencies, or two regimens
-    in one sentence return ``None`` rather than half a regimen.
+    (number + unit or form), one frequency (n per day / every N days, weeks
+    or hours / weekdays / weekly / as needed), optional clock times. Returns
+    a one-element schedule, or ``None`` when nothing is recognised: the
+    caller keeps the original text either way. **No partial parses**: a dose
+    range (``"1-2 tablets"``), two different doses, two frequencies, two
+    regimens, or a count ``Schedule`` has no field for ("twice weekly" with
+    no weekdays named; "every 2 days, 3 times") return ``None`` rather than
+    half a regimen or the nearest guess.
     """
     raw = unicodedata.normalize("NFKC", (text or "")).strip()
     if not raw:
@@ -518,34 +564,81 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
     doses_per_day = 0
     weekdays: set[int] = set()
     frequencies = 0
-    m = _EVERY_N_DAYS_RE.search(raw)
-    if m:
-        period_days = int(m.group(1) or m.group(2))
-        frequencies += 1
-    elif _EVERY_OTHER_DAY_RE.search(raw):
-        period_days = 2
-        frequencies += 1
+    unrepresentable = False  # a frequency named outright, but ``Schedule`` has no field to put it in
+    period_candidates: set[int] = set()  # resolved period_days from any "every N period" / gap / weekly phrase
+    said_period = False
     m = _EVERY_N_HOURS_RE.search(raw)
     if m:
         hours = int(m.group(1) or m.group(2))
         if hours and 24 % hours == 0:
             doses_per_day = 24 // hours
             frequencies += 1
+    rest = raw
+
+    def _period_sub(m: re.Match[str]) -> str:
+        nonlocal unrepresentable, said_period
+        prefix, mult_token, unit, occ_token = m.group(1), m.group(2), m.group(3), m.group(4)
+        if prefix == "每" and mult_token is None:
+            return m.group(0)  # bare 每天/每日/每周/每星期: left for the rules below, count and all
+        said_period = True
+        mult = _zh_count(mult_token, 1)
+        occurrence = _zh_count(occ_token, 1)
+        unit_days = 7 if unit in ("周", "星期") else 1
+        if occurrence != 1:
+            unrepresentable = True  # "每2天3次": a period AND several doses per occurrence, no field holds both
+        else:
+            period_candidates.add((period_from_gap(mult) if prefix == "隔" else mult) * unit_days)
+        return " "
+
+    rest = _ZH_PERIOD_RE.sub(_period_sub, rest)
+    for mult_str, unit_word in _EVERY_N_PERIOD_RE.findall(rest):
+        said_period = True
+        unit_days = 7 if unit_word.lower() in ("week", "wk") else 1
+        period_candidates.add(int(mult_str) * unit_days)
+    rest = _EVERY_N_PERIOD_RE.sub(" ", rest)
+    m = _EVERY_OTHER_PERIOD_RE.search(rest)
+    if m:
+        said_period = True
+        unit_days = 7 if (m.group(1) or "").lower() == "week" else 1
+        period_candidates.add(period_from_gap(1) * unit_days)
+        rest = _EVERY_OTHER_PERIOD_RE.sub(" ", rest)
+
+    def _weekly_count(n: int) -> str:
+        nonlocal unrepresentable, said_period
+        said_period = True
+        if n != 1:
+            unrepresentable = True  # "每周2次": no "N times a week" field unless the weekdays are named
+        else:
+            period_candidates.add(7)
+        return " "
+
+    rest = _ZH_WEEKLY_COUNT_RE.sub(lambda m: _weekly_count(_zh_count(m.group(1), 1)), rest)
+    rest = _WEEKLY_COUNT_RE.sub(lambda m: _weekly_count(int(m.group(1)) if m.group(1) else 2), rest)
     for day in _WEEKDAY_RE.findall(raw):
         weekdays.add(weekday_from(day))
     for run in _ZH_WEEKDAY_RE.findall(raw):
         weekdays.update(_ZH_WEEKDAYS[ch] for ch in run if ch in _ZH_WEEKDAYS)
     if weekdays:
         frequencies += 1
-    elif _WEEKLY_RE.search(raw):
-        period_days = 7
-        frequencies += 1
+    elif _WEEKLY_RE.search(rest):
+        period_candidates.add(7)
+        said_period = True
+    if said_period:
+        frequencies += 1  # counted even when another frequency already won: two frequencies is no parse
+
     # Every per-day phrase, most specific first, each blanked once matched so
     # "twice daily" is not also "daily". Two different counts ("每天两次…每天三次")
     # are two regimens: no parse, not the first one.
-    rest = raw
     counts: set[int] = set()
     said_daily = False
+    for token in _PER_DAY_COUNT_RE.findall(rest):
+        n = _zh_count(token, 1)
+        if n in (1, 2, 3, 4):
+            said_daily = True
+            counts.add(n)
+        else:
+            unrepresentable = True  # e.g. "每日10次": a real count, not one the table has a slot shape for
+    rest = _PER_DAY_COUNT_RE.sub(" ", rest)  # consumed either way, so the bare 每天/每日 row below can't re-read it
     for pattern, n in _PER_DAY:
         if pattern.search(rest):
             said_daily = True
@@ -554,8 +647,10 @@ def parse_dose_instruction(text: str | None) -> Schedule | None:
             rest = pattern.sub(" ", rest)
     if _ONCE_RE.search(raw):
         counts.add(1)
-    if len(counts) > 1:
+    if unrepresentable or len(counts) > 1 or len(period_candidates) > 1:
         return None
+    if period_candidates:
+        period_days = next(iter(period_candidates))
     if said_daily:
         frequencies += 1  # counted even when another frequency already won: two frequencies is no parse
         n = next(iter(counts)) if counts else 1

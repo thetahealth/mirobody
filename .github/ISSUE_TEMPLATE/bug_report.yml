@@ -1,0 +1,116 @@
+name: Something does not work
+description: "It did not start, a page failed, an answer was wrong. Not for a wrong term or an upload with no indicators: those have their own forms."
+title: "bug: <what you did> → <what happened>"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A report that cannot be reproduced costs a round trip before anyone
+        can look at it, and three facts are what that round trip asks for:
+        the version, how it is deployed and which model it runs on. They are
+        required below. 可以用中文填写。
+
+        Two problems have a form of their own, with the questions that
+        tell their causes apart: a term `mirobody resolve` got wrong, and a
+        report that uploaded and gave no indicators. A question about how to
+        do something goes to Discussions.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: >-
+        The release tag you deployed. A running app prints it as
+        `server_version` at `http://localhost:18060/mirobody.json`; the
+        library does with `python -c 'import mirobody; print(mirobody.__version__)'`.
+        On a checkout that is not a release, add `git rev-parse --short HEAD`.
+      placeholder: "1.6.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How it is deployed
+      options:
+        - Docker (./deploy.sh or docker compose)
+        - Native install (scripts/install_native.sh)
+        - GitHub Codespaces
+        - The library alone (pip install mirobody)
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Operating system and hardware
+      placeholder: "macOS 15 on Apple silicon, 16 GB / Windows 11 with WSL 2 / Ubuntu 24.04, no GPU"
+  - type: dropdown
+    id: model
+    attributes:
+      label: Which model it runs on
+      description: The key in your `.env`, or the local model. Name the variable, never its value.
+      options:
+        - OPENROUTER_API_KEY
+        - DASHSCOPE_API_KEY
+        - GOOGLE_API_KEY / GEMINI_API_KEY
+        - OPENAI_API_KEY
+        - ANTHROPIC_API_KEY
+        - DEEPSEEK_API_KEY
+        - Another OpenAI-compatible endpoint via <PREFIX>_BASE_URL
+        - Local models, 100% on this machine (the setup page, or COMPOSE_PROFILES=local / local-cpu)
+        - My own model server (LOCAL_BASE_URL)
+        - None, or the problem comes before any model is used
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`mirobody doctor` output"
+      description: >-
+        `docker compose exec mirobody python -m mirobody doctor` in Docker,
+        `mirobody doctor` otherwise. It prints which model each surface
+        selected and carries no secrets: keys are shown as present or absent
+        only. Paste it when the problem involves an answer, an upload or a
+        model: a model name you set yourself shows up here.
+      render: text
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: >-
+        The commands or clicks, in order, from a state someone else can
+        reach: a fresh `./deploy.sh`, the demo account. If it happens on
+        the demo account with a file from `demo/upload/`, say which file,
+        and nothing of yours has to leave your machine.
+      placeholder: |
+        1. ./deploy.sh, sign in as you@mirobody.ai
+        2. Data page, upload demo/upload/you_annual_checkup_2026-05.pdf
+        3. Ask "..."
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What you expected, and what happened instead
+      description: The exact error text or a screenshot helps more than a description of it. Hide anything personal in a screenshot first.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log excerpt
+      description: >-
+        `docker compose logs --tail 100 mirobody mirobody_worker` in Docker;
+        a native install prints where its two log files are when it starts.
+        The lines around the failure are plenty. Before pasting, take out
+        health data and secrets: no values or names from a report, no API
+        keys, no tokens, no lines of `.env`.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before filing
+      options:
+        - label: Nothing pasted above is health data, a key or a token
+          required: true
+        - label: I restarted after editing `.env` (`docker compose up -d`; a `restart` does not reread it)

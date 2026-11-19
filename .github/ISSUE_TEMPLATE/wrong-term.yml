@@ -48,4 +48,4 @@ body:
   - type: input
     id: version
     attributes:
-      label: "`mirobody --version` and `python -c 'import mirobody; print(mirobody.BUNDLE_VERSION)'`"
+      label: "`python -c 'import mirobody; print(mirobody.__version__, mirobody.BUNDLE_VERSION)'`"

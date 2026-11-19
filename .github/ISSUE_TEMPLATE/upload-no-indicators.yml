@@ -75,8 +75,8 @@ body:
     id: version
     attributes:
       label: Version
-      description: "`mirobody --version`, or the release tag you deployed."
-      placeholder: "1.4.1"
+      description: "The release tag you deployed, or `server_version` from `http://localhost:18060/mirobody.json`."
+      placeholder: "1.6.1"
     validations:
       required: true
   - type: checkboxes
@@ -85,4 +85,4 @@ body:
       label: Before filing
       options:
         - label: "`mirobody doctor` shows a model for the *vision* surface (a text-only model cannot read a scan or a photo)"
-        - label: I restarted after editing `.env` (`docker compose restart` — a shell `export` does not reach the containers)
+        - label: I restarted after editing `.env` (`docker compose up -d`; a `restart` does not reread it, and a shell `export` does not reach the containers)
