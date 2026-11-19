@@ -32,6 +32,7 @@ the two are separate). Add the row, add the case here, and the score goes up.
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 
 import pytest
@@ -780,6 +781,40 @@ def test_coverage(resolver):
         f"coverage {coverage:.0%} is below the {COVERAGE_FLOOR:.0%} floor; "
         f"{len(misses)} miss(es): " + "; ".join(f"{t} — {why}" for t, why in misses)
     )
+
+
+# Where the score above is published, and the phrase each page prints it in.
+# The pages said 347/347 through 1.6.2 while this module printed 356/356 after
+# #301 (test_engine_coverage_devices.py records it) and 423/423 by 1.6.2: every
+# case added here moved the real number and none of the pages followed.
+_PUBLISHED_SCORE = {
+    "README.md": "{n}/{n}",
+    "README.zh-CN.md": "{n}/{n}",
+    "README.ja.md": "{n}/{n}",
+    "docs/standardization.md": "{n}/{n}",
+    "docs/standardization.zh-CN.md": "{n}/{n}",
+    "docs/testing.md": "{n} cases",
+    "skills/standardize-health-data/SKILL.md": "{n}/{n}",
+}
+
+
+def test_the_published_score_is_the_case_count():
+    """Every page that quotes the score quotes this module's case count.
+
+    With `COVERAGE_FLOOR` at 1.0 a passing `test_coverage` prints N/N, N being
+    the case count, so the pages are checked without resolving anything. A new
+    case changes these pages in the same commit.
+    """
+    root = pathlib.Path(mirobody.__file__).resolve().parent.parent
+    if not (root / "docs").is_dir():
+        pytest.skip("docs/ ships in the repository, not in the wheel or the sdist")
+    n = len(CASES) + len(MUST_NOT_RESOLVE)
+    stale = [
+        rel
+        for rel, phrase in _PUBLISHED_SCORE.items()
+        if phrase.format(n=n) not in (root / rel).read_text(encoding="utf-8")
+    ]
+    assert not stale, f"these pages do not print the current score {n}/{n}: {stale}"
 
 
 # ── unit-consistent codes: resolve_reading vs resolve ────────────────────────
