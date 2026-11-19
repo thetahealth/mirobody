@@ -23,13 +23,17 @@ five page pictures are the pages of release 1.6.1 as the browser drew them, in
 a window 880 to 1056 px wide and cut to 16:9, so the subject stays readable
 when a feed shows the picture about 500 px wide. They come from a stack started
 with `./deploy.sh`: the first-run page before it had a model, the others with
-one model key, after the four files in `demo/upload/` were uploaded to the
-accounts they belong to.
+one model key, after the four 2026 files in `demo/upload/` were uploaded to the
+accounts they belong to (`you_annual_checkup_2026-05.pdf` and
+`you_lipid_panel_2026-08.csv` as `you`, `mom_physical_2026-06.jpg` and
+`mom_clinic_visit_2026-07.xlsx` as `mom`). The three earlier years for `you`
+came later and are not in the pictures; with them uploaded too, `you`'s
+cholesterol carries more readings than the pictures show.
 
 | File | What it shows | The README line it backs | Languages |
 | --- | --- | --- | --- |
 | [`ask-own-shot.zh-CN.png`](ask-own-shot.zh-CN.png) | The answer to "我的胆固醇这几年是怎么变化的？" on the Ask page: the chart the agent drew of four lipid tests across three reports, the table under it, and one underlined value opened. The popover shows the reading as the report printed it (`Total Cholesterol-TC`, 4.45 mmol/L), its reference range and the PDF it was read from. | "Three reports, three names for the same test. One trend, with the file behind every number." | 中文 |
-| [`upload-shot.zh-CN.png`](upload-shot.zh-CN.png) | Total cholesterol's drawer on the Indicators page once the demo files are in. Two reports print the test as `Total Cholesterol-TC` and the third as `Cholesterol, Total`; the drawer shows one indicator with one unit, one LOINC code (14647-2), three readings, and the start of their trend. | "② Standardize: … resolve to one code, units to one standard" and "Compare reports across labs." | 中文 |
+| [`upload-shot.zh-CN.png`](upload-shot.zh-CN.png) | Total cholesterol's drawer on the Indicators page after `you`'s two 2026 uploads. Two reports print the test as `Total Cholesterol-TC` and the third as `Cholesterol, Total`; the drawer shows one indicator with one unit, one LOINC code (14647-2), three readings, and the start of their trend. | "② Standardize: … resolve to one code, units to one standard" and "Compare reports across labs." | 中文 |
 | [`ask-circle-shot.zh-CN.png`](ask-circle-shot.zh-CN.png) | The Ask page with 帮他问 (Query for) set to Mom's record, which the signed-in demo account may only view: the question, the first lines of the answer, and the chart of her total cholesterol across three reports. | "Look after your family. Invite someone who shares their own record, or keep one for a parent who never signs in." | 中文 |
 | [`resolve-shot.zh-CN.png`](resolve-shot.zh-CN.png) | `uvx --python 3.12 mirobody resolve 血红蛋白 ヘモグロビン 血脂` and what it printed, set as a terminal window. Both names get LOINC 718-7 and 血脂 stays unresolved. The output is the command's own (1.6.1), character for character and uncoloured, wrapped the way a 90-column terminal wraps it. The two lines under the window are a caption, not output. | "`血红蛋白` and `ヘモグロビン` both resolve to `718-7`. `血脂` stays unresolved: it names a category, not one test." | 中文 caption; the output is the same in every language |
 | [`setup-shot.zh-CN.png`](setup-shot.zh-CN.png) | The first-run page of a deployment that has no model yet: a model service with one API key, or 100% on this machine with llama.cpp and no key, and what each choice means for speed, privacy and requirements. | "Where the app runs and where the model runs are separate choices." | 中文 |
