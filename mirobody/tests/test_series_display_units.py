@@ -32,6 +32,7 @@ from mirobody.collect.query import (
     _catalog_row,
     _latest_row,
     _like,
+    _ranges_differ,
     _reading_row,
     _record_row,
     _series_unit,
@@ -256,6 +257,21 @@ class _MemoryHealthQuery:
                 "reported": top["reported"],
             }, su))
         return out[:limit]
+
+    def ranges_differ(self, subject_id: str, sel: query.Selection, window: query.Window) -> dict[str, bool]:
+        """`PostgresHealthQuery.ranges_differ` over these rows: the same
+        `low|high|unit|code|system` variants its SQL aggregates, judged by
+        the same `_ranges_differ`."""
+        unit_of = self.series_units()
+        variants: dict[str, set[str]] = {}
+        for r in self._select(sel, window):
+            if r.get("ref_low") is None and r.get("ref_high") is None:
+                continue
+            low = "" if r.get("ref_low") is None else str(r["ref_low"])
+            high = "" if r.get("ref_high") is None else str(r["ref_high"])
+            variants.setdefault(r["series_id"], set()).add(
+                f"{low}|{high}|{r.get('unit_ucum') or ''}|{r.get('code') or ''}|{r.get('code_system') or ''}")
+        return {sid: _ranges_differ(sorted(v), unit_of.get(sid)) for sid, v in variants.items()}
 
     def stats(
         self,
