@@ -914,7 +914,10 @@ class HealthQuery(Protocol):
     authority: the same numbers a dashboard shows, by construction; raw
     rows are newest first; buckets are the newest ``limit`` per series,
     oldest first; both carry ``total`` per series so a cut can say so;
-    ``latest`` is the most recent value *inside the window*."""
+    ``latest`` is the most recent value *inside the window*. ``ranges_differ``
+    says per series id whether its readings in the window print more than one
+    reference range: the tool layer merges it into ``trend_rows``, which has
+    no database to ask, so an implementation without it broke every trend."""
 
     def tz(self, subject_id: str) -> str: ...
     def on_read(self, subject_id: str) -> None: ...
@@ -924,6 +927,7 @@ class HealthQuery(Protocol):
     def stats(self, subject_id: str, sel: Selection, window: Window, *,
               value_min: float | None = None, value_max: float | None = None) -> Rows: ...
     def latest(self, subject_id: str, sel: Selection, window: Window) -> Rows: ...
+    def ranges_differ(self, subject_id: str, sel: Selection, window: Window) -> dict[str, bool]: ...
 
 
 __all__ = [

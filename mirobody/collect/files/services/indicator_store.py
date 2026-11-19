@@ -24,7 +24,7 @@ from mirobody.collect import observations
 from mirobody.collect.files.services.report_date import document_date, file_source_ref
 from mirobody.collect.files.services.table_indicators import printed_flag, split_flag
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.standardize import RANGE_SEPARATOR
+from mirobody.standardize import RANGE_SEPARATOR, parse_range, parse_value
 from mirobody.units import numerals
 
 logger = logging.getLogger(__name__)
@@ -107,17 +107,34 @@ def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
     number (`6.49↑`, `5.6 H`) is moved out of the value the way the table
     rules move it (`split_flag`, the same `L`-is-litres guard). The rules
     retain a copied column or trailing flag in `_printed_flag`; else the
-    row's `status`, and for a measurement only when the row prints a range
-    to judge it by. Either is kept only as `high` or `low`: a `normal` is a
-    judgement, not a flag. Left in, `6.49↑` was stored as a narrative with
-    no number: all 16 value errors of GLM-OCR's end-to-end run
-    (benchmarks/local_ocr, 2026-10-06). A measurement's `status` with no
-    range was the model's own opinion: an outpatient note's 4.76 mmol/L
-    glucose was stored `high` (2026-10-10). An imaging or pathology finding
-    has no range, and its `high` means abnormal."""
+    row's `status`, kept only where the read side cannot work the answer
+    out for itself, because `status` is the extraction's opinion, not
+    something printed a reader could check. Either is kept only as `high`
+    or `low`: a `normal` is a judgement, not a flag.
+
+    A quantity whose printed range also parses to numbers is NOT judged
+    here any more: `collect/query.py::_flag_of` compares the stored
+    `value_num` against `ref_low`/`ref_high` at read time, off the same two
+    columns every other view already reads, so a reader never sees a
+    judgement this function would have had to store to make. A measurement's
+    `status` with no range, or a range too numeric to need a model's opinion
+    on, was the model's own guess, not the report's: an outpatient note's
+    4.76 mmol/L glucose with no printed range was stored `high` on the
+    model's word alone (2026-10-10), and a 5.6 mmol/L glucose printed inside
+    its own 3.9–6.1 range was still handed to a reader as `high` because this
+    function kept whatever the model wrote once any range was present
+    (2026-11-18). `status` is still kept for what the read side cannot judge: a
+    qualitative result (阳性/阴性, no number to compare) and an imaging or
+    pathology finding, whose `high` means abnormal, not above a range it
+    does not print. Left in, `6.49↑` was stored as a narrative with no
+    number: all 16 value errors of GLM-OCR's end-to-end run
+    (benchmarks/local_ocr, 2026-10-06)."""
     ref = str(indicator.get("reference_range") or "")
     value, printed = split_flag(str(indicator.get("value") or ""), ref)
-    judged = ref.strip() or str(indicator.get("detection_method") or "") in FINDING_METHODS
+    is_finding = str(indicator.get("detection_method") or "") in FINDING_METHODS
+    numeric_judgment = (not is_finding and parse_value(value, str(indicator.get("unit") or "")).value_kind == "quantity"
+                        and parse_range(ref) != (None, None))
+    judged = is_finding or (bool(ref.strip()) and not numeric_judgment)
     copied = str(indicator.get("_printed_flag") or "")
     flag = printed_flag(printed or copied or (str(indicator.get("status") or "") if judged else ""))
     return value, flag if flag in STORED_FLAGS else ""

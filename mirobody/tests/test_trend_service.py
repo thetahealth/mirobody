@@ -18,11 +18,14 @@ def daily(values, *, total=None, reported=False):
             for i, value in enumerate(values)]
 
 
-async def envelope(rows):
+async def envelope(rows, *, ranges_differ=None):
     hq = Mock()
     hq.tz.return_value = "UTC"
     hq.on_read.return_value = None
     hq.buckets.return_value = rows
+    # A bare Mock answers any call with another Mock; `ranges_differ` must be
+    # a real dict, the shape `_dispatch` merges into `trend_rows`' result.
+    hq.ranges_differ.return_value = ranges_differ or {}
     result = await HealthIndicatorsService(hq, outside_note=False).envelope(
         {"user_id": "1"}, indicators=["Synthetic metric"], view="trend")
     hq.catalog.assert_not_called()
@@ -73,3 +76,18 @@ async def test_insufficient_points_do_not_print_a_fabricated_percentage():
     result = await envelope(daily([1, 2]))
     assert result.status == "partial" and result.data[0]["direction"] == "insufficient"
     assert "None%" not in render_compact(result)
+
+
+async def test_ranges_differ_is_merged_in_by_series_id():
+    """`trend_rows` has no database to ask; `_dispatch` merges
+    `hq.ranges_differ`'s answer into its result by series id, the same
+    marker `stats()` computes for its own rows."""
+    result = await envelope(daily([1, 2, 3, 2, 1]), ranges_differ={"synthetic-series": True})
+    assert result.data[0]["ranges_differ"] is True
+    assert "ranges_differ=True" in render_compact(result)
+
+
+async def test_ranges_differ_defaults_false_for_an_unlisted_series():
+    result = await envelope(daily([1, 2, 3, 2, 1]))
+    assert result.data[0]["ranges_differ"] is False
+    assert "ranges_differ=False" in render_compact(result)

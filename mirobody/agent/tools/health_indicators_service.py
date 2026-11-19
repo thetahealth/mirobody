@@ -264,7 +264,15 @@ class HealthIndicatorsService(RecordTool):
             return await awaited(hq.buckets(subject_id, sel, window, resolution=request.view, limit=self._bucket_cap))
         if method == "trend":
             daily = await awaited(hq.buckets(subject_id, sel, window, resolution="day", limit=400))
-            return query.trend_rows(daily)
+            rows = query.trend_rows(daily)
+            # `trend_rows` is pure (kernel layer, no database): the marker a
+            # trend's own several elected days need is merged in here, by
+            # series id, the same one `stats()` computes for its own rows
+            # (`PostgresHealthQuery.ranges_differ`).
+            differs = await awaited(hq.ranges_differ(subject_id, sel, window))
+            for row in rows:
+                row["ranges_differ"] = differs.get(str(row.get("series") or ""), False)
+            return rows
         if method == "stats":
             if not request.banded:
                 return await awaited(hq.stats(subject_id, sel, window))
