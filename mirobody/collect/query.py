@@ -74,6 +74,8 @@ from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
 from mirobody.collect.observations import (
+    GRAIN_DAY,
+    GRAIN_WINDOW,
     KIND_CONDITION,
     KIND_MEASUREMENT,
     KIND_NOTE,
@@ -111,7 +113,14 @@ _LOCAL_TS = (
 
 # Whole-second formatting collapsed distinct device samples onto one displayed
 # instant. Keep PostgreSQL's microseconds without padding whole-second rows.
-_LOCAL_TIME = f"rtrim(rtrim(to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS.US'), '0'), '.')"
+# A day figure (`grain='day'`, a device's daily minimum or total) is a
+# statistic of the day stored at local midnight, so it shows its date alone:
+# shown "2026-11-18 00:00:00", a local model answered that the day's lowest
+# heart rate fell at midnight (1.6.2 release test).
+_LOCAL_TIME = (
+    f"CASE WHEN o.grain = '{GRAIN_DAY}' THEN to_char({_LOCAL_TS}, 'YYYY-MM-DD')"
+    f" ELSE rtrim(rtrim(to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS.US'), '0'), '.') END"
+)
 
 #: Each series' unit (`SeriesUnit`), joined to its readings: four parallel
 #: arrays from `_unit_params`, so one statement reads every series in its own
@@ -868,16 +877,20 @@ class PostgresHealthQuery:
         # within a day got no fewer rows (#303).
         where = _subday_window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
-        # `min_at`/`max_at`: the clock time a question like "when was it
-        # lowest between 2 and 5am" needs. Only `hour` buckets get them - a
-        # `minute` bucket already IS the minute its one value fell in, so a
-        # clock time would say nothing a `minute` row does not already. Ties
-        # go to the earliest occurrence, for both the minimum and maximum.
+        # `min_at`/`max_at`: the clock time "when was it lowest between 2 and
+        # 5am" needs, for `hour` buckets only (a `minute` bucket already is
+        # its minute); ties go to the earliest. Only a reading taken at a
+        # moment has one: a day figure sits at local midnight and a window
+        # at its start, and with `min_at=00:00` beside Apple's daily minimum
+        # a local model answered "lowest 48 at 00:00" (1.6.2 release test).
         extremes = (
-            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC))[1] AS min_at,"
-            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC))[1] AS max_at"
+            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS min_at,"
+            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS max_at"
         ) if resolution == "hour" else ""
-        clock = f", to_char({_LOCAL_TS}, 'HH24:MI') AS clock, {_LOCAL_TS} AS local_ts" if resolution == "hour" else ""
+        clock = (
+            f", CASE WHEN o.grain IN ('{GRAIN_DAY}', '{GRAIN_WINDOW}') THEN NULL"
+            f" ELSE to_char({_LOCAL_TS}, 'HH24:MI') END AS clock, {_LOCAL_TS} AS local_ts"
+        ) if resolution == "hour" else ""
         return await execute_query(
             f"""
             WITH base AS (
