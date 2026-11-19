@@ -352,9 +352,10 @@
   alone answers 15324-7, PSA divided by prostate volume, and the unit used
   to drop that ratio's denominator to reach PSA itself. The METHOD check
   that keeps Thrombin time off aPTT (same component, `coagulation`) was
-  also applied to that step, and 15324-7's `Calculated.PLN` matched no
-  plain PSA assay. It now applies to siblings of the same component only;
-  Thrombin time still answers 3243-3. The names themselves are fixed too:
+  also required on that step, and 15324-7's `Calculated.PLN` matched no
+  plain PSA assay. On a step to another component it is now preferred, not
+  required: PSA is reached, a cardiac index by angiography still keeps its
+  technique, and Thrombin time still answers 3243-3. The names themselves are fixed too:
   `前列腺特异性抗原`, `总前列腺特异性抗原`, `tPSA` and bare `PSA` (which answered
   10886-0, the free fraction) now answer total PSA 2857-1, and `f/tPSA` the
   free/total ratio. On the maintainers' resolver set two cases move, both

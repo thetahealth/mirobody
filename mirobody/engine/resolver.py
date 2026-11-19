@@ -938,23 +938,26 @@ class OfflineResolver:
         identity = _method_identity(current[5])
 
         def _matching(component: bytes, *, same_test: bool = False) -> list:
-            # METHOD identity binds siblings of the SAME component only: it
-            # is what tells PT, aPTT and TT apart under "coagulation". A
+            # METHOD identity binds siblings of the SAME component: it is
+            # what tells PT, aPTT and TT apart under "coagulation". A
             # fallback to another component (a ratio's numerator, a
-            # differential's percentage) leaves the chosen row's test
-            # behind by design, so its METHOD says nothing there: with it
-            # required, `前列腺特异性抗原 0.55 ng/mL` could not drop
-            # 15324-7's `Calculated.PLN` to reach PSA itself (2857-1).
-            keep = identity if same_test else ""
-            return [
+            # differential's percentage) only PREFERS it: required there,
+            # `前列腺特异性抗原 0.55 ng/mL` could not drop 15324-7's
+            # `Calculated.PLN` to reach PSA itself (2857-1), while a cardiac
+            # index by angiography keeps its technique when its numerator
+            # has one.
+            fitting = [
                 r
                 for r in (
                     self._axis_row(i) for i in self._component_index().get(component, [])
                 )
                 if ((not families) or r[2] in families)
                 and ((not scales) or r[3] in scales)
-                and (not keep or _method_identity(r[5]) == keep)
             ]
+            if not identity:
+                return fitting
+            kept = [r for r in fitting if _method_identity(r[5]) == identity]
+            return kept if (same_test or kept) else fitting
 
         siblings = _matching(current[1].encode("utf-8"), same_test=True)
         same_test = bool(siblings)
