@@ -616,6 +616,13 @@ CASES: list[tuple[str, str, str]] = [
     ("最高血圧",                        r"^systolic blood pressure$",    r""),
     ("最低血圧",                        r"^diastolic blood pressure$",   r""),
     ("收缩期血压",                       r"^systolic blood pressure$",    r""),
+    # ── PSA: total, not its density (15324-7) or free fraction (10886-0) ────
+    ("前列腺特异性抗原",                    r"^prostate specific ag \[mass", r"free|prostate volume"),
+    ("PSA",                          r"^prostate specific ag \[mass", r"free|prostate volume"),
+    ("总前列腺特异性抗原",                   r"^prostate specific ag \[mass", r"free|prostate volume"),
+    ("tPSA",                         r"^prostate specific ag \[mass", r"free|prostate volume"),
+    ("fPSA",                         r"prostate specific ag free \[", r"total"),
+    ("f/tPSA",                       r"free/prostate specific ag\.total", r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names

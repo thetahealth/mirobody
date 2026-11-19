@@ -1685,3 +1685,20 @@ Pulse rate	Heart rate
 最低血圧	Diastolic blood pressure
 收缩期血压	Systolic blood pressure
 舒张期血压	Diastolic blood pressure
+
+# ── PSA: the screening test, not its density or its free fraction ─────────
+# A check-up's `前列腺特异性抗原` (total PSA, ng/mL) answered 15324-7, PSA
+# divided by prostate volume (an ultrasound-derived density), and bare `PSA`
+# answered 10886-0, the FREE fraction: the maintainers' resolver set expects
+# 2857-1 for both. On 1.6.1 the ng/mL unit rescued the first through the
+# ratio's numerator; once the release test (2026-11-19) caught 1.6.2
+# refusing it, the name itself was taught the answer.
+前列腺特异性抗原	Prostate specific Ag [Mass/volume] in Serum or Plasma
+總前列腺特異性抗原	Prostate specific Ag [Mass/volume] in Serum or Plasma
+总前列腺特异性抗原	Prostate specific Ag [Mass/volume] in Serum or Plasma
+PSA	Prostate specific Ag [Mass/volume] in Serum or Plasma
+tPSA	Prostate specific Ag [Mass/volume] in Serum or Plasma
+TPSA	Prostate specific Ag [Mass/volume] in Serum or Plasma
+游离/总前列腺特异性抗原比值	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
+f/tPSA	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
+FPSA/TPSA	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma

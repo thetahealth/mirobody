@@ -937,7 +937,15 @@ class OfflineResolver:
 
         identity = _method_identity(current[5])
 
-        def _matching(component: bytes) -> list:
+        def _matching(component: bytes, *, same_test: bool = False) -> list:
+            # METHOD identity binds siblings of the SAME component only: it
+            # is what tells PT, aPTT and TT apart under "coagulation". A
+            # fallback to another component (a ratio's numerator, a
+            # differential's percentage) leaves the chosen row's test
+            # behind by design, so its METHOD says nothing there: with it
+            # required, `前列腺特异性抗原 0.55 ng/mL` could not drop
+            # 15324-7's `Calculated.PLN` to reach PSA itself (2857-1).
+            keep = identity if same_test else ""
             return [
                 r
                 for r in (
@@ -945,10 +953,11 @@ class OfflineResolver:
                 )
                 if ((not families) or r[2] in families)
                 and ((not scales) or r[3] in scales)
-                and (not identity or _method_identity(r[5]) == identity)
+                and (not keep or _method_identity(r[5]) == keep)
             ]
 
-        siblings = _matching(current[1].encode("utf-8"))
+        siblings = _matching(current[1].encode("utf-8"), same_test=True)
+        same_test = bool(siblings)
         if not siblings:
             # A differential percentage and a differential count are two
             # COMPONENTs, not two properties of one: `neutrophils/leukocytes`
@@ -993,9 +1002,9 @@ class OfflineResolver:
             # moves from 11572-5 (Ser/Plas) to its Ql code in Ser.
             own = _specimen_tokens(current[4])
             same_system = [r for r in siblings if _specimen_tokens(r[4]) & own]
-        if not same_system and identity and _is_venipuncture_draw(current[4]):
-            # Scoped to `identity` -- set only once METHOD already agreed
-            # the sibling is the SAME test -- so this never substitutes
+        if not same_system and identity and same_test and _is_venipuncture_draw(current[4]):
+            # Scoped to `identity` on same-component siblings -- METHOD
+            # already agreed the sibling is the SAME test -- so this never substitutes
             # for the specimen check on an ordinary analyte: it only
             # widens what "one draw" already means for a component like
             # `coagulation`, whose rows record it at varying granularity.
