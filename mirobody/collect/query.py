@@ -877,16 +877,12 @@ class PostgresHealthQuery:
         # within a day got no fewer rows (#303).
         where = _subday_window_clause(params, window)
         trunc = _SUBDAY_TRUNC[resolution]
-        # `min_at`/`max_at`: the clock time a question like "when was it
-        # lowest between 2 and 5am" needs. Only `hour` buckets get them - a
-        # `minute` bucket already IS the minute its one value fell in, so a
-        # clock time would say nothing a `minute` row does not already. Ties
-        # go to the earliest occurrence, for both the minimum and maximum.
-        # Only a reading taken at a moment has a clock time. A day figure
-        # (`grain='day'`, Apple's `dailyMinHeartRates`) sits at local
-        # midnight: given one, a local model answered "lowest 48 at 00:00"
-        # (1.6.2 release test). A window (a sleep session's minimum) sits at
-        # its start, which is not when its extreme happened.
+        # `min_at`/`max_at`: the clock time "when was it lowest between 2 and
+        # 5am" needs, for `hour` buckets only (a `minute` bucket already is
+        # its minute); ties go to the earliest. Only a reading taken at a
+        # moment has one: a day figure sits at local midnight and a window
+        # at its start, and with `min_at=00:00` beside Apple's daily minimum
+        # a local model answered "lowest 48 at 00:00" (1.6.2 release test).
         extremes = (
             ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS min_at,"
             " (array_agg(clock ORDER BY value_std DESC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS max_at"
