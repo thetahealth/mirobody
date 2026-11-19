@@ -98,6 +98,23 @@
 
 ### Fixed
 
+- **A check-up's pulse, waist and Japanese height code.** An outpatient
+  note's vitals line or a check-up's physical-exam section prints `脉搏 78
+  次/分`; `脉搏` resolved to nothing, so the pulse was stored uncoded, while
+  the English `Pulse` already answered 8867-4. `脈搏`, `脉率`, `心跳`,
+  `Pulse rate`, `脈拍` and `心拍数` answered nothing too, and so did `腋温`,
+  `腰围` and the Japanese `腹囲`. `身長` (Japanese height) and `身长` were
+  worse: they answered 94863-8, a transthyretin electrophoresis width. Each
+  now resolves through `resolver_overrides.tsv` to Heart rate, Axillary
+  temperature, Waist circumference or Body height, and `最高血圧`/`最低血圧`
+  and `收缩期血压`/`舒张期血压` to systolic and diastolic blood pressure. On the
+  maintainers' resolver set this moves four cases from no answer to the
+  right analyte and nothing else. The single letters `P`, `R` and `T` still
+  answer nothing: on a lab report `P` is phosphorus. Hip circumference and
+  waist-to-hip ratio stay uncoded: the bundled index has no row for them.
+  Readings already stored pick up the code with `mirobody recode`. To tell:
+  `mirobody resolve 脉搏` prints 8867-4.
+
 - **Examination findings are listed apart from lab analytes.** The backend
   stores an imaging or pathology row as `kind='finding'`, and every
   catalogue row carries that `kind`, but the Indicators panel never read
