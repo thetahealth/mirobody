@@ -879,13 +879,14 @@ class PostgresHealthQuery:
         trunc = _SUBDAY_TRUNC[resolution]
         # `min_at`/`max_at`: the clock time "when was it lowest between 2 and
         # 5am" needs, for `hour` buckets only (a `minute` bucket already is
-        # its minute); ties go to the earliest. Only a reading taken at a
-        # moment has one: a day figure sits at local midnight and a window
-        # at its start, and with `min_at=00:00` beside Apple's daily minimum
-        # a local model answered "lowest 48 at 00:00" (1.6.2 release test).
+        # its minute); ties go to the earliest. It is the clock of the row
+        # that IS the extreme, so none when that row has none: a day figure
+        # sits at local midnight and a window at its start ("lowest 48 at
+        # 00:00", a local model, 1.6.2 release test); skipping such rows
+        # paired a day figure's minimum with another reading's time.
         extremes = (
-            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS min_at,"
-            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS max_at"
+            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC))[1] AS min_at,"
+            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC))[1] AS max_at"
         ) if resolution == "hour" else ""
         # A day figure (`grain='day'`, Apple's daily minimum heart rate) has
         # no hour either: its bucket is labelled with the date alone, since

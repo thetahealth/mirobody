@@ -63,9 +63,10 @@
   Only readings taken at a moment give them: a day figure (an Apple
   export's daily minimum heart rate, stored at local midnight) and a window
   (a sleep session's minimum, stored at its start) do not, since neither
-  time is when the extreme happened; with `min_at=00:00` beside a day
-  figure, a local model answered that the lowest heart rate fell at
-  midnight. How to tell: `query_health_indicators(view="hour", ...)` rows show
+  time is when the extreme happened, and a bucket whose minimum is such a
+  figure names no time for it; with `min_at=00:00` beside a day figure, a
+  local model answered that the lowest heart rate fell at midnight. How to
+  tell: `query_health_indicators(view="hour", ...)` rows show
   `min_at`/`max_at` beside `min`/`max`; a `minute` call's rows do not.
 
 - **Still screenshots of the app, and an index of every picture in
