@@ -1,5 +1,28 @@
 ## Unreleased
 
+### Added
+
+- **An ECG's `HR`, `RV5` and `SV1` are coded under their heading** (#281
+  item 3). They were stored, but each as a series named only by its
+  abbreviation, under a `local:` key: nothing in the vocabulary answers them,
+  and `observations.Draft.panel_text` existed with nothing filling it. The
+  file extraction now keeps the section heading a row was printed under: the
+  model returns it as `panel`, and the table rules take it from the one-cell
+  row above a table's header, held over a repeated header and into a table
+  that continues the page's panel, and dropped by a table that opens on a
+  header of its own. A reading under an ECG heading (`心电图`, `心電圖`,
+  `心電図`, `ECG`, `EKG`, `Electrocardiogram`) is coded from a new table,
+  `res/loinc/panel_terms.tsv`, after a person's alias and before the
+  resolver: `HR` is 8867-4, the code `心率` already resolves to, so the two
+  spellings are one series; `RV5` 9995-2, `SV1` 10040-4, `PR` 8625-6, `QRS`
+  8633-0, `QT` 8634-8, `QTc` 8636-3, the axis 8632-2, and their Chinese
+  spellings the resolver misses (`P-R间期`, `QRS时限`, `电轴`). The same `HR`
+  on a lab page, or with no heading, is not guessed. The printed unit is
+  checked as the resolver checks its own answer, so `RV5 18 mm` (the paper's
+  millimetres) needs input instead of taking a millivolt code. A file read
+  before keeps its uncoded rows until it is read again (重新处理 in 数据 ›
+  文件).
+
 ## 1.6.2
 
 ### Upgrade notes

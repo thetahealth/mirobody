@@ -81,7 +81,14 @@ a measurement goes to `code()`, which asks in this order of authority:
 2. **The device catalogue**, for a device batch only. Its vendor names are
    ordinary words (`cholesterol` is dietary intake there), so a typed name
    never consults it.
-3. **The lexical resolver**, `engine.resolve_reading`, whose only accepted
+3. **A name its section's heading scopes** (`standardize/panels.py`, rows in
+   `res/loinc/panel_terms.tsv`). `HR`, `RV5` and `SV1` printed under `心电图`
+   or `ECG` are a heart rate and two lead amplitudes; with no such heading
+   they fall through, because an abbreviation alone is nobody's guess. The
+   heading is the row's `panel_text`, which the file extraction fills from
+   the section a row was printed under. The printed unit is checked against
+   the code as the resolver checks its own: `RV5 18 mm` needs input.
+4. **The lexical resolver**, `engine.resolve_reading`, whose only accepted
    method is `lexical`.
 
 Inside the resolver (`engine/resolver.py`):

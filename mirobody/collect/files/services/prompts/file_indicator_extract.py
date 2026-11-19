@@ -18,6 +18,12 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
     MiniCPM5-2B labelled all six vitals of an outpatient note `Examination`
     when only the schema described the method.
 
+    `panel` is the section heading a row was printed under, kept as printed
+    for `Draft.panel_text`. A heading is what says `HR`, `RV5` and `SV1` are
+    ECG measurements: without it each was stored as a series named only by
+    its abbreviation (#281), and `standardize.panels` codes those names only
+    under an ECG heading. The ECG example is there for the same small models.
+
     Args:
         language (str): User's preferred language code (e.g., 'zh-cn', 'en', 'ja', 'ko', 'es', etc.)
 
@@ -112,6 +118,7 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 | status | "high" / "low" as the report flags it (an arrow, H/L, 偏高/偏低), or by comparing with the reference range printed on this row; "normal" when neither says otherwise. Never judge a value from general knowledge |
 | notes | Clinical significance or abnormality explanation in user's language |
 | date_time | The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a log, a table by day); empty string when the row has the document's date |
+| panel | The section heading this row is printed under, EXACTLY as printed (e.g., "心电图", "肝功能", "Lipid Panel"); empty string if the row is under no heading. Never the row's own name |
 
 ### Completeness Requirements:
 1. **Extract EVERY indicator** listed in the report, including normal results
@@ -121,6 +128,7 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
 6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators, each with its own value and named for its half — 收缩压/舒张压, or Systolic/Diastolic blood pressure — never the pair's own printed name ("血压") twice
 7. **Rows with their own dates**: In a log or a table by day, each row's values are separate indicators carrying that row's `date_time`; the same name on twelve days is twelve indicators
+8. **Section headings**: A row printed under a section heading (心电图, 血常规, Lipid Panel) carries that heading in `panel`. The heading itself is not an indicator
 
 ---
 
@@ -159,8 +167,8 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
     "reference_number": ""
   }},
   "indicators": [
-    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高", "date_time": ""}},
-    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": "", "date_time": ""}}
+    {{"original_indicator": "白细胞计数", "value": "15.5", "reference_range": "4.0-10.0", "unit": "×10⁹/L", "detection_method": "laboratory", "status": "high", "notes": "偏高", "date_time": "", "panel": "血常规"}},
+    {{"original_indicator": "红细胞计数", "value": "4.5", "reference_range": "4.0-5.5", "unit": "×10¹²/L", "detection_method": "laboratory", "status": "normal", "notes": "", "date_time": "", "panel": "血常规"}}
   ],
   "additional_info": {{
     "content_summary": "血常规检查",
@@ -177,8 +185,8 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 ```json
 {{
   "indicators": [
-    {{"original_indicator": "甲状腺", "value": "形态大小正常，包膜光整，实质回声均匀", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "normal", "notes": "", "date_time": ""}},
-    {{"original_indicator": "甲状腺右叶结节", "value": "低回声结节，大小约6*4mm，边界清晰", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "high", "notes": "建议随访", "date_time": ""}}
+    {{"original_indicator": "甲状腺", "value": "形态大小正常，包膜光整，实质回声均匀", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "normal", "notes": "", "date_time": "", "panel": "甲状腺彩超"}},
+    {{"original_indicator": "甲状腺右叶结节", "value": "低回声结节，大小约6*4mm，边界清晰", "reference_range": "", "unit": "", "detection_method": "Imaging", "status": "high", "notes": "建议随访", "date_time": "", "panel": "甲状腺彩超"}}
   ]
 }}
 ```
@@ -187,8 +195,18 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 ```json
 {{
   "indicators": [
-    {{"original_indicator": "牙龈", "value": "未见异常", "reference_range": "", "unit": "", "detection_method": "Examination", "status": "normal", "notes": "", "date_time": ""}},
-    {{"original_indicator": "体重", "value": "52.3", "reference_range": "", "unit": "kg", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": ""}}
+    {{"original_indicator": "牙龈", "value": "未见异常", "reference_range": "", "unit": "", "detection_method": "Examination", "status": "normal", "notes": "", "date_time": "", "panel": "口腔科"}},
+    {{"original_indicator": "体重", "value": "52.3", "reference_range": "", "unit": "kg", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": "", "panel": "一般检查"}}
+  ]
+}}
+```
+
+### ECG Example (abbreviations kept as printed; the heading goes in `panel`):
+```json
+{{
+  "indicators": [
+    {{"original_indicator": "HR", "value": "72", "reference_range": "60-100", "unit": "bpm", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": "", "panel": "心电图"}},
+    {{"original_indicator": "RV5", "value": "1.85", "reference_range": "", "unit": "mV", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": "", "panel": "心电图"}}
   ]
 }}
 ```
@@ -313,6 +331,10 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                         "type": "string",
                         "description": "The date (and time) printed on THIS row, YYYY-MM-DD HH:MM:SS, when rows carry their own dates (a home log, a table by day). Empty string when the row has the document's date.",
                     },
+                    "panel": {
+                        "type": "string",
+                        "description": "The section heading this row is printed under, exactly as printed (e.g., 心电图, 肝功能, Lipid Panel). Empty string if the row is under no heading. Never the row's own name.",
+                    },
                 },
                 # Every column the report prints is required, empty string
                 # when the report shows none. Left optional, the model omitted
@@ -327,6 +349,7 @@ RESPONSE_SCHEMA_EXTRACT_INDICATORS = {
                     "status",
                     "notes",
                     "date_time",
+                    "panel",
                 ],
             },
         },

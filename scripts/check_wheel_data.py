@@ -30,6 +30,9 @@ REQUIRED = {
     "mirobody/res/loinc/fhir_loinc_bundle.tar.gz": 1_000_000,
     "mirobody/res/loinc/aliases_src/zh.tsv": 100_000,
     "mirobody/res/loinc/resolver_overrides.tsv": 1_000,
+    # Read by `standardize.code()` for a reading printed under an ECG heading;
+    # missing, that reading's coding raises instead of answering.
+    "mirobody/res/loinc/panel_terms.tsv": 1_000,
     # The names and facets `standardize.names` reads on every request. Missing,
     # nothing fails: every reading quietly goes back to LOINC's long name (#231).
     "mirobody/res/loinc/zh_CN_names.tsv": 1_000_000,
