@@ -60,7 +60,10 @@
   rows now carry `min_at`/`max_at`, the local `HH:MM` the minimum/maximum
   occurred (ties go to the earliest); `minute`/`day`/`week`/`month` rows do
   not, since a minute bucket already is the minute its one value fell in.
-  How to tell: `query_health_indicators(view="hour", ...)` rows show
+  A day figure, such as an Apple export's daily minimum heart rate, gives
+  none either: it is a statistic of the day stored at local midnight, and
+  with `min_at=00:00` beside it a local model answered that the lowest
+  heart rate fell at midnight. How to tell: `query_health_indicators(view="hour", ...)` rows show
   `min_at`/`max_at` beside `min`/`max`; a `minute` call's rows do not.
 
 - **Still screenshots of the app, and an index of every picture in

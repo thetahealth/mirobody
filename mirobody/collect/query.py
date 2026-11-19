@@ -74,6 +74,7 @@ from mirobody.kernel import query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
 from mirobody.collect.observations import (
+    GRAIN_DAY,
     KIND_CONDITION,
     KIND_MEASUREMENT,
     KIND_NOTE,
@@ -873,11 +874,17 @@ class PostgresHealthQuery:
         # `minute` bucket already IS the minute its one value fell in, so a
         # clock time would say nothing a `minute` row does not already. Ties
         # go to the earliest occurrence, for both the minimum and maximum.
+        # A day figure (`grain='day'`, Apple's `dailyMinHeartRates`) sits at
+        # local midnight and has no clock time: given one, a local model
+        # answered "lowest 48 at 00:00" (1.6.2 release test).
         extremes = (
-            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC))[1] AS min_at,"
-            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC))[1] AS max_at"
+            ", (array_agg(clock ORDER BY value_std ASC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS min_at,"
+            " (array_agg(clock ORDER BY value_std DESC, local_ts ASC) FILTER (WHERE clock IS NOT NULL))[1] AS max_at"
         ) if resolution == "hour" else ""
-        clock = f", to_char({_LOCAL_TS}, 'HH24:MI') AS clock, {_LOCAL_TS} AS local_ts" if resolution == "hour" else ""
+        clock = (
+            f", CASE WHEN o.grain = '{GRAIN_DAY}' THEN NULL"
+            f" ELSE to_char({_LOCAL_TS}, 'HH24:MI') END AS clock, {_LOCAL_TS} AS local_ts"
+        ) if resolution == "hour" else ""
         return await execute_query(
             f"""
             WITH base AS (
