@@ -61,6 +61,18 @@
 
 ### Fixed
 
+- **Examination findings are listed apart from lab analytes.** The backend
+  stores an imaging or pathology row as `kind='finding'`, and every
+  catalogue row carries that `kind`, but the Indicators panel never read
+  it: on a Chinese check-up book, organs whose value is a sentence (心影,
+  两肺纹理, 双肾) sat in one list with K, ALT and LDL-C. Findings now get
+  their own group after the measured analytes, headed 检查所见 /
+  Examination findings, with the sentence in place of a value, unit and
+  code. A finding's drawer leads with the sentence and draws no trend chart
+  or reference range (thetahealth/mirobody-web#34, for web#31). To tell:
+  upload a check-up book with an ultrasound section and its organs are
+  listed under 检查所见.
+
 - **A question typed into the Records box is no longer filed as a note
   without a word.** The box on the Data page logs what a person writes, and
   a tester typed a question there (「我最近的血压怎么样？」); it was stored as
