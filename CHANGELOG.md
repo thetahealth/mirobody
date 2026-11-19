@@ -320,14 +320,31 @@
   bracket, the hyphen/CamelCase and the space-before-an-acronym shapes, and
   none covered this fourth one. Replaced with one split tried on every
   shape and one agreement rule, by LOINC ANALYTE rather than exact code:
-  `BloodGlucose-OGTT`/`-FPG` and `BloodGlucose-HbA1c` now behave exactly
-  like their Chinese bracket twins `血糖(OGTT)`/`(FPG)`/`(HbA1c)` already
-  did. `乙肝病毒DNA`, `游离T3`, `维生素D` and `25羟维生素D` are unchanged.
+  `BloodGlucose-FPG`, `-OGTT` and `-HbA1c` now behave exactly like their
+  Chinese bracket twins `血糖(FPG)`/`(OGTT)`/`(HbA1c)` (see the next entry
+  for what those two glucose labels answer now). `乙肝病毒DNA`, `游离T3`, `维生素D` and `25羟维生素D` are unchanged.
   A bracketed METHOD or subtype (`血型(Rh)测定`, `乙肝表面抗原(定量)测定`)
   no longer borrows the bare stem's code either: `Rh`/`定量`/`定性` carry
   no code of their own, so the old fallback silently answered through them.
   How to tell: `mirobody resolve 白细胞WBC` now names Leukocytes; stored
   readings move with `mirobody recode`.
+
+- **A fasting or tolerance-test label on a glucose name is no longer
+  dropped.** A name and its own abbreviation are compared by LOINC analyte
+  head, so `血糖` (2339-0) and `OGTT` (1518-0, the 2-hour draw of a 75 g
+  load) agreed, and the stem answered: `血糖(OGTT)` filed a post-load
+  9.5 mmol/L into the plain glucose series, and #305 carried that to
+  `Glucose OGTT`, `血糖OGTT` and `葡萄糖OGTT`, which 1.6.1 had refused.
+  `血糖(FPG)` lost its fasting state the same way. Now, when only the label
+  carries a challenge, the label decides: a timed one (`2h post …`,
+  `30m post …`, `3rd specimen …`) is one draw of a series the name does not
+  identify, so `血糖(OGTT)` and its other spellings are refused and say
+  why; a state (`post cfst`) is the measurement, so `血糖(FPG)`,
+  `Glucose FPG` and `BloodGlucose-FPG` answer fasting glucose 1558-6, as
+  `空腹血糖` and bare `FPG` already did. `空腹血糖(GLU)` is unchanged. The
+  maintainers' resolver set does not move. Stored readings move with
+  `mirobody recode`. To tell: `mirobody resolve "血糖(OGTT)"` refuses with
+  the reason, and `mirobody resolve "血糖(FPG)"` names 1558-6.
 
 - **`肌酐(Cre)` no longer refuses as two analytes, and a bracketed
   measurement that disagrees with its stem can be settled by the unit**

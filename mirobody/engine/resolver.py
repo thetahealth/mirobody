@@ -133,6 +133,11 @@ _SPECIMEN_SYNONYMS: dict[str, tuple[str, ...]] = {
 # decoding is paid only for the row that wins.
 _PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
 _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
+# A LOINC challenge that names one draw of a series: a time after the load
+# (`2h post 75 g glucose po`, `30m post xxx challenge`, `2d post dose
+# dexamethasone`) or an ordinal specimen (`3rd specimen post xxx
+# challenge`). `post cfst` (fasting), `trough` and `peak` name a state.
+_TIMED_CHALLENGE = re.compile(r"\b\d+(?:\.\d+)?[mhd]\b|\b\d+(?:st|nd|rd|th) specimen\b", re.I)
 
 
 def _specimen_tokens(system: str) -> frozenset[str]:
@@ -382,6 +387,14 @@ class OfflineResolver:
         """LOINC_NUM -> folded analyte head, or "" when unknown."""
         row = self._row_for_code(code)
         return self._axis.field(row, _ANALYTE) if row >= 0 else ""
+
+    def _challenge_of(self, code: str) -> str:
+        """LOINC_NUM -> the challenge after `^` in its COMPONENT (`post CFst`,
+        `2H post 75 g glucose PO`), or "" when it has none or is unknown."""
+        row = self._row_for_code(code)
+        if row < 0:
+            return ""
+        return self._axis.field_raw(row, _COMPONENT).decode("utf-8").partition("^")[2]
 
     def _name_for(self, code: str) -> str:
         """code -> LONG_COMMON_NAME, for reporting a switched variant."""
@@ -752,7 +765,28 @@ class OfflineResolver:
                         "two analytes in one name"
                     ),
                 )
-            label_hit = None
+            # Same analyte head; the challenge decides which half answers. A
+            # label carrying a state the stem lacks is the measurement
+            # (`血糖(FPG)`, 1558-6). A timed one (`血糖(OGTT)`, 2h post 75 g)
+            # is one draw of a series the name does not identify: the stem
+            # filed that draw into the plain glucose series (1.6.1 for the
+            # bracket, #305 for `Glucose OGTT` and the other shapes).
+            label_challenge = self._challenge_of(label_hit.loinc)
+            if not label_challenge or label_challenge == self._challenge_of(stem_hit.loinc):
+                label_hit = None
+            elif _TIMED_CHALLENGE.search(label_challenge):
+                return Resolution(
+                    term=term,
+                    method="refused",
+                    candidates=stem_hit.candidates + label_hit.candidates,
+                    ambiguous=(stem_hit.loinc, label_hit.loinc),
+                    rejected_reason=(
+                        f"{label!r} gives {label_hit.loinc}, one draw of a timed challenge "
+                        f"({label_challenge}), and the name does not say which draw"
+                    ),
+                )
+            else:
+                stem_hit = None
 
         # Two guards on the ONE-SIDED fallback below, reached only when
         # label did NOT resolve (or was narrowed away above as a repeat):
