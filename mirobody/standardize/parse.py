@@ -22,7 +22,7 @@ import math
 import re
 from dataclasses import dataclass
 
-from mirobody.units import normalize_unit, parse_value_unit
+from mirobody.units import normalize_unit, numerals, parse_value_unit
 from mirobody.value_scale import classify_value
 
 KIND_QUANTITY = "quantity"
@@ -38,6 +38,7 @@ ABSENT_UNKNOWN = "unknown"
 _COMPARATORS = {"<": "<", "<=": "<=", "≤": "<=", ">": ">", ">=": ">=", "≥": ">="}
 _SCALE_TO_KIND = {"qn": KIND_QUANTITY, "ord": KIND_ORDINAL, "nom": KIND_NOMINAL, "nar": KIND_NARRATIVE}
 
+#: A number whose commas `numerals.fold` has already read.
 _NUM = r"[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
 #: What a printed range puts between its two ends, as a regex alternation:
 #: dashes and tildes in both widths, and 至. A doubled dash is one separator:
@@ -49,8 +50,10 @@ _RANGE = re.compile(rf"^\s*({_NUM})\s*(?:{RANGE_SEPARATOR}|to)\s*({_NUM})")
 _BOUND = re.compile(rf"^\s*([<>≤≥]=?)\s*({_NUM})")
 #: The comparator and number a value cell opens with; what follows is the
 #: printed unit, or prose. Text that opens with a divisor, a power or a
-#: multiplication continues a unit rather than following one.
-_NUMBER_HEAD = re.compile(rf"^\s*[-<>=+~≤≥≈]*\s*{_NUM}")
+#: multiplication continues a unit rather than following one. Matched on the
+#: cell as printed, commas and all: without them `250,000 /uL` kept
+#: `,000 /uL` as its printed unit.
+_NUMBER_HEAD = re.compile(rf"^\s*[-<>=+~≤≥≈]*\s*[-+]?{numerals.DIGITS}(?:[eE][-+]?\d+)?")
 _CONTINUES_UNIT = re.compile(r"^(?:[/^·×]|[*.](?=[0-9A-Za-z{(]))")
 
 
@@ -127,8 +130,10 @@ def parse_value(value_text: str, unit_text: str = "") -> Parsed:
 def parse_range(ref_text: str) -> tuple[float | None, float | None]:
     """`(low, high)` read off a printed reference range, either bound `None`
     when the text does not state it. "4.0-10.0", "120--200", "4.0～10.0 ×10⁹/L",
-    "<5.0", "≥ 60", "40 to 60". Prose ("阴性", "see report") gives `(None, None)`."""
-    text = (ref_text or "").strip()
+    "<5.0", "≥ 60", "40 to 60", "150,000-400,000", "2,15-2,55". Prose ("阴性",
+    "see report") gives `(None, None)`. Commas are read as the value is
+    (`numerals`): a range in either convention used to read as no range."""
+    text = numerals.fold((ref_text or "").strip())
     if not text:
         return None, None
     m = _RANGE.match(text)

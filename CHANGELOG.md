@@ -1,5 +1,42 @@
 ## Unreleased
 
+### Fixed
+
+- **A number printed with a thousands comma is stored as printed.** A US
+  platelet count, `250,000 /uL`, was stored as 250: the value parser read
+  every comma as a decimal mark (`12,500` was 12.5, `1,250` was 1.25), while
+  the check of a value against the report's text read the same comma as
+  thousands, found it printed, and so did not mark the wrong number
+  `llm-unverified`. `1,250,000` was not read as a number at all. A comma is
+  now read by one rule, `mirobody/units/numerals.py`, which the value parser,
+  the reference-range parser and that check all use: several commas, or one
+  before a decimal point, group thousands (`1,250,000`, the lakh
+  `2,50,000`, `1,250.5`); one comma with exactly three digits after it groups
+  thousands (`1,250`, `12,500`); any other comma is a decimal mark (`1,25`,
+  `0,125`). The three-digit case is the one both conventions can print: none
+  of the 583 such numbers in the repository's benchmarks, demo data, docs
+  and tests is a decimal comma (they are counts, and a few lists of two
+  readings), and the decimal commas it does print have one or two digits
+  after the mark. What it costs is a European value with exactly three decimals,
+  such as a specific gravity printed `1,015`, which reads as 1015. Three
+  more things follow from the same rule. A reference range printed with
+  commas (`150,000-400,000`, `2,15-2,55`) was read as no range and is now
+  read. The printed unit of `250,000 /uL` was kept as `,000 /uL` and is now
+  `/uL`. And a report printing `1,25` whose value the model wrote as `1.25`
+  was marked `llm-unverified` and now is not. The evidence check's own
+  thousands pattern is gone; it differed from the rule only where no
+  grouping is possible (`0,125`, `1234,567`), which it read as 125 and
+  1234567 and now reads as decimals. The answer check
+  (`kernel.citations`) must stay stdlib-only and keeps its own copy; it
+  agrees on single commas, and `mirobody/tests/test_printed_commas.py` lists
+  the shapes where it still differs as strict xfails. Readings already
+  stored keep the number they were stored with until their file is read
+  again (重新处理 in 数据 › 文件, `POST /api/v1/data/reprocess-file`). To
+  tell: `standardize.parse_value("250,000", "/uL").value_num` is `250000.0`
+  (it was `250.0`); to list readings stored before the fix, `SELECT
+  source_ref, count(*) FROM th_observation WHERE value_text ~
+  '(^|[^0-9.,])[1-9][0-9]{0,2}(,[0-9]{3})+([^0-9,.]|$)' GROUP BY source_ref`.
+
 ### Added
 
 - **`view="hour"` says when its minimum and maximum happened.** An hour
@@ -85,6 +122,38 @@
   Japanese. Ordinary log sentences such as 「今天没什么不舒服」 or 「多少有点
   头疼」 do not trigger it (thetahealth/mirobody-web#33). To tell: type a
   question into the Records box and the notice appears instead of a note.
+
+- **A reading's high/low flag is a comparison again, not an extraction
+  model's opinion.** A report's printed flag (an arrow, a letter, a copied
+  flag column) was stored and read back unchanged, but once any reference
+  range was present at all the write side also kept whatever the
+  extraction wrote in `status` — its own judgement, not something the
+  report printed. Asked which of a check-up's values were out of range, a
+  small local model answered with every printed arrow plus an in-range
+  glucose its own `status` had called `high`; separately, an OCR run that
+  lost a printed arrow left a genuinely out-of-range triglyceride with no
+  flag at all, although its value and range both stored cleanly.
+  `collect/query.py::_flag_of` now computes `high`/`low` at read time, from
+  the stored value against the stored range (the same two columns next to
+  it), for the chat tool, the records table, the CSV/JSON export and every
+  citation; `flag_text` is read back only where no number can be compared
+  (a qualitative result, a finding, an unparseable range), and a printed
+  flag the row's own numbers contradict is no longer kept. The write side
+  (`indicator_store.value_and_flag`) stops storing `status` for a quantity
+  whose range parses to numbers, since the read side now judges it. The
+  records export (CSV and JSON) gains a `flag` column it never had. A
+  series whose readings carry more than one distinct printed range (a
+  different hospital's cutoff) is also now said explicitly: `stats` and
+  `trend` carry a `ranges_differ` marker, since an average or a trend's
+  elected days can combine readings judged by different reference ranges
+  with no range shown at all before this. How to tell: a report with a
+  value inside its own printed range, and an extraction that (wrongly)
+  marked it `high`, is not flagged in the readings list, the latest value,
+  the chat answer or the export; a value whose printed arrow is missing but
+  whose value and range both stored is still flagged from the numbers; and
+  two readings of one analyte with different printed ranges, the same
+  value flagged at one and not the other, show `ranges_differ=true` on a
+  `view=stats` or `view=trend` call for that indicator.
 
 - **The documented MCP install command now has a PowerShell form next to
   it.** `claude mcp add mirobody -- uvx --python 3.12 mirobody mcp`, pasted

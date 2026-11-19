@@ -204,6 +204,22 @@ day's elected one, so on a day a watch and a phone both reported the two
 would print different numbers. And it would cost a column on every catalogue,
 up to 200 rows, to save one call in the case a small model gets wrong.
 
+A reading's `flag` (`high`/`low`, on `readings` and `latest`) is a
+comparison, never an opinion: `collect/query.py::_flag_of` reads the stored
+value against the SAME row's stored range, the two columns beside it, so a
+reader can repeat the answer back from what it was already shown. The
+extraction's own word (`status`) is used only where no number can be
+compared — a qualitative result, a finding, a range this reader could not
+parse — and a printed flag the row's own numbers contradict is not kept: a
+small local model, asked which of a check-up's values were out of range,
+answered with every printed arrow plus an in-range glucose its own `status`
+field had called `high` with no arrow printed beside it. `stats` and
+`trend` carry a second, narrower signal, `ranges_differ`: whether the
+readings an average, a count-in-range, or a trend's one-elected-day points
+combine print more than one DISTINCT range once placed in the series' unit —
+a hospital's own cutoff, not a change in this person, and `min`/`max`/`avg`
+alone never said so.
+
 It replaced `resolution` × `aggregate`: eighteen cells, two refused, `limit`
 valid in one, and two prompt paragraphs teaching which was which. The
 choice that pair really carried was what a statistic counts, and that is not a
