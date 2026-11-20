@@ -29,17 +29,52 @@ if TYPE_CHECKING:
 class StringTable:
     """``n`` strings in one blob. ``off`` has ``n + 1`` entries."""
 
-    __slots__ = ("_blob", "_off", "_n")
+    __slots__ = ("_blob", "_off", "_offsets", "_integer_type", "_n")
 
     def __init__(self, blob: bytes, off: np.ndarray) -> None:
+        import numpy as np
+
         self._blob = blob
         self._off = off
         self._n = len(off) - 1
+        self._offsets = off
+        self._integer_type = np.integer
+        # A native buffer yields Python ints without allocating NumPy scalars.
+        # Keep the array for its indexing semantics and unsupported formats.
+        if type(off) is np.ndarray and off.ndim == 1 and off.dtype.kind in "iu":
+            view = memoryview(off)
+            if view.format in ("b", "B", "h", "H", "i", "I", "l", "L", "q", "Q"):
+                self._offsets = view
+                if view.c_contiguous and not view.readonly:
+                    import ctypes
+
+                    scalar = {
+                        "b": ctypes.c_byte,
+                        "B": ctypes.c_ubyte,
+                        "h": ctypes.c_short,
+                        "H": ctypes.c_ushort,
+                        "i": ctypes.c_int,
+                        "I": ctypes.c_uint,
+                        "l": ctypes.c_long,
+                        "L": ctypes.c_ulong,
+                        "q": ctypes.c_longlong,
+                        "Q": ctypes.c_ulonglong,
+                    }[view.format]
+                    # Share storage so later writes through off remain visible.
+                    self._offsets = (scalar * len(off)).from_buffer(off)
 
     def __len__(self) -> int:
         return self._n
 
     def raw(self, i: int) -> bytes:
+        off = self._offsets
+        try:
+            if type(i) is int or isinstance(i, self._integer_type):
+                return self._blob[off[i]:off[i + 1]]
+        except (IndexError, OverflowError, TypeError):
+            # NumPy owns bounds errors and scalar arithmetic that changes index type.
+            if off is self._off:
+                raise
         off = self._off
         return self._blob[off[i]:off[i + 1]]
 
@@ -48,7 +83,7 @@ class StringTable:
 
     def find(self, needle: bytes) -> int:
         """Index of *needle* in a table stored sorted, or -1."""
-        blob, off = self._blob, self._off
+        blob, off = self._blob, self._offsets
         lo, hi = 0, self._n
         while lo < hi:
             mid = (lo + hi) // 2
@@ -72,7 +107,16 @@ class FieldTable(StringTable):
         self._n = self._n // width
 
     def field_raw(self, row: int, field: int) -> bytes:
-        return StringTable.raw(self, row * self._width + field)
+        i = row * self._width + field
+        off = self._offsets
+        try:
+            if type(i) is int or isinstance(i, self._integer_type):
+                return self._blob[off[i]:off[i + 1]]
+        except (IndexError, OverflowError, TypeError):
+            if off is self._off:
+                raise
+        off = self._off
+        return self._blob[off[i]:off[i + 1]]
 
     def field(self, row: int, field: int) -> str:
         return self.field_raw(row, field).decode("utf-8")
