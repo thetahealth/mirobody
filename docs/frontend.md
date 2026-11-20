@@ -99,3 +99,17 @@ new chunks without it, and every page rendered blank. Then run
 `pytest -q mirobody/tests/test_frontend_bundle.py`, which follows what a
 browser fetches from `index.html` and fails on any file `frontend/` does not
 hold.
+
+## Adding one control, without replacing the client
+
+A build replacement is the whole answer only when you want a different UI. For
+a single extra button, [`contrib/conversation-export/`](../contrib/conversation-export/)
+is the smaller form: a browser add-on that appends a Share control to the chat
+header and draws the export itself, touching neither `frontend/` nor the
+backend. `rsync --delete` has nothing of it to remove.
+
+It reads the transcript from `GET /api/history?session_id=` with the page's own
+`ACCESS_TOKEN`, and finds its mount point by class-name *fragment* (`_header_`,
+`_right_`) rather than by hashed name. Those two rules are what an add-on of any
+kind has to follow, since the fragment is the only part of a class name that
+survives a rebuild.

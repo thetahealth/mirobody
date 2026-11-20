@@ -30,6 +30,7 @@ mirobody/
 └── schema/      the DDL, replayed at boot in dev
 
 benchmarks/      public benchmark suites + the resolver scoring harness
+contrib/         add-ons that load next to the bundled client
 demo/            the care-circle demo fixture                    a checkout
 examples/        runnable library/parse/MCP/agent samples        has them, a
 frontend/        the bundled web client                          pip install
