@@ -128,7 +128,7 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
 6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators, each with its own value and named for its half — 收缩压/舒张压, or Systolic/Diastolic blood pressure — never the pair's own printed name ("血压") twice
 7. **Rows with their own dates**: In a log or a table by day, each row's values are separate indicators carrying that row's `date_time`; the same name on twelve days is twelve indicators
-8. **Section headings**: A row printed under a section heading (心电图, 血常规, Lipid Panel) carries that heading in `panel`. The heading itself is not an indicator
+8. **Section headings**: A row printed under a section heading (心电图, 血常规, Lipid Panel) carries that heading in `panel`. The heading itself is not an indicator, but a conclusion or impression row under it (`结论：窦性心律，正常心电图`) still is one, with `panel` set
 
 ---
 
@@ -201,12 +201,15 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 }}
 ```
 
-### ECG Example (abbreviations kept as printed; the heading goes in `panel`):
+### ECG Example (the heading goes in `panel`; a printed pair is still split, rule 6):
 ```json
 {{
   "indicators": [
     {{"original_indicator": "HR", "value": "72", "reference_range": "60-100", "unit": "bpm", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": "", "panel": "心电图"}},
-    {{"original_indicator": "RV5", "value": "1.85", "reference_range": "", "unit": "mV", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": "", "panel": "心电图"}}
+    {{"original_indicator": "RV5", "value": "1.85", "reference_range": "", "unit": "mV", "detection_method": "Physiological", "status": "normal", "notes": "", "date_time": "", "panel": "心电图"}},
+    {{"original_indicator": "QT", "value": "380", "reference_range": "", "unit": "ms", "detection_method": "Physiological", "status": "normal", "notes": "printed as QT/QTc 380/410", "date_time": "", "panel": "心电图"}},
+    {{"original_indicator": "QTc", "value": "410", "reference_range": "", "unit": "ms", "detection_method": "Physiological", "status": "normal", "notes": "printed as QT/QTc 380/410", "date_time": "", "panel": "心电图"}},
+    {{"original_indicator": "结论", "value": "窦性心律，正常心电图", "reference_range": "", "unit": "", "detection_method": "Examination", "status": "normal", "notes": "", "date_time": "", "panel": "心电图"}}
   ]
 }}
 ```

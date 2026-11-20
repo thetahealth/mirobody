@@ -449,6 +449,17 @@ def test_a_heading_holds_until_a_table_opens_a_panel_of_its_own():
         ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图"), ("K", ""), ("Na", "")]
 
 
+@pytest.mark.parametrize("footer", ["第2页共3页", "Page 2 of 3", "以下空白", "*表示异常", "※结果仅供参考", "本报告不作为法律依据"])
+def test_a_page_footer_between_two_tables_keeps_the_heading(footer):
+    """A multi-page report prints a footer between an ECG table and its
+    continuation; the continuation's `SV1` is still under the ECG heading."""
+    continued = "<table><tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr></table>"
+    footer_table = f"<table><tr><td>{footer}</td></tr></table>"
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + footer_table + continued)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
+
+
 @pytest.mark.parametrize("cell,heading", [
     ("肝功能", "肝功能"),
     ("Comprehensive Metabolic Panel", "Comprehensive Metabolic Panel"),
@@ -458,6 +469,10 @@ def test_a_heading_holds_until_a_table_opens_a_panel_of_its_own():
     ("结论", ""),
     ("检验项目", ""),
     ("审核者", ""),
+    ("第2页共3页", ""),
+    ("以下空白", ""),
+    ("*表示异常", ""),
+    ("本报告不作为法律依据", ""),
 ])
 def test_only_a_heading_is_read_as_a_section(cell, heading):
     assert table_indicators._section(cell) == heading
