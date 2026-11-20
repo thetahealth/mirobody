@@ -1534,16 +1534,16 @@ MCHC (ср. конц. Hb в эр.)	mchc
 Т3 свободный	free t3
 Трийодтиронин свободный	free t3
 # vitamins / витамины
-Витамин D	25-hydroxyvitamin D
-Витамин 25(ОН) D	25-hydroxyvitamin D
-Витамин D (25-OH)	25-hydroxyvitamin D
-25-гидроксивитамин D	25-hydroxyvitamin D
+Витамин D	Calcidiol
+Витамин 25(ОН) D	Calcidiol
+Витамин D (25-OH)	Calcidiol
+25-гидроксивитамин D	Calcidiol
 Витамин В12	vitamin B12
 Витамин B12	vitamin B12
 Фолиевая кислота	folate
 # Estonian (et) — the three terms a real Estonian (Synlab) report prints
 # that the release variants miss
-Vitamiin D (25-OH)	25-hydroxyvitamin D
+Vitamiin D (25-OH)	Calcidiol
 Vitamiin B12	vitamin B12
 Holotranskobalamiin	holotranscobalamin
 
@@ -1702,3 +1702,65 @@ TPSA	Prostate specific Ag [Mass/volume] in Serum or Plasma
 游离/总前列腺特异性抗原比值	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
 f/tPSA	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
 FPSA/TPSA	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
+
+# ── One abbreviation printed with its own hyphen (#322) ───────────────────
+# `HBs-Ag` split into `HBs` + `Ag`, and the half that resolved answered: the
+# surface ANTIBODY (5193-8) for an antigen result, `Cys-C` an amino-acid
+# screen for cystatin C, `NT-proBNP` BNP itself (30934-4, a different
+# assay with a different range). The resolver now refuses a hyphen split
+# whose surviving half is itself an abbreviation; these rows give the
+# spellings reports actually print their answer.
+Cys-C	Cystatin C
+CysC	Cystatin C
+Cys C	Cystatin C
+血清胱抑素C	Cystatin C
+HBs-Ag	Hepatitis B virus surface Ag
+HBe-Ag	HBeAg
+HBs-Ab	HBsAb
+Anti-HBs	HBsAb
+HBe-Ab	HBeAb
+Anti-HBe	HBeAb
+HBc-Ab	Hepatitis B virus core Ab
+HCV-Ab	Hepatitis C virus Ab
+HCV Ab	Hepatitis C virus Ab
+TPO-Ab	Thyroperoxidase Ab
+Anti-TG	Thyroglobulin Ab
+NT-proBNP	NTproBNP
+NT-pro BNP	NTproBNP
+NT pro BNP	NTproBNP
+N-terminal proBNP	NTproBNP
+UMA-CR	Albumin/Creatinine [Mass Ratio] in Urine
+UMA/CR	Albumin/Creatinine [Mass Ratio] in Urine
+mALB/CR	Albumin/Creatinine [Mass Ratio] in Urine
+
+# ── Vitamin D: every spelling in one series (#323) ────────────────────────
+# Reports print the test a dozen ways, and the rows above disagreed: most
+# went to Calcidiol (1989-3, 25-hydroxyvitamin D3), the Russian and Estonian
+# rows and the bare English `25-hydroxyvitamin D` to 62292-8 (D2+D3). The
+# series keeps COMPONENT, so one person's history split in two by spelling.
+# A name with no D2/D3 now answers 1989-3, the code the existing rows and
+# the maintainers' resolver set already used; a printed D3 is that code too.
+25-hydroxyvitamin D	Calcidiol
+Total 25-hydroxyvitamin D	Calcidiol
+Vitamin D 25-OH	Calcidiol
+25-OH-D	Calcidiol
+25-OH-D3	Calcidiol
+25-OH-VitD	Calcidiol
+25-OH维生素D	Calcidiol
+维生素D3	Calcidiol
+25-羟基维生素D3	Calcidiol
+25羟基维生素D3	Calcidiol
+25-羟维生素D	Calcidiol
+25羟维生素D	Calcidiol
+25-羟维生素D3	Calcidiol
+25羟维生素D3	Calcidiol
+血清25-羟基维生素D	Calcidiol
+血清25羟基维生素D	Calcidiol
+总25-羟基维生素D	Calcidiol
+总25羟基维生素D	Calcidiol
+ビタミンD	Calcidiol
+25-ヒドロキシビタミンD	Calcidiol
+25-OHビタミンD	Calcidiol
+D-vitamiin	Calcidiol
+维生素D(25-OH)	Calcidiol
+Vitamin D (25-OH)	Calcidiol
