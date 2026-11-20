@@ -640,6 +640,13 @@ CASES: list[tuple[str, str, str]] = [
     # real abbreviation still answers through it (review of #331).
     ("HbA1c-NGSP",                   r"^hemoglobin a1c/",             r""),
     ("ANA-IFA",                      r"^nuclear .*Ab",                r""),
+    # `Anti` is a prefix, not a role tail, and a role tail that agrees with
+    # the answer keeps it (second review of #331).
+    ("Anti-dsDNA",                   r"DNA double strand .*Ab",       r""),
+    ("Anti-SSA",                     r"Sjogrens syndrome-A .*Ab",     r""),
+    ("HAV-Ab",                       r"Hepatitis A virus .*Ab",       r""),
+    ("Thyroglobulin Antibody-Ab",    r"^thyroglobulin Ab",            r""),
+    ("Anti-TPO-Ab",                  r"^thyroperoxidase Ab",          r""),
     # ── vitamin D: one series whatever the spelling (#323) ──────────────────
     # 62292-8 (D2+D3) split a person's history from 1989-3 by spelling alone;
     # `25羟维生素D` and `25-OH维生素D` were pinned misses, the first because
@@ -750,6 +757,9 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # LOINC's core-antigen code is a tissue stain, so no answer is right.
     ("HBc-Ag", "HBc alone answers the core antibody; the antigen is a different test"),
     ("HBs-Antigen", "HBs alone answers the surface antibody"),
+    ("HCV-Ag", "HCV alone answers an RNA viral load, not an antigen"),
+    ("CMV-Ab", "CMV alone answers a DNA viral load, not an antibody"),
+    ("EBV-Ab", "EBV alone answers a DNA viral load, not an antibody"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`

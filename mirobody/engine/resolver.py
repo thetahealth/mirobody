@@ -136,10 +136,14 @@ _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b"
 
 
 # An immunoassay's role: whether the test looks for the antigen or for the
-# antibody against it. The name's other half cannot say which (`HBs` alone
-# is an index key for the surface ANTIBODY), so a hyphen split whose missing
-# half is one of these has no answer of its own (#322).
-_ROLE_WORD = re.compile(r"(?i)^(?:ag|ab|antigen|antibody|antibodies|anti)$")
+# antibody against it. A hyphen split whose missing half names a role keeps
+# the other half's answer only when that answer's COMPONENT names the same
+# role: `HBs` alone is an index key for the surface ANTIBODY, so `HBs-Ag`
+# has no answer of its own, while `Thyroglobulin Antibody-Ab` agrees with
+# itself (#322). `Anti` is a prefix, not a role tail: `Anti-dsDNA` and
+# `Anti-SSA` answer through their label as before.
+_ROLE_WORD = {"ag": "ag", "antigen": "ag", "ab": "ab", "antibody": "ab", "antibodies": "ab"}
+_COMPONENT_ROLE = re.compile(r"\b(ag|ab)\b", re.I)
 
 
 # A LOINC challenge that names one draw of a series: a time after the load
@@ -396,6 +400,11 @@ class OfflineResolver:
         """LOINC_NUM -> folded analyte head, or "" when unknown."""
         row = self._row_for_code(code)
         return self._axis.field(row, _ANALYTE) if row >= 0 else ""
+
+    def _component_of(self, code: str) -> str:
+        """LOINC_NUM -> its COMPONENT, folded to lower case, or "" when unknown."""
+        row = self._row_for_code(code)
+        return self._axis.field_raw(row, _COMPONENT).decode("utf-8") if row >= 0 else ""
 
     def _challenge_of(self, code: str) -> str:
         """LOINC_NUM -> the challenge after `^` in its COMPONENT (`post CFst`,
@@ -822,12 +831,15 @@ class OfflineResolver:
             return Resolution(term=term)
         # The hyphen shape keeps it for a NAME and its unknown abbreviation
         # (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`), not when the missing
-        # half is the immunoassay's role: `HBs-Ag` answered the surface
-        # ANTIBODY through `HBs`, `HBc-Ag` the core antibody (#322).
-        if shape == "hyphen" and not both_resolved and _ROLE_WORD.match(
-            (label if stem_hit else stem).strip()
-        ):
-            return Resolution(term=term)
+        # half names the immunoassay's role and the answer is the other role:
+        # `HBs-Ag` answered the surface ANTIBODY through `HBs`, `HBc-Ag` the
+        # core antibody, `HCV-Ag` an RNA viral load (#322).
+        role = _ROLE_WORD.get((label if stem_hit else stem).strip().lower())
+        if shape == "hyphen" and not both_resolved and role:
+            hit = stem_hit or label_hit
+            roles = {m.lower() for m in _COMPONENT_ROLE.findall(self._component_of(hit.loinc))} if hit else set()
+            if hit is not None and role not in roles:
+                return Resolution(term=term)
         chosen = stem_hit or label_hit
         if chosen is None:
             return Resolution(term=term)

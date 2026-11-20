@@ -18,17 +18,19 @@
   `UMA-CR` serum creatinine, `HCV-Ab` an HCV RNA viral load, and `Anti-TG`
   triglycerides; `NT-proBNP` answered BNP (30934-4), a different assay with
   a different range. The resolver now refuses a hyphen split whose missing
-  half is an immunoassay's role (`Ag`, `Ab`, `antigen`, `antibody`, `Anti`),
-  since the other half cannot say whether the antigen or the antibody was
-  tested; a name with its abbreviation, element symbol or method
-  (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`, `HbA1c-NGSP`) and a bracket
-  (`AFP(XYZ)`) still answer as before. The spellings reports print got rows of their own:
+  half names an immunoassay's role (`Ag`, `Ab`, `antigen`, `antibody`) when
+  the half that resolved answers a code for the other role, as `HBs` does;
+  `HCV-Ag`, `CMV-Ab` and `EBV-Ab`, which answered a viral load, refuse too.
+  A tail that agrees (`Thyroglobulin Antibody-Ab`), an `Anti-` prefix
+  (`Anti-dsDNA`), a name with its abbreviation, element symbol or method
+  (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`) and a bracket (`AFP(XYZ)`)
+  answer as before. The spellings reports print got rows of their own:
   `HBs-Ag` 5196-1, `HBe-Ag` 13954-3, `Anti-HBs`/`HBs-Ab` 5193-8,
   `Anti-HBe`/`HBe-Ab` 13953-5, `HBc-Ab` 13952-7, `HCV-Ab` 13955-0, `TPO-Ab`
-  8099-4, `Anti-TG` 8098-6, `Cys-C`/`CysC`/`血清胱抑素C` 33863-2,
-  `NT-proBNP` and its spaced spellings 33762-6, `UMA-CR`/`UMA/CR`/`mALB/CR`
-  9318-7. `HBc-Ag` stays unresolved: LOINC's core-antigen code is a tissue
-  stain. To check: `mirobody resolve "HBs-Ag"` prints 5196-1.
+  8099-4, `Anti-TG` 8098-6, `Cys-C`/`CysC`/`血清胱抑素C` 33863-2, `NT-proBNP` and
+  its spaced spellings 33762-6, `UMA-CR`/`UMA/CR`/`mALB/CR` 9318-7. `HBc-Ag`
+  stays unresolved: LOINC's core-antigen code is a tissue stain. To check:
+  `mirobody resolve "HBs-Ag"` prints 5196-1.
 - **Every vitamin D spelling lands in one series (#323).** Most rows answered
   1989-3 (25-hydroxyvitamin D3), but the Russian and Estonian rows and the
   bare English `25-hydroxyvitamin D` answered 62292-8 (D2+D3), and the
