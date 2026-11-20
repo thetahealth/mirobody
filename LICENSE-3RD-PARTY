@@ -21,6 +21,8 @@ use of each is subject to the license terms of its sources:
   loinc/aliases_src/zh_curated.tsv  hand-written (Apache-2.0)   —
   loinc/resolver_overrides.tsv      hand-written (Apache-2.0)   —
   loinc/recall_synonyms.tsv         hand-written (Apache-2.0)   —
+  loinc/panel_terms.tsv             LOINC codes in the `loinc`  section 1 below
+                                    column; the rest is ours
   loinc/zh_CN_names.tsv             a translation of LOINC      res/loinc/zh_CN.NOTICE
                                     (LOINC License §12)
   loinc/zh_CN_parts.tsv.gz          LOINC zh-CN variant 5,      res/loinc/zh_CN.NOTICE

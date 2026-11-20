@@ -420,3 +420,108 @@ def test_the_extraction_offers_every_finding_method():
     for method in indicator_store.FINDING_METHODS:
         assert f"'{method}'" in offered
         assert f'"{method}"' in text
+
+
+_ECG_TABLE = ("<table><tr><td colspan=\"4\">心电图</td></tr>"
+              "<tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+              "<tr><td>HR</td><td>72</td><td>bpm</td><td>60-100</td></tr>"
+              "<tr><td>RV5</td><td>1.85</td><td>mV</td><td>&lt;2.5</td></tr></table>")
+
+
+def test_a_table_row_carries_the_heading_it_was_printed_under():
+    """#281 item 3: the section row above a table's header is each reading's
+    `panel`, held over the header repeated under it."""
+    rows, _, unread = table_indicators.table_indicators(_ECG_TABLE)
+    assert unread == 0
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [("HR", "心电图"), ("RV5", "心电图")]
+
+
+def test_a_heading_holds_until_a_table_opens_a_panel_of_its_own():
+    """A later table that opens on its own header, with no heading row, is
+    a new panel: its `K` is not an ECG reading. A table that continues the
+    page's panel with no header keeps the heading, as it keeps the header."""
+    lab = ("<table><tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+           "<tr><td>K</td><td>4.1</td><td>mmol/L</td><td>3.5-5.3</td></tr>"
+           "<tr><td>Na</td><td>140</td><td>mmol/L</td><td>137-147</td></tr></table>")
+    continued = "<table><tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr></table>"
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + continued + lab)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图"), ("K", ""), ("Na", "")]
+
+
+@pytest.mark.parametrize("footer", ["第2页共3页", "Page 2 of 3", "以下空白", "*表示异常", "※结果仅供参考", "本报告不作为法律依据"])
+def test_a_page_footer_between_two_tables_keeps_the_heading(footer):
+    """A multi-page report prints a footer between an ECG table and its
+    continuation; the continuation's `SV1` is still under the ECG heading."""
+    continued = "<table><tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr></table>"
+    footer_table = f"<table><tr><td>{footer}</td></tr></table>"
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + footer_table + continued)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
+
+
+@pytest.mark.parametrize("cell,heading", [
+    ("肝功能", "肝功能"),
+    ("Comprehensive Metabolic Panel", "Comprehensive Metabolic Panel"),
+    ("备注：空腹采血", ""),
+    ("2026-03-04", ""),
+    ("72", ""),
+    ("结论", ""),
+    ("检验项目", ""),
+    ("审核者", ""),
+    ("第2页共3页", ""),
+    ("以下空白", ""),
+    ("*表示异常", ""),
+    ("本报告不作为法律依据", ""),
+    ("心电图。", "心电图"),
+    ("心电图.", "心电图"),
+    ("ECG.", "ECG"),
+    ("心电图仅供参考", "心电图仅供参考"),
+    ("仅供参考。", ""),
+])
+def test_only_a_heading_is_read_as_a_section(cell, heading):
+    assert table_indicators._section(cell) == heading
+
+
+async def test_the_heading_reaches_the_stored_row(monkeypatch):
+    """A model's `panel` and a table row's land in `Draft.panel_text`, and so
+    does a blood pressure's, split into its two readings."""
+    rows = [{**_row("HR", "72", "bpm", "Physiological"), "panel": "心电图"},
+            {**_row("血压", "120/80", "", "Physiological"), "panel": "一般检查"},
+            _row("K", "4.1", "mmol/L")]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-panel-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-281-panel.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [(d.name_text, d.panel_text) for d in drafts] == [
+        ("HR", "心电图"), ("收缩压", "一般检查"), ("舒张压", "一般检查"), ("K", "")]
+
+
+def test_an_ecg_reading_is_coded_through_the_writer():
+    """The writer's own path, `prepare` then `coding_for`: `HR` printed under
+    `心电图` is the heart rate `心率` resolves to, and the same `HR` with no
+    heading keeps its local series."""
+    now = datetime(2026, 3, 5, tzinfo=UTC)
+    provenance = observations.Provenance(observations.MODALITY_LAB, observations.SOURCE_FILE, "file:synthetic-281")
+
+    def coding(panel_text):
+        draft = observations.Draft(name_text="HR", observed_start=datetime(2026, 3, 4), value_text="72",
+                                   unit_text="bpm", panel_text=panel_text)
+        row = observations.prepare(draft, provenance, "synthetic-281-user", "UTC", now=now)
+        assert row["panel_text"] == panel_text
+        return observations.coding_for(row, {})
+
+    assert coding("心电图").code == "8867-4"
+    assert not coding("").coded
+
+
+def test_the_extraction_asks_for_each_rows_heading():
+    """A field the schema does not require is one a strict provider never
+    returns, and one the prompt does not show a small model never fills."""
+    from mirobody.collect.files.services.prompts import file_indicator_extract as prompt
+    item = prompt.RESPONSE_SCHEMA_EXTRACT_INDICATORS["properties"]["indicators"]["items"]
+    assert "panel" in item["properties"] and "panel" in item["required"]
+    assert '"panel": "心电图"' in prompt.get_extract_indicators_prompt("en")

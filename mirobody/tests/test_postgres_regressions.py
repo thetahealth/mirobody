@@ -612,6 +612,42 @@ async def test_reuploading_the_same_report_does_not_duplicate_its_readings(datab
     assert sorted(r["name_text"] for r in rows) == ["HDL", "LDL", "Total Cholesterol"]
 
 
+async def test_an_ecg_pages_abbreviations_are_coded_and_stay_coded_on_recode(database, monkeypatch):
+    """#281 item 3, from the page's text to the stored coding: the table
+    rules carry the `心电图` heading into `panel_text`, the writer codes `HR`
+    and `RV5` under it, and a recode replays the same answer, which it can
+    only do if it reads `panel_text` back. The lab table's `K` keeps the
+    resolver's code, and nothing printed outside the ECG section is coded by
+    the panel."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
+    from mirobody.collect.files.services.indicator_store import save_indicators_to_db
+
+    text = ("<table><tr><td colspan=\"4\">心电图</td></tr>"
+            "<tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+            "<tr><td>HR</td><td>72</td><td>bpm</td><td>60-100</td></tr>"
+            "<tr><td>RV5</td><td>1.85</td><td>mV</td><td>&lt;2.5</td></tr></table>"
+            "<table><tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+            "<tr><td>K</td><td>4.1</td><td>mmol/L</td><td>3.5-5.3</td></tr>"
+            "<tr><td>Na</td><td>140</td><td>mmol/L</td><td>137-147</td></tr></table>")
+    # The rules read all four rows; what they leave of the page goes to a
+    # model, which answers nothing here, so the rows are the rules' alone.
+    monkeypatch.setattr(IndicatorExtractor, "_llm_extract", AsyncMock(return_value=None))
+    reading = await IndicatorExtractor.read_indicators(text)
+    report = await save_indicators_to_db("1", reading.rows, datetime(2026, 3, 4), "extracted",
+                                         "synthetic-ecg.pdf", reading.extractor, text=text)
+    assert report.inserted == 4
+    rows = await database("SELECT name_text, panel_text, code, rule FROM v_observation o "
+                          "JOIN th_coding_decision d USING (decision_id)", log_sql=False)
+    by_name = {r["name_text"]: (r["panel_text"], r["code"], r["rule"]) for r in rows}
+    assert by_name["HR"] == ("心电图", "8867-4", "panel:ecg")
+    assert by_name["RV5"] == ("心电图", "9995-2", "panel:ecg")
+    assert by_name["K"][0] == "" and by_name["K"][2] == "engine:lexical"
+
+    replay = await observations.recode("1")
+    assert replay.scanned == 4 and replay.changed == 0
+
+
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])
 @pytest.mark.parametrize("same_instant", [False, True], ids=["overlapping", "same-instant"])
 async def test_apple_import_selects_one_device_before_cumulative_aggregation(database, monkeypatch, tmp_path, source_order, same_instant):
