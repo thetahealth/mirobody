@@ -20,7 +20,9 @@ that is not written comes back with its reason:
   and never coded; a sentence the model finds nothing in is one note, so
   nothing typed into the box is lost;
 * a time the model resolved ("昨晚") is used only when it parses and is not
-  in the future; otherwise the entry takes the default time.
+  in the future; otherwise the entry takes the default time;
+* two complaints the model left as one entry (头晕嗜睡) are written as the
+  two, when each half codes and the whole does not (`_two_complaints`).
 """
 
 from __future__ import annotations
@@ -34,6 +36,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
+from mirobody import standardize
 from mirobody.collect import observations as obs
 from mirobody.kernel import meds
 from mirobody.zh_fold import fold_to_hans
@@ -114,6 +117,9 @@ _BP_NAME = re.compile(r"血压|血圧|blood\s*pressure|\bbp\b", re.IGNORECASE)
 _NUMBER_FIRST = re.compile(r"^\s*[<>≤≥]?\s*[-+]?\d")
 _BP_VALUE = re.compile(r"^\s*(\d{2,3}(?:\.\d+)?)\s*/\s*(\d{2,3}(?:\.\d+)?)\s*$")
 _CJK = re.compile(r"[一-鿿]")
+#: A name written in CJK only, Japanese kana included: the scripts that run
+#: two complaints together with nothing between them.
+_CJK_ONLY = re.compile(r"[぀-ヿ㐀-䶿一-鿿豈-﫿]+")
 
 #: Closed at both levels (`additionalProperties: false`, every key required):
 #: OpenAI's json_schema answers HTTP 400 to an open object, so the journal
@@ -374,7 +380,7 @@ def plan(
     haystack = _squash(sentence)
     if not parts and sentence.strip():
         return [_note(sentence.strip(), default_at, tz)], []
-    for part in _split_blood_pressure(parts):
+    for part in _split_complaints(_split_blood_pressure(parts)):
         if part.kind == KIND_MEDICATION:
             continue
         reason = _skip_reason(part, haystack)
@@ -494,6 +500,53 @@ def _split_blood_pressure(parts: Sequence[Part]) -> list[Part]:
         unit = part.unit or "mmHg"
         out.extend(Part(**{**part.__dict__, "name": n, "value": v, "unit": unit}) for n, v in pair)
     return out
+
+
+def _split_complaints(parts: Sequence[Part]) -> list[Part]:
+    """A symptom entry that names two complaints, as the two (#321).
+
+    The prompt asks for one entry per thing, and still `头晕嗜睡` came back as
+    one symptom in one run and as two in the next (DeepSeek, the same
+    sentence). As one entry it could not be coded: the vocabulary is matched
+    whole, and only `头晕` alone codes. Split here, so the entries a sentence
+    gives do not depend on the run. Both halves keep the part's quote,
+    time and detail."""
+    out: list[Part] = []
+    for part in parts:
+        halves = _two_complaints(part.name) if part.kind == KIND_SYMPTOM else None
+        if halves is None:
+            out.append(part)
+            continue
+        out.extend(Part(**{**part.__dict__, "name": half}) for half in halves)
+    return out
+
+
+def _two_complaints(name: str) -> tuple[str, str] | None:
+    """`(first, second)` when `name` is exactly two complaints written back
+    to back: CJK only, no code for the whole, and exactly one cut that leaves
+    two halves each coding on the symptom axis (`头晕嗜睡`, `头痛头晕`,
+    `头晕乏力`). None otherwise, and the entry stays as the model wrote it: a
+    half that does not code (`头晕不嗜睡`, whose `不嗜睡` denies the second),
+    three complaints, a name the vocabulary codes whole, two cuts that
+    both code, where which pair was meant is not the split's to choose, or
+    two halves with the same code (`头痛太阳穴痛`, `头痛头疼`, `头晕头晕`):
+    one complaint said twice, which the journal would count twice."""
+    key = standardize.name_key(name)
+    if not _CJK_ONLY.fullmatch(key) or _codes(key):
+        return None
+    cuts = [(key[:i], key[i:]) for i in range(1, len(key)) if _codes(key[:i]) and _codes(key[i:])]
+    if len(cuts) != 1:
+        return None
+    first, second = cuts[0]
+    return None if _code(first) == _code(second) else cuts[0]
+
+
+def _codes(complaint: str) -> bool:
+    return standardize.resolve_symptom(complaint).outcome == standardize.OUTCOME_CODED
+
+
+def _code(complaint: str) -> str:
+    return standardize.resolve_symptom(complaint).code
 
 
 def _when(text: str, *, now: datetime, zone: Any) -> datetime | None:

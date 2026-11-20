@@ -46,6 +46,23 @@
   the index does not hold and now name Calcidiol. `25-hydroxyvitamin D2`
   and `1,25-dihydroxyvitamin D` keep their own codes. To check:
   `mirobody resolve "Витамин D"` prints 1989-3.
+- **A journal's `头晕嗜睡` is two coded complaints, and `嗜睡`, `视线发糊`
+  and a temple pain code** (#321). The model returned two complaints
+  written back to back as one entry in one run and as two in the next, and
+  as one entry `头晕嗜睡` could not be coded: the vocabulary is matched
+  whole. The journal now writes such an entry as its two complaints when
+  the name is CJK only, does not code whole, and exactly one cut leaves two
+  halves that each code on the symptom axis (`头晕嗜睡`, `头晕乏力`,
+  `头痛头晕`); a half that does not code (`头晕不嗜睡`), three complaints or
+  two possible cuts, or two halves with the same code (`头痛太阳穴痛`,
+  `头痛头疼`), keep the entry as written. `symptoms_zh.tsv` gains
+  `嗜睡`, `犯困` and `困倦` (AS99, where ICPC-3 lists drowsiness and
+  excludes it from AS04), `视线模糊`, `视线发糊` and `看东西模糊` (FS05,
+  blurred vision) and `太阳穴痛`, `太阳穴疼` and `太阳穴跳痛` (NS01: the
+  temple is the side of the head, and NS02 face pain excludes headache).
+  An entry written before codes with the new rows after `mirobody recode`;
+  a `头晕嗜睡` already written stays one entry, since the split happens when
+  a sentence is read.
 
 ## 1.6.2
 

@@ -1,6 +1,6 @@
 # Small health-record vocabulary benchmark
 
-`cases.json` contains 13 synthetic indicator readings and 26 short example
+`cases.json` contains 13 synthetic indicator readings and 29 short example
 complaint phrases in English, Simplified and Traditional Chinese, Japanese and
 Russian, the languages the resolver covers (Russian lab-panel terms arrived
 with #88; Estonian and Turkish are lab-only and left out). Each language has a case on both

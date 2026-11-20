@@ -61,6 +61,9 @@ surface	code	note
 休克	AS52
 昏迷	AS53
 手脚冰凉	AS99.00
+嗜睡	AS99	ICPC-3 lists drowsiness under AS99 and excludes it from AS04 (weakness or tiredness)
+犯困	AS99
+困倦	AS99
 血糖高	AS50.00
 血糖偏高	AS50.00
 # ── B: blood ──────────────────────────────────────────────────────────────
@@ -151,6 +154,9 @@ surface	code	note
 看不清	FS05
 视物模糊	FS05
 眼花	FS05
+视线模糊	FS05
+视线发糊	FS05
+看东西模糊	FS05
 畏光	FS06
 怕光	FS06
 复视	FS06
@@ -271,6 +277,9 @@ surface	code	note
 # ── N: neurological ───────────────────────────────────────────────────────
 头疼	NS01
 头痛	NS01
+太阳穴痛	NS01	the temple is the side of the head: NS02 (face pain) excludes headache
+太阳穴疼	NS01
+太阳穴跳痛	NS01
 脸疼	NS02
 面部疼痛	NS02
 不宁腿	NS03
