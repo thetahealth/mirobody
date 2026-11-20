@@ -473,6 +473,11 @@ def test_a_page_footer_between_two_tables_keeps_the_heading(footer):
     ("以下空白", ""),
     ("*表示异常", ""),
     ("本报告不作为法律依据", ""),
+    ("心电图。", "心电图"),
+    ("心电图.", "心电图"),
+    ("ECG.", "ECG"),
+    ("心电图仅供参考", "心电图仅供参考"),
+    ("仅供参考。", ""),
 ])
 def test_only_a_heading_is_read_as_a_section(cell, heading):
     assert table_indicators._section(cell) == heading

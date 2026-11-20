@@ -445,11 +445,14 @@ _SECTION_TEXT = 40
 
 #: A one-cell row that is the page's furniture, not a heading: a page counter
 #: (`第2页共3页`, `Page 2 of 3`), the blank-below mark (`以下空白`), a legend
-#: opening on `*`/`※`/`＊`, a disclaimer (`本报告不作为法律依据`, `仅对本次
-#: 标本负责`) or a sentence ending in a full stop. Held under a table's
-#: heading, such a row between two pages must not replace it.
+#: opening on `*`/`※`/`＊`, or a disclaimer opening on its words (`本报告不作为
+#: 法律依据`, `仅对本次标本负责`). Held under a table's heading, such a row
+#: between two pages must not replace it. A heading that carries a full stop
+#: (`心电图。`) is still a heading, and one that only mentions a disclaimer
+#: later in the cell is too, so the stop is cut before the test and the
+#: disclaimer words are anchored to the start.
 _FOOTER = re.compile(
-    r"^[*＊※]|第\s*\d+\s*页|共\s*\d+\s*页|\bpage\s*\d+|以下空白|本报告|报告仅|仅对|不作为|仅供|\bdisclaimer\b|[。.]$",
+    r"^(?:[*＊※]|本报告|报告仅|仅对|仅供|不作为)|第\s*\d+\s*页|共\s*\d+\s*页|\bpage\s*\d+|以下空白|\bdisclaimer\b",
     re.I,
 )
 
@@ -459,7 +462,7 @@ def _section(cell: str) -> str:
     is something else: a label with its value (`备注：空腹`), a date, a
     number, a column word, a part of a report (`结论`) or a page's footer
     (`第2页共3页`, `以下空白`)."""
-    cell = cell.strip()
+    cell = re.sub(r"[。.]+$", "", cell.strip()).rstrip()
     if (len(cell) > _SECTION_TEXT or _FOOTER.search(cell) or re.search(r"[:：]", cell) or re.search(_DATE_VALUE, cell)
             or _NUMBER.match(cell) or _admin(cell) or _column(cell) or _key(cell) in _LABELS):
         return ""
