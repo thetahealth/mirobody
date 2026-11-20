@@ -27,7 +27,7 @@ README 里 **② 标准化 Standardize** 那一阶段的长版本：报告上印
 | --- | --- | --- |
 | 化验单、照片、表格 | `collect/files/services/indicator_extractor.py`：`table_indicators.py` 的表格规则先读所有像读数的行（按表头文字对列，从不按位置）；规则读不了的才交给模型。`indicator_store.py` 把读到的行交给 `ingest()` | 读页面。提示词（`prompts/file_indicator_extract.py`）要求名称照报告原样抄、不翻译，因为第 5 步就拿它去查。从不让模型给编码 |
 | 穿戴设备、Apple Health | `kernel/decoders/` 把每个厂商字段换成 `kernel/metrics.py` 规定的存储单位；从厂商数据到入库、再到按天汇总和选源的完整路线，见 [pipeline.md](pipeline.md) 第 1–8 段（英文） | 不用 |
-| 健康日记里的一句话 | `collect/sentence.py` 把 `头疼，血压150/95` 拆成一条主诉和两条读数；每一段都必须引用原句，否定、假设和说别人的话都不写入 | 拆句和判断类型。编码来自第 5 步 |
+| 健康日记里的一句话 | `collect/sentence.py` 把 `头疼，血压150/95` 拆成一条主诉和两条读数；`头晕嗜睡` 整体编不上码、两半各自编得上时，拆成两条主诉；每一段都必须引用原句，否定、假设和说别人的话都不写入 | 拆句和判断类型。编码来自第 5 步 |
 | HTTP API | 按报告原样传名称、数值和单位 | 不用 |
 
 ### 1. 原样保留（`observations.prepare`）
