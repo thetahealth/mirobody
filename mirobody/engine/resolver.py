@@ -133,6 +133,19 @@ _SPECIMEN_SYNONYMS: dict[str, tuple[str, ...]] = {
 # decoding is paid only for the row that wins.
 _PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
 _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
+
+
+# An immunoassay's role: whether the test looks for the antigen or for the
+# antibody against it. A hyphen split whose missing half names a role keeps
+# the other half's answer only when that answer's COMPONENT names the same
+# role: `HBs` alone is an index key for the surface ANTIBODY, so `HBs-Ag`
+# has no answer of its own, while `Thyroglobulin Antibody-Ab` agrees with
+# itself (#322). `Anti` is a prefix, not a role tail: `Anti-dsDNA` and
+# `Anti-SSA` answer through their label as before.
+_ROLE_WORD = {"ag": "ag", "antigen": "ag", "ab": "ab", "antibody": "ab", "antibodies": "ab"}
+_COMPONENT_ROLE = re.compile(r"\b(ag|ab)\b", re.I)
+
+
 # A LOINC challenge that names one draw of a series: a time after the load
 # (`2h post 75 g glucose po`, `30m post xxx challenge`, `2d post dose
 # dexamethasone`) or an ordinal specimen (`3rd specimen post xxx
@@ -387,6 +400,11 @@ class OfflineResolver:
         """LOINC_NUM -> folded analyte head, or "" when unknown."""
         row = self._row_for_code(code)
         return self._axis.field(row, _ANALYTE) if row >= 0 else ""
+
+    def _component_of(self, code: str) -> str:
+        """LOINC_NUM -> its COMPONENT, folded to lower case, or "" when unknown."""
+        row = self._row_for_code(code)
+        return self._axis.field_raw(row, _COMPONENT).decode("utf-8") if row >= 0 else ""
 
     def _challenge_of(self, code: str) -> str:
         """LOINC_NUM -> the challenge after `^` in its COMPONENT (`post CFst`,
@@ -682,28 +700,33 @@ class OfflineResolver:
 
         return self._resolve_seam(term)
 
-    def _find_seam(self, term: str) -> tuple[str, str, bool]:
-        """``(stem, label, strict)`` for the first shape that matches a name
-        run into its own abbreviation; ``("", "", False)`` when none does.
+    def _find_seam(self, term: str) -> tuple[str, str, str]:
+        """``(stem, label, shape)`` for the first shape that matches a name
+        run into its own abbreviation; ``("", "", "")`` when none does.
 
         #305 unifies five shapes a report glues the two with behind one
         split: bracket ``名(缩写)``, hyphen ``Name-ABBR``, a bare space
         before an acronym ``Name ABBR``, and a CJK run straight into Latin
         ``白细胞WBC`` -- the last four tried again on the CamelCase-split
         surface, so ``FastingPlasmaGlucoseFPG`` is the same shape as
-        ``Fasting Plasma Glucose FPG``. `strict` is True only for the CJK
-        shape: see `_resolve_seam` for why only it drops the
-        one-half-missing fallback the other four keep.
+        ``Fasting Plasma Glucose FPG``. `shape` is ``cjk``, ``bracket``,
+        ``hyphen`` or ``space``: see `_resolve_seam` for why the CJK shape
+        drops the one-half-missing fallback and the hyphen shape narrows it.
         """
+        shapes = (
+            (split_trailing_parenthetical, "bracket"),
+            (split_trailing_hyphen, "hyphen"),
+            (split_trailing_space_acronym, "space"),
+        )
         for candidate in (term, split_camel(term)):
             stem, label = split_trailing_latin(candidate)
             if label:
-                return stem, label, True
-            for finder in (split_trailing_parenthetical, split_trailing_hyphen, split_trailing_space_acronym):
+                return stem, label, "cjk"
+            for finder, shape in shapes:
                 stem, label = finder(candidate)
                 if label:
-                    return stem, label, False
-        return "", "", False
+                    return stem, label, shape
+        return "", "", ""
 
     def _resolve_seam(self, term: str) -> Resolution:
         """A name and its own abbreviation, in any of the shapes `_find_seam`
@@ -714,7 +737,7 @@ class OfflineResolver:
         compared by LOINC analyte (COMPONENT), not by exact code: a
         disagreement there leaves the term unresolved.
         """
-        stem, label, strict = self._find_seam(term)
+        stem, label, shape = self._find_seam(term)
         if not stem and not label:
             return Resolution(term=term)
 
@@ -804,8 +827,19 @@ class OfflineResolver:
         # still answers" fallback the other four keep: `乙肝病毒DNA` must not
         # become an HBV antibody code through its stem alone just because
         # `DNA` carries no code of its own (#305).
-        if strict and not both_resolved:
+        if shape == "cjk" and not both_resolved:
             return Resolution(term=term)
+        # The hyphen shape keeps it for a NAME and its unknown abbreviation
+        # (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`), not when the missing
+        # half names the immunoassay's role and the answer is the other role:
+        # `HBs-Ag` answered the surface ANTIBODY through `HBs`, `HBc-Ag` the
+        # core antibody, `HCV-Ag` an RNA viral load (#322).
+        role = _ROLE_WORD.get((label if stem_hit else stem).strip().lower())
+        if shape == "hyphen" and not both_resolved and role:
+            hit = stem_hit or label_hit
+            roles = {m.lower() for m in _COMPONENT_ROLE.findall(self._component_of(hit.loinc))} if hit else set()
+            if hit is not None and role not in roles:
+                return Resolution(term=term)
         chosen = stem_hit or label_hit
         if chosen is None:
             return Resolution(term=term)

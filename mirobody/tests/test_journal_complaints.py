@@ -63,6 +63,10 @@ def test_two_complaints_written_back_to_back_are_two(sentence, name, halves):
     "头晕不嗜睡",       # the second half denies its complaint, and does not code
     "头晕嗜睡乏力",     # three complaints: not exactly two halves
     "头晕xx",          # a half that codes nothing
+    "头痛太阳穴痛",     # one headache said twice: both halves are NS01
+    "头痛头疼",         # two spellings of NS01
+    "头晕头晕",         # a literal repeat
+    "视物模糊眼花",     # both FS05
     "headache dizziness",  # Latin script separates its words already
     "",
 ])

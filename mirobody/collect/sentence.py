@@ -527,17 +527,26 @@ def _two_complaints(name: str) -> tuple[str, str] | None:
     two halves each coding on the symptom axis (`头晕嗜睡`, `头痛头晕`,
     `头晕乏力`). None otherwise, and the entry stays as the model wrote it: a
     half that does not code (`头晕不嗜睡`, whose `不嗜睡` denies the second),
-    three complaints, a name the vocabulary codes whole, or two cuts that
-    both code, where which pair was meant is not the split's to choose."""
+    three complaints, a name the vocabulary codes whole, two cuts that
+    both code, where which pair was meant is not the split's to choose, or
+    two halves with the same code (`头痛太阳穴痛`, `头痛头疼`, `头晕头晕`):
+    one complaint said twice, which the journal would count twice."""
     key = standardize.name_key(name)
     if not _CJK_ONLY.fullmatch(key) or _codes(key):
         return None
     cuts = [(key[:i], key[i:]) for i in range(1, len(key)) if _codes(key[:i]) and _codes(key[i:])]
-    return cuts[0] if len(cuts) == 1 else None
+    if len(cuts) != 1:
+        return None
+    first, second = cuts[0]
+    return None if _code(first) == _code(second) else cuts[0]
 
 
 def _codes(complaint: str) -> bool:
     return standardize.resolve_symptom(complaint).outcome == standardize.OUTCOME_CODED
+
+
+def _code(complaint: str) -> str:
+    return standardize.resolve_symptom(complaint).code
 
 
 def _when(text: str, *, now: datetime, zone: Any) -> datetime | None:

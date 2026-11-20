@@ -1,7 +1,51 @@
 ## Unreleased
 
+### Upgrade notes
+
+- **Run `docker compose exec mirobody mirobody recode` after upgrading.** The
+  vitamin D, hepatitis B serology, cystatin C, NT-proBNP and urine
+  albumin/creatinine names below now answer differently. Readings stored
+  before keep their old code (or none) until `recode` moves them; every move
+  is kept in the code history.
+
 ### Fixed
 
+- **One abbreviation printed with its own hyphen no longer answers through
+  half of itself (#322).** `HBs-Ag` was split at the hyphen into `HBs` and
+  `Ag`, and the half that resolved answered: a hepatitis B surface ANTIGEN
+  result was filed as the surface antibody (5193-8). `HBc-Ag` likewise
+  answered the core antibody, `Cys-C` an amino-acid screen (15133-2),
+  `UMA-CR` serum creatinine, `HCV-Ab` an HCV RNA viral load, and `Anti-TG`
+  triglycerides; `NT-proBNP` answered BNP (30934-4), a different assay with
+  a different range. The resolver now refuses a hyphen split whose missing
+  half names an immunoassay's role (`Ag`, `Ab`, `antigen`, `antibody`) when
+  the half that resolved answers a code for the other role, as `HBs` does;
+  `HCV-Ag`, `CMV-Ab` and `EBV-Ab`, which answered a viral load, refuse too.
+  A tail that agrees (`Thyroglobulin Antibody-Ab`), an `Anti-` prefix
+  (`Anti-dsDNA`), a name with its abbreviation, element symbol or method
+  (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`) and a bracket (`AFP(XYZ)`)
+  answer as before. The spellings reports print got rows of their own:
+  `HBs-Ag` 5196-1, `HBe-Ag` 13954-3, `Anti-HBs`/`HBs-Ab` 5193-8,
+  `Anti-HBe`/`HBe-Ab` 13953-5, `HBc-Ab` 13952-7, `HCV-Ab` 13955-0, `TPO-Ab`
+  8099-4, `Anti-TG` 8098-6, `Cys-C`/`CysC`/`血清胱抑素C` 33863-2, `NT-proBNP` and
+  its spaced spellings 33762-6, `UMA-CR`/`UMA/CR`/`mALB/CR` 9318-7. `HBc-Ag`
+  stays unresolved: LOINC's core-antigen code is a tissue stain. To check:
+  `mirobody resolve "HBs-Ag"` prints 5196-1.
+- **Every vitamin D spelling lands in one series (#323).** Most rows answered
+  1989-3 (25-hydroxyvitamin D3), but the Russian and Estonian rows and the
+  bare English `25-hydroxyvitamin D` answered 62292-8 (D2+D3), and the
+  series keeps the analyte, so one person's vitamin D history split in two
+  by spelling. Common spellings had no route at all: the `D3` forms
+  (`25-羟基维生素D3`), the short `羟` (`25-羟维生素D`), a `血清` prefix,
+  `25-OH-D`, `25-OH-D3`, `25-OH-VitD`, `Vitamin D 25-OH`, `Total
+  25-hydroxyvitamin D`, `25-羟基维生素D(25-OH-D)`, and Japanese `ビタミンD`.
+  All of them now answer 1989-3 in ng/mL and its sibling 14635-7 in nmol/L,
+  both in the `calcidiol` series; `维生素D3`, which answered cholecalciferol
+  (1990-1, the vitamin itself rather than the 25-OH test a report means),
+  joins them. The curated `25羟维生素D`/`25羥維生素D` rows pointed at a phrase
+  the index does not hold and now name Calcidiol. `25-hydroxyvitamin D2`
+  and `1,25-dihydroxyvitamin D` keep their own codes. To check:
+  `mirobody resolve "Витамин D"` prints 1989-3.
 - **A journal's `头晕嗜睡` is two coded complaints, and `嗜睡`, `视线发糊`
   and a temple pain code** (#321). The model returned two complaints
   written back to back as one entry in one run and as two in the next, and
@@ -10,7 +54,8 @@
   the name is CJK only, does not code whole, and exactly one cut leaves two
   halves that each code on the symptom axis (`头晕嗜睡`, `头晕乏力`,
   `头痛头晕`); a half that does not code (`头晕不嗜睡`), three complaints or
-  two possible cuts keep the entry as written. `symptoms_zh.tsv` gains
+  two possible cuts, or two halves with the same code (`头痛太阳穴痛`,
+  `头痛头疼`), keep the entry as written. `symptoms_zh.tsv` gains
   `嗜睡`, `犯困` and `困倦` (AS99, where ICPC-3 lists drowsiness and
   excludes it from AS04), `视线模糊`, `视线发糊` and `看东西模糊` (FS05,
   blurred vision) and `太阳穴痛`, `太阳穴疼` and `太阳穴跳痛` (NS01: the
