@@ -133,6 +133,16 @@ _SPECIMEN_SYNONYMS: dict[str, tuple[str, ...]] = {
 # decoding is paid only for the row that wins.
 _PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
 _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
+
+
+def _abbreviation_shaped(half: str) -> bool:
+    """A short token with two or more capitals and no spaces (`HBs`, `BNP`,
+    `CR`; `Iron` and `Lipase` are not): what a lab prints as an
+    abbreviation, not as a name."""
+    token = half.strip()
+    return 0 < len(token) <= 6 and " " not in token and sum(ch.isupper() for ch in token) >= 2
+
+
 # A LOINC challenge that names one draw of a series: a time after the load
 # (`2h post 75 g glucose po`, `30m post xxx challenge`, `2d post dose
 # dexamethasone`) or an ordinal specimen (`3rd specimen post xxx
@@ -682,28 +692,33 @@ class OfflineResolver:
 
         return self._resolve_seam(term)
 
-    def _find_seam(self, term: str) -> tuple[str, str, bool]:
-        """``(stem, label, strict)`` for the first shape that matches a name
-        run into its own abbreviation; ``("", "", False)`` when none does.
+    def _find_seam(self, term: str) -> tuple[str, str, str]:
+        """``(stem, label, shape)`` for the first shape that matches a name
+        run into its own abbreviation; ``("", "", "")`` when none does.
 
         #305 unifies five shapes a report glues the two with behind one
         split: bracket ``名(缩写)``, hyphen ``Name-ABBR``, a bare space
         before an acronym ``Name ABBR``, and a CJK run straight into Latin
         ``白细胞WBC`` -- the last four tried again on the CamelCase-split
         surface, so ``FastingPlasmaGlucoseFPG`` is the same shape as
-        ``Fasting Plasma Glucose FPG``. `strict` is True only for the CJK
-        shape: see `_resolve_seam` for why only it drops the
-        one-half-missing fallback the other four keep.
+        ``Fasting Plasma Glucose FPG``. `shape` is ``cjk``, ``bracket``,
+        ``hyphen`` or ``space``: see `_resolve_seam` for why the CJK shape
+        drops the one-half-missing fallback and the hyphen shape narrows it.
         """
+        shapes = (
+            (split_trailing_parenthetical, "bracket"),
+            (split_trailing_hyphen, "hyphen"),
+            (split_trailing_space_acronym, "space"),
+        )
         for candidate in (term, split_camel(term)):
             stem, label = split_trailing_latin(candidate)
             if label:
-                return stem, label, True
-            for finder in (split_trailing_parenthetical, split_trailing_hyphen, split_trailing_space_acronym):
+                return stem, label, "cjk"
+            for finder, shape in shapes:
                 stem, label = finder(candidate)
                 if label:
-                    return stem, label, False
-        return "", "", False
+                    return stem, label, shape
+        return "", "", ""
 
     def _resolve_seam(self, term: str) -> Resolution:
         """A name and its own abbreviation, in any of the shapes `_find_seam`
@@ -714,7 +729,7 @@ class OfflineResolver:
         compared by LOINC analyte (COMPONENT), not by exact code: a
         disagreement there leaves the term unresolved.
         """
-        stem, label, strict = self._find_seam(term)
+        stem, label, shape = self._find_seam(term)
         if not stem and not label:
             return Resolution(term=term)
 
@@ -804,7 +819,18 @@ class OfflineResolver:
         # still answers" fallback the other four keep: `乙肝病毒DNA` must not
         # become an HBV antibody code through its stem alone just because
         # `DNA` carries no code of its own (#305).
-        if strict and not both_resolved:
+        if shape == "cjk" and not both_resolved:
+            return Resolution(term=term)
+        # The hyphen shape keeps it for a NAME and its unknown abbreviation
+        # (`Ferritin-FER`, `Iron-FE`), not for one abbreviation cut at its
+        # own hyphen: `HBs-Ag` answered the surface ANTIBODY through `HBs`,
+        # `HBc-Ag` the core antibody, `Cys-C` an amino-acid screen through
+        # `Cys` (#322). A bracket never cuts one token, so `AFP(XYZ)` still
+        # answers through `AFP`.
+        if shape == "hyphen" and not both_resolved and " " not in stem and (
+            _abbreviation_shaped(stem if stem_hit else label)
+            or len((label if stem_hit else stem).strip()) == 1
+        ):
             return Resolution(term=term)
         chosen = stem_hit or label_hit
         if chosen is None:

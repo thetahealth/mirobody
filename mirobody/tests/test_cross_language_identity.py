@@ -225,6 +225,9 @@ SAME_ANALYTE = {
     "TPO antibody": ["TPOAb", "anti-TPO", "甲状腺过氧化物酶抗体", "Анти-ТПО"],
     "vitamin B12": ["vitamin B12", "维生素B12", "Витамин В12", "Витамин B12", "Vitamiin B12"],
     "folate": ["folate", "叶酸", "Фолиевая кислота"],
+    # #323: Russian and Estonian answered 62292-8 (D2+D3), the rest 1989-3.
+    "vitamin D": ["vitamin D", "25-hydroxyvitamin D", "25-OH-D", "维生素D", "25-羟基维生素D", "25羟维生素D",
+                  "25羥維生素D", "ビタミンD", "Витамин D", "Витамин D (25-OH)", "Vitamiin D (25-OH)"],
 }
 
 #: Analytes whose spellings do NOT agree yet, each one an open fix. `want` is
@@ -234,8 +237,6 @@ SAME_ANALYTE = {
 KNOWN_SPLITS = [
     ("direct bilirubin", ["Direct Bilirubin", "DBIL", "直接胆红素", "Билирубин прямой"], "1968-7",
      "the `direct bilirubin` row targets 15152-2 Bilirubin.conjugated"),
-    ("vitamin D", ["vitamin D", "维生素D", "Витамин D", "Витамин D (25-OH)", "Vitamiin D (25-OH)"], None,
-     "English and Chinese answer 1989-3 (D3), Russian and Estonian 62292-8 (D2+D3)"),
     ("thyroglobulin antibody", ["TgAb", "anti-thyroglobulin antibody", "甲状腺球蛋白抗体", "Анти-ТГ"], "8098-6",
      "the spelled-out English name answers nothing"),
     ("antistreptolysin O", ["ASO", "抗链球菌溶血素O", "АСЛО"], "5370-2",

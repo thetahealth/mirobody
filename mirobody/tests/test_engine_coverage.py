@@ -623,6 +623,38 @@ CASES: list[tuple[str, str, str]] = [
     ("tPSA",                         r"^prostate specific ag \[mass", r"free|prostate volume"),
     ("fPSA",                         r"prostate specific ag free \[", r"total"),
     ("f/tPSA",                       r"free/prostate specific ag\.total", r""),
+    # ── one abbreviation printed with its own hyphen (#322) ─────────────────
+    # The half that resolved used to answer: `HBs-Ag` the surface ANTIBODY,
+    # `Cys-C` an amino-acid screen, `NT-proBNP` BNP itself.
+    ("Cys-C",                        r"^cystatin c \[",               r"cysteine|anserine"),
+    ("CYS-C",                        r"^cystatin c \[",               r"cysteine|anserine"),
+    ("血清胱抑素C",                      r"^cystatin c \[",               r""),
+    ("HBs-Ag",                       r"surface Ag",                   r"surface Ab"),
+    ("HBe-Ag",                       r"virus e Ag",                   r"virus e Ab"),
+    ("Anti-HBs",                     r"surface Ab",                   r"surface Ag"),
+    ("HBc-Ab",                       r"core Ab",                      r"core Ag"),
+    ("Anti-HBe",                     r"virus e Ab",                   r"virus e Ag"),
+    ("NT-proBNP",                    r"prohormone N-Terminal",        r""),
+    ("UMA-CR",                       r"^albumin/creatinine",          r""),
+    # ── vitamin D: one series whatever the spelling (#323) ──────────────────
+    # 62292-8 (D2+D3) split a person's history from 1989-3 by spelling alone;
+    # `25羟维生素D` and `25-OH维生素D` were pinned misses, the first because
+    # its curated row targeted a phrase the index does not hold.
+    ("25-hydroxyvitamin D",          r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("Total 25-hydroxyvitamin D",    r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("Vitamin D 25-OH",              r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH-D",                      r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH-D3",                     r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH-VitD",                   r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25羟维生素D",                     r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH维生素D",                   r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-羟维生素D",                    r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-羟基维生素D3",                  r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25羟基维生素D3",                   r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("血清25-羟基维生素D",                r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-羟基维生素D(25-OH-D)",         r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("维生素D3",                       r"^25-hydroxyvitamin D3 \[",      r"D2|cholecalciferol"),
+    ("Витамин D",                    r"^25-hydroxyvitamin D3 \[",      r"D2"),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -691,13 +723,6 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # Kept exactly as main resolves it (unresolved): CLASS=CELLMARK excludes
     # bare 癌胚抗原, so the stem side of the split never resolves either.
     ("癌胚抗原CEA", "癌胚抗原 abstains on main (CLASS=CELLMARK); CEA alone answering is not evidence the pair agrees"),
-    # Neither half resolves (`25羟维生素` is not an index key on its own, nor
-    # is bare `D`), so this is an honest miss on main and stays one.
-    ("25羟维生素D", "neither half resolves; kept as main already has it"),
-    # Kept exactly as on main (F011 pin): the hyphen sits between two ASCII
-    # runs (`25`-`OH`), not at a Latin/CJK boundary, so
-    # `lexical.fold_script_boundary` never touches it.
-    ("25-OH维生素D", "the hyphen is ASCII-ASCII, not a script boundary; kept as main already has it"),
     # Each of these glues a real Chinese CBC/urinalysis name to an
     # abbreviation that means something ELSE entirely, or that splits the
     # same percent/absolute or quantitative/dipstick way `NEUT#`/`NEUT%`
@@ -716,6 +741,12 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # form reaches one), so these stay the honest miss main already gives.
     ("尿潜血BLD", "neither 尿潜血 nor BLD alone is in the index; stays unresolved"),
     ("尿比重SG", "SG carries no alias; 尿比重 alone resolves but the pair does not need to"),
+    # #322: one abbreviation cut at its own hyphen borrows nothing from the
+    # half that resolves. `HBc-Ag` answered the core ANTIBODY through `HBc`;
+    # LOINC's core-antigen code is a tissue stain, so no answer is right.
+    ("HBc-Ag", "HBc alone answers the core antibody; the antigen is a different test"),
+    ("HBs-Antigen", "HBs alone answers the surface antibody"),
+    ("BNP-NT", "BNP alone answers BNP, not its N-terminal prohormone"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
@@ -862,6 +893,13 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # lowercase both reach the new `ürik asit`/`açlık kan şekeri` rows.
     ("ÜRİK ASİT",        "6.5", "mg/dL",  "3084-1",  "urate, all-caps Turkish"),
     ("ürik asit",        "6.5", "mg/dL",  "3084-1",  "urate, lowercase Turkish"),
+    # #322: the hyphenated spellings keep their own analyte through the unit.
+    ("NT-proBNP",        "85",  "pg/mL",  "33762-6", "NT-proBNP, not BNP"),
+    ("Cys-C",            "0.9", "mg/L",   "33863-2", "cystatin C, not an amino-acid screen"),
+    # #323: either unit stays in the calcidiol series.
+    ("25-羟基维生素D",      "28.5", "ng/mL",  "1989-3",  "25-OH D3, mass"),
+    ("25-hydroxyvitamin D", "71",  "nmol/L", "14635-7", "25-OH D3, moles; not the D2+D3 code"),
+    ("Витамин D",        "71",  "nmol/L", "14635-7", "Russian, same series as the rest"),
     ("AÇLIK KAN ŞEKERİ", "95",  "mg/dL",  "1558-6",  "fasting glucose, all-caps Turkish"),
     ("açlık kan şekeri", "95",  "mg/dL",  "1558-6",  "fasting glucose, lowercase Turkish"),
 ]
@@ -904,6 +942,7 @@ QUALITATIVE_READINGS: list[tuple[str, str, str, str]] = [
     ("尿白细胞酯酶",   "阴性", "5799-2",  "dipstick presence code"),
     ("便隐血",         "阴性", "2335-8",  "already a Presence code"),
     ("乙肝表面抗原",   "阴性", "5196-1",  "serology screen"),
+    ("HBs-Ag",         "阴性", "5196-1",  "serology screen, hyphenated (#322)"),
     ("丙肝抗体",       "阴性", "13955-0", "serology screen"),
     ("类风湿因子",     "阴性", "33910-1", "not 11572-5 [Units/volume], the numeric form's code"),
     ("妊娠试验",       "阳性", "2118-8",  "not 19080-1 [Units/volume]"),
