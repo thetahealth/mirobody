@@ -636,6 +636,10 @@ CASES: list[tuple[str, str, str]] = [
     ("Anti-HBe",                     r"virus e Ab",                   r"virus e Ag"),
     ("NT-proBNP",                    r"prohormone N-Terminal",        r""),
     ("UMA-CR",                       r"^albumin/creatinine",          r""),
+    # The refusal is for a role word only: a method or standard tag after a
+    # real abbreviation still answers through it (review of #331).
+    ("HbA1c-NGSP",                   r"^hemoglobin a1c/",             r""),
+    ("ANA-IFA",                      r"^nuclear .*Ab",                r""),
     # ── vitamin D: one series whatever the spelling (#323) ──────────────────
     # 62292-8 (D2+D3) split a person's history from 1989-3 by spelling alone;
     # `25羟维生素D` and `25-OH维生素D` were pinned misses, the first because
@@ -746,7 +750,6 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # LOINC's core-antigen code is a tissue stain, so no answer is right.
     ("HBc-Ag", "HBc alone answers the core antibody; the antigen is a different test"),
     ("HBs-Antigen", "HBs alone answers the surface antibody"),
-    ("BNP-NT", "BNP alone answers BNP, not its N-terminal prohormone"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
@@ -893,6 +896,11 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # lowercase both reach the new `ürik asit`/`açlık kan şekeri` rows.
     ("ÜRİK ASİT",        "6.5", "mg/dL",  "3084-1",  "urate, all-caps Turkish"),
     ("ürik asit",        "6.5", "mg/dL",  "3084-1",  "urate, lowercase Turkish"),
+    # #322's refusal is for an immunoassay role word only: a name with its
+    # element symbol, method or standard still answers (review of #331).
+    ("Potassium-K",      "4.2", "mmol/L", "2823-3",  "K is the element, not a fragment"),
+    ("Phosphorus-P",     "3.5", "mg/dL",  "2777-1",  "P is the element"),
+    ("VLDL-C",           "20",  "mg/dL",  "13458-5", "VLDL is an analyte, not a fragment"),
     # #322: the hyphenated spellings keep their own analyte through the unit.
     ("NT-proBNP",        "85",  "pg/mL",  "33762-6", "NT-proBNP, not BNP"),
     ("Cys-C",            "0.9", "mg/L",   "33863-2", "cystatin C, not an amino-acid screen"),

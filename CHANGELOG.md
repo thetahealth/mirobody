@@ -17,11 +17,12 @@
   answered the core antibody, `Cys-C` an amino-acid screen (15133-2),
   `UMA-CR` serum creatinine, `HCV-Ab` an HCV RNA viral load, and `Anti-TG`
   triglycerides; `NT-proBNP` answered BNP (30934-4), a different assay with
-  a different range. The resolver now refuses a hyphen split when the half
-  that resolved is itself an abbreviation (two capitals or more) or the
-  other half is one character; a name with its abbreviation (`Ferritin-FER`,
-  `Iron-FE`, `Total Cholesterol-TC`) and a bracket (`AFP(XYZ)`) still answer
-  as before. The spellings reports print got rows of their own:
+  a different range. The resolver now refuses a hyphen split whose missing
+  half is an immunoassay's role (`Ag`, `Ab`, `antigen`, `antibody`, `Anti`),
+  since the other half cannot say whether the antigen or the antibody was
+  tested; a name with its abbreviation, element symbol or method
+  (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`, `HbA1c-NGSP`) and a bracket
+  (`AFP(XYZ)`) still answer as before. The spellings reports print got rows of their own:
   `HBs-Ag` 5196-1, `HBe-Ag` 13954-3, `Anti-HBs`/`HBs-Ab` 5193-8,
   `Anti-HBe`/`HBe-Ab` 13953-5, `HBc-Ab` 13952-7, `HCV-Ab` 13955-0, `TPO-Ab`
   8099-4, `Anti-TG` 8098-6, `Cys-C`/`CysC`/`血清胱抑素C` 33863-2,

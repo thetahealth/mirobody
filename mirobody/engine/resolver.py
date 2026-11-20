@@ -135,12 +135,11 @@ _PLAIN_SPECIMEN = re.compile(rb"in (Serum or Plasma|Blood)\b", re.I)
 _SPECIAL_SPECIMEN = re.compile(rb"\b(cord|capillary|venous|arterial|dialysis)\b", re.I)
 
 
-def _abbreviation_shaped(half: str) -> bool:
-    """A short token with two or more capitals and no spaces (`HBs`, `BNP`,
-    `CR`; `Iron` and `Lipase` are not): what a lab prints as an
-    abbreviation, not as a name."""
-    token = half.strip()
-    return 0 < len(token) <= 6 and " " not in token and sum(ch.isupper() for ch in token) >= 2
+# An immunoassay's role: whether the test looks for the antigen or for the
+# antibody against it. The name's other half cannot say which (`HBs` alone
+# is an index key for the surface ANTIBODY), so a hyphen split whose missing
+# half is one of these has no answer of its own (#322).
+_ROLE_WORD = re.compile(r"(?i)^(?:ag|ab|antigen|antibody|antibodies|anti)$")
 
 
 # A LOINC challenge that names one draw of a series: a time after the load
@@ -822,14 +821,11 @@ class OfflineResolver:
         if shape == "cjk" and not both_resolved:
             return Resolution(term=term)
         # The hyphen shape keeps it for a NAME and its unknown abbreviation
-        # (`Ferritin-FER`, `Iron-FE`), not for one abbreviation cut at its
-        # own hyphen: `HBs-Ag` answered the surface ANTIBODY through `HBs`,
-        # `HBc-Ag` the core antibody, `Cys-C` an amino-acid screen through
-        # `Cys` (#322). A bracket never cuts one token, so `AFP(XYZ)` still
-        # answers through `AFP`.
-        if shape == "hyphen" and not both_resolved and " " not in stem and (
-            _abbreviation_shaped(stem if stem_hit else label)
-            or len((label if stem_hit else stem).strip()) == 1
+        # (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`), not when the missing
+        # half is the immunoassay's role: `HBs-Ag` answered the surface
+        # ANTIBODY through `HBs`, `HBc-Ag` the core antibody (#322).
+        if shape == "hyphen" and not both_resolved and _ROLE_WORD.match(
+            (label if stem_hit else stem).strip()
         ):
             return Resolution(term=term)
         chosen = stem_hit or label_hit
