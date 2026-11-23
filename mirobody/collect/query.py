@@ -70,7 +70,7 @@ from datetime import date, datetime, timedelta
 from typing import Any, NamedTuple
 
 from mirobody import standardize, units
-from mirobody.kernel import query
+from mirobody.kernel import metrics, query
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.kernel.tools import PROVENANCE_REPORTED
 from mirobody.collect.observations import (
@@ -273,6 +273,23 @@ _LATEST_IDENTITY = (
     " (ARRAY_AGG(code_system ORDER BY at DESC))[1] AS code_system,"
     " (ARRAY_AGG(code ORDER BY at DESC))[1] AS code"
 )
+
+
+def _with_generated_codes(names: list[str]) -> list[str]:
+    """`names`, with the LOINC code a generated `daily{Total,Sum}{Indicator}`
+    name now carries appended for every one that has switched
+    (`observations.catalog_alias`, #333): `dailyTotalSteps` is still asked
+    for by that name, but the row is filed under `steps`' own code (55423-8)
+    now. Any other name passes through unchanged."""
+    out = list(names)
+    for name in names:
+        found = metrics.daily_aggregate_metric(name)
+        if found is None or found[1] not in ("total", "sum"):
+            continue
+        system, code = found[0].canonical
+        if system == metrics.SYSTEM_LOINC:
+            out.append(code)
+    return out
 
 
 class PostgresHealthQuery:
@@ -752,10 +769,16 @@ class PostgresHealthQuery:
         """Exact selectors: a series id, a code, a display name, a printed name,
         or the name a reader is shown (`label`, in the request's language or in
         English). The model reads the label and asks again by it, so a label
-        that selected nothing would make the answer it just read unreachable."""
+        that selected nothing would make the answer it just read unreachable.
+
+        A generated `daily{Total,Sum}{Indicator}` name that is now stored under
+        its source's own LOINC code instead (`observations.catalog_alias`,
+        #333) is still how an older conversation or a tool built before the
+        switch may ask for it; `_with_generated_codes` adds that code to the
+        selectors so asking by the generated name still finds the row."""
         params: dict[str, Any] = {
             "uid": str(subject_id),
-            "names": names,
+            "names": _with_generated_codes(names),
             "lower": [n.lower() for n in names],
             "keys": [standardize.name_key(n) for n in names],
         }
@@ -1060,13 +1083,24 @@ def _identity(r: dict, facets: bool = False) -> dict:
     `facets`, a LOINC row says what the code measures, axis by axis (specimen
     全血, property 质量浓度): the long name's content without its brackets. Only a
     catalogue row asks for those: they describe the code, so on every one of 200
-    readings they would be the same dict 200 times."""
-    out = {
-        "indicator": r.get("display") or r.get("name") or r.get("name_text") or "",
-        "series": r.get("series_id") or "",
-        "system": r.get("code_system") or "",
-        "code": r.get("code") or "",
-    }
+    readings they would be the same dict 200 times.
+
+    A device-namespace code never has a `th_concept` row of its own
+    (`observations._write_concept` always skips one whose display is just the
+    code echoed back, which is what every device coding sets its display to:
+    `standardize.code`'s device branch), so `r["display"]` reaching here has
+    already fallen all the way back to the printed `name_text` at the SQL
+    layer that built `r`. For a device code the CODE is preferred over that
+    instead: it is already the name with any `.source` suffix an aggregator
+    or a phone push appended stripped off (`observations.catalog_alias`), so
+    a generated daily figure selects by `dailyMinOxygenSaturations`, never
+    `dailyMinOxygenSaturations.apple_health_export` (#333)."""
+    system, code = r.get("code_system") or "", r.get("code") or ""
+    if system == metrics.SYSTEM_DEVICE and code:
+        indicator = code
+    else:
+        indicator = r.get("display") or r.get("name") or r.get("name_text") or ""
+    out = {"indicator": indicator, "series": r.get("series_id") or "", "system": system, "code": code}
     label = standardize.label_for(out["system"], out["code"], request_language())
     if label:
         out["label"] = label

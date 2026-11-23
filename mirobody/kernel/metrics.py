@@ -45,6 +45,7 @@ from __future__ import annotations
 import csv
 import io
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from importlib import resources
 from collections.abc import Iterator
 
@@ -220,6 +221,135 @@ def canonical(name: str) -> tuple[str, str]:
     return m.canonical if m else (SYSTEM_DEVICE, name)
 
 
+#: ``grouping`` -> the prefix a generated summary name begins with. Read by
+#: ``build_indicator_name`` below and by the Apple statistics upload path
+#: (``collect/providers/apple/statistics_service.py``), which receives a
+#: phone's own ``hour``/``day``/``week``/``month`` pre-aggregated figure and
+#: must name it the same way this catalogue's own ``day`` rollup does.
+GROUPING_PREFIX: dict[str, str] = {
+    "hour": "hourly",
+    "day": "daily",
+    "week": "weekly",
+    "month": "monthly",
+}
+
+#: A method's name is its CamelCase (``pct_below_70`` -> ``PctBelow70``),
+#: except ``sum``, which names the same figure as ``total`` (Apple's
+#: statistics upload sends ``sum``, the catalogue declares ``total``).
+_METHOD_NAME_MAP: dict[str, str] = {"sum": "Total"}
+
+
+def _snake_to_camel(s: str) -> str:
+    return "".join(part.capitalize() for part in s.split("_"))
+
+
+def build_indicator_name(grouping: str, method: str, source_indicator: str) -> str:
+    """A generated summary name from a time grouping, an aggregation method
+    and the series it summarises: ``("day", "avg", "heartRates")`` ->
+    ``"dailyAvgHeartRates"``.
+
+    This is the ONE naming rule both ends of the aggregator use:
+    ``standardize.aggregate.rule_generator`` writes a stored row's name with
+    it, and ``daily_aggregate_metric`` below reads a stored name back with
+    it. Two copies of this function is exactly how #333 happened (the read
+    side had no way back to a generated name's source at all); it lives here,
+    in the library layer, because both the write side (``[app]``) and
+    anything reading a device-coded name (``standardize.names``, pure) need
+    to call the same code.
+
+    Raises ``ValueError`` on an unknown grouping.
+    """
+    prefix = GROUPING_PREFIX.get(grouping)
+    if prefix is None:
+        raise ValueError(f"Unknown grouping: {grouping!r}, expected one of {list(GROUPING_PREFIX)}")
+    method_capitalized = _METHOD_NAME_MAP.get(method) or _snake_to_camel(method)
+    source_capitalized = source_indicator[0].upper() + source_indicator[1:] if source_indicator else ""
+    return f"{prefix}{method_capitalized}{source_capitalized}"
+
+
+#: English/Chinese word for every method in ``metrics.tsv``'s
+#: ``aggregation_methods``, to label a generated ``daily{Method}{Indicator}``
+#: row: the catalogue has no row for one, so its label is the source metric's
+#: label plus the statistic. ``test_daily_aggregate_catalog.py`` resolves every
+#: generated name, so a method added to the TSV without a word here fails it.
+_METHOD_WORD: dict[str, tuple[str, str]] = {
+    "avg": ("Average", "平均"),
+    "max": ("Max", "最高"),
+    "min": ("Min", "最低"),
+    "last": ("Latest", "最新"),
+    "total": ("Total", "总"),
+    "sum": ("Total", "总"),
+    "stddev": ("Std Dev", "标准差"),
+    "time_of_max": ("Time of Max", "最高值时刻"),
+    "time_of_min": ("Time of Min", "最低值时刻"),
+    "sleep_onset_latency": ("Sleep Onset Latency", "入睡潜伏期"),
+    "hypo_event_count": ("Hypo Event Count", "低血糖事件次数"),
+    "hypo_event_times": ("Hypo Event Times", "低血糖事件时间"),
+    "hypo_event_details": ("Hypo Event Details", "低血糖事件详情"),
+    "pct_above_140": ("% Above 140", "高于140占比"),
+    "pct_above_180": ("% Above 180", "高于180占比"),
+    "pct_below_70": ("% Below 70", "低于70占比"),
+    "tir_70_140": ("Time in Range 70-140", "70-140范围内时间占比"),
+    "tir_70_180": ("Time in Range 70-180", "70-180范围内时间占比"),
+    "gmi_14d": ("14-Day GMI", "14天GMI"),
+    "morning_hr_jump": ("Morning Heart Rate Jump", "晨起心率跃升"),
+    "nighttime_resting_hr": ("Nighttime Resting Heart Rate", "夜间静息心率"),
+}
+
+
+@lru_cache(maxsize=1)
+def _daily_aggregate_sources() -> dict[str, tuple[Metric, str]]:
+    """``daily{Method}{Indicator}`` -> ``(source metric, method)``, for every
+    rule ``standardize.aggregate.rule_generator`` can generate: one entry per
+    aggregation method a SERIES row declares (the same ``data_type`` filter
+    `rule_generator` applies, so a ``mix`` row's methods, which it skips, are
+    skipped here too). This is the read side's only map back to a generated
+    name's source, built from the catalogue over the same naming rule the
+    write side uses, so the two cannot drift apart."""
+    out: dict[str, tuple[Metric, str]] = {}
+    for m in ROWS:
+        if m.data_type != DATA_SERIES or not m.aggregation_methods:
+            continue
+        for method in m.aggregation_methods:
+            out[build_indicator_name("day", method, m.name)] = (m, method)
+    return out
+
+
+def daily_aggregate_metric(name: str) -> tuple[Metric, str] | None:
+    """The source metric and aggregation method behind a generated
+    ``daily{Method}{Indicator}`` name (a ``.source`` suffix the aggregator
+    appended is stripped first). ``None`` for a name no SERIES row's
+    ``aggregation_methods`` produces -- including a hand-curated ``summary``
+    row such as ``dailyTotalSleepTime``, which is already its own catalogue
+    entry under ``METRICS`` and needs no mapping back."""
+    return _daily_aggregate_sources().get(name.split(".", 1)[0])
+
+
+def daily_aggregate_label(name: str, *, chinese: bool) -> str:
+    """The label a reader sees for a generated daily name: the source
+    metric's own registered label with the statistic it names prefixed --
+    ``每日最低血氧饱和度`` / ``Daily Min Blood Oxygen`` for
+    ``dailyMinOxygenSaturations``, read off ``oxygenSaturations``. ``""`` when
+    ``name`` is not one ``daily_aggregate_metric`` resolves, or its method has
+    no registered word (``_METHOD_WORD``).
+
+    Composed on every call rather than registered in ``labels/<locale>.tsv``:
+    a generated name has no ``member`` of its own to register one under, and
+    there is one of these for every (metric, method) pair the catalogue can
+    produce, not one a curator wrote by hand."""
+    found = daily_aggregate_metric(name)
+    if found is None:
+        return ""
+    source, method = found
+    words = _METHOD_WORD.get(method)
+    if words is None:
+        return ""
+    en_word, zh_word = words
+    if chinese:
+        return f"每日{zh_word}{label(source.member, 'zh') or source.display}"
+    return f"Daily {en_word} {source.display}"
+
+
 def register_overrides(system: str, table: dict[str, tuple[str, str, str]]) -> None:
     """Teach the catalogue how one vendor's metric keys map, when the default
     (``metric_key == name``, shape from the catalogue) is wrong for it.
@@ -305,4 +435,5 @@ __all__ = [
     "Metric", "Mapping", "ROWS", "MEMBERS", "METRICS", "CATEGORIES",
     "canonical", "mapping_for", "register_overrides", "register_labels", "label", "description",
     "load_labels_resource", "with_shape", "iter_names",
+    "GROUPING_PREFIX", "build_indicator_name", "daily_aggregate_metric", "daily_aggregate_label",
 ]

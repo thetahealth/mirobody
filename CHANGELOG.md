@@ -7,6 +7,14 @@
   albumin/creatinine, lipoprotein(a) and the other names below now answer
   differently. Readings stored before keep their old code (or none) until
   `recode` moves them; every move is kept in the code history.
+- **The same `recode` also moves a device's daily totals (#333 below).** A
+  daily step count, floors climbed, distance, calories or sleep-stage total
+  computed before this release is still filed under its generated storage
+  key (`mirobody-device:dailyTotalSteps`); `recode` replays it under the
+  source metric's own LOINC code and drops the stale `th_day_authority` row
+  so election recomputes it. An `avg`/`min`/`max`/`last`-style daily figure
+  (oxygen, heart rate) is unaffected: it keeps its own per-name identity and
+  only gains a label.
 
 ### Added
 
@@ -52,6 +60,27 @@
 
 ### Fixed
 
+- **An Apple device's daily figures had no name and sleep read in `ms`
+  (#333).** The aggregator names a day's figures `daily{Method}{Indicator}`
+  (`dailyMinOxygenSaturations`, `dailyTotalSleepAnalysis_Asleep(Core)`), and
+  none of those names is in the catalogue, so the Indicators page showed the
+  storage key with its `.apple_health_export`/`.apple_health` suffix still
+  on it, with no label in either language, and a sleep stage or time in bed
+  stayed in `ms` for lack of a code. `kernel.metrics.daily_aggregate_metric`
+  now reads a generated name back to the catalogue row and method that
+  produced it, over the same naming rule the aggregator writes with, so the
+  two cannot disagree. A daily figure now always has a label, in `zh` and
+  `en` or, lacking an English consumer name, the LOINC long name (the same
+  gap an ordinary vital sign already has); a single-method metric's daily
+  total (steps, a sleep stage, time in bed) is filed under the source
+  metric's own confident LOINC code, so it also reads in the unit that code
+  declares (`h`, `min`) instead of the device's storage `ms`; an `avg`/
+  `min`/`max` statistic keeps its own identity instead, so three different
+  numbers for one day do not collapse into one election winner. The same
+  day from an export and from a phone push already shared this identity;
+  only the label was missing. To check: import an Apple Health export with
+  sleep and oxygen saturation and open 健康指标 (Indicators) -- every row
+  reads with a name, and sleep answers in hours, not milliseconds.
 - **Lipoprotein(a) printed as `脂蛋白(a)` is Lp(a), not total lipoproteins
   (#332).** No printed spelling reached LOINC's zh-CN key, which has a space
   (`脂蛋白 (a)`), so the bracket split read `a` as an abbreviation and the
