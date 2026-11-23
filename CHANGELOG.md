@@ -24,6 +24,13 @@
   downloads under its own name; PDF, images and text still open in a tab. To
   check: upload `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
   Web client thetahealth/mirobody-web#36.
+- **`<br>` in a chat answer is a line break (thetahealth/mirobody-web#35).**
+  A table cell is one line, so models break it with `<br>`
+  ("2024-06-15<br>仁和市第一医院"), and the answer showed the four characters
+  `<br>`. Exactly `<br>`, `<br/>` or `<br />` now renders as a line break, in
+  table cells and in text; every other tag is still shown as text, and code
+  is untouched. To check: ask for a table whose header puts the date and the
+  source on two lines with `<br>`. Web client thetahealth/mirobody-web#37.
 - **One abbreviation printed with its own hyphen no longer answers through
   half of itself (#322).** `HBs-Ag` was split at the hyphen into `HBs` and
   `Ag`, and the half that resolved answered: a hepatitis B surface ANTIGEN
