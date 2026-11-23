@@ -2,7 +2,9 @@
 
 Each SERIES indicator declares its `aggregation_methods` in `IndicatorInfo`;
 every method becomes one rule from the indicator to its daily summary, named
-`daily{Method}{Indicator}` (`naming.build_indicator_name`):
+`daily{Method}{Indicator}` (`kernel.metrics.build_indicator_name`, which also
+reads a generated name back to its source: `kernel.metrics.daily_aggregate_metric`,
+#333):
 
     heartRates + ['avg', 'max', 'min'] -> dailyAvgHeartRates, dailyMaxHeartRates, dailyMinHeartRates
     steps + ['total']                  -> dailyTotalSteps
@@ -11,7 +13,7 @@ every method becomes one rule from the indicator to its daily summary, named
 import logging
 
 from .models import AggregationRule
-from .naming import build_indicator_name
+from mirobody.kernel.metrics import build_indicator_name
 from mirobody.standardize import StandardIndicator, HealthDataType
 
 logger = logging.getLogger(__name__)

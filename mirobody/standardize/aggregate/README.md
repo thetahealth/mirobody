@@ -68,7 +68,12 @@ th_day_authority
 
 The rules come from `IndicatorInfo.aggregation_methods` of every SERIES
 indicator (`rule_generator.py`); each method becomes `daily{Method}{Indicator}`
-(`naming.build_indicator_name`, where `sum` is named `Total`, like `total`).
+(`kernel.metrics.build_indicator_name`, where `sum` is named `Total`, like
+`total`). The read side maps a generated name back to its source the same
+way, over the same rule (`kernel.metrics.daily_aggregate_metric`, #333): the
+catalogue carries no row for a generated name, so without it a daily row had
+no label and no LOINC code, and fell back to its storage key with the
+`.source` suffix still on it.
 
 * In one GROUP BY statement per person-day: `avg`, `max`, `min`, `sum` /
   `total`, `count`, `stddev`, `variance`, `last`, `first`, `median`, `p95`,
