@@ -1764,3 +1764,72 @@ Vitamin D 25-OH	Calcidiol
 D-vitamiin	Calcidiol
 维生素D(25-OH)	Calcidiol
 Vitamin D (25-OH)	Calcidiol
+
+# ── Lipoprotein(a) and its neighbours (#332) ──────────────────────────────
+# Reports print `脂蛋白(a)` / `脂蛋白（a）`; LOINC's zh-CN key is `脂蛋白 (a)`,
+# with a space, so no printed spelling reached it, the bracket split took
+# `a` for an abbreviation, `a` resolved to nothing, and the stem answered
+# total lipoproteins (2576-7): a person's Lp(a) history was filed as another
+# analyte. Full-width brackets and `A` fold to the same key. The split is
+# left as it is: a lone letter that resolves to nothing is also how
+# `钾(K)` and `磷(P)` reach potassium and phosphate.
+脂蛋白(a)	Lp(a)
+血清脂蛋白(a)	Lp(a)
+脂蛋白(a)(Lp(a))	Lp(a)
+# `载脂蛋白(a)` met apolipoprotein A (1883-8) once lower-cased: `载脂蛋白 a`
+# is the zh-CN component of 1883-8 written small. Apolipoprotein(a) is the
+# protein of Lp(a), LOINC's `Apolipoprotein LPA` (1881-2).
+载脂蛋白(a)	Apolipoprotein LPA
+# LOINC's zh-CN names use 总脂蛋白 for total lipoprotein (60344-9 is
+# `脂蛋白（a）/总脂蛋白`); zh.tsv sent it to Lp(a). `脂蛋白类` is the class,
+# not a test.
+总脂蛋白	lipoprotein
+脂蛋白类	!unresolved
+
+# ── Printed names coded as another analyte (#343) ─────────────────────────
+# From a synthetic-corpus check that compares each name's answer with the
+# LOINC analyte the generator printed it for.
+#
+# Absolute counts. `#`, `数` and `计数` are how a report marks the count
+# beside the percentage; they landed on the `/Leukocytes` ratio codes, so a
+# 4.2 ×10⁹/L joined a series of percentages. Same targets as `绝对值` above.
+中性粒细胞#	Neutrophils [#/volume] in Blood
+中性粒细胞数	Neutrophils [#/volume] in Blood
+中性粒细胞计数	Neutrophils [#/volume] in Blood
+淋巴细胞#	Lymphocytes [#/volume] in Blood
+淋巴细胞数	Lymphocytes [#/volume] in Blood
+淋巴细胞计数	Lymphocytes [#/volume] in Blood
+单核细胞#	Monocytes [#/volume] in Blood
+单核细胞数	Monocytes [#/volume] in Blood
+单核细胞计数	Monocytes [#/volume] in Blood
+嗜酸性粒细胞#	Eosinophils [#/volume] in Blood
+嗜酸性粒细胞数	Eosinophils [#/volume] in Blood
+嗜酸性粒细胞计数	Eosinophils [#/volume] in Blood
+嗜碱性粒细胞#	Basophils [#/volume] in Blood
+嗜碱性粒细胞数	Basophils [#/volume] in Blood
+嗜碱性粒细胞计数	Basophils [#/volume] in Blood
+# Abbreviations whose letters spell an unrelated LOINC short name:
+# `baPWV (left)` answered thyrotropin, `SBP` sex hormone binding globulin,
+# `DBP` vitamin D-binding protein, `ACR` an ankle-brachial pressure ratio,
+# `RhD` a fetal cfDNA test, `PAB` para-aminobenzoate, `LIP` a lipoprotein
+# subparticle. On a report they are the vital, the urine ratio, the blood
+# type, prealbumin and lipase.
+baPWV	pulse wave velocity
+baPWV (left)	pulse wave velocity
+baPWV (right)	pulse wave velocity
+SBP	sys bp
+DBP	dias bp
+ACR	Albumin/Creatinine [Mass Ratio] in Urine
+RhD	Rh typing
+PAB	prealbumin
+LIP	lipase
+# `总钙` answered the ionized/total ratio (49936-8), `部分凝血活酶时间` the
+# PT + aPTT panel (34529-8).
+总钙	calcium
+部分凝血活酶时间	aPTT
+# `酸碱度` answered ionized calcium adjusted to pH 7.4 (19072-8). The bare
+# word names no specimen; urine prints 尿酸碱度, which already answers 2756-5.
+酸碱度	!unresolved
+# The English name of 基础代谢率, which abstains for the reason given in
+# test_engine_coverage_devices.py; it answered the MET-and-RMR panel.
+Basal metabolic rate	!unresolved

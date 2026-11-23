@@ -3,10 +3,10 @@
 ### Upgrade notes
 
 - **Run `docker compose exec mirobody mirobody recode` after upgrading.** The
-  vitamin D, hepatitis B serology, cystatin C, NT-proBNP and urine
-  albumin/creatinine names below now answer differently. Readings stored
-  before keep their old code (or none) until `recode` moves them; every move
-  is kept in the code history.
+  vitamin D, hepatitis B serology, cystatin C, NT-proBNP, urine
+  albumin/creatinine, lipoprotein(a) and the other names below now answer
+  differently. Readings stored before keep their old code (or none) until
+  `recode` moves them; every move is kept in the code history.
 
 ### Added
 
@@ -33,6 +33,29 @@
 
 ### Fixed
 
+- **Lipoprotein(a) printed as `脂蛋白(a)` is Lp(a), not total lipoproteins
+  (#332).** No printed spelling reached LOINC's zh-CN key, which has a space
+  (`脂蛋白 (a)`), so the bracket split read `a` as an abbreviation and the
+  stem answered 2576-7: a person's Lp(a) history was filed and range-checked
+  as another analyte, and a reading in nmol/L was refused. `脂蛋白(a)`,
+  `脂蛋白（a）`, `脂蛋白(A)`, `血清脂蛋白(a)` and `脂蛋白(a)(Lp(a))` now answer
+  10835-7, and 43583-4 in nmol/L. `载脂蛋白(a)` answered apolipoprotein A
+  (1883-8) and now answers apolipoprotein(a) (1881-2). `总脂蛋白` and
+  `脂蛋白类`, which two alias rows sent to Lp(a), answer total lipoproteins
+  and nothing. To check: `mirobody resolve "脂蛋白(a)"` prints 10835-7.
+- **Twenty-eight more printed names stop answering an unrelated analyte (#343).**
+  `中性粒细胞#`, `淋巴细胞数` and the other absolute counts written with `#`,
+  `数` or `计数` answered the percentage codes, so a count joined a series of
+  percentages; they now answer the `[#/volume]` codes `绝对值` already used.
+  `baPWV (left)` answered thyrotropin, `SBP` sex hormone binding globulin,
+  `DBP` vitamin D-binding protein, `ACR` an ankle-brachial pressure ratio,
+  `RhD` a fetal cfDNA test, `PAB` para-aminobenzoate, `LIP` a lipoprotein
+  subparticle, `总钙` the ionized/total calcium ratio and `部分凝血活酶时间` the
+  PT + aPTT panel; each now answers its own test. `酸碱度` (no specimen) and
+  `Basal metabolic rate` (as 基础代谢率) now refuse rather than answer
+  ionized calcium and a panel. Spirometry, urine dipstick abbreviations
+  (`PRO`, `KET`, `BIL`…) and `TG`/`TCT`, which need the report's section to
+  answer, are unchanged. To check: `mirobody resolve SBP` prints 8480-6.
 - **The docs no longer imply that `SEED_DEMO_DATA=false` removes the public
   demo sign-in (#337).** It stops the demo data and the sign-in page's hint,
   and nothing else: `EMAIL_PREDEFINE_CODES` in `config.yaml` still let anyone
