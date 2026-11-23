@@ -33,6 +33,27 @@
 
 ### Fixed
 
+- **A Chinese, Japanese or Korean member name is stored family name first
+  (#339).** 关爱圈 → 添加成员 joined 名 and 姓 given name first with a space,
+  so 姓 郑 名 雪 was saved and shown as "雪 郑", and the avatar showed 雪. When
+  both parts are Han, kana or Hangul, the name is now written family name
+  first with no space (郑雪, 山田太郎); a Latin name stays "John Smith". In
+  Chinese and Japanese the form asks for 姓 first. A name saved before keeps
+  its old order. To check: add 姓 郑 名 雪; the card reads 郑雪 with the
+  avatar 郑. Web client thetahealth/mirobody-web#36.
+- **查看 on an Excel file downloads it (#341).** For a file the browser does
+  not show in place (`.xlsx`, `.xls`), 查看 and 查看原文件 opened a tab that
+  stayed blank, and nothing was saved. Such a file now opens no tab and
+  downloads under its own name; PDF, images and text still open in a tab. To
+  check: upload `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
+  Web client thetahealth/mirobody-web#36.
+- **`<br>` in a chat answer is a line break (thetahealth/mirobody-web#35).**
+  A table cell is one line, so models break it with `<br>`
+  ("2024-06-15<br>仁和市第一医院"), and the answer showed the four characters
+  `<br>`. Exactly `<br>`, `<br/>` or `<br />` now renders as a line break, in
+  table cells and in text; every other tag is still shown as text, and code
+  is untouched. To check: ask for a table whose header puts the date and the
+  source on two lines with `<br>`. Web client thetahealth/mirobody-web#37.
 - **One abbreviation printed with its own hyphen no longer answers through
   half of itself (#322).** `HBs-Ag` was split at the hyphen into `HBs` and
   `Ag`, and the half that resolved answered: a hepatitis B surface ANTIGEN
