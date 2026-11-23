@@ -267,15 +267,11 @@ def build_indicator_name(grouping: str, method: str, source_indicator: str) -> s
     return f"{prefix}{method_capitalized}{source_capitalized}"
 
 
-#: English/Chinese words for every aggregation method a SERIES row's
-#: ``aggregation_methods`` column (``res/catalog/metrics.tsv``) declares, used
-#: only to NAME a generated ``daily{Method}{Indicator}`` row: the catalogue
-#: carries no row for one (it is ``rule_generator``'s output, never a
-#: curator's), so its label is composed from the source metric's own label
-#: plus the statistic it names. Kept exhaustive (20 methods in the TSV today)
-#: by ``tests/test_daily_aggregate_catalog.py``, which resolves every
-#: generated name the catalogue can produce; a method added to the TSV
-#: without a word here fails that test, not silently.
+#: English/Chinese word for every method in ``metrics.tsv``'s
+#: ``aggregation_methods``, to label a generated ``daily{Method}{Indicator}``
+#: row: the catalogue has no row for one, so its label is the source metric's
+#: label plus the statistic. ``test_daily_aggregate_catalog.py`` resolves every
+#: generated name, so a method added to the TSV without a word here fails it.
 _METHOD_WORD: dict[str, tuple[str, str]] = {
     "avg": ("Average", "平均"),
     "max": ("Max", "最高"),
