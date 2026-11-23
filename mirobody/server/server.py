@@ -19,6 +19,7 @@ from .bootstrap import (
     realign_dose_slots,
     seed_demo_data,
     start_schedulers,
+    warn_predefined_codes_without_demo,
 )
 from .middleware_stack import build_middlewares, server_headers
 from .htdoc import add_htdoc_routes
@@ -358,6 +359,7 @@ class Server:
         # Fail fast, before any socket is bound: a deployment that declares
         # PRODUCTION and still carries demo login codes must not come up at all.
         enforce_production_auth_safety(config)
+        warn_predefined_codes_without_demo(config)
 
         await ensure_postgres_reachable(config)
         await create_schema(config)

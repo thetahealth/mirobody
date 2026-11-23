@@ -33,6 +33,20 @@
 
 ### Fixed
 
+- **The docs no longer imply that `SEED_DEMO_DATA=false` removes the public
+  demo sign-in (#337).** It stops the demo data and the sign-in page's hint,
+  and nothing else: `EMAIL_PREDEFINE_CODES` in `config.yaml` still let anyone
+  who reached the app sign in as `you@mirobody.ai` or `mom@mirobody.ai` with
+  `111111`, creating the account on first use. The quickstart (en, zh-CN, ja),
+  the walkthrough, the skill and SECURITY.md now say so and name the second
+  step, `EMAIL_PREDEFINE_CODES={}` in `.env`. The server logs a warning at
+  boot when the demo is off and codes are still set, and `deploy.sh` prints
+  the same advice. The codes are not switched off with the flag: an account
+  someone filled with real reports while trying the demo would become
+  unreachable on a deployment with no mail service. To check: run
+  `./deploy.sh` with `SEED_DEMO_DATA=false` in `.env`; its last lines say the
+  codes still sign in, and with `EMAIL_PREDEFINE_CODES={}` added, `111111` is
+  refused.
 - **A Chinese, Japanese or Korean member name is stored family name first
   (#339).** 关爱圈 → 添加成员 joined 名 and 姓 given name first with a space,
   so 姓 郑 名 雪 was saved and shown as "雪 郑", and the avatar showed 雪. When

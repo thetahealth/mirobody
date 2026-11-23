@@ -70,7 +70,10 @@ others:
   yourself.
 - Replace the demo accounts. `config.yaml` ships two predefined logins
   (`you@mirobody.ai` and `mom@mirobody.ai`, code `111111`) — remove
-  `EMAIL_PREDEFINE_CODES` entirely. With `PRODUCTION: true` the server enforces this instead of
+  `EMAIL_PREDEFINE_CODES` entirely; in a Docker deployment, set
+  `EMAIL_PREDEFINE_CODES={}` in `.env`, which overrides `config.yaml`.
+  `SEED_DEMO_DATA=false` does not do this: it stops the demo data, and the
+  codes keep working. With `PRODUCTION: true` the server enforces this instead of
   trusting the checklist.
 - Generate your own `CONFIG_ENCRYPTION_KEY` and `JWT_KEY`, and keep `.env` out
   of version control. `deploy.sh` generates both; do not copy a key between

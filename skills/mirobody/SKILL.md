@@ -143,7 +143,8 @@ Open `http://localhost:18060`. The sign-in page offers the demo account
 `SEED_DEMO_DATA` is on by default, so two accounts already hold data: this
 one, and `mom@mirobody.ai`, who shares her record view-only. Set
 `SEED_DEMO_DATA=false` in `.env` before the first start for an empty
-deployment.
+deployment. That stops the seed only: the code `111111` keeps signing in as
+both addresses until `EMAIL_PREDEFINE_CODES={}` is set in `.env` too.
 
 - **Data page**: drop a file. `demo/upload/` in the checkout holds seven the
   seed leaves out: the 2026 lab PDF and the CSV are `you`'s, the 2026 report
