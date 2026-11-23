@@ -3,14 +3,15 @@
 `electrocardiograms/ecg_YYYY-MM-DD.csv` inside an Apple Health export: a
 small header, then about 15,360 microvolt samples
 (`kernel.decoders.apple_ecg`). `FileHandlerFactory` routes a file here by
-content, before `documents.detect.kind` ever sees it — the same precedent
-`GeneticHandler` sets for a format recognised by bytes rather than extension
-— so the file never reaches `IndicatorExtractor._llm_extract` (issue #334).
+content, before `documents.detect.kind` ever sees it (the precedent
+`GeneticHandler` sets for a format recognised by bytes rather than
+extension), so the file never reaches `IndicatorExtractor._llm_extract`
+(issue #334).
 
 `process` replaces the base template entirely rather than overriding one of
 its steps: every one of the base path's three model calls (the file
 summary, the report-date probe, the indicator extraction) would otherwise
-see the waveform, and this handler needs none of them — the one reading a
+see the waveform, and this handler needs none of them: the one reading a
 recording holds is read off its header, not guessed by a model.
 """
 
@@ -81,7 +82,7 @@ class AppleEcgHandler(BaseFileHandler):
             # `extracting: False` below tells the generic upload path
             # (`FileDbService.update_file_processed`) to mark the file
             # `completed` at once, but that call never touches
-            # `indicators_count` — only the background extraction task does,
+            # `indicators_count`: only the background extraction task does,
             # which this handler has none of, so it is set here instead.
             await self._update_file_indicators(
                 file_key=unique_filename, formatted_raw=header_text, indicators_count=report.inserted,

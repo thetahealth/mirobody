@@ -3,9 +3,9 @@
 The Health app writes one file per recording under `electrocardiograms/` in
 an export, outside `export.xml` (`apple_export.open_export` reads only the
 top-level export folder; the DTD comment it quotes is about `Correlation`,
-not this). A small `key,value` header — name, date of birth, the recorded
+not this). A small `key,value` header (name, date of birth, the recorded
 instant with its own offset, the rhythm classification, symptoms, software
-version, device, sample rate, then the lead and its unit — is followed by
+version, device, sample rate, then the lead and its unit) is followed by
 about 15,360 microvolt samples (30 s at 512 Hz).
 
 Pure: stdlib only. `parse` reads the header and stops; the samples are never
@@ -112,8 +112,8 @@ def _recorded_at(value: str) -> datetime | None:
 
 def parse(text: str) -> EcgReading | None:
     """The one reading in an Apple Watch ECG export, or `None` when `text`
-    is not this shape, or the two fields a reading needs — a classification
-    and a recorded instant — are missing or unparsable. Nothing is ever
+    is not this shape, or the two fields a reading needs (a classification
+    and a recorded instant) are missing or unparsable. Nothing is ever
     guessed in: an unreadable `Recorded Date` is a `None`, never `now()`."""
     rows = _rows(text)
     if not _has_header(rows):

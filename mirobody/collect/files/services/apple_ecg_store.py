@@ -24,16 +24,12 @@ from mirobody.kernel.ops import is_driver_exception
 
 logger = logging.getLogger(__name__)
 
-#: The catalogue name an ECG classification is filed under
-#: (`res/catalog/metrics.tsv`, member `ECG_RHYTHM_CLASSIFICATION`): confident
-#: LOINC 8601-7, "EKG impression". That is the overall automated impression
-#: of a single-lead recording, which is what Apple's "Sinus Rhythm" / "Atrial
-#: Fibrillation" / "Inconclusive" / "Low or High Heart Rate" are (Apple's ECG
-#: app Instructions for Use, "ECG Analysis"). The lexical index's other
-#: candidates name something narrower or weaker: 8619-9 "Rhythm segment" is
-#: one segment of a longer study, not a whole recording's result, and 8884-9
-#: "Heart rate rhythm" is a bare TYPE with no Impression/interpretation
-#: property, i.e. a rhythm's shape rather than a verdict on it.
+#: Catalogue name (`ECG_RHYTHM_CLASSIFICATION`), confident LOINC 8601-7 "EKG
+#: impression": a whole recording's automated verdict, which Apple's results
+#: (Sinus Rhythm, Atrial Fibrillation, Inconclusive, Low or High Heart Rate;
+#: ECG app Instructions for Use, "ECG Analysis") are. 8619-9 "Rhythm segment"
+#: is one segment of a longer study; 8884-9 "Heart rate rhythm" is a bare TYPE
+#: with no impression.
 METRIC_NAME = "ecgRhythmClassification"
 
 #: `vendor` on the batch's `Provenance`. Distinct on purpose from the
@@ -67,7 +63,7 @@ def _offset_text(reading: EcgReading) -> str:
     """`reading.recorded_at`'s own offset, as `standardize.resolve_tz` reads
     one (`"+08:00"`): the watch's clock, not the upload's connection or the
     person's saved zone. Left as `""` is read as "the source did not say"
-    and falls back to the person's zone — the exact loss the first comment
+    and falls back to the person's zone: the exact loss the first comment
     on #334 found in a real model's answer ("The time loses its offset")."""
     offset = reading.recorded_at.utcoffset()
     if offset is None:
