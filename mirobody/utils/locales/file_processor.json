@@ -118,6 +118,34 @@
     "ja": "遺伝子データの処理に失敗しました",
     "es": "Error al procesar los datos genéticos"
   },
+  "apple_ecg_processing_success": {
+    "en": "ECG processing completed",
+    "zh": "心电图处理完成",
+    "fr": "Traitement de l'ECG terminé",
+    "ja": "心電図の処理が完了しました",
+    "es": "Procesamiento del ECG completado"
+  },
+  "apple_ecg_processing_failed": {
+    "en": "ECG processing failed",
+    "zh": "心电图处理失败",
+    "fr": "Échec du traitement de l'ECG",
+    "ja": "心電図の処理に失敗しました",
+    "es": "Procesamiento del ECG falló"
+  },
+  "apple_ecg_not_readable": {
+    "en": "could not read a classification or a recorded time from this ECG file",
+    "zh": "无法从这份心电图文件中读取分类结果或记录时间",
+    "fr": "impossible de lire une classification ou une heure enregistrée dans ce fichier ECG",
+    "ja": "この心電図ファイルから分類結果または記録時刻を読み取れませんでした",
+    "es": "no se pudo leer una clasificación o una hora registrada en este archivo de ECG"
+  },
+  "apple_ecg_abstract": {
+    "en": "ECG reading: {classification} ({date})",
+    "zh": "心电图读数：{classification}（{date}）",
+    "fr": "Lecture ECG : {classification} ({date})",
+    "ja": "心電図の読み取り結果：{classification}（{date}）",
+    "es": "Lectura de ECG: {classification} ({date})"
+  },
   "with_reason": {
     "en": "{what}: {reason}",
     "zh": "{what}：{reason}",

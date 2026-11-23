@@ -94,6 +94,13 @@ VALUE_NOM_TOKENS: frozenset[str] = frozenset({
     "positiv", "negativ",
     "positif", "négatif", "negatif",
     "положительный", "отрицательный",
+    # An ECG's automated rhythm classification (LOINC 8601-7, SCALE_TYP
+    # `Nom`): Apple's own "Sinus Rhythm" / "Atrial Fibrillation" /
+    # "Inconclusive" (ECG app Instructions for Use, "ECG Analysis"), a
+    # closed, device-printed result rather than free prose. Without these,
+    # `standardize.parse.parse_value` read a multi-word phrase as `nar`
+    # (narrative) and 8601-7's `Nom` scale refused it (issue #334).
+    "sinus rhythm", "atrial fibrillation", "inconclusive",
 })
 
 def classify_value(value: str | None) -> str | None:
