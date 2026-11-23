@@ -38,6 +38,7 @@ the second is a manifest of data that is deliberately NOT in the checkout.
 | `loinc/aliases_src/zh_curated.tsv` | our corrections to the above, and they win | same |
 | `loinc/resolver_overrides.tsv` | term → target for what the index gets wrong, ours | `engine`, first in precedence |
 | `loinc/recall_synonyms.tsv` | query-side synonyms, ours | `kernel.query` |
+| `loinc/panel_terms.tsv` | a name that is a measurement only under its section's heading (`HR` under `心电图`) → LOINC, ours | `standardize.panels` |
 | `loinc/zh_CN_names.tsv` | Chinese display name and long name of every commonly ordered code: a translation of LOINC, assigned to Regenstrief (the long name is sent back to LOINC, not shown) | `standardize.names` |
 | `loinc/zh_CN_parts.tsv.gz` | the six Chinese Parts of every bundle code LOINC's zh-CN variant covers, reviewed where commonly used, and the Chinese consumer name where the code's English one was translated | `standardize.names` |
 | `loinc/en_parts.tsv.gz` | each bundle code's six Parts by LOINC's PartDisplayName, and its ConsumerName, verbatim | `standardize.names` |

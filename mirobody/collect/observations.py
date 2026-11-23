@@ -387,6 +387,7 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.A
         unit_ucum=row["unit_ucum"],
         value_num=row["value_num"],
         alias=alias,
+        panel_text=row.get("panel_text") or "",
     )
 
 
@@ -1126,7 +1127,7 @@ async def merge_accounts(cur: Any, losing_user_id: str, winning_user_id: str) ->
 
 _SELECT_FOR_RECODE = """
 SELECT o.id, o.kind, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
-       o.value_num, o.source_kind, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
+       o.value_num, o.source_kind, o.panel_text, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
   FROM v_observation o
  WHERE o.user_id = :user_id AND o.id > :after {name_filter}
  ORDER BY o.id

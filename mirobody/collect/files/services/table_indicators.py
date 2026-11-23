@@ -439,6 +439,36 @@ def _header_at(table: list[list[str]], i: int) -> tuple[list[dict[str, int]] | N
     return _by_cells(row, header, body) or None, len(row), split
 
 
+#: The longest cell read as a section's heading (`心电图`, `肝功能`, `12导联
+#: 心电图`, `Comprehensive Metabolic Panel`); a longer one is a note.
+_SECTION_TEXT = 40
+
+#: A one-cell row that is the page's furniture, not a heading: a page counter
+#: (`第2页共3页`, `Page 2 of 3`), the blank-below mark (`以下空白`), a legend
+#: opening on `*`/`※`/`＊`, or a disclaimer opening on its words (`本报告不作为
+#: 法律依据`, `仅对本次标本负责`). Held under a table's heading, such a row
+#: between two pages must not replace it. A heading that carries a full stop
+#: (`心电图。`) is still a heading, and one that only mentions a disclaimer
+#: later in the cell is too, so the stop is cut before the test and the
+#: disclaimer words are anchored to the start.
+_FOOTER = re.compile(
+    r"^(?:[*＊※]|本报告|报告仅|仅对|仅供|不作为)|第\s*\d+\s*页|共\s*\d+\s*页|\bpage\s*\d+|以下空白|\bdisclaimer\b",
+    re.I,
+)
+
+
+def _section(cell: str) -> str:
+    """The heading a row of one cell prints (`心电图`), or `""` when the cell
+    is something else: a label with its value (`备注：空腹`), a date, a
+    number, a column word, a part of a report (`结论`) or a page's footer
+    (`第2页共3页`, `以下空白`)."""
+    cell = re.sub(r"[。.]+$", "", cell.strip()).rstrip()
+    if (len(cell) > _SECTION_TEXT or _FOOTER.search(cell) or re.search(r"[:：]", cell) or re.search(_DATE_VALUE, cell)
+            or _NUMBER.match(cell) or _admin(cell) or _column(cell) or _key(cell) in _LABELS):
+        return ""
+    return cell
+
+
 def _admin(cell: str) -> bool:
     """Whether `cell` is a label of the patient or the paperwork, printed alone
     (`审核者`) or with its value after a colon (`审核者：王五`). Measured on the
@@ -933,6 +963,12 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
     unread = 0
     groups: list[dict[str, int]] | None = None
     width, split = 0, False
+    # The heading the rows under it were printed in, for `Draft.panel_text`:
+    # `HR`, `RV5` and `SV1` are ECG measurements only under `心电图` (#281).
+    # It holds over a header repeated under it and into a table that
+    # continues a page's panel with no header of its own; a table that opens
+    # on its own header with no heading row is a new panel, with none.
+    section = ""
     pages = _pages(text)
     markup = any(_html_tables(p) or _markdown_tables(p) for p in pages)
     for page in pages:
@@ -943,6 +979,7 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
         for table, from_ocr in sources:
             table_readings: list[dict[str, str]] = []
             table_unread = 0
+            titled = False
             table = _rejoined(table)
             borrowed = groups is not None
             if groups is None:
@@ -958,6 +995,9 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
                     groups, width, split, borrowed = typed, max(len(r) for r in table), False, True
             for i, row in enumerate(table):
                 cells = [c for c in row if c]
+                if len(cells) == 1 and (heading := _section(cells[0])):
+                    section, titled = heading, True
+                    continue
                 if len(cells) == 1 or _admin(cells[0]):
                     continue
                 if found := _header_at(table, i):
@@ -966,6 +1006,8 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
                     # are the model's.
                     groups, width, split = found
                     borrowed = False
+                    if not titled:
+                        section = ""
                     continue
                 if groups is None or (borrowed and len(row) > width):
                     table_unread += 1
@@ -976,7 +1018,7 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
                         table_unread += 1
                         continue
                 got = _read_row(row, groups, borrowed=borrowed)
-                confirmed = [r for r in got.readings if not from_ocr or _confirmed(r, elsewhere)]
+                confirmed = [{**r, "panel": section} for r in got.readings if not from_ocr or _confirmed(r, elsewhere)]
                 table_readings.extend(confirmed)
                 table_unread += int(got.unread or len(confirmed) < len(got.readings))
             days = {r["_date"][:10] for r in table_readings if r["_date"]}
