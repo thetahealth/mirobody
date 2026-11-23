@@ -367,6 +367,11 @@ if [[ "$local_models" == true ]]; then
 fi
 if [[ "${SEED_DEMO_DATA:-$(setting SEED_DEMO_DATA)}" != false ]]; then
     printf 'Demo sign-in: you@mirobody.ai, code 111111 on the Email code tab\n'
+elif [[ "${EMAIL_PREDEFINE_CODES:-$(setting EMAIL_PREDEFINE_CODES)}" != '{}' ]]; then
+    # The flag stops the seed, not the codes in config.yaml, and the account
+    # is made on its first sign-in (#337): say so where the operator looks.
+    printf 'SEED_DEMO_DATA=false stops the demo data only: the predefined codes in config.yaml still sign in (by default you@mirobody.ai and mom@mirobody.ai, code 111111).\n' >&2
+    printf 'To remove that sign-in, set EMAIL_PREDEFINE_CODES={} in .env and run ./deploy.sh again.\n' >&2
 fi
 # An address other than loopback offers the app to every machine that reaches
 # this one, where config.yaml's EMAIL_PREDEFINE_CODES lets anyone sign in with
