@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import UploadFile
+from mirobody.collect.files.handlers.apple_ecg import AppleEcgHandler
 from mirobody.collect.files.handlers.base import BaseFileHandler
 from mirobody.collect.files.handlers.document import DocumentHandler
 from mirobody.collect.files.handlers.excel import ExcelHandler
@@ -48,14 +49,19 @@ class FileHandlerFactory:
     async def get_handler(self, file: UploadFile) -> BaseFileHandler | None:
         """The handler for `file`, or None when nothing here reads it.
 
-        A genotype export first, by its content. Every other kind is
-        `detect.kind`'s, from the name, the declared type and the first bytes:
-        routing on the declared type alone refused a photo or a PDF a client
-        sent as `application/octet-stream`, and took a legacy `.xls` that no
-        parser reads, which then completed with no text and no error.
+        A genotype export first, then an Apple Watch ECG export, both by
+        their content, ahead of `documents.detect.kind`: an upload that
+        reaches the model path (text, image, a document) has already failed
+        both sniffs. Every other kind is `detect.kind`'s, from the name, the
+        declared type and the first bytes: routing on the declared type
+        alone refused a photo or a PDF a client sent as
+        `application/octet-stream`, and took a legacy `.xls` that no parser
+        reads, which then completed with no text and no error.
         """
         if await GeneticHandler.is_genetic_file(file):
             handler: type[BaseFileHandler] | None = GeneticHandler
+        elif await AppleEcgHandler.is_apple_ecg_file(file):
+            handler = AppleEcgHandler
         else:
             await file.seek(0)
             head = await file.read(_HEAD_BYTES)

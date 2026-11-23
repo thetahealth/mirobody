@@ -648,6 +648,111 @@ async def test_an_ecg_pages_abbreviations_are_coded_and_stay_coded_on_recode(dat
     assert replay.scanned == 4 and replay.changed == 0
 
 
+#: A synthetic Apple Watch ECG export (issue #334's reported header shape),
+#: every value made up: a small header, then a few hundred microvolt samples
+#: this module must never turn into a reading.
+_ECG_SAMPLES = "\n".join(f"{0.001 * i:.3f}" for i in range(300))
+_ECG_CSV = (
+    "Name,Test Person\n"
+    'Date of Birth,"Jan 1, 1980"\n'
+    "Recorded Date,2026-11-15 08:12:30 +0800\n"
+    "Classification,Sinus Rhythm\n"
+    "Symptoms,\n"
+    "Software Version,2\n"
+    'Device,"Watch7,1"\n'
+    "Sample Rate,512 hertz\n"
+    ",\n"
+    "Lead,Lead I\n"
+    "Unit,µV\n"
+    ",\n"
+    ",\n"
+    f"{_ECG_SAMPLES}\n"
+)
+
+
+async def test_apple_ecg_reading_is_coded_device_sensed_and_distinct_from_a_lab_classification(database):
+    """issue #334's Expected section, at the write side: the recording's
+    classification is coded (confident LOINC, not left local), filed as a
+    device reading rather than a lab finding, and keyed so it never joins a
+    series some other document's bare `Classification` word opened."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services.apple_ecg_store import save_ecg_reading
+    from mirobody.kernel.decoders import apple_ecg
+    from mirobody.standardize import names
+
+    reading = apple_ecg.parse(_ECG_CSV)
+    assert reading is not None
+
+    report = await save_ecg_reading("1", reading, "web_uploads/synthetic-ecg.csv")
+    assert report.inserted == 1
+
+    # A lab report that happens to print the bare word "Classification".
+    await observations.ingest("1", [observations.Draft(
+        name_text="Classification", value_text="WHO grade 2",
+        observed_start=datetime(2026, 9, 1, tzinfo=UTC),
+    )], observations.Provenance(observations.MODALITY_LAB, observations.SOURCE_FILE, "th_files:synthetic-path.pdf"),
+        user_tz="UTC")
+
+    rows = await database(
+        "SELECT name_text, code, series_id, modality, source_kind, value_text, observed_start, tz, tz_source "
+        "FROM v_observation ORDER BY observed_start", log_sql=False)
+    assert len(rows) == 2
+    ecg_row = next(r for r in rows if r["value_text"] == "Sinus Rhythm")
+    lab_row = next(r for r in rows if r["value_text"] == "WHO grade 2")
+
+    assert ecg_row["code"] == "8601-7"
+    assert ecg_row["modality"] == observations.MODALITY_DEVICE
+    assert ecg_row["source_kind"] == observations.SOURCE_DEVICE
+    assert ecg_row["series_id"] != lab_row["series_id"]
+
+    # The recorded instant and its own offset, not the (UTC) test default.
+    assert ecg_row["observed_start"].isoformat() == "2026-11-15T00:12:30+00:00"
+    assert ecg_row["tz"] == "UTC+08:00"
+    assert ecg_row["tz_source"] == "offset-only"
+
+    assert names.chinese_names("8601-7").display == "心电图印象"
+
+
+async def test_apple_ecg_csv_upload_never_reaches_the_llm_extractor(database, monkeypatch):
+    """Through the upload reader end to end: one reading, no model call, the
+    row's own recorded time, and the file never handed whole to the text
+    model's extraction call (issue #334's negative case)."""
+    from mirobody.collect.files.handlers.apple_ecg import AppleEcgHandler
+    from mirobody.collect.files.handlers.base import BaseFileHandler, FileProcessingContext
+    from mirobody.collect.files.handlers.factory import FileHandlerFactory
+    from mirobody.collect.files.memory_upload_file import MemoryUploadFile
+    from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
+
+    llm_extract = AsyncMock(return_value=None)
+    monkeypatch.setattr(IndicatorExtractor, "_llm_extract", llm_extract)
+    monkeypatch.setattr(BaseFileHandler, "_save_original_text_to_db", AsyncMock())
+    monkeypatch.setattr(BaseFileHandler, "_update_file_indicators", AsyncMock())
+
+    class _StubUploader:
+        async def upload_file_and_get_url(self, file, key, content_type):
+            return f"https://example.invalid/{key}"
+
+    upload = MemoryUploadFile(content=_ECG_CSV.encode("utf-8"), filename="ecg_2026-11-15.csv", content_type="text/csv")
+    factory = FileHandlerFactory(uploader=_StubUploader(), temp_manager=None, indicator_extractor=None,
+                                 abstract_extractor=None)
+    handler = await factory.get_handler(upload)
+    assert isinstance(handler, AppleEcgHandler)
+
+    ctx = FileProcessingContext(file=upload, user_id="1", message_id=None, original_filename="ecg_2026-11-15.csv")
+    result = await handler.process(ctx)
+
+    assert result["success"] is True, result
+    assert result["indicators_count"] == 1
+    assert result["extracting"] is False
+    llm_extract.assert_not_called()
+    assert "Test Person" not in result["original_text"]
+    assert "Jan 1, 1980" not in result["original_text"]
+
+    [row] = await database("SELECT value_text, code FROM v_observation", log_sql=False)
+    assert row["value_text"] == "Sinus Rhythm"
+    assert row["code"] == "8601-7"
+
+
 @pytest.mark.parametrize("source_order", [("Apple Watch", "iPhone"), ("iPhone", "Apple Watch")])
 @pytest.mark.parametrize("same_instant", [False, True], ids=["overlapping", "same-instant"])
 async def test_apple_import_selects_one_device_before_cumulative_aggregation(database, monkeypatch, tmp_path, source_order, same_instant):
