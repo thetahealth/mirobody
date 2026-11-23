@@ -74,6 +74,7 @@ ELECTROCARDIOGRAM_VOLTAGE_LEAD_V7	electrocardiogramVoltageLeadV7	Electrocardiogr
 ELECTROCARDIOGRAM_VOLTAGE_LEAD_V8	electrocardiogramVoltageLeadV8	Electrocardiogram Voltage Lead V8	Medical Metrics	mV	mV	series	instant	last			00:00				Electrocardiogram V8 lead voltage	1.4.0
 ELECTROCARDIOGRAM_VOLTAGE_LEAD_V9	electrocardiogramVoltageLeadV9	Electrocardiogram Voltage Lead V9	Medical Metrics	mV	mV	series	instant	last			00:00				Electrocardiogram V9 lead voltage	1.4.0
 ELECTROCARDIOGRAM_VOLTAGE_POSTERIOR_LEADS	electrocardiogramVoltagePosteriorLeads	Electrocardiogram Voltage Posterior Leads	Medical Metrics	mV	mV	series	instant	last			00:00				Electrocardiogram posterior lead voltage	1.4.0
+ECG_RHYTHM_CLASSIFICATION	ecgRhythmClassification	ECG Rhythm Classification	Medical Metrics	enum	enum	summary	instant	last	8601-7	confident	00:00				Automated rhythm classification from a single-lead ECG recording	1.6.3
 FAT_FREE_WEIGHT	bodyFatFreeWeight	Fat Free Weight	Body Composition	kg	kg	mix	instant	last	91557-9	confident	00:00	body_composition			Fat-free body weight	1.4.0
 FLOORS_CLIMBED	floors	Floors Climbed	Activity Metrics	count	{#}	series	cumulative	sum_delta	100304-5	confident	00:00		total		Number of floors climbed	1.4.0
 FLOORS_CLIMBED_DURATION	floorsDuration	Floors Climbed Duration	Activity Metrics	ms	ms	series	instant	last			00:00				Duration of floors climbed	1.4.0

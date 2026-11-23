@@ -30,6 +30,25 @@
   millimetres) needs input instead of taking a millivolt code. A file read
   before keeps its uncoded rows until it is read again (重新处理 in 数据 ›
   文件).
+- **An Apple Watch ECG CSV is read by its header, not sent to a model**
+  (#334). Uploaded through the web upload box, `electrocardiograms/
+  ecg_YYYY-MM-DD.csv` (the header rows plus ~15,360 microvolt samples) went
+  whole to the text model in up to three requests, and the one word that
+  came back (`Classification: Sinus Rhythm`) was stored as an uncoded
+  lab-report row named `Classification`, joining any other document that
+  printed the same bare word. A new pure reader
+  (`kernel/decoders/apple_ecg.py`) recognises the file by its header before
+  any extraction starts (`AppleEcgHandler`, ahead of `documents.detect.kind`,
+  the same precedent `GeneticHandler` sets) and reads the recording's rhythm
+  classification only: `Name` and `Date of Birth` are read and discarded,
+  and the samples are never parsed past. The reading is filed as a device
+  reading (LOINC 8601-7, "EKG impression") under the watch's own recorded
+  offset, under the catalogue name `ecgRhythmClassification` — never the
+  printed word `Classification` — so it cannot join a lab report's series.
+  `mirobody import apple` still skips the `electrocardiograms/` folder. To
+  check: upload a `.csv` with that header shape; the Indicators page shows
+  one labelled ECG reading, not a bare "Classification" series, and no
+  extraction request is logged for the file.
 
 ### Fixed
 

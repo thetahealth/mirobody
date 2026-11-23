@@ -16,6 +16,15 @@ days. Importing the same file again adds nothing. A person whose phone also
 pushes gets two streams, and each day takes one of them, so a day's steps are
 never counted twice.
 
+Neither front door reads the export's `electrocardiograms/` subfolder:
+`apple_export.open_export` opens the top-level `export.xml` only. An Apple
+Watch ECG's own CSV (`electrocardiograms/ecg_YYYY-MM-DD.csv`) is read
+instead through the web upload box, by `AppleEcgHandler`
+(`kernel/decoders/apple_ecg.py`, [file-processing.md](file-processing.md)):
+no model, one reading (the rhythm classification, LOINC 8601-7), filed as a
+device reading under its own recorded offset. `mirobody import apple` still
+skips the folder (issue #334).
+
 A reading counts on the day its record says. Apple writes every timestamp
 with the offset the phone showed (`2026-11-01 07:10:00 +0800`), and the day
 is read in that offset. `--tz` names a zone to keep when it gives the same

@@ -62,6 +62,11 @@ def test_lab_units_match_their_property():
             continue
         if metric.member in {"APNEA_HYPOPNEA_INDEX", "OBSTRUCTIVE_APNEA_INDEX", "PULSE_WAVE_VELOCITY"}:
             continue
+        if metric.member == "ECG_RHYTHM_CLASSIFICATION":
+            # A Nom-scale impression ("Sinus Rhythm"), not a quantity: its
+            # catalogue unit is this project's `enum` placeholder, which the
+            # UCUM family table (built for `Qn` units) does not carry.
+            continue
         families = unit_families(metric.unit_ucum)
         assert families, (metric.member, metric.unit_ucum)
         assert resolver.axes_of(metric.loinc)[1] in families, metric.member
