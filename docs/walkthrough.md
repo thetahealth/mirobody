@@ -165,8 +165,9 @@ out, and an agent answers over it — **C · S · A**, each stage visible on its
 rather than asserted.
 
 Every value is generated; no file here describes a person, and the seed needs no
-network and no key. Set `SEED_DEMO_DATA=false` for a deployment that will hold
-real data. [`demo/README.md`](../demo/README.md) says what each file is and how
+network and no key. A deployment that will hold real data needs
+`SEED_DEMO_DATA=false` and `EMAIL_PREDEFINE_CODES={}`: the first stops the seed,
+the second the public sign-in ([quickstart](quickstart.md)). [`demo/README.md`](../demo/README.md) says what each file is and how
 to rebuild it; what the extraction pass does *not* yet do with those readings is
 in [docs/roadmap.md](roadmap.md) rather than glossed over here.
 

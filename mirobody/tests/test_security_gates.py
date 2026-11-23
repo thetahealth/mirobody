@@ -1229,3 +1229,50 @@ def test_a_token_for_an_account_not_there_yet_does_not_shut_it_out(monkeypatch):
     assert asyncio.run(user_module.is_active_account(3)) is False  # the stale token, before sign-up
     rows[3] = {"tokens_valid_after": 0}
     assert asyncio.run(user_module.is_active_account(3)) is True  # the account that signed up as id 3
+
+
+# -- predefined sign-in codes with the demo off (#337) --------------------------
+
+
+class _CodesConfig:
+    def __init__(self, codes, production=False):
+        self._codes, self._production = codes, production
+
+    def get_dict(self, key, default=None):
+        return self._codes if key == "EMAIL_PREDEFINE_CODES" else default
+
+    def get_bool(self, key, default=False):
+        return self._production if key == "PRODUCTION" else default
+
+
+_DEMO_CODES = {"you@mirobody.ai": "111111", "mom@mirobody.ai": "111111"}
+
+
+def test_codes_left_on_with_the_demo_off_are_warned_about_by_count(monkeypatch, caplog):
+    """`SEED_DEMO_DATA=false` leaves the public codes working; the boot says
+    so, and how to remove them, without naming an address."""
+    from mirobody.server.bootstrap import warn_predefined_codes_without_demo
+
+    monkeypatch.setenv("SEED_DEMO_DATA", "false")
+    with caplog.at_level("WARNING", logger="mirobody.server.bootstrap"):
+        assert warn_predefined_codes_without_demo(_CodesConfig(_DEMO_CODES)) is True
+    text = caplog.text
+    assert "2 addresses" in text and "EMAIL_PREDEFINE_CODES={}" in text
+    assert "mirobody.ai" not in text and "111111" not in text
+
+
+@pytest.mark.parametrize(
+    "seed, codes, production",
+    [
+        ("true", _DEMO_CODES, False),    # the demo itself: the codes are its sign-in
+        ("false", {}, False),            # codes removed: nothing to say
+        ("false", _DEMO_CODES, True),    # PRODUCTION refuses to start instead
+    ],
+)
+def test_no_warning_when_the_codes_are_the_demo_or_gone(monkeypatch, caplog, seed, codes, production):
+    from mirobody.server.bootstrap import warn_predefined_codes_without_demo
+
+    monkeypatch.setenv("SEED_DEMO_DATA", seed)
+    with caplog.at_level("WARNING", logger="mirobody.server.bootstrap"):
+        assert warn_predefined_codes_without_demo(_CodesConfig(codes, production)) is False
+    assert caplog.text == ""

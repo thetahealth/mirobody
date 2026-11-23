@@ -89,7 +89,13 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 
 「メールコード」タブで `you@mirobody.ai`、コード `111111` でログインします。メールサービスは不要です。「コレステロールはどう変化した？」と聞いてから、「データ」ページで [`demo/upload/`](../demo/) の合成ファイルをアップロードしてください。これらのファイルは種子データに含まれていないため、アップロードすると文書処理を実際に試せます。そのうち `you_lab_report_zh_2023-03.pdf`、`you_checkup_photo_zh_2024-04.jpg`、`you_lab_results_en_2025-03.xlsx` の3つは、同じ検査を3通りの名前と2通りの単位で印刷した3年分の報告書です。3つともアップロードして「指標」でLDLコレステロールを開くと1本の線になり、どの数値からも元のファイルを開けます。
 
-**実データを扱うデプロイを初めて起動する前に、`SEED_DEMO_DATA=false` を設定してください。** 設定しないと、公開された2つのデモアカウントが作成されます。
+**実データを扱うときは、初めて起動する前に次の2つを設定し、自分で登録したアカウントを使ってください。**
+
+- `.env` に `SEED_DEMO_DATA=false` を設定すると、2つのデモ記録は作成されません。このフラグの役割はそれだけです。
+- 公開コードは有効なままです。アプリに届く人なら誰でも、`111111` で `you@mirobody.ai` または `mom@mirobody.ai` としてログインできます。これらのコードはデモデータではなく、`config.yaml` の `EMAIL_PREDEFINE_CODES` から来ているためです。このログインをなくすには、`.env` に `EMAIL_PREDEFINE_CODES={}` も設定します。`PRODUCTION: true` を設定すると、コードが残っている間はアプリが起動を拒否します（[SECURITY.md](../SECURITY.md)）。
+- `.env` を変更したら `docker compose up -d` を実行し、ログインページで自分のアカウントを登録します。
+
+あとからフラグを設定しても、すでに作成されたデモ記録は消えません。デモデータが作成済みで、実データをまだ保存していない場合は、`docker compose down -v` のあと `./deploy.sh` を実行すると空のデータベースからやり直せます。これはすべての記録を削除します。
 
 `.env` にモデルキーを置くこともできます：`OPENROUTER_API_KEY`、`OPENAI_API_KEY`、`GOOGLE_API_KEY`、`ANTHROPIC_API_KEY`。OpenAI 互換のゲートウェイを使うときは `<PROVIDER>_BASE_URL` を設定します。各エントリが読む変数名は [`config.llm.yaml`](../config.llm.yaml) にあります。シークレットはこのファイルではなく環境変数に保存してください。`.env` を変更したら `docker compose up -d` を実行します。`restart` では再読み込みされません。
 
