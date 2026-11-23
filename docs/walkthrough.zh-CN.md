@@ -138,6 +138,6 @@ Total Cholesterol   4.60 mmol/L   2025-11-12   you_lab_2025-11.md
 **C · S · A**，每一阶段都能单独看到，而不只是一句声明。
 
 所有数值都是生成的，这里没有一份文件描述真实的人，种子数据也不需要联网、不需要 Key。
-要让一套部署保存真实数据，请把 `SEED_DEMO_DATA` 设为 `false`。
+要让一套部署保存真实数据，需要同时设置 `SEED_DEMO_DATA=false` 和 `EMAIL_PREDEFINE_CODES={}`：前者不导入演示数据，后者去掉公开验证码登录（见[快速上手](quickstart.zh-CN.md)）。
 [`demo/README.md`](../demo/README.md) 说明每份文件是什么、如何重建；
 抽取这一步对这些指标**尚未**做到的事，写在 [docs/roadmap.md](roadmap.md) 里，而不是在这里一笔带过。

@@ -258,6 +258,37 @@ async def ensure_postgres_reachable(config, timeout_s: int = POSTGRES_CONNECT_TI
         ) from None
 
 
+def warn_predefined_codes_without_demo(config) -> bool:
+    """Say at boot that predefined sign-in codes still work when the demo is
+    off; True when it did.
+
+    `SEED_DEMO_DATA=false` stops the seed and the sign-in page's hint, and
+    nothing else: `EMAIL_PREDEFINE_CODES` is read on every sign-in whatever
+    the flag says, and the account is created on its first one (#337). The
+    quickstart read as if the flag removed the public demo sign-in, so an
+    operator who set it believed `111111` no longer worked. The codes are not
+    switched off with the flag: an account someone filled with real reports
+    while trying the demo would become one they cannot reach on a deployment
+    with no mail service, and a code an operator set for a test account of
+    their own has nothing to do with the demo. Under `PRODUCTION: true`
+    `enforce_production_auth_safety` already refuses to start instead."""
+    from .demo import enabled
+
+    if enabled() or is_production(config):
+        return False
+    codes = config.get_dict("EMAIL_PREDEFINE_CODES", {}) or {}
+    if not codes:
+        return False
+    # The count, not the addresses: a log line names no account.
+    logger.warning(
+        "SEED_DEMO_DATA is off, but EMAIL_PREDEFINE_CODES still lets %d address%s sign in "
+        "with a fixed code. To remove that sign-in, set EMAIL_PREDEFINE_CODES={} in .env "
+        "(or PRODUCTION: true, which refuses to start while any code is set).",
+        len(codes), "" if len(codes) == 1 else "es",
+    )
+    return True
+
+
 def demo_sign_in(config) -> dict[str, str] | None:
     """The account to sign in with, for the sign-in page to show, when
     `seed_demo_data` below seeds one; None otherwise.

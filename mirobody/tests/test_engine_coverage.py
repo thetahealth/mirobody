@@ -666,6 +666,45 @@ CASES: list[tuple[str, str, str]] = [
     ("25-羟基维生素D(25-OH-D)",         r"^25-hydroxyvitamin D3 \[",      r"D2"),
     ("维生素D3",                       r"^25-hydroxyvitamin D3 \[",      r"D2|cholecalciferol"),
     ("Витамин D",                    r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    # ── lipoprotein(a) and its neighbours (#332) ────────────────────────────
+    # `脂蛋白(a)` answered total lipoproteins through its stem, `载脂蛋白(a)`
+    # apolipoprotein A through case folding, `总脂蛋白` Lp(a) through zh.tsv.
+    ("脂蛋白(a)",                       r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("脂蛋白（a）",                      r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("脂蛋白(A)",                       r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("血清脂蛋白(a)",                     r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("脂蛋白(a)(Lp(a))",                r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("载脂蛋白(a)",                      r"^apolipoprotein lpa",          r"^apolipoprotein a \["),
+    ("载脂蛋白（a）",                     r"^apolipoprotein lpa",          r"^apolipoprotein a \["),
+    ("总脂蛋白",                        r"^lipoproteins",                r"^lipoprotein a"),
+    ("總脂蛋白",                        r"^lipoproteins",                r"^lipoprotein a"),
+    ("总脂蛋白(a)",                     r"",                             r"^lipoprotein a"),
+    # The bracket split this does not change: a lone letter still reaches
+    # the element through the stem.
+    ("钾(K)",                          r"^potassium",                   r""),
+    ("磷(P)",                          r"^phosphate",                   r""),
+    # ── printed names coded as another analyte (#343) ───────────────────────
+    ("中性粒细胞#",                      r"^neutrophils \[#/volume\]",     r"/leukocytes"),
+    ("中性粒细胞数",                      r"^neutrophils \[#/volume\]",     r"/leukocytes"),
+    ("中性粒细胞计数",                     r"^neutrophils \[#/volume\]",     r"/leukocytes"),
+    ("淋巴细胞#",                       r"^lymphocytes \[#/volume\]",     r"/leukocytes"),
+    ("淋巴细胞数",                       r"^lymphocytes \[#/volume\]",     r"/leukocytes"),
+    ("单核细胞#",                       r"^monocytes \[#/volume\]",       r"/leukocytes"),
+    ("嗜酸性粒细胞#",                     r"^eosinophils \[#/volume\]",     r"/leukocytes"),
+    ("嗜碱性粒细胞#",                     r"^basophils \[#/volume\]",       r"/leukocytes"),
+    # The percentage spellings stay on the ratio.
+    ("中性粒细胞",                       r"^neutrophils/leukocytes",      r""),
+    ("淋巴细胞百分比",                     r"^lymphocytes/leukocytes",      r""),
+    ("baPWV (left)",                 r"^pulse wave velocity",         r"thyrotropin"),
+    ("baPWV (right)",                r"^pulse wave velocity",         r""),
+    ("SBP",                          r"^systolic blood pressure",     r"binding globulin"),
+    ("DBP",                          r"^diastolic blood pressure",    r"binding protein"),
+    ("ACR",                          r"^albumin/creatinine",          r"brachial"),
+    ("RhD",                          r"^rh \[type\]",                 r"fetal"),
+    ("PAB",                          r"^prealbumin",                  r"aminobenzoate"),
+    ("LIP",                          r"^lipase",                      r"subparticle"),
+    ("总钙",                          r"^calcium \[",                  r"ionized"),
+    ("部分凝血活酶时间",                    r"^aPTT",                        r"panel"),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -760,6 +799,12 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("HCV-Ag", "HCV alone answers an RNA viral load, not an antigen"),
     ("CMV-Ab", "CMV alone answers a DNA viral load, not an antibody"),
     ("EBV-Ab", "EBV alone answers a DNA viral load, not an antibody"),
+    # #332: the class, not a test; zh.tsv sent it to Lp(a).
+    ("脂蛋白类", "the lipoprotein class names no single test"),
+    ("脂蛋白類", "Traditional spelling of the same class word"),
+    # #343: no specimen, and the English name of the abstaining 基础代谢率.
+    ("酸碱度", "pH with no specimen; it answered ionized calcium adjusted to pH 7.4"),
+    ("Basal metabolic rate", "answered the MET-and-RMR panel; 基础代谢率 abstains for the same reason"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
@@ -920,6 +965,14 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("Витамин D",        "71",  "nmol/L", "14635-7", "Russian, same series as the rest"),
     ("AÇLIK KAN ŞEKERİ", "95",  "mg/dL",  "1558-6",  "fasting glucose, all-caps Turkish"),
     ("açlık kan şekeri", "95",  "mg/dL",  "1558-6",  "fasting glucose, lowercase Turkish"),
+    # #332: every printed spelling and unit of Lp(a) is one series.
+    ("脂蛋白(a)",          "426",   "mg/L",   "10835-7", "Lp(a), mass, not total lipoproteins"),
+    ("脂蛋白（a）",         "0.389", "g/L",    "10835-7", "Lp(a), full-width brackets"),
+    ("脂蛋白(a)",          "45",    "nmol/L", "43583-4", "Lp(a), moles, no longer refused"),
+    # #343: the count and the molar calcium keep their own codes.
+    ("中性粒细胞#",         "4.2",   "10*9/L", "26499-4", "absolute count, not the ratio"),
+    ("总钙",              "2.3",   "mmol/L", "2000-8",  "total calcium, moles"),
+    ("SBP",              "120",   "mmHg",   "8480-6",  "systolic pressure, not SHBG"),
 ]
 
 
@@ -2161,3 +2214,17 @@ def test_health_connect_activity_intensity_matches_its_two_levels():
     assert rows["moderate"].loinc == "101689-8"
     assert rows["vigorous"].metric == "dailyActivityIntensityHigh"
     assert rows["vigorous"].loinc == "101690-6"
+
+
+@pytest.mark.parametrize("code", ["10835-7", "1881-2", "2576-7", "1883-8"])
+def test_a_lipoprotein_label_resolves_back_to_its_code(code):
+    """The Chinese label a reader sees for each lipoprotein code is a name the
+    resolver answers with that code (#332). `脂蛋白（a）`, the app's own label
+    for Lp(a), resolved to total lipoproteins; `载脂蛋白（a）` to
+    apolipoprotein A."""
+    from mirobody.engine import resolve
+    from mirobody.standardize import label_for
+
+    label = label_for("http://loinc.org", code, "zh")
+    assert label
+    assert resolve(label).loinc == code, f"{label!r} -> {resolve(label).loinc}, not {code}"
