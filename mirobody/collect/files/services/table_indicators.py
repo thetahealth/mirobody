@@ -61,6 +61,7 @@ from typing import Any
 
 from mirobody import standardize
 from mirobody.collect.sentence import blood_pressure
+from mirobody.standardize.panels import panel_of
 from mirobody.standardize.parse import KIND_ABSENT, RANGE_SEPARATOR
 from mirobody.units import normalize_unit
 from mirobody.zh_fold import fold_to_hans
@@ -456,15 +457,36 @@ _FOOTER = re.compile(
     re.I,
 )
 
+#: The page's running head: the issuer's name (`芷沅市中心医院`, `Mayo
+#: Clinic`) or the document's own title (`健康体检报告`, `Laboratory Report`),
+#: the issuer before it or not. Read as a heading between two pages of an ECG
+#: table, it replaced `心电图` and the continuation's `SV1` was stored uncoded
+#: (#329's review). A title is a running head only when every word before
+#: `报告` is a document word, so `超声检查报告` stays a heading. A cell that
+#: names a panel (`心电图报告`, `心电检测中心`) is one whatever it ends in:
+#: an ECG department's name can end in an issuer's suffix (`检测中心`).
+_ISSUER = (r"(?:医院|卫生院|诊所|门诊部|医学院|体检中心|健康管理中心|医学中心|医疗中心|检验中心|检测中心|"
+           r"控制中心|服务中心|检验所|\bhospital|\bclinic|\b(?:medical|health)\s+cent(?:er|re)|\blaborator(?:y|ies))")
+_RUNNING_HEAD = re.compile(
+    rf"{_ISSUER}$"
+    rf"|^(?:.*?{_ISSUER}\s*)?(?:健康|体检|检验|检查|检测|化验|医学|临床|诊断|个人|综合|年度|入职)*报告[单书]?$"
+    rf"|^(?:.*?{_ISSUER}\s+)?(?:(?:health|medical|laboratory|lab|clinical|test|screening|check-?up|examination"
+    r"|physical|annual|diagnostic|pathology)\s+)*reports?$",
+    re.I,
+)
+
 
 def _section(cell: str) -> str:
     """The heading a row of one cell prints (`心电图`), or `""` when the cell
     is something else: a label with its value (`备注：空腹`), a date, a
-    number, a column word, a part of a report (`结论`) or a page's footer
-    (`第2页共3页`, `以下空白`)."""
+    number, a column word, a part of a report (`结论`) or the page's
+    furniture: its footer (`第2页共3页`, `以下空白`) or its running head
+    (`芷沅市中心医院`, `健康体检报告`)."""
     cell = re.sub(r"[。.]+$", "", cell.strip()).rstrip()
-    if (len(cell) > _SECTION_TEXT or _FOOTER.search(cell) or re.search(r"[:：]", cell) or re.search(_DATE_VALUE, cell)
-            or _NUMBER.match(cell) or _admin(cell) or _column(cell) or _key(cell) in _LABELS):
+    folded = fold_to_hans(cell)
+    if (len(cell) > _SECTION_TEXT or _FOOTER.search(folded) or (_RUNNING_HEAD.search(folded) and not panel_of(cell))
+            or re.search(r"[:：]", cell) or re.search(_DATE_VALUE, cell) or _NUMBER.match(cell) or _admin(cell)
+            or _column(cell) or _key(cell) in _LABELS):
         return ""
     return cell
 

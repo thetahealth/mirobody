@@ -26,8 +26,12 @@
   model returns it as `panel`, and the table rules take it from the one-cell
   row above a table's header, held over a repeated header and into a table
   that continues the page's panel, and dropped by a table that opens on a
-  header of its own. A reading under an ECG heading (`心电图`, `心電圖`,
-  `心電図`, `ECG`, `EKG`, `Electrocardiogram`) is coded from a new table,
+  header of its own. What a page prints between two of its tables does not
+  replace it: a footer (`第2页共3页`, `以下空白`), the hospital's name or the
+  report's own title (`健康体检报告`, `Laboratory Report`); a title or a
+  department that names the exam (`心电图报告`, `心电检测中心`) is the
+  heading. A reading under an ECG heading (`心电图`, `心電圖`, `心電図`,
+  `ECG`, `EKG`, `Electrocardiogram`) is coded from a new table,
   `res/loinc/panel_terms.tsv`, after a person's alias and before the
   resolver: `HR` is 8867-4, the code `心率` already resolves to, so the two
   spellings are one series; `RV5` 9995-2, `SV1` 10040-4, `PR` 8625-6, `QRS`

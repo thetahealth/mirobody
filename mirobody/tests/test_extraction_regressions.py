@@ -460,6 +460,32 @@ def test_a_page_footer_between_two_tables_keeps_the_heading(footer):
         ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
 
 
+@pytest.mark.parametrize("head", ["上海交通大学医学院附属瑞金医院", "霖蘅健康体检中心", "健康体检报告", "瑞金医院检验报告单",
+                                  "臺大醫院", "Laboratory Report", "St. Mary's Hospital"])
+@pytest.mark.parametrize("own_table", [True, False])
+def test_a_running_head_between_two_pages_keeps_the_heading(head, own_table):
+    """The hospital's name or the report's title, printed atop the next page
+    in a table of its own or as the first row of the continuation, is not a
+    section: the continuation's `SV1` stays under the ECG heading."""
+    sv1 = "<tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr>"
+    page = (f"<table><tr><td>{head}</td></tr></table><table>{sv1}</table>" if own_table
+            else f"<table><tr><td colspan=\"4\">{head}</td></tr>{sv1}</table>")
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + page)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
+
+
+@pytest.mark.parametrize("heading", ["瑞金医院心电图报告", "心电检测中心", "心电医学中心", "動態心電圖檢測中心"])
+def test_a_heading_that_names_the_exam_is_no_running_head(heading):
+    """`心电图报告` is the ECG page's own title and `心电检测中心` its
+    department, though each ends like a running head (`报告`, `检测中心`):
+    the rows are coded under it."""
+    from mirobody.standardize.panels import panel_of
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE.replace(">心电图<", f">{heading}<"))
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [("HR", heading), ("RV5", heading)]
+    assert panel_of(rows[0]["panel"]) == "ecg"
+
+
 @pytest.mark.parametrize("cell,heading", [
     ("肝功能", "肝功能"),
     ("Comprehensive Metabolic Panel", "Comprehensive Metabolic Panel"),
@@ -478,6 +504,22 @@ def test_a_page_footer_between_two_tables_keeps_the_heading(footer):
     ("ECG.", "ECG"),
     ("心电图仅供参考", "心电图仅供参考"),
     ("仅供参考。", ""),
+    ("第2頁共3頁", ""),
+    ("芷沅市中心医院", ""),
+    ("某市疾病预防控制中心", ""),
+    ("Mayo Clinic", ""),
+    ("检验报告单", ""),
+    ("霖蘅健康体检中心 健康体检报告", ""),
+    ("健康檢查報告", ""),
+    ("Health Screening Report", ""),
+    ("心电图报告", "心电图报告"),
+    ("常规心电图报告单", "常规心电图报告单"),
+    ("ECG Report", "ECG Report"),
+    ("心电诊断中心", "心电诊断中心"),
+    ("心电检测中心", "心电检测中心"),
+    ("Electrocardiography Laboratory", "Electrocardiography Laboratory"),
+    ("检验中心", ""),
+    ("超声检查报告", "超声检查报告"),
 ])
 def test_only_a_heading_is_read_as_a_section(cell, heading):
     assert table_indicators._section(cell) == heading
