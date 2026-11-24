@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from mirobody.collect.files.errors import stored_reason
+from mirobody.collect.files.errors import stored_notice, stored_reason
 from mirobody.kernel.ops import is_driver_exception
 from mirobody.utils import execute_query
 from mirobody.utils.req_ctx import request_language, request_timezone
@@ -536,6 +536,14 @@ class FileDbService:
                     # one-sentence fix sitting in the database (#68). Empty
                     # otherwise. `status`/`progress` stay internal.
                     "error": stored_reason(file_content, request_language()) if upload_status == "failed" else "",
+                    # A file read through to the end that left no reading:
+                    # it read 已处理 like one whose readings were stored, and
+                    # the count alone also reads 0 for a genotype file, which
+                    # loads variants, not readings (#338). `notice` is why,
+                    # when the extraction knew.
+                    "no_readings": upload_status == "complete" and not file_content.get("indicators_count")
+                    and row.get("scene") != "genetic",
+                    "notice": stored_notice(file_content, request_language()) if upload_status == "complete" else "",
                 }
                 files.append(file_info)
             

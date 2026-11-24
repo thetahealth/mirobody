@@ -315,6 +315,18 @@ different and ordinary outcome: a document that genuinely has no indicators in
 it. A client must not render the first two like the third — that is what made a
 green row over an empty list, with the cause visible only in server logs.
 
+Nor the third like a file whose readings were stored. The files listing marks
+it `no_readings: true` (a genotype file, which loads variants, never is) and
+gives `notice`, in the language of the page reading the list, when the reason
+is known: an image whose text, as the vision model answered it, holds no number
+is the answer of a model that does not read images, and the notice says to
+check it with `mirobody doctor --probe` and reprocess the file. Such a text is
+not stored under the file's content hash, so the reprocess and a re-upload read
+the image again instead of taking the old answer. A file that stored nothing
+also drops the date the probe gave it (`report_date` and `date_source` come
+back empty), so the client does not ask which date readings that never came
+belong to.
+
 ##### 8. Heartbeat (ping/pong)
 
 Client sends:

@@ -5,6 +5,7 @@ import abc
 import asyncio
 import hashlib
 import logging
+import re
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -51,7 +52,11 @@ class FileProcessingContext:
     extraction_error: str = ""
     #: The same reason as phrases, for the file row (`errors.Phrases`).
     extraction_phrases: list | None = None
-    
+    #: An image whose text, as the vision model answered it, holds no number
+    #: (`numberless_image_text`): set by `_extract_original_text`, told to
+    #: the person if no reading comes of it.
+    numberless_image: bool = False
+
     @property
     def target_user_id(self) -> str:
         return self.query_user_id if self.query_user_id else self.user_id
@@ -63,6 +68,23 @@ class FileProcessingContext:
     @property
     def content_type(self) -> str | None:
         return self.file.content_type
+
+
+#: Any digit, full-width ones included.
+_DIGIT = re.compile(r"\d")
+
+
+def numberless_image_text(type_name: str, text: str) -> bool:
+    """Whether `text`, an image's as the vision model answered it, holds no
+    number at all. A report photo always prints one, and a model that cannot
+    read the photo describes it instead: Ollama's `gemma4:e2b` failed the
+    vision probe and its uploads read 0 rows (#338), and a stand-in answering
+    "The image shows a sheet of paper with some printed text. I cannot make
+    out the details." filed the photo 已处理 with nothing under 指标. The
+    probe applies the same test (`agent/probe._vision`, "5.4" in the text).
+    A photo with no text at all is "" here (`documents.ocr.NO_TEXT`), not
+    this; a note in words alone is, and costs only a second read."""
+    return type_name == "image" and bool(text.strip()) and not _DIGIT.search(text)
 
 
 def _no_answer_reason() -> list:
@@ -129,6 +151,7 @@ class BaseFileHandler(abc.ABC):
                     file_name=ctx.filename,
                     file_key=unique_filename,
                     message_id=ctx.message_id,
+                    numberless_image=ctx.numberless_image,
                 )
 
             # 5. Construct final response
@@ -205,6 +228,14 @@ class BaseFileHandler(abc.ABC):
             if isinstance(original_text, PartialText):
                 logger.warning("text extracted with pages missing: message_id=%s missing_page_count=%d",
                                ctx.message_id, len(original_text.missing_pages))
+                return original_text, None
+            if numberless_image_text(self.get_type_name(), original_text):
+                # Stored under the hash, this answer is what the same photo
+                # read as after the model was replaced: a re-upload and a
+                # reprocess take the text by the bytes' hash (#338).
+                logger.warning("image text holds no number: message_id=%s char_count=%d", ctx.message_id,
+                               len(original_text))
+                ctx.numberless_image = True
                 return original_text, None
             return original_text, content_hash
 
@@ -359,6 +390,7 @@ class BaseFileHandler(abc.ABC):
         file_name: str,
         file_key: str,
         message_id: str | None = None,
+        numberless_image: bool = False,
     ) -> bool:
         """Start indicator extraction in the background; whether it started,
         which is whether the file is filed `processing` rather than done.
@@ -367,6 +399,7 @@ class BaseFileHandler(abc.ABC):
         task's two progress events find the client's WebSocket (see
         `_push_upload_event`). A chat-channel upload has no such session and
         passes None: the agent asks about the date instead.
+        `numberless_image`: `numberless_image_text` held for this text.
         """
         if not self._indicator_extraction_enabled():
             logger.info("indicator extraction off (ENABLE_INDICATOR_EXTRACTION=0): file_key=%s", file_key)
@@ -381,6 +414,7 @@ class BaseFileHandler(abc.ABC):
                 file_name=file_name,
                 file_key=file_key,
                 message_id=message_id,
+                numberless_image=numberless_image,
             ),
             name="indicator-extraction",
         )
@@ -418,6 +452,7 @@ class BaseFileHandler(abc.ABC):
         file_name: str,
         file_key: str,
         message_id: str | None = None,
+        numberless_image: bool = False,
     ) -> None:
         """Background task: extract indicators from text and update th_files.
 
@@ -426,6 +461,11 @@ class BaseFileHandler(abc.ABC):
         page can ask about a missing date while the 15-25 s indicator
         extraction is still running; `extraction_completed` follows with the
         count stored and the date the readings were actually filed under.
+
+        A file that completes with no reading says so on its row
+        (`notice_phrases`), and why when it is known: `numberless_image`, the
+        vision model's text for the image held no number. It read 已处理 like
+        a file whose readings were stored (#338).
         """
         from mirobody.collect.files.services.content_formatter import ContentFormatter
         from mirobody.collect.files.services.file_db_service import FileDbService
@@ -433,6 +473,7 @@ class BaseFileHandler(abc.ABC):
         filed = None
         formatted_raw = original_text
         failed: list | None = None
+        dated = False
         try:
             # A model the router is still downloading: say so after a load's
             # length rather than wait out a download on each of the two calls
@@ -449,6 +490,7 @@ class BaseFileHandler(abc.ABC):
                 logger.info("file deleted before extraction, nothing written: file_key=%s", file_key)
                 return
             await FileDbService.update_file_content(file_key, probe_report)
+            dated = True
             await self._push_upload_event(message_id, {
                 "type": "report_date_detected", "file_key": file_key, "file_name": file_name, **probe_report,
             })
@@ -493,6 +535,16 @@ class BaseFileHandler(abc.ABC):
         failed_reason = say(failed) if failed else ""
         status = "failed" if failed else "completed"
         report = filed.report if filed else None
+        notice = None
+        if not stored_count:
+            if dated:
+                # The probe's date is for readings that never came: its
+                # upload-time stand-in asked 日期待确认 of a file with nothing
+                # to date (#338).
+                report = {"report_date": "", "date_source": ""}
+            if not failed:
+                notice = [{"key": "no_readings_found"},
+                          *([{"key": "image_text_has_no_numbers"}] if numberless_image else [])]
         await FileDbService.rows_ready(message_id)
         await self._update_file_indicators(
             file_key=file_key,
@@ -501,6 +553,7 @@ class BaseFileHandler(abc.ABC):
             failed_reason=failed_reason,
             failed_phrases=failed,
             report=report,
+            notice_phrases=notice,
         )
         await self._push_upload_event(message_id, {
             "type": "extraction_completed", "file_key": file_key, "file_name": file_name,
@@ -553,6 +606,7 @@ class BaseFileHandler(abc.ABC):
         failed_reason: str = "",
         report: dict[str, str] | None = None,
         failed_phrases: list | None = None,
+        notice_phrases: list | None = None,
     ):
         """Update th_files with indicator extraction results.
 
@@ -567,6 +621,10 @@ class BaseFileHandler(abc.ABC):
         time standing in. Extraction runs after the upload has already
         completed, so the file row is the only place the UI can learn this
         from, it is what the Data page reads to ask "which date?" (#53).
+
+        `notice_phrases` (`errors.Phrases`) is what a completed file with no
+        reading says about it, in the language of the page reading the row;
+        None clears an earlier one, so a reprocess that finds readings drops it.
         """
         try:
             from mirobody.collect.files.services.file_db_service import FileDbService
@@ -576,6 +634,7 @@ class BaseFileHandler(abc.ABC):
                 "indicators_count": indicators_count,
                 "processed": True,
                 "status": "failed" if failed_reason else "completed",
+                "notice_phrases": notice_phrases,
             }
             if failed_reason:
                 updates["error"] = failed_reason
