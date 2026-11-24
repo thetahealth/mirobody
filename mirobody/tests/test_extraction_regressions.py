@@ -475,13 +475,14 @@ def test_a_running_head_between_two_pages_keeps_the_heading(head, own_table):
         ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
 
 
-def test_a_title_that_names_the_exam_is_its_heading():
-    """`心电图报告` is the ECG page's own heading, not a running head: its
-    rows are coded under it."""
+@pytest.mark.parametrize("heading", ["瑞金医院心电图报告", "心电检测中心", "心电医学中心", "動態心電圖檢測中心"])
+def test_a_heading_that_names_the_exam_is_no_running_head(heading):
+    """`心电图报告` is the ECG page's own title and `心电检测中心` its
+    department, though each ends like a running head (`报告`, `检测中心`):
+    the rows are coded under it."""
     from mirobody.standardize.panels import panel_of
-    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE.replace(">心电图<", ">瑞金医院心电图报告<"))
-    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
-        ("HR", "瑞金医院心电图报告"), ("RV5", "瑞金医院心电图报告")]
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE.replace(">心电图<", f">{heading}<"))
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [("HR", heading), ("RV5", heading)]
     assert panel_of(rows[0]["panel"]) == "ecg"
 
 
@@ -515,6 +516,9 @@ def test_a_title_that_names_the_exam_is_its_heading():
     ("常规心电图报告单", "常规心电图报告单"),
     ("ECG Report", "ECG Report"),
     ("心电诊断中心", "心电诊断中心"),
+    ("心电检测中心", "心电检测中心"),
+    ("Electrocardiography Laboratory", "Electrocardiography Laboratory"),
+    ("检验中心", ""),
     ("超声检查报告", "超声检查报告"),
 ])
 def test_only_a_heading_is_read_as_a_section(cell, heading):

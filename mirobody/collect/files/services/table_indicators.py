@@ -61,6 +61,7 @@ from typing import Any
 
 from mirobody import standardize
 from mirobody.collect.sentence import blood_pressure
+from mirobody.standardize.panels import panel_of
 from mirobody.standardize.parse import KIND_ABSENT, RANGE_SEPARATOR
 from mirobody.units import normalize_unit
 from mirobody.zh_fold import fold_to_hans
@@ -461,8 +462,9 @@ _FOOTER = re.compile(
 #: the issuer before it or not. Read as a heading between two pages of an ECG
 #: table, it replaced `心电图` and the continuation's `SV1` was stored uncoded
 #: (#329's review). A title is a running head only when every word before
-#: `报告` is a document word, so `心电图报告` and `ECG Report` stay headings;
-#: `中心` alone is no issuer's suffix, so a department's `心电诊断中心` does too.
+#: `报告` is a document word, so `超声检查报告` stays a heading. A cell that
+#: names a panel (`心电图报告`, `心电检测中心`) is one whatever it ends in:
+#: an ECG department's name can end in an issuer's suffix (`检测中心`).
 _ISSUER = (r"(?:医院|卫生院|诊所|门诊部|医学院|体检中心|健康管理中心|医学中心|医疗中心|检验中心|检测中心|"
            r"控制中心|服务中心|检验所|\bhospital|\bclinic|\b(?:medical|health)\s+cent(?:er|re)|\blaborator(?:y|ies))")
 _RUNNING_HEAD = re.compile(
@@ -482,9 +484,9 @@ def _section(cell: str) -> str:
     (`芷沅市中心医院`, `健康体检报告`)."""
     cell = re.sub(r"[。.]+$", "", cell.strip()).rstrip()
     folded = fold_to_hans(cell)
-    if (len(cell) > _SECTION_TEXT or _FOOTER.search(folded) or _RUNNING_HEAD.search(folded) or re.search(r"[:：]", cell)
-            or re.search(_DATE_VALUE, cell) or _NUMBER.match(cell) or _admin(cell) or _column(cell)
-            or _key(cell) in _LABELS):
+    if (len(cell) > _SECTION_TEXT or _FOOTER.search(folded) or (_RUNNING_HEAD.search(folded) and not panel_of(cell))
+            or re.search(r"[:：]", cell) or re.search(_DATE_VALUE, cell) or _NUMBER.match(cell) or _admin(cell)
+            or _column(cell) or _key(cell) in _LABELS):
         return ""
     return cell
 
