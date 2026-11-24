@@ -1,9 +1,11 @@
-"""Names coded only under their section's heading (#281, item 3).
+"""Names coded only under their section's heading (#281, item 3; #343).
 
 An ECG page prints `HR`, `RV5` and `SV1`, and the resolver answers none of
 them, so each was stored under a `local:` key named only by its abbreviation.
 `standardize.panels` answers them when the reading carries an ECG heading in
-`panel_text`, and only then: `HR` on a lab page is still not guessed.
+`panel_text`, and only then: `HR` on a lab page is still not guessed. A urine
+dipstick's `PRO`, `LEU`, `KET` … are answered the same way under a urine
+heading.
 """
 
 import pytest
@@ -35,6 +37,16 @@ def _code(name: str, value: str, unit: str, panel_text: str = "", alias=None) ->
     ("12-lead ECG", panels.PANEL_ECG),
     ("ＥＫＧ", panels.PANEL_ECG),
     ("Resting Electrocardiogram", panels.PANEL_ECG),
+    ("尿常规", panels.PANEL_URINE),
+    ("尿液分析", panels.PANEL_URINE),
+    ("尿液干化学", panels.PANEL_URINE),
+    ("尿常規", panels.PANEL_URINE),
+    ("Urinalysis", panels.PANEL_URINE),
+    ("Urine Dipstick", panels.PANEL_URINE),
+    # Microscopy counts per field, and a serum test whose name starts with 尿.
+    ("尿沉渣", ""),
+    ("尿液沉渣镜检", ""),
+    ("尿酸", ""),
     ("血常规", ""),
     ("肝功能", ""),
     ("Lipid Panel", ""),
@@ -71,6 +83,36 @@ def test_the_same_abbreviation_elsewhere_is_not_guessed(panel_text, name, value,
     coding = _code(name, value, unit, panel_text=panel_text)
     assert not coding.coded
     assert coding.rule == "engine:lexical"
+
+
+@pytest.mark.parametrize("name,value,loinc", [
+    ("PRO", "阴性", "2887-8"),
+    ("LEU", "-", "5799-2"),
+    ("KET", "+", "33903-6"),
+    ("NIT", "阴性", "32710-6"),
+    ("URO", "-", "13658-0"),
+    ("BIL", "阴性", "1977-8"),
+    ("GLU", "-", "2349-9"),
+])
+def test_a_dipstick_abbreviation_codes_under_a_urine_heading(name, value, loinc):
+    """#343: alone, `PRO` answered proline, `LEU` leucine, `URO` free PSA and
+    `GLU` a blood glucose."""
+    coding = _code(name, value, "", panel_text="尿常规")
+    assert coding.coded and coding.code == loinc
+    assert coding.rule == "panel:urine"
+
+
+@pytest.mark.parametrize("panel_text", ["", "血常规", "尿沉渣"])
+@pytest.mark.parametrize("name,value", [("PRO", "阴性"), ("KET", "+"), ("URO", "-")])
+def test_a_dipstick_abbreviation_elsewhere_is_not_coded_by_the_panel(panel_text, name, value):
+    assert _code(name, value, "", panel_text=panel_text).rule != "panel:urine"
+
+
+@pytest.mark.parametrize("spelled,abbreviated", [("尿蛋白", "PRO"), ("尿胆红素", "BIL"), ("尿糖", "GLU")])
+def test_one_urine_result_is_one_series_whichever_spelling_the_panel_printed(spelled, abbreviated):
+    a, b = _code(spelled, "阴性", "", "尿常规"), _code(abbreviated, "阴性", "", "尿常规")
+    assert a.coded and b.coded
+    assert a.series_id == b.series_id
 
 
 def test_one_heart_rate_is_one_series_whichever_spelling_the_ecg_printed():
@@ -113,12 +155,18 @@ def test_every_row_names_a_shipped_code_its_term_reaches():
     something no reading's `name_key` can be, is a row that never answers."""
     rows = panels._terms()
     assert rows
+    heading = {panels.PANEL_ECG: "ECG", panels.PANEL_URINE: "尿常规"}
     for (panel, key), loinc in rows.items():
-        assert panel in panels._HEADINGS, panel
-        assert axes_for(loinc) is not None, loinc
-        unit = (loinc_units(loinc) or ("deg",))[0]
-        coding = standardize.code(
-            key, name_key=key, local_key=f"{key}|{unit}", value_kind=KIND_QUANTITY, value_text="1",
-            unit_text=unit, unit_ucum=unit, value_num=1.0, panel_text="ECG",
-        )
+        assert panel in panels._HEADINGS and panel in heading, panel
+        axes = axes_for(loinc)
+        assert axes is not None, loinc
+        if axes[0].scale == "Ord":
+            # A presence result, as a dipstick prints it.
+            coding = _code(key, "阴性", "", panel_text=heading[panel])
+        else:
+            unit = (loinc_units(loinc) or ("deg",))[0]
+            coding = standardize.code(
+                key, name_key=key, local_key=f"{key}|{unit}", value_kind=KIND_QUANTITY, value_text="1",
+                unit_text=unit, unit_ucum=unit, value_num=1.0, panel_text=heading[panel],
+            )
         assert coding.coded and coding.code == loinc, (key, loinc, coding.reason)
