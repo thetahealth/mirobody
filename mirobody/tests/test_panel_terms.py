@@ -5,7 +5,7 @@ them, so each was stored under a `local:` key named only by its abbreviation.
 `standardize.panels` answers them when the reading carries an ECG heading in
 `panel_text`, and only then: `HR` on a lab page is still not guessed. A urine
 dipstick's `PRO`, `LEU`, `KET` … are answered the same way under a urine
-heading.
+heading, and a thyroid panel's `TG` is thyroglobulin, not triglyceride (#357).
 """
 
 import pytest
@@ -43,6 +43,10 @@ def _code(name: str, value: str, unit: str, panel_text: str = "", alias=None) ->
     ("尿常規", panels.PANEL_URINE),
     ("Urinalysis", panels.PANEL_URINE),
     ("Urine Dipstick", panels.PANEL_URINE),
+    ("甲状腺功能", panels.PANEL_THYROID),
+    ("甲功五项", panels.PANEL_THYROID),
+    ("甲狀腺功能", panels.PANEL_THYROID),
+    ("Thyroid Function Panel", panels.PANEL_THYROID),
     # Microscopy counts per field, and a serum test whose name starts with 尿.
     ("尿沉渣", ""),
     ("尿液沉渣镜检", ""),
@@ -103,9 +107,27 @@ def test_a_dipstick_abbreviation_codes_under_a_urine_heading(name, value, loinc)
 
 
 @pytest.mark.parametrize("panel_text", ["", "血常规", "尿沉渣"])
-@pytest.mark.parametrize("name,value", [("PRO", "阴性"), ("KET", "+"), ("URO", "-")])
-def test_a_dipstick_abbreviation_elsewhere_is_not_coded_by_the_panel(panel_text, name, value):
-    assert _code(name, value, "", panel_text=panel_text).rule != "panel:urine"
+@pytest.mark.parametrize("name,value", [("PRO", "阴性"), ("KET", "+"), ("URO", "-"), ("BIL", "阴性")])
+def test_a_dipstick_abbreviation_elsewhere_is_not_coded_at_all(panel_text, name, value):
+    """#357: with no urine heading the resolver refuses them; it answered
+    proline, TP73L gene mutations, free PSA and kidney weight."""
+    coding = _code(name, value, "", panel_text=panel_text)
+    assert coding.rule != "panel:urine"
+    assert not coding.coded
+
+
+@pytest.mark.parametrize("heading", ["甲状腺功能", "甲功五项", "Thyroid Function"])
+def test_tg_under_a_thyroid_heading_is_thyroglobulin(heading):
+    coding = _code("TG", "25.3", "ng/mL", panel_text=heading)
+    assert coding.coded and coding.code == "3013-0"
+    assert coding.rule == "panel:thyroid"
+
+
+@pytest.mark.parametrize("panel_text", ["", "血脂四项", "Lipid Panel"])
+def test_tg_elsewhere_is_still_the_resolvers_triglyceride(panel_text):
+    coding = _code("TG", "1.52", "mmol/L", panel_text=panel_text)
+    assert coding.coded and coding.code == "14927-8"
+    assert coding.rule == "engine:lexical"
 
 
 @pytest.mark.parametrize("spelled,abbreviated", [("尿蛋白", "PRO"), ("尿胆红素", "BIL"), ("尿糖", "GLU")])
@@ -155,7 +177,7 @@ def test_every_row_names_a_shipped_code_its_term_reaches():
     something no reading's `name_key` can be, is a row that never answers."""
     rows = panels._terms()
     assert rows
-    heading = {panels.PANEL_ECG: "ECG", panels.PANEL_URINE: "尿常规"}
+    heading = {panels.PANEL_ECG: "ECG", panels.PANEL_URINE: "尿常规", panels.PANEL_THYROID: "甲状腺功能"}
     for (panel, key), loinc in rows.items():
         assert panel in panels._HEADINGS and panel in heading, panel
         axes = axes_for(loinc)

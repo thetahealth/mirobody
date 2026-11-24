@@ -68,13 +68,14 @@
   three READMEs, `docs/standardization.md` and its Chinese edition,
   `docs/testing.md` and the `standardize-health-data` skill said 347/347,
   while `test_engine_coverage.py` printed 356/356 after #301, 423/423 by
-  1.6.2 and 501/501 after this release's resolver fixes (vitamin D, Lp(a),
-  urine dipstick, FVC and others) added their cases: every case added moved
-  the real number and no page followed. All seven now say 501, and a new
-  test, `test_the_published_score_is_the_case_count`, fails when a page and
-  the case count disagree, so a case added without its pages turns the
-  build red. How to tell: `pytest mirobody/tests/test_engine_coverage.py -s`
-  prints `501/501`, the figure in the README.
+  1.6.2 and 558/558 after this release's resolver fixes (vitamin D, Lp(a),
+  urine dipstick, spirometry, the #357 names and others) added their cases:
+  every case added moved the real number and no page followed. All seven
+  now say 558, and a new test, `test_the_published_score_is_the_case_count`,
+  fails when a page and the case count disagree, so a case added without its
+  pages turns the build red. How to tell: `pytest
+  mirobody/tests/test_engine_coverage.py -s` prints `558/558`, the figure in
+  the README.
 
 - **A scan under a watermark text layer is read by OCR** (#317). A PDF
   page dominated by an image stays on its text layer when at least 20 of
@@ -90,21 +91,59 @@
   and the letterhead and searchable-scan pages there still are not.
 
 - **A urine dipstick's abbreviations are coded under a urine heading, and
-  FVC is the measured volume** (#343, part). Alone, `PRO` answered proline,
-  `LEU` leucine, `URO` free PSA and `GLU` a blood glucose, and `KET`, `NIT`
-  and `BIL` nothing. Under a urine heading (`尿常规`, `尿液分析`,
-  `Urinalysis`; not `尿沉渣`) they now code to the codes their Chinese names
-  resolve to, so the two spellings are one series, the way #329 codes `HR`
-  under an ECG heading; with no heading they are still not guessed.
-  `尿胆红素` resolves to urine bilirubin (1977-8). `FVC` and `用力肺活量`
-  answered 19869-7, the predicted volume a report prints beside the
-  measured one, and now answer 19870-5; `FEV1 % predicted` and `FVC %
-  predicted` (and `…占预计值%`) answer the measured/predicted codes by name,
-  though a reading printed in `%` still asks for input, because `%` stays
-  out of that property until bare `FEV1` and `FEV1/FVC` stop answering the
-  predicted ratio. Still open in #343: bare `FEV1` and `FEV1/FVC`, `TG` /
-  `TCT`, `HPV16` / `HPV18`. To check: `mirobody resolve FVC` answers
-  19870-5, and a `PRO 阴性` row printed under 尿常规 is coded 2887-8.
+  spirometry is the measured value** (#343). Alone, `PRO` answered proline,
+  `LEU` leucine, `KET` TP73L gene mutations, `NIT` urea nitrogen, `URO`
+  free PSA and `BIL` kidney weight. Under a urine heading (`尿常规`,
+  `尿液分析`, `Urinalysis`; not `尿沉渣`) they now code to the codes their
+  Chinese names resolve to, so the two spellings are one series, the way
+  #329 codes `HR` under an ECG heading; with no heading they refuse
+  (`GLU` alone stays a blood glucose). `尿胆红素` resolves to urine
+  bilirubin (1977-8). Spirometry names answered the PREDICTED value a
+  report prints beside the measured one: `FEV1`, `FEV1/FVC`, `FEV1%` and
+  `forced expiratory volume in 1 second` 19925-7 (FEV1/FVC Predicted),
+  `FVC` and `forced vital capacity` 19869-7, `DLCO`, `PEF`, `MVV` and
+  `时间肺活量` their Predicted codes, so a person's own value joined the
+  reference series. Two resolver rules fix the class: a name that is a
+  code's whole long name picks that code (`FEV1` is 20150-9's, `thrombin
+  time` 3243-3's rather than an interpretation code), and a Predicted pick
+  with nothing printed saying predicted moves to its measured sibling (174
+  index keys, every one a lung-function code). `%` is admitted for the
+  ratio properties, so `FEV1/FVC 78 %` is 19926-5 and `FEV1 % predicted
+  85 %` 20152-5, while a bare `FEV1 85 %` still asks. `TG` under a thyroid
+  heading (`甲状腺功能`, `甲功五项`, `Thyroid Function`) is thyroglobulin
+  (3013-0) and elsewhere stays triglyceride; `TLC` and `TCT` are settled by
+  the unit (leukocytes in 10*9/L or total lung capacity in L; a thrombin
+  time in seconds), and refuse by name alone. `HPV16` and `HPV18` are the
+  genotype DNA codes (77399-4, 77400-0). On the maintained 7,354-case set,
+  2 answers go from none to right and 26 from the right analyte to the
+  exact code; none moves from right to wrong. To check: `mirobody resolve
+  FEV1` answers 20150-9, and a `PRO 阴性` row printed under 尿常规 is coded
+  2887-8.
+
+- **About two hundred report spellings stop answering another analyte or
+  nothing** (#357). Put through the resolver alone, mirobody-gen's
+  model-proposed, judge-checked forms answered 51 of 509 with another
+  analyte's code: `BAS#` a mycobacterium culture, `MON#` fibrin monomer,
+  `ALC` ethanol, `DIA`/`SYS` inhibin A and a pressure gradient, `GLOB`
+  SHBG, `TEMP` oxygen, `BIL-T`/`-D`/`-I` kidney weight, `FAT%` the fat
+  mass, `Non-HDL` HDL itself, `LBC` lamellar bodies, `ABO` the reverse
+  typing, `Muscle` an mtDNA variant, `CPK` CK-MB, `凝血因子Ⅰ` ionized
+  calcium, `hs-cTnI（超敏）` CRP, `前列腺特异抗原` free PSA,
+  `游离三碘甲腺原氨酸` and `游离T3*` T3 resin uptake, `红细胞总数` a
+  pitted-cell ratio, `血清淀粉酶` a fluid/serum ratio. Each now answers the
+  code its usual spelling resolves to, and standard wording that answered
+  nothing (体质量指数, 糖链抗原19-9, 补体第三成分, 红细胞沉降速度,
+  乙型肝炎病毒表面抗原, N端脑钠肽前体, `FBS`, `tHcy`, the `U-` dipstick
+  abbreviations, `血清X` for a serum test) is added the same way
+  (`res/loinc/resolver_overrides.tsv`). A flagged name (`游离T3*`) is now
+  answered as the bare name before any variant of it reaches the index, and
+  a glued half that names two tests is read by the other half:
+  `血小板压积(PCT)` is plateletcrit, where it refused. Of the 509 forms,
+  10 still answer another analyte, all ones the issue calls arguable
+  (25-OH vitamin D2+D3, ApoB) or with no truth code; on the issue's corpus
+  check the names resolved go from 58.7% to 64.1% and those coded to
+  another analyte from 42 to 21. To check: `mirobody resolve BAS# DIA CPK`
+  answers 26444-0, 8462-4 and 2157-6.
 
 - **`code_exec` computes on the rows the model read, under the names it
   read** (#340). Asked to compare lipids over three years and compute

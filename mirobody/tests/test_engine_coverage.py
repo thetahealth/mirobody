@@ -714,6 +714,63 @@ CASES: list[tuple[str, str, str]] = [
     ("FVC % predicted",              r"^fvc measured/predicted",      r"pre bronchodilation"),
     ("FVC占预计值%",                   r"^fvc measured/predicted",      r"pre bronchodilation"),
     ("尿胆红素",                        r"^bilirubin\.total \[presence\] in urine", r""),
+    # Bare `FEV1` and `FEV1/FVC` are their codes' whole long names; the rank
+    # liked FEV1/FVC Predicted for both. A predicted pick with nothing printed
+    # saying predicted moves to its measured sibling (`_switch_from_predicted`).
+    ("FEV1",                         r"^fev1$",                       r"predicted"),
+    ("FEV1/FVC",                     r"^fev1/fvc$",                   r"predicted"),
+    ("Forced vital capacity",        r"^forced vital capacity \[volume\] respiratory system$", r"predicted"),
+    ("DLCO",                         r"^diffusion capacity\.carbon monoxide$", r"predicted"),
+    ("PEF",                          r"^maximum expiratory gas flow", r"predicted"),
+    ("凝血酶时间",                       r"^thrombin time$",              r"interpretation"),
+    # #357: alone, each answered ANOTHER analyte.
+    ("BAS#",                         r"^basophils \[#/volume\]",      r"mycobacterium"),
+    ("MON%",                         r"^monocytes/leukocytes",        r"fibrin"),
+    ("ALC",                          r"^lymphocytes \[#/volume\]",    r"ethanol"),
+    ("DIA",                          r"^diastolic blood pressure",    r"inhibin"),
+    ("SYS",                          r"^systolic blood pressure",     r"gradient"),
+    ("GLOB",                         r"^globulin",                    r"binding"),
+    ("TEMP",                         r"^body temperature",            r"oxygen"),
+    ("BIL-T",                        r"^bilirubin\.total",            r"weight"),
+    ("BIL-D",                        r"^bilirubin\.direct",           r"weight"),
+    ("FAT%",                         r"^percentage of body fat",      r"mass"),
+    ("β2M",                          r"^beta-2-microglobulin \[mass/volume\] in serum", r"tumor"),
+    ("Non-HDL",                      r"^cholesterol non hdl",         r""),
+    ("LBC",                          r"^general categories .* cervical", r"lamellar"),
+    ("HPV16",                        r"^human papilloma virus 16 dna", r"\+"),
+    ("HPV18",                        r"^human papilloma virus 18 dna", r" ag "),
+    ("Other HR HPV",                 r"^human papilloma virus 31\+33", r"16\+18"),
+    ("ABO",                          r"^abo group",                   r"reverse"),
+    ("Muscle",                       r"^body muscle mass",            r"gene"),
+    ("CPK",                          r"^creatine kinase \[",          r"\.mb"),
+    ("凝血因子Ⅰ",                       r"^fibrinogen",                  r"calcium"),
+    ("hs-cTnI（超敏）",                  r"^troponin i\.cardiac .*high sensitivity", r"reactive"),
+    ("前列腺特异抗原",                     r"^prostate specific ag \[",     r"free"),
+    ("游离三碘甲腺原氨酸",                   r"^triiodothyronine \(t3\) free", r"resin"),
+    ("游离T3*",                        r"^triiodothyronine \(t3\) free", r"resin"),
+    ("红细胞总数",                       r"^erythrocytes \[#/volume\]",   r"pitted"),
+    ("血清淀粉酶",                       r"^amylase \[enzymatic",          r"fld"),
+    # A glued half that names two tests is read by the other half: the stem
+    # says plateletcrit, so `PCT` beside it is plateletcrit too.
+    ("血小板压积PCT",                    r"^plateletcrit",                r""),
+    ("血小板压积(PCT)",                  r"^plateletcrit",                r""),
+    ("液基薄层细胞学(TCT)",                r"^general categories",          r"thrombin"),
+    ("白细胞总数(TLC)",                   r"^leukocytes \[#/volume\]",     r"taurolithocholate"),
+    # #357: standard report wording that answered nothing.
+    ("体质量指数",                       r"^body mass index",             r""),
+    ("糖链抗原19-9",                     r"^cancer ag 19-9",              r""),
+    ("补体第三成分",                      r"^complement c3",               r""),
+    ("谷氨酸丙酮酸转氨酶",                   r"^alanine aminotransferase",    r""),
+    ("红细胞沉降速度",                     r"^erythrocyte \[sedimentation rate\]", r""),
+    ("抗环瓜氨酸多肽抗体",                   r"^cyclic citrullinated peptide", r""),
+    ("动脉舒张压",                       r"^diastolic blood pressure",    r""),
+    ("左踝肱指数",                       r"^ankle-brachial index",        r""),
+    ("细胞角蛋白19可溶性片段",                r"^cytokeratin 19",              r""),
+    ("乙型肝炎病毒表面抗原",                  r"^hepatitis b virus surface ag", r""),
+    ("N端脑钠肽前体",                     r"^natriuretic peptide\.b prohormone n-terminal", r""),
+    ("FBS",                          r"^fasting glucose",             r""),
+    ("tHcy",                         r"^homocysteine",                r""),
+    ("U-PRO",                        r"^protein \[presence\] in urine", r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -788,14 +845,15 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # already does — #305's own instruction to abstain rather than guess
     # where the stem is ambiguous.
     ("中性粒细胞NEUT", "中性粒细胞 (26511-6, the ratio) vs NEUT (751-8, the absolute count) — percent/absolute ambiguity"),
-    ("血小板压积PCT", "血小板压积 (51637-7, plateletcrit) vs PCT (33959-8, procalcitonin) — PCT names both on real reports"),
     ("嗜酸性粒细胞EO", "嗜酸性粒细胞 alone resolves; EO carries no code of its own"),
-    ("尿蛋白PRO", "尿蛋白 (2887-8, mass concentration) vs PRO (20655-7, a dipstick presence code) disagree"),
-    ("尿酮体KET", "尿酮体 (49779-2) vs KET (35744-2) disagree on scale"),
-    ("尿亚硝酸盐NIT", "NIT alone answers an unrelated Nitrogen component, not the nitrite dipstick"),
-    ("白细胞酯酶LEU", "LEU alone answers Leucine, not leukocyte esterase"),
-    ("尿胆原URO", "URO alone answers Prostate Specific Ag Free — an unrelated analyte, not urobilinogen"),
-    ("胆红素BIL", "胆红素 (1975-2, total bilirubin) vs BIL (a dipstick presence code) disagree"),
+    # The dipstick abbreviation is refused alone (#357), and a blocked half
+    # refuses the whole name, as `HRV (RMSSD)` does.
+    ("尿蛋白PRO", "PRO alone is refused: proline, or a urine protein only a heading says"),
+    ("尿酮体KET", "KET alone is refused; it answered TP73L gene mutations"),
+    ("尿亚硝酸盐NIT", "NIT alone is refused; it answered urea nitrogen"),
+    ("白细胞酯酶LEU", "LEU alone is refused; it answered leucine"),
+    ("尿胆原URO", "URO alone is refused; it answered free PSA"),
+    ("胆红素BIL", "BIL alone is refused; it answered kidney weight"),
     # `BLD` and `SG` carry no alias at all (neither a bracket nor the glued
     # form reaches one), so these stay the honest miss main already gives.
     ("尿潜血BLD", "neither 尿潜血 nor BLD alone is in the index; stays unresolved"),
@@ -814,6 +872,17 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # #343: no specimen, and the English name of the abstaining 基础代谢率.
     ("酸碱度", "pH with no specimen; it answered ionized calcium adjusted to pH 7.4"),
     ("Basal metabolic rate", "answered the MET-and-RMR panel; 基础代谢率 abstains for the same reason"),
+    # #357: a dipstick abbreviation with no urine heading; under one,
+    # res/loinc/panel_terms.tsv codes it before the resolver is asked.
+    ("PRO", "answered proline"),
+    ("LEU", "answered leucine"),
+    ("KET", "answered TP73L gene mutations"),
+    ("NIT", "answered urea nitrogen"),
+    ("URO", "answered free PSA"),
+    ("BIL", "answered kidney weight"),
+    # Two tests by name alone; the unit settles each (READING_CASES).
+    ("TLC", "leukocytes on a blood count, total lung capacity on a lung-function report"),
+    ("TCT", "a cervical cytology result, or a thrombin clotting time"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
@@ -1018,6 +1087,13 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("SBP",              "120",   "mmHg",   "8480-6",  "systolic pressure, not SHBG"),
     ("FVC",              "4.1",   "L",      "19870-5", "measured FVC, not the predicted volume"),
     ("用力肺活量",           "4.1",   "L",      "19870-5", "measured FVC, Chinese"),
+    ("FEV1",             "3.2",   "L",      "20150-9", "measured FEV1"),
+    ("FEV1/FVC",         "78",    "%",      "19926-5", "measured ratio; `%` admitted for VRto"),
+    ("FEV1 % predicted", "85",    "%",      "20152-5", "FEV1 measured/predicted; `%` admitted for RelVol"),
+    # #357: the unit settles a name that is two tests.
+    ("TLC",              "6.5",   "10*9/L", "26464-8", "a blood count's total leukocytes"),
+    ("TLC",              "5.8",   "L",      "19862-2", "a lung-function report's total lung capacity"),
+    ("TCT",              "16.5",  "s",      "3243-3",  "a thrombin clotting time"),
 ]
 
 
@@ -1229,17 +1305,20 @@ def test_a_unit_never_moves_a_reading_to_another_specimen():
 
 
 def test_a_name_that_holds_two_analytes_says_which_two():
-    """`Plateletcrit (PCT)`: the stem is plateletcrit and the parenthetical is
-    procalcitonin. Still refused, since neither half is the answer by
-    position, but the refusal names both codes so a person can be asked,
-    which a category word's refusal (`血脂`) never offers."""
+    """`血糖(HbA1c)`: the stem is glucose and the parenthetical HbA1c.
+    Refused, since neither half is the answer by position, but the refusal
+    names both codes so a person can be asked, which a category word's
+    refusal (`血脂`) never offers. `Plateletcrit (PCT)` was this test's
+    example while the bare `PCT` lookup answered procalcitonin; `PCT` is a
+    known tie now, read by the stem beside it, so it answers plateletcrit."""
     from mirobody.engine import resolve
 
-    r = resolve("Plateletcrit (PCT)")
+    r = resolve("血糖(HbA1c)")
     assert r.method == "refused"
-    assert "51637-7" in r.rejected_reason and "33959-8" in r.rejected_reason
+    assert "2339-0" in r.rejected_reason and "4548-4" in r.rejected_reason
     assert r.rejected_code == ""
     assert resolve("血脂").rejected_reason == ""
+    assert resolve("Plateletcrit (PCT)").loinc == "51637-7"
 
 
 def test_a_bare_abbreviation_can_tie_two_analytes_too():
@@ -1282,13 +1361,12 @@ def test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation():
 
     # `Rh` has no alias, so the old fallback gave it 血型's OWN code, 883-9 --
     # a forward ABO-group answer for a reading that named the Rh factor.
-    # `血型(ABO)测定` needs no guard: `ABO` carries its own analyte (1303-7),
-    # different from 血型's, so the mismatch refuses it on its own.
+    # `血型(ABO)测定` refused while `ABO` alone answered the reverse typing
+    # (1303-7); it answers the ABO group now (#357), so both halves agree.
     abo = resolve("血型(ABO)测定")
     rh = resolve("血型(Rh)测定")
-    assert not abo.resolved and not rh.resolved
-    assert abo.loinc != "883-9" and rh.loinc != "883-9"
-    assert "883-9" in abo.rejected_reason and "1303-7" in abo.rejected_reason
+    assert abo.loinc == "883-9"
+    assert not rh.resolved and rh.loinc != "883-9"
     assert resolve("血型").loinc == "883-9"  # the bare analyte is untouched
 
     # 幽门螺杆菌(C14)测定: C14 is its own real test (see
@@ -1430,11 +1508,12 @@ def test_coagulation_panel_abbreviations():
     siblings are a different COMPONENT, "fibrin+fibrinogen fragments", not
     "fibrin degradation products"; AT-III's RelCCnc has no recognized `%`
     unit family) -- real, narrow gaps, left alone rather than patched
-    blind. `TT`/`Thrombin time`/`凝血酶时间` name alone still answers
-    21032-8, an Interpretation code; a unit now switches to 3243-3, the
-    quantitative one, without crossing to 3173-2 (aPTT) the way it used
-    to -- see `test_a_unit_switch_keeps_the_coagulation_test_identity`
-    for the mechanism."""
+    blind. `TT`/`Thrombin time`/`凝血酶时间` name alone answered 21032-8,
+    an Interpretation code, until `_pick` honoured a key that is a code's
+    whole long name (`thrombin time` is 3243-3's); a unit switches to
+    3243-3 without crossing to 3173-2 (aPTT) the way it used to -- see
+    `test_a_unit_switch_keeps_the_coagulation_test_identity` for the
+    mechanism."""
     from mirobody.engine import resolve, resolve_reading
 
     for term, loinc in (("PT", "5902-2"), ("APTT", "3173-2"), ("INR", "34714-6")):
@@ -1452,7 +1531,7 @@ def test_coagulation_panel_abbreviations():
     assert resolve("AT-III").loinc == "27811-9"
     assert not resolve_reading("AT-III", "95", "%").resolved
 
-    assert resolve("TT").loinc == "21032-8"
+    assert resolve("TT").loinc == "3243-3"
     for term in ("TT", "Thrombin time", "凝血酶时间"):
         assert resolve_reading(term, "17", "s").loinc == "3243-3", term
 
@@ -1595,10 +1674,9 @@ def test_a_qualitative_cre_does_not_borrow_creatinines_scale():
 #: Codes the PROPERTY gate refuses one of their own EXAMPLE_UCUM_UNITS. A
 #: ratchet: lower it when a fix lands. Most of the rest needs more than a
 #: family entry: `%` admitted for `RelTime` would switch `PT 62 %` to an INR
-#: code, admitted for `VRto`/`RelVol` it codes `FEV1 85 %` to the PREDICTED
-#: FEV1/FVC ratio its alias points at (20 codes), and `/mL` is declared on
-#: log counts.
-REFUSED_OWN_UNIT_CEILING = 1087
+#: code, and `/mL` is declared on log counts. `%` for `VRto`/`RelVol` came
+#: in with the measured spirometry codes (#343): 1087 -> 1066.
+REFUSED_OWN_UNIT_CEILING = 1066
 
 
 def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
@@ -1627,14 +1705,18 @@ def test_the_unit_gate_admits_the_units_loinc_declares(resolver):
 
 
 def test_a_spirometry_percent_is_not_coded_to_the_predicted_ratio():
-    """`FEV1`, `FEV1%` and `FEV1/FVC` resolve to 19925-7, FEV1/FVC
-    PREDICTED. With `%` admitted for its `VRto`, `FEV1 85 %` (a percent of
-    predicted, 20152-5) and a measured `FEV1/FVC 78 %` (19926-5) were coded
-    to it; until those aliases are right the reading needs a person."""
+    """`FEV1`, `FEV1%` and `FEV1/FVC` resolved to 19925-7, FEV1/FVC
+    PREDICTED, which is why `%` stayed out of `VRto`/`RelVol`. They answer
+    the measured codes now (#343), so `FEV1/FVC 78 %` is the measured ratio,
+    `FEV1%` is LOINC's own synonym for it, and a bare `FEV1 85 %`, a percent
+    of predicted the name does not state, still asks."""
     from mirobody.engine import resolve_reading
 
     for name, value in (("FEV1", "85"), ("FEV1/FVC", "78"), ("FEV1%", "85")):
         assert resolve_reading(name, value, "%").loinc != "19925-7"
+    assert resolve_reading("FEV1/FVC", "78", "%").loinc == "19926-5"
+    assert resolve_reading("FEV1%", "85", "%").loinc == "19926-5"
+    assert not resolve_reading("FEV1", "85", "%").resolved
 
 
 def test_a_milliequivalent_excretion_is_not_a_concentration():
