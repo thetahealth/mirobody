@@ -40,11 +40,12 @@ ecg	T电轴	8638-9
 ecg	P波时限	8627-2	not a bare P波: the resolver reads that as the atrial rate (8894-8)
 ecg	P波时间	8627-2
 # ── urine: a dipstick panel's abbreviations (#343) ──────────────────────
-# Alone, `PRO` answered proline, `LEU` leucine, `URO` free PSA and `GLU` a
-# blood glucose, and `KET`, `NIT` and `BIL` nothing. Each code is the one the
-# Chinese name beside it resolves to (`尿蛋白`, `尿白细胞`, `尿酮体`,
-# `尿亚硝酸盐`, `尿胆原`, `尿胆红素`, `尿糖`), so a report's two spellings are
-# one series. A semi-quantitative value with a unit (`URO 3.2 µmol/L`) meets
+# Alone, `PRO` answered proline, `LEU` leucine, `KET` TP73L gene mutations,
+# `NIT` urea nitrogen, `URO` free PSA and `BIL` kidney weight; they refuse
+# there now (resolver_overrides.tsv), and `GLU` alone is a blood glucose,
+# which it usually is. Each code is the one the Chinese name beside it
+# resolves to (`尿蛋白`, `尿白细胞`, `尿酮体`, `尿亚硝酸盐`, `尿胆原`,
+# `尿胆红素`, `尿糖`), so a report's two spellings are one series. A semi-quantitative value with a unit (`URO 3.2 µmol/L`) meets
 # the unit gate as any other reading does.
 urine	PRO	2887-8
 urine	LEU	5799-2	leukocyte esterase, the strip's pad; a microscopy count prints under 尿沉渣
@@ -54,3 +55,7 @@ urine	URO	13658-0
 urine	UBG	13658-0
 urine	BIL	1977-8
 urine	GLU	2349-9
+# ── thyroid: a thyroid panel's thyroglobulin (#343, #357) ────────────────
+# `TG` alone is triglyceride, what a lipid panel prints, and stays so. Under
+# a thyroid heading it is thyroglobulin, the code `甲状腺球蛋白` resolves to.
+thyroid	TG	3013-0	thyroglobulin, beside TGAb and TPOAb

@@ -1836,16 +1836,295 @@ Basal metabolic rate	!unresolved
 # Spirometry. `FVC` and `用力肺活量` answered 19869-7, the PREDICTED volume
 # a report prints beside the measured one, so a person's measured FVC joined
 # the reference values' series; the `% predicted` names answered nothing.
-# Bare `FEV1` and `FEV1/FVC` still answer their Predicted siblings (19925-7):
-# their own long names are the keys that collide, so no row here can reach
-# 20150-9 or 19926-5. With the unit printed, `FEV1 3.2 L` already switches to
-# 20150-9 and `FEV1/FVC 78 %` refuses.
+# Bare `FEV1` and `FEV1/FVC` answer 20150-9 and 19926-5 through `_pick`,
+# which honours a key that is a code's whole long name (#343).
 FVC	Forced vital capacity [Volume] Respiratory system
 用力肺活量	Forced vital capacity [Volume] Respiratory system
 FEV1 % predicted	FEV1 measured/predicted
 FEV1占预计值%	FEV1 measured/predicted
 FVC % predicted	FVC measured/predicted
 FVC占预计值%	FVC measured/predicted
+# The spelled-out names: `Forced expiratory volume in 1 second` answered
+# the FEV1/FVC ratio, `余气量` the RV/TLC ratio (`残气量` already answers
+# residual volume). The predicted-versus-measured choice is
+# `_switch_from_predicted`'s, not a row per spelling.
+Forced expiratory volume in 1 second	FEV1
+第一秒用力呼气容积	FEV1
+余气量	Residual volume
 # `尿胆红素` answered nothing; under a urine heading `BIL` now codes 1977-8
 # (res/loinc/panel_terms.tsv), and the Chinese name lands in the same series.
 尿胆红素	Bilirubin.total [Presence] in Urine
+# #357: each name below answered ANOTHER analyte, alone, with full
+# confidence: `BAS#` a mycobacterium culture, `MON#` fibrin monomer, `ALC`
+# ethanol, `DIA` inhibin A, `SYS` a pressure gradient, `GLOB` SHBG, `TEMP`
+# oxygen, `BIL-T`/`-D`/`-I` kidney weight, `FAT%` the fat MASS, `β2M` the
+# tumour-marker code, `Non-HDL` HDL itself, `LBC` lamellar bodies, `HPV16`
+# the thirteen-type pool, `HPV18` an antigen test, `25-OH Vit D` a 3-epimer
+# ratio, `ABO` the reverse typing, `Muscle` an mtDNA variant, `CPK` CK-MB
+# (CPK is total creatine kinase); `凝血因子Ⅰ` ionized calcium,
+# `hs-cTnI（超敏）` CRP (the 超敏 of hs-CRP), `前列腺特异抗原` free PSA,
+# `游离三碘甲腺原氨酸` T3 resin uptake, `红细胞总数` a pitted-cell ratio,
+# `血清淀粉酶` and `血清胆固醇` a fluid/serum ratio. Each target is the code
+# the usual spelling already resolves to (`嗜碱性粒细胞#`, `舒张压`,
+# `总胆红素`, `体脂率`, `纤维蛋白原`, `肌酸激酶`, ...), so both spellings are
+# one series; the target text is that code's long name, which `_pick`
+# honours exactly. The HPV genotypes and the other-high-risk pool are the
+# DNA codes a genotyping report means (77399-4, 77400-0, 71431-1).
+# Spellings from the same run that answered nothing (`BA#`, `T-BILI`, `HPV
+# type 16`, ...) are added beside their siblings. `TLC` and `TCT` are ties
+# the unit settles (`_KNOWN_TIES`); `TG` under a thyroid heading is
+# res/loinc/panel_terms.tsv's.
+BAS#	Basophils [#/volume] in Blood
+Bas#	Basophils [#/volume] in Blood
+BA#	Basophils [#/volume] in Blood
+BAS%	Basophils/Leukocytes in Blood
+Bas%	Basophils/Leukocytes in Blood
+BA%	Basophils/Leukocytes in Blood
+MON#	Monocytes [#/volume] in Blood
+Mon#	Monocytes [#/volume] in Blood
+MO#	Monocytes [#/volume] in Blood
+MON%	Monocytes/Leukocytes in Blood
+Mon%	Monocytes/Leukocytes in Blood
+MO%	Monocytes/Leukocytes in Blood
+LY#	Lymphocytes [#/volume] in Blood
+LY%	Lymphocytes/Leukocytes in Blood
+ALC	Lymphocytes [#/volume] in Blood
+NE%	Neutrophils/Leukocytes in Blood
+DIA	Diastolic blood pressure
+NIBP-DIA	Diastolic blood pressure
+NIBP-D	Diastolic blood pressure
+SYS	Systolic blood pressure
+NIBP-SYS	Systolic blood pressure
+NIBP-S	Systolic blood pressure
+GLOB	Globulin [Mass/volume] in Serum by calculation
+TEMP	Body temperature
+BIL-T	Bilirubin.total [Mass/volume] in Serum or Plasma
+T-BILI	Bilirubin.total [Mass/volume] in Serum or Plasma
+TBILI	Bilirubin.total [Mass/volume] in Serum or Plasma
+BILT	Bilirubin.total [Mass/volume] in Serum or Plasma
+BIL-D	Bilirubin.direct [Mass/volume] in Serum or Plasma
+D-BILI	Bilirubin.direct [Mass/volume] in Serum or Plasma
+DBILI	Bilirubin.direct [Mass/volume] in Serum or Plasma
+BILD	Bilirubin.direct [Mass/volume] in Serum or Plasma
+BIL-I	Bilirubin.indirect [Mass/volume] in Serum or Plasma
+I-BILI	Bilirubin.indirect [Mass/volume] in Serum or Plasma
+IBILI	Bilirubin.indirect [Mass/volume] in Serum or Plasma
+FAT%	Percentage of body fat Measured
+BF%	Percentage of body fat Measured
+BFP	Percentage of body fat Measured
+β2M	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
+B2MG	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
+β2MG	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
+Non-HDL	Cholesterol non HDL [Mass/volume] in Serum or Plasma
+Non HDL-Chol	Cholesterol non HDL [Mass/volume] in Serum or Plasma
+NHDL	Cholesterol non HDL [Mass/volume] in Serum or Plasma
+NHDL-C	Cholesterol non HDL [Mass/volume] in Serum or Plasma
+HPV16	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+HPV16 DNA	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+HPV16 (HR)	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+HPV16 (type 16)	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+HPV type 16	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+人乳头瘤病毒16型	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+人乳头状瘤病毒16型	Human papilloma virus 16 DNA [Presence] in Cervix by NAA with probe detection
+HPV18	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+HPV18 DNA	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+HPV18 (HR)	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+HPV18 (type 18)	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+HPV type 18	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+人乳头瘤病毒18型	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+人乳头状瘤病毒18型	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+Other HR HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+Other HR-HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+Non-16/18 HR HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+Other 12 HR HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+12 HR-HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+其他12种高危HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+其他12种高危型HPV	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+其他12种高危型人乳头瘤病毒	Human papilloma virus 31+33+35+39+45+51+52+56+58+59+66+68 DNA [Presence] in Cervix by NAA with probe detection
+LBC	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+Cervical LBC	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+宫颈液基薄层细胞学	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+液基薄层细胞学检查	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+液基薄层细胞学	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+液基细胞学	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+宫颈液基细胞学	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+Liquid-based cytology	General categories [Interpretation] of Cervical or vaginal smear or scraping by Cyto stain
+25-OH Vit D	25-hydroxyvitamin D3 [Mass/volume] in Serum or Plasma
+H.pylori-Ab	Helicobacter pylori Ab [Presence] in Serum
+H. pylori Ab	Helicobacter pylori Ab [Presence] in Serum
+H pylori Ab	Helicobacter pylori Ab [Presence] in Serum
+HP Ab	Helicobacter pylori Ab [Presence] in Serum
+抗幽门螺杆菌抗体	Helicobacter pylori Ab [Presence] in Serum
+幽门螺杆菌抗体	Helicobacter pylori Ab [Presence] in Serum
+血清淀粉酶	Amylase [Enzymatic activity/volume] in Serum or Plasma
+血清胆固醇	Cholesterol [Mass/volume] in Serum or Plasma
+凝血因子Ⅰ	Fibrinogen [Mass/volume] in Blood by calculation
+游离三碘甲腺原氨酸	Triiodothyronine (T3) Free [Mass/volume] in Serum or Plasma
+游离四碘甲腺原氨酸	Thyroxine (T4) free [Mass/volume] in Serum or Plasma
+hs-cTnI（超敏）	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+hs-cTnI	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+hsTnI	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+超敏cTnI	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+超敏心肌肌钙蛋白I	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+高敏心肌肌钙蛋白I	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+高敏肌钙蛋白I	Troponin I.cardiac [Mass/volume] in Serum or Plasma by High sensitivity method
+前列腺特异抗原	Prostate specific Ag [Mass/volume] in Serum or Plasma
+红细胞总数	Erythrocytes [#/volume] in Blood
+呼吸率	Respiratory rate
+ABO	ABO group [Type] in Blood
+Muscle	Body muscle mass Calculated
+肌酸磷酸激酶	Creatine kinase [Enzymatic activity/volume] in Serum or Plasma
+CPK	Creatine kinase [Enzymatic activity/volume] in Serum or Plasma
+总T3	Triiodothyronine (T3) [Mass/volume] in Serum or Plasma
+总T4	Thyroxine (T4) [Mass/volume] in Serum or Plasma
+# #357: standard report wording that answered nothing. The forms come from
+# mirobody-gen's model-proposed, judge-checked synonyms; kept here are the
+# ones a report prints (体质量指数, 糖链抗原19-9, 乙型肝炎病毒表面抗原, the
+# `U-` dipstick abbreviations, `血清X` for a serum X), each pointed at the
+# code its usual spelling resolves to. Left out: forms whose truth is
+# arguable (2h post-load vs post-prandial glucose, urea vs urea nitrogen,
+# RDW, 25-OH vitamin D), the ECG/echo terms (heading-scoped, see
+# panel_terms.tsv), single letters (`L#`, `M%`) and real homonyms (`BT`
+# bleeding time or temperature, `CP` C-peptide or ceruloplasmin).
+体质量指数	Body mass index (BMI) [Ratio]
+体质量	Body weight
+糖链抗原19-9	Cancer Ag 19-9 [Units/volume] in Serum or Plasma
+糖抗原19-9	Cancer Ag 19-9 [Units/volume] in Serum or Plasma
+糖链抗原125	Cancer Ag 125 [Units/volume] in Serum or Plasma
+糖抗原125	Cancer Ag 125 [Units/volume] in Serum or Plasma
+CA125II	Cancer Ag 125 [Units/volume] in Serum or Plasma
+糖链抗原15-3	Cancer Ag 15-3 [Units/volume] in Serum or Plasma
+糖抗原15-3	Cancer Ag 15-3 [Units/volume] in Serum or Plasma
+CA15-3II	Cancer Ag 15-3 [Units/volume] in Serum or Plasma
+糖链抗原72-4	Cancer Ag 72-4 [Units/volume] in Serum or Plasma
+肿瘤相关糖抗原72-4	Cancer Ag 72-4 [Units/volume] in Serum or Plasma
+补体第三成分	Complement C3 [Mass/volume] in Serum or Plasma
+补体3	Complement C3 [Mass/volume] in Serum or Plasma
+补体第四成分	Complement C4 [Mass/volume] in Serum or Plasma
+补体4	Complement C4 [Mass/volume] in Serum or Plasma
+谷氨酸丙酮酸转氨酶	Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma
+谷氨酸草酰乙酸转氨酶	Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma
+红细胞沉降速度	Erythrocyte [Sedimentation Rate] in Blood
+红细胞沉降速率	Erythrocyte [Sedimentation Rate] in Blood
+血沉速度	Erythrocyte [Sedimentation Rate] in Blood
+抗环瓜氨酸多肽抗体	Cyclic citrullinated peptide IgG Ab [Units/volume] in Serum or Plasma
+CCP Ab	Cyclic citrullinated peptide IgG Ab [Units/volume] in Serum or Plasma
+动脉舒张压	Diastolic blood pressure
+舒张血压	Diastolic blood pressure
+动脉收缩压	Systolic blood pressure
+收缩血压	Systolic blood pressure
+左踝肱指数	Ankle-brachial index
+右踝肱指数	Ankle-brachial index
+左侧踝肱指数	Ankle-brachial index
+右侧踝肱指数	Ankle-brachial index
+左踝臂指数	Ankle-brachial index
+右踝臂指数	Ankle-brachial index
+细胞角蛋白19可溶性片段	Cytokeratin 19 [Mass/volume] in Serum or Plasma
+细胞角蛋白19片段抗原	Cytokeratin 19 [Mass/volume] in Serum or Plasma
+FBS	Fasting glucose [Mass/volume] in Serum or Plasma
+SF	Ferritin [Mass/volume] in Serum or Plasma by Immunoassay
+TCHO	Cholesterol [Mass/volume] in Serum or Plasma
+T-CHO	Cholesterol [Mass/volume] in Serum or Plasma
+Total Chol	Cholesterol [Mass/volume] in Serum or Plasma
+C-Pep	C peptide [Mass/volume] in Serum or Plasma
+CPEP	C peptide [Mass/volume] in Serum or Plasma
+Cpep	C peptide [Mass/volume] in Serum or Plasma
+Cyst C	Cystatin C [Mass/volume] in Serum or Plasma
+tHcy	Homocysteine [Moles/volume] in Serum or Plasma
+乙型肝炎病毒表面抗原	Hepatitis B virus surface Ag [Presence] in Serum or Plasma by Immunoassay
+乙型肝炎病毒表面抗体	Hepatitis B virus surface Ab [Units/volume] in Serum or Plasma by Immunoassay
+乙型肝炎病毒核心抗体	Hepatitis B virus core Ab [Presence] in Serum or Plasma by Immunoassay
+乙肝病毒e抗原	Hepatitis B virus e Ag [Presence] in Serum or Plasma by Immunoassay
+乙肝病毒e抗体	Hepatitis B virus e Ab [Presence] in Serum or Plasma by Immunoassay
+丙型肝炎病毒抗体	Hepatitis C virus Ab [Presence] in Serum or Plasma by Immunoassay
+N端脑钠肽前体	Natriuretic peptide.B prohormone N-Terminal [Mass/volume] in Serum or Plasma
+N末端B型利钠肽原	Natriuretic peptide.B prohormone N-Terminal [Mass/volume] in Serum or Plasma
+氨基末端脑钠肽前体	Natriuretic peptide.B prohormone N-Terminal [Mass/volume] in Serum or Plasma
+神经元特异烯醇化酶	Enolase.neuron specific [Mass/volume] in Serum or Plasma
+神经特异性烯醇化酶	Enolase.neuron specific [Mass/volume] in Serum or Plasma
+鳞状细胞抗原	Squamous cell carcinoma Ag [Mass/volume] in Serum or Plasma
+SCCA	Squamous cell carcinoma Ag [Mass/volume] in Serum or Plasma
+促甲状腺刺激素	Thyrotropin [Units/volume] in Serum or Plasma
+甲状腺球蛋白自身抗体	Thyroglobulin Ab [Units/volume] in Serum or Plasma
+甲状腺过氧化物酶自身抗体	Thyroperoxidase Ab [Units/volume] in Serum or Plasma
+风湿因子	Rheumatoid factor [Units/volume] in Serum or Plasma
+RA Factor	Rheumatoid factor [Units/volume] in Serum or Plasma
+Rh血型鉴定	Rh [Type] in Blood
+Rh(D)血型鉴定	Rh [Type] in Blood
+Rh type	Rh [Type] in Blood
+Rh(D) typing	Rh [Type] in Blood
+ABO血型鉴定	ABO group [Type] in Blood
+ABO血型分型	ABO group [Type] in Blood
+ABO typing	ABO group [Type] in Blood
+ABO grouping	ABO group [Type] in Blood
+脂蛋白小a	Lipoprotein a [Mass/volume] in Serum or Plasma
+血清球蛋白	Globulin [Mass/volume] in Serum by calculation
+血清糖化白蛋白	Albumin.glycated/Albumin.total in Serum or Plasma
+血清高密度脂蛋白胆固醇	Cholesterol in HDL [Mass/volume] in Serum or Plasma
+血清低密度脂蛋白胆固醇	Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation
+血清脂肪酶	Lipase [Enzymatic activity/volume] in Serum or Plasma
+血清总蛋白质	Protein [Mass/volume] in Serum or Plasma
+血清胆碱酯酶	Cholinesterase [Enzymatic activity/volume] in Serum or Plasma
+血清C肽	C peptide [Mass/volume] in Serum or Plasma
+血清免疫球蛋白A	IgA [Mass/volume] in Serum or Plasma
+血清免疫球蛋白G	IgG [Mass/volume] in Serum or Plasma
+血清免疫球蛋白M	IgM [Mass/volume] in Serum or Plasma
+空腹血浆葡萄糖	Fasting glucose [Mass/volume] in Serum or Plasma
+空腹血糖浓度	Fasting glucose [Mass/volume] in Serum or Plasma
+空腹血葡萄糖	Fasting glucose [Mass/volume] in Serum or Plasma
+血红蛋白浓度	Hemoglobin [Mass/volume] in Blood
+白细胞数量	Leukocytes [#/volume] in Blood
+红细胞数量	Erythrocytes [#/volume] in Blood
+红血球计数	Erythrocytes [#/volume] in Blood
+血小板数量	Platelets [#/volume] in Blood
+平均红细胞容积	MCV [Entitic mean volume] in Red Blood Cells
+红细胞平均体积	MCV [Entitic mean volume] in Red Blood Cells
+血小板体积分布宽度	Platelet distribution width [Entitic volume] in Blood by Automated count
+载脂蛋白A-Ⅰ	Apolipoprotein A-I [Mass/volume] in Serum or Plasma
+载脂蛋白AⅠ	Apolipoprotein A-I [Mass/volume] in Serum or Plasma
+APO-A1	Apolipoprotein A-I [Mass/volume] in Serum or Plasma
+抗链球菌溶血素O抗体	Streptolysin O Ab [Units/volume] in Serum or Plasma
+ASL-O	Streptolysin O Ab [Units/volume] in Serum or Plasma
+凝血酶凝固时间	Thrombin time
+尿蛋白质	Protein [Presence] in Urine
+尿液蛋白质	Protein [Presence] in Urine
+尿液葡萄糖	Glucose [Mass/volume] in Urine
+尿液酮体	Ketones [Mass/volume] in Urine
+尿液胆红素	Bilirubin.total [Presence] in Urine
+尿液隐血	Hemoglobin [Presence] in Urine by Test strip
+尿液酸碱度	pH of Urine
+尿液比重	Specific gravity of Urine
+U-PRO	Protein [Presence] in Urine
+U-PROT	Protein [Presence] in Urine
+U-GLUC	Glucose [Mass/volume] in Urine
+UGLU	Glucose [Mass/volume] in Urine
+U-KET	Ketones [Mass/volume] in Urine
+U-BIL	Bilirubin.total [Presence] in Urine
+U-BLD	Hemoglobin [Presence] in Urine by Test strip
+U-pH	pH of Urine
+UPH	pH of Urine
+U-SG	Specific gravity of Urine
+USG	Specific gravity of Urine
+U-URO	Urobilinogen [Presence] in Urine
+U-NIT	Nitrite [Presence] in Urine
+U-LEU	Leukocyte esterase [Presence] in Urine by Test strip
+U-ALB	Microalbumin [Mass/volume] in Urine
+U-Alb	Microalbumin [Mass/volume] in Urine
+尿白蛋白/肌酐比	Albumin/Creatinine [Mass Ratio] in Urine
+尿白蛋白肌酐比值	Albumin/Creatinine [Mass Ratio] in Urine
+U-ACR	Albumin/Creatinine [Mass Ratio] in Urine
+游离/总PSA比值	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
+经皮血氧饱和度	Oxygen saturation in Arterial blood by Pulse oximetry
+脉搏血氧饱和度	Oxygen saturation in Arterial blood by Pulse oximetry
+U-ALB/CREA	Albumin/Creatinine [Mass Ratio] in Urine
+# A dipstick abbreviation with no urine heading answered a confident wrong
+# code: `PRO` proline, `LEU` leucine, `KET` TP73L gene mutations, `NIT` urea
+# nitrogen, `URO` free PSA, `BIL` kidney weight. Under a urine heading they
+# are coded by res/loinc/panel_terms.tsv, which is consulted before the
+# resolver; alone they now ask. `UBG` and `GLU` mean one thing and stay.
+PRO	!unresolved
+LEU	!unresolved
+KET	!unresolved
+NIT	!unresolved
+URO	!unresolved
+BIL	!unresolved

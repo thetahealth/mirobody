@@ -506,15 +506,15 @@ UCUM_FAMILY: dict[str, str] = {
 # :func:`unit_families`.
 AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     # `Ratio` and `DistWidth`: RDW-CV (788-0, 30385-9), filed under both and
-    # printed as `%`. Three properties that declare `%` stay out. `VRto`
-    # (FEV1/FVC) and `RelVol` (FEV1 measured/predicted): bare `FEV1` and
-    # `FEV1/FVC` still resolve to 19925-7, the PREDICTED ratio, which `%`
-    # would code; `FEV1 % predicted` answers by name only until then (#343).
-    # `RelTime` (PT actual/normal, 5894-1) shares PT's component with the INR
-    # codes, so `PT 62 %` would switch to INR 6301-6.
+    # printed as `%`. `VRto` (FEV1/FVC 19926-5) and `RelVol` (FEV1 measured/
+    # predicted 20152-5) were kept out while bare `FEV1` and `FEV1/FVC`
+    # resolved to 19925-7, the PREDICTED ratio; they answer the measured codes
+    # since `_pick` honours a key that is a whole long name (#343). `RelTime`
+    # (PT actual/normal, 5894-1) stays out: it shares PT's component with the
+    # INR codes, so `PT 62 %` would switch to INR 6301-6.
     "%": frozenset({
         "MFr", "NFr", "AFr", "VFr", "SFr", "CFr",
-        "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth",
+        "LenFr", "RelACnc", "RelRto", "Ratio", "DistWidth", "VRto", "RelVol",
     }),
     "mm[Hg]": frozenset({"Pres", "PPres"}),    # BP vs blood-gas pO2/pCO2
     # A report prints `U/mL` for tumour markers and antibodies (CA 19-9, CA

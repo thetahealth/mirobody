@@ -56,12 +56,22 @@ _RUNTIME_MEMBERS = (
 # Sentinel target in resolver_overrides.tsv meaning "deliberately unresolved".
 _BLOCK_SENTINEL = "!unresolved"
 
+# A printed name that asks for the predicted (reference) value itself, which
+# `_switch_from_predicted` then leaves alone. `推算` is LOINC's Chinese for it.
+_SAYS_PREDICTED = re.compile(r"pred|预计|预测|推算", re.I)
+
 # Bare abbreviations the raw index ties between two different analytes at
 # the SAME commonness rank, where neither reading dominates enough for a
 # CA/PT/MG-style "answer the widespread one" row: `resolve()` checks this
 # before the index, `resolve_reading` arbitrates by the unit.
 _KNOWN_TIES: dict[str, tuple[str, str]] = {
     "pct": ("33959-8", "51637-7"),  # Procalcitonin, Plateletcrit
+    # #357: `TLC` answered taurolithocholate; a blood count means leukocytes
+    # (10*9/L), a lung-function report total lung capacity (L). `TCT` answered
+    # a thrombin-time interpretation; a cervical cytology result is text, a
+    # thrombin clotting time is seconds.
+    "tlc": ("26464-8", "19862-2"),  # Leukocytes, Total lung capacity
+    "tct": ("19762-4", "3243-3"),  # Cervical cytology categories, Thrombin time
 }
 
 # R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a
@@ -610,6 +620,13 @@ class OfflineResolver:
         A singular/plural spelling cannot break an existing commonness tie:
         `platelet` otherwise prefers mean platelet volume to platelet count.
 
+        A key that is one candidate's whole LONG_COMMON_NAME names that code
+        and wins outright. `fev1` posts 25 rows and the rank liked 19925-7,
+        FEV1/FVC Predicted, over 20150-9, whose long name is `FEV1`; the same
+        held for `fev1/fvc`, `inspiratory capacity` and `thrombin time` (an
+        interpretation code over the clotting time). Over the whole alias
+        index this moves 31 keys, each to the code it spells.
+
         Names stay raw blob slices; only exact component candidates need
         decoding, not the hundreds of long names an alias can post.
         """
@@ -623,10 +640,14 @@ class OfflineResolver:
         # depend on that.
         best_row, best_score = -1, float("-inf")
         exact_matches: list[tuple[int, float]] = []
+        named: list[int] = []
         for r in rows:
             r = int(r)
             if best_row < 0:
                 best_row = r
+            long_name = axis.field_raw(r, _LCN)
+            if len(long_name) == len(exact) and self._normalize(long_name.decode("utf-8")) == key:
+                named.append(r)
             name = names.raw(r)
             score = float(rank[r])
             if _PLAIN_SPECIMEN.search(name):
@@ -637,6 +658,8 @@ class OfflineResolver:
                 exact_matches.append((r, score))
             if score > best_score:
                 best_row, best_score = r, score
+        if len(named) == 1:
+            return named[0]
         baseline = self._axis_row(best_row)
         baseline_score = best_score
         if (
@@ -687,16 +710,18 @@ class OfflineResolver:
                 rejected_reason=f"{term!r} ties {code} and {tied} at the same rank",
             )
 
-        hit = self._lookup(term)
-        if hit is not None:
-            return hit
-
         # `尿酸(UA)测定`, `γ-谷氨酰基转移酶*`: the name with what the report
-        # printed after it. Answered as the bare name would be, blocks and the
-        # seam rule below included; only reached after a miss.
+        # printed after it, answered as the bare name would be, blocks and
+        # the seam rule included. Before the index, not after a miss: a
+        # variant of `游离T3*` (`游离 t3`) reached a raw key and answered T3
+        # resin uptake, while `游离T3` has its own row (#357).
         bare = strip_report_marks(term)
         if bare:
             return replace(self.resolve(bare), term=term)
+
+        hit = self._lookup(term)
+        if hit is not None:
+            return hit
 
         return self._resolve_seam(term)
 
@@ -759,6 +784,14 @@ class OfflineResolver:
 
         stem_hit = self._lookup(stem) if stem else None
         label_hit = self._lookup(label) if label else None
+        # A half in `_KNOWN_TIES` is read by the other half, never by row
+        # order: `血小板压积(PCT)` refused because the bare `PCT` lookup
+        # answered procalcitonin, and `Liquid-based cytology (TCT)` took the
+        # thrombin-time code from its label alone.
+        if label and self._normalize(label) in _KNOWN_TIES:
+            label_hit = self._tied_half(self._normalize(label), stem_hit)
+        if stem and self._normalize(stem) in _KNOWN_TIES:
+            stem_hit = self._tied_half(self._normalize(stem), label_hit)
         both_resolved = stem_hit is not None and label_hit is not None
 
         if stem_hit and label_hit and stem_hit.loinc != label_hit.loinc:
@@ -844,6 +877,22 @@ class OfflineResolver:
         if chosen is None:
             return Resolution(term=term)
         return replace(chosen, term=term)
+
+    def _tied_half(self, key: str, other: Resolution | None) -> Resolution | None:
+        """The code of a `_KNOWN_TIES` pair that shares `other`'s analyte, as
+        a hit for that half of a glued name, or None when `other` is missing
+        or matches neither, so the half counts as unresolved."""
+        if other is None:
+            return None
+        analyte = self._analyte_of(other.loinc)
+        code = next((c for c in _KNOWN_TIES[key] if analyte and self._analyte_of(c) == analyte), "")
+        if not code:
+            return None
+        found, _component, prop, scale, system, _method, lcn = self._axis_row(self._row_for_code(code))
+        return Resolution(
+            term=key, canonical=lcn, loinc=found, candidates=1, resolved=True,
+            method="lexical", evidence=("name",), axes=(prop, scale, system),
+        )
 
     def _component_index(self) -> dict[bytes, list[int]]:
         """component -> its rows, built on first use and then cached.
@@ -1114,6 +1163,30 @@ class OfflineResolver:
                     best_sibling, best_score = r, score
         return best_sibling if best_sibling >= 0 else best_row
 
+    def _switch_from_predicted(self, term: str, key: str, row: int) -> int:
+        """When `_pick` lands on a spirometry PREDICTED value (METHOD exactly
+        `Predicted`) and nothing printed says predicted, the measured sibling:
+        same component, property, scale, system and time, and no method.
+
+        A report prints the predicted volume beside the measured one, and the
+        rank liked the reference: `forced vital capacity`, `DLCO`, `PEF`,
+        `MVV`, `余气量`, `时间肺活量` and `FEV1%` each answered a Predicted
+        code, so a person's own value joined the reference values' series
+        (#343). `row` unchanged when no single measured sibling exists.
+        """
+        _code, _component, prop, scale, system, method, _lcn = self._axis_row(row)
+        if method != "Predicted":
+            return row
+        if any(_SAYS_PREDICTED.search(text) for text in (term, key, self._src.get(self._normalize(term)) or "")):
+            return row
+        axis = self._axis
+        time = axis.field(row, _TIME)
+        siblings = [
+            r for r in self._component_index().get(axis.field_raw(row, _COMPONENT), ())
+            if self._axis_row(r)[2:6] == (prop, scale, system, "") and axis.field(r, _TIME) == time
+        ]
+        return siblings[0] if len(siblings) == 1 else row
+
     def _lookup(self, term: str) -> Resolution | None:
         """First candidate key that hits the alias index, or None on a miss.
 
@@ -1127,6 +1200,7 @@ class OfflineResolver:
             if rows is None or not len(rows):
                 continue
             chosen = self._switch_from_procedure_specimen(term, key, self._pick(rows, key))
+            chosen = self._switch_from_predicted(term, key, chosen)
             code, _component, prop, scale, system, _method, lcn = self._axis_row(chosen)
             return Resolution(
                 term=term,
