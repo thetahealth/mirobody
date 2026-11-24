@@ -94,6 +94,25 @@
   `TCT`, `HPV16` / `HPV18`. To check: `mirobody resolve FVC` answers
   19870-5, and a `PRO 阴性` row printed under 尿常规 is coded 2887-8.
 
+- **`code_exec` computes on the rows the model read, under the names it
+  read** (#340). Asked to compare lipids over three years and compute
+  non-HDL cholesterol and ApoB/ApoA1, deepseek-flash spent up to 22 steps
+  and three failed `code_exec` calls. The table it read showed `indicator`
+  as the label (高密度脂蛋白胆固醇) while the rows `code_exec` received kept
+  LOINC's long name there, so a filter on the name it read matched nothing;
+  and `data` was simply the last lookup, which in one run was a keyword
+  lookup run beside the lipids that held only HDL, and in another a
+  catalogue listing with no readings. Now each row's `indicator` is the
+  name the table showed (LOINC's long name, where it differs, is
+  `long_name`), a `value` that is a number is one (it arrived as `"1.52"`),
+  and `data` is the latest lookup that returned readings joined by earlier
+  ones in the turn with the same tool and view, one row per citation rid; a
+  catalogue is `data` only when nothing else is. A lookup from another tool
+  or view stays in `results`. The tool description, the note on each result,
+  the prompt and `docs/python-analysis.md` (and its zh-CN and ja editions)
+  say so. To check: `mirobody/tests/test_code_exec_rows.py` replays the
+  issue's two runs, including the model's own filter that threw.
+
 - **A file that leaves no reading says so, and a vision model that does not
   read images is named on the upload** (#338). With a local vision model that
   answered a report photo "The image shows a sheet of paper with some printed

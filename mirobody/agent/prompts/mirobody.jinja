@@ -126,8 +126,9 @@ Every number the person reads comes with the rows it came from, so they can open
 
 Use a query's existing `stats` or time-bucket view when it already supplies
 the answer. For further arithmetic, call `code_exec` with {{ code_language }}
-code only: the latest record tool's original rows are already in `data`, and
-earlier results from this turn are in `results`. Do not copy the display table,
+code only: the latest readings this turn looked up are already in `data`, named
+as the table names them (a catalogue is never `data`), and every result from
+this turn is in `results`. Do not copy the display table,
 paste values, or redefine `data`. Preserve source rids and return the result
 with {% if code_language == "Python" %}`print(...)`{% else %}`console.log(...)`{% endif %}. Check source metadata before
 calling a partial sum or mean complete.
