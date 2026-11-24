@@ -60,6 +60,50 @@
 
 ### Fixed
 
+- **A medication frequency is read whole or not at all; it no longer comes
+  back as a smaller regimen** (#349, #350). The English frequency grammar
+  was a list of literal phrases, and a phrase it did not know left a
+  fragment it did know: `500 mg 3 times daily` and `1 tablet 2x daily` read
+  as once daily (only the spelled-out `three times daily` was listed, so the
+  bare `daily` after the digit matched the once row), as did `several times
+  daily` and `每天数次`; `three times weekly` and `3x weekly` read as once
+  weekly. The weekday pattern matched any word starting with a day's
+  abbreviation, so `10 mg once a month` became every Monday (`mon`th),
+  `daily, monitor blood pressure` and `daily for 3 months` were refused as
+  two frequencies, and `store in fridge`, `sunlight` and `saturated` were
+  days. The same shape elsewhere: `Mon-Fri` and `周一至周五` read as the two
+  end days; `1 to 2 tablets` and `每次1到2片` as 2; `q24h` came back
+  unscheduled; `every 5 hours` and `once a month` kept the dose and dropped
+  the frequency; `1 tab t.i.d.` at the end of a sig never matched; and a
+  weekly count restated by the days (`twice a week on Mon and Thu`,
+  `每周一次，周日服用`) was refused. `parse_dose_instruction` now reads an
+  English count and its period as one token (`3 times daily`, `2x/day`,
+  `three times per day`, `once a month`), weekdays as whole words with
+  ranges expanded (`Sat`, `Sun` and `Wed` count alone only after
+  on/every/each), hours as a count per day or a whole number of days
+  (`q48h` is every 2 days) in digits, English words or zh numerals up to 99,
+  one named time of day as once a day at that time (`at bedtime`, `qhs`,
+  `每晚`, `睡前`; a bare noun such as "evening primrose oil" is not one)
+  and two different ones as two a day, `weekdays`/`weekends`/`工作日`/`周末`
+  as their days, `bd`/`tds`/`qds` and dotted Latin forms, and `8 am`/`8:30
+  pm` as clock times. A frequency with no field — a month, a year, a count
+  outside 1–4 a day, `N times a week` without the days, hours that do not
+  divide a day, a count with no number, a range in words, `Mon or Tue`, a
+  step or taper (`daily for 3 days, then twice daily` read as twice daily),
+  an exception (`daily except weekends`, `q4h while awake`), a count that
+  disagrees with the clock times or the named days — returns `None`. FHIR's structured
+  `Timing.repeat` gets the same rule: q24h is once daily, and a range
+  (`frequencyMax`/`periodMax`), two doses every 3 days, twice a week with no
+  days, a weekday list beside a period or a bare count, or a month now
+  leaves the instruction unscheduled instead of reading it as one dose per
+  period. A plan already stored keeps its schedule; a sig parsed again
+  (a journal sentence, an Apple or FHIR import) gets the new reading. How to
+  tell: `meds.parse_dose_instruction("500 mg 3 times daily")[0].slots()` is
+  length 3, `meds.parse_dose_instruction("10 mg once a month")` is `None`,
+  and `meds.parse_dose_instruction("5 mg daily, monitor blood
+  pressure")[0].period_days == 1`. The evidence is
+  `mirobody/tests/test_meds_frequency_grammar.py` (904 cases).
+
 - **An Apple device's daily figures had no name and sleep read in `ms`
   (#333).** The aggregator names a day's figures `daily{Method}{Indicator}`
   (`dailyMinOxygenSaturations`, `dailyTotalSleepAnalysis_Asleep(Core)`), and
