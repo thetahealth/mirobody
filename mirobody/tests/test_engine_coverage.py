@@ -705,6 +705,14 @@ CASES: list[tuple[str, str, str]] = [
     ("LIP",                          r"^lipase",                      r"subparticle"),
     ("总钙",                          r"^calcium \[",                  r"ionized"),
     ("部分凝血活酶时间",                    r"^aPTT",                        r"panel"),
+    # The measured spirometry volume, not the predicted one printed beside it.
+    ("FVC",                          r"^forced vital capacity \[volume\] respiratory system$", r"predicted"),
+    ("用力肺活量",                       r"^forced vital capacity \[volume\] respiratory system$", r"predicted"),
+    ("FEV1 % predicted",             r"^fev1 measured/predicted",     r"^fev1$"),
+    ("FEV1占预计值%",                  r"^fev1 measured/predicted",     r"^fev1$"),
+    ("FVC % predicted",              r"^fvc measured/predicted",      r"pre bronchodilation"),
+    ("FVC占预计值%",                   r"^fvc measured/predicted",      r"pre bronchodilation"),
+    ("尿胆红素",                        r"^bilirubin\.total \[presence\] in urine", r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -973,6 +981,8 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     ("中性粒细胞#",         "4.2",   "10*9/L", "26499-4", "absolute count, not the ratio"),
     ("总钙",              "2.3",   "mmol/L", "2000-8",  "total calcium, moles"),
     ("SBP",              "120",   "mmHg",   "8480-6",  "systolic pressure, not SHBG"),
+    ("FVC",              "4.1",   "L",      "19870-5", "measured FVC, not the predicted volume"),
+    ("用力肺活量",           "4.1",   "L",      "19870-5", "measured FVC, Chinese"),
 ]
 
 

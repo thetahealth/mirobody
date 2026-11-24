@@ -208,6 +208,29 @@ def test_searchable_scan_with_an_invisible_text_layer_stays_on_its_text_layer():
     assert "Hemoglobin" in texts[0]
 
 
+#: #317: a watermark laid over a scan as a text layer, long enough to clear
+#: MAX_OVERLAID_SCAN_CHARS, with no value in it.
+WATERMARK = "CONFIDENTIAL PATIENT RECORD DO NOT DISTRIBUTE OUTSIDE THIS CLINIC"
+
+
+def test_scan_under_a_watermark_text_layer_is_routed_to_ocr():
+    """#317: the watermark's 65 characters sit on the image, so the page read
+    as a searchable scan and the lab table in the image was lost with no
+    warning. Text on the image with no digit is not the page's content."""
+    data = _build_pdf(image_box=SCAN_BOX, overlay_text=WATERMARK)
+    texts, to_ocr, _ = extract._pdf_pages(data, min_page_text=extract.MIN_PAGE_TEXT, dpi=extract.RENDER_DPI)
+    assert [page for page, _, _ in to_ocr] == [0]
+    assert to_ocr[0][2] == WATERMARK  # kept for `pdf_text` to fold in or fall back to
+
+
+async def test_pdf_text_reads_the_table_under_a_watermark():
+    data = _build_pdf(image_box=SCAN_BOX, overlay_text=WATERMARK)
+    ocr = FakeOcr("Hemoglobin 138 g/L 115-150")
+    text = await extract.pdf_text(data, ocr=ocr)
+    assert ocr.calls == 1
+    assert "Hemoglobin 138" in text
+
+
 def test_born_digital_text_only_page_stays_on_its_text_layer():
     data = _build_pdf(body_text=BODY_TEXT)
     texts, to_ocr, _ = extract._pdf_pages(data, min_page_text=extract.MIN_PAGE_TEXT, dpi=extract.RENDER_DPI)

@@ -1833,3 +1833,19 @@ LIP	lipase
 # The English name of 基础代谢率, which abstains for the reason given in
 # test_engine_coverage_devices.py; it answered the MET-and-RMR panel.
 Basal metabolic rate	!unresolved
+# Spirometry. `FVC` and `用力肺活量` answered 19869-7, the PREDICTED volume
+# a report prints beside the measured one, so a person's measured FVC joined
+# the reference values' series; the `% predicted` names answered nothing.
+# Bare `FEV1` and `FEV1/FVC` still answer their Predicted siblings (19925-7):
+# their own long names are the keys that collide, so no row here can reach
+# 20150-9 or 19926-5. With the unit printed, `FEV1 3.2 L` already switches to
+# 20150-9 and `FEV1/FVC 78 %` refuses.
+FVC	Forced vital capacity [Volume] Respiratory system
+用力肺活量	Forced vital capacity [Volume] Respiratory system
+FEV1 % predicted	FEV1 measured/predicted
+FEV1占预计值%	FEV1 measured/predicted
+FVC % predicted	FVC measured/predicted
+FVC占预计值%	FVC measured/predicted
+# `尿胆红素` answered nothing; under a urine heading `BIL` now codes 1977-8
+# (res/loinc/panel_terms.tsv), and the Chinese name lands in the same series.
+尿胆红素	Bilirubin.total [Presence] in Urine

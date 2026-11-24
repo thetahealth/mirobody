@@ -64,6 +64,36 @@
 
 ### Fixed
 
+- **A scan under a watermark text layer is read by OCR** (#317). A PDF
+  page dominated by an image stays on its text layer when at least 20 of
+  that layer's characters sit on the image (#310): a born-digital report on
+  a letterhead background, or a scan already made searchable. A watermark
+  laid over a scan as text (`CONFIDENTIAL PATIENT RECORD DO NOT DISTRIBUTE
+  OUTSIDE THIS CLINIC`) also clears 20 characters, so the page kept only the
+  watermark and the lab table in the image was lost with no warning. The
+  text on the image must now also hold a digit, as a report's values and a
+  searchable lab scan's layer do; otherwise the page goes to OCR, and the
+  watermark is folded back in only where OCR did not read it. To check: the
+  watermark page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR,
+  and the letterhead and searchable-scan pages there still are not.
+
+- **A urine dipstick's abbreviations are coded under a urine heading, and
+  FVC is the measured volume** (#343, part). Alone, `PRO` answered proline,
+  `LEU` leucine, `URO` free PSA and `GLU` a blood glucose, and `KET`, `NIT`
+  and `BIL` nothing. Under a urine heading (`尿常规`, `尿液分析`,
+  `Urinalysis`; not `尿沉渣`) they now code to the codes their Chinese names
+  resolve to, so the two spellings are one series, the way #329 codes `HR`
+  under an ECG heading; with no heading they are still not guessed.
+  `尿胆红素` resolves to urine bilirubin (1977-8). `FVC` and `用力肺活量`
+  answered 19869-7, the predicted volume a report prints beside the
+  measured one, and now answer 19870-5; `FEV1 % predicted` and `FVC %
+  predicted` (and `…占预计值%`) answer the measured/predicted codes by name,
+  though a reading printed in `%` still asks for input, because `%` stays
+  out of that property until bare `FEV1` and `FEV1/FVC` stop answering the
+  predicted ratio. Still open in #343: bare `FEV1` and `FEV1/FVC`, `TG` /
+  `TCT`, `HPV16` / `HPV18`. To check: `mirobody resolve FVC` answers
+  19870-5, and a `PRO 阴性` row printed under 尿常规 is coded 2887-8.
+
 - **`code_exec` computes on the rows the model read, under the names it
   read** (#340). Asked to compare lipids over three years and compute
   non-HDL cholesterol and ApoB/ApoA1, deepseek-flash spent up to 22 steps
@@ -103,6 +133,31 @@
   To check: point `UTILS_VISION_MODEL` at an endpoint that answers every
   image with prose and upload a report photo; the row reads 未读出指标 with
   that reason, and after the model is fixed 重新处理 stores its readings.
+
+- **A smart-scale screen's fat and muscle charts are no longer filed as body
+  weight, and its goal weight is no longer a reading** (#301, the reading
+  half; #315 fixed the resolver half). Three screenshots of one app page, the
+  体重, 脂肪 and 肌肉 tab each selected by colour and an underline only, went
+  through OCR as `体重 | 脂肪 | 肌肉` with nothing marking which tab the chart
+  plotted. The extractor then named the chart 体重 after the page title or the
+  first tab: with deepseek-flash, the fat and muscle charts' seven points
+  joined the body-weight series in 9 of 12 runs (19.8–21.6 kg and 51–52 kg
+  beside 74–77 kg, in every stats, trend and chart of body weight), and the
+  app's 初始体重 and 目标体重 were stored as readings in 16 of 18. The OCR
+  prompt now asks a vision model to write the selected tab, segment or toggle
+  as `[selected] label`, and both extraction prompts (the upload's and
+  `mirobody parse`'s) name a screen's chart after that tab, its legend or its
+  axis title, never the page title, a whole tab bar or a placeholder, and
+  leave out goals, targets and starting values. Measured the same way after:
+  every tab's seven points under the right code in 12 of 12, no goal or start
+  stored, 当前体重, 体脂率 and BMI still read; the four lab reports in
+  `demo/upload/` read the same 50 rows. A document-OCR model routed through
+  `UTILS_OCR_MODEL` (GLM-OCR) answers only its own task prompts and does not
+  mark a selected tab. Still open from #301: coding a screen against the
+  device catalogue rather than the lab vocabulary, a card value repeated on
+  three screenshots stored three times, and the agent reading a picture
+  itself. To check: upload `demo/screens/scale_tab_fat.png`; the Indicators
+  page shows seven 脂肪 readings coded 73708-0 and no 目标体重.
 
 - **A medication frequency is read whole or not at all; it no longer comes
   back as a smaller regimen** (#349, #350). The English frequency grammar
