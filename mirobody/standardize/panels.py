@@ -30,20 +30,25 @@ from .fold import name_key
 PANEL_TERMS_FILE = "panel_terms.tsv"
 
 PANEL_ECG = "ecg"
+PANEL_URINE = "urine"
 
 #: What a printed heading says, after NFKC, casefold and the Traditional fold,
 #: for each panel `panel_terms.tsv` has rows for. `心电` covers `心电图`,
 #: `常规心电图`, `心电图检查`, and through the fold the Traditional `心電圖`
 #: and the Japanese `心電図`. The Latin abbreviations stand alone: a heading
 #: reads `ECG`, `12-lead ECG` or `心电图(ECG)`, and a word that merely
-#: contains the letters is no ECG.
+#: contains the letters is no ECG. A urine panel prints `尿常规`, `尿液分析`,
+#: `尿液干化学` or `Urinalysis`; `尿沉渣` (microscopy, where `LEU` is a count
+#: per field) and `尿酸` (uric acid, a serum test) are not it.
 _HEADINGS = {
     PANEL_ECG: re.compile(r"心电|electrocardiogra|(?<![a-z])(?:ecg|ekg)(?![a-z])"),
+    PANEL_URINE: re.compile(r"尿常规|尿液(?!沉渣)|尿干化学|尿检|urinalysis|(?<![a-z])urine(?![a-z])"),
 }
 
 
 def panel_of(panel_text: str) -> str:
-    """The panel a printed section heading names (`PANEL_ECG`), or `""`
+    """The panel a printed section heading names (`PANEL_ECG`,
+    `PANEL_URINE`), or `""`
     when it names none this module has terms for."""
     if not panel_text:
         return ""
@@ -71,4 +76,4 @@ def panel_code(panel_text: str, key: str) -> tuple[str, str] | None:
     return (panel, loinc) if loinc else None
 
 
-__all__ = ["PANEL_ECG", "PANEL_TERMS_FILE", "panel_code", "panel_of"]
+__all__ = ["PANEL_ECG", "PANEL_TERMS_FILE", "PANEL_URINE", "panel_code", "panel_of"]

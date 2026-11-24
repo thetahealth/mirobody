@@ -77,6 +77,23 @@
   watermark page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR,
   and the letterhead and searchable-scan pages there still are not.
 
+- **A urine dipstick's abbreviations are coded under a urine heading, and
+  FVC is the measured volume** (#343, part). Alone, `PRO` answered proline,
+  `LEU` leucine, `URO` free PSA and `GLU` a blood glucose, and `KET`, `NIT`
+  and `BIL` nothing. Under a urine heading (`尿常规`, `尿液分析`,
+  `Urinalysis`; not `尿沉渣`) they now code to the codes their Chinese names
+  resolve to, so the two spellings are one series, the way #329 codes `HR`
+  under an ECG heading; with no heading they are still not guessed.
+  `尿胆红素` resolves to urine bilirubin (1977-8). `FVC` and `用力肺活量`
+  answered 19869-7, the predicted volume a report prints beside the
+  measured one, and now answer 19870-5; `FEV1 % predicted` and `FVC %
+  predicted` (and `…占预计值%`) answer the measured/predicted codes by name,
+  though a reading printed in `%` still asks for input, because `%` stays
+  out of that property until bare `FEV1` and `FEV1/FVC` stop answering the
+  predicted ratio. Still open in #343: bare `FEV1` and `FEV1/FVC`, `TG` /
+  `TCT`, `HPV16` / `HPV18`. To check: `mirobody resolve FVC` answers
+  19870-5, and a `PRO 阴性` row printed under 尿常规 is coded 2887-8.
+
 - **A file that leaves no reading says so, and a vision model that does not
   read images is named on the upload** (#338). With a local vision model that
   answered a report photo "The image shows a sheet of paper with some printed
