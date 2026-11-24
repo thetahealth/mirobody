@@ -46,7 +46,11 @@ Return ONLY a JSON array, no prose. Each element:
 Rules: keep the original language of names; do not translate; do not invent
 values; skip section headers and non-measurements. `collected` is the same
 date for every reading of one report unless the report prints a different one
-per row; leave it empty rather than guessing, and never use today's date."""
+per row; leave it empty rather than guessing, and never use today's date.
+A chart on an app or device screen: name its points after the tab marked
+[selected], the legend or the axis title, never the page title, a whole tab bar
+or a placeholder, and leave them out when nothing names the series. A goal, a
+target or a starting value (目标体重, 初始体重, Goal weight) is not a measurement."""
 
 
 async def _ensure_config() -> None:
