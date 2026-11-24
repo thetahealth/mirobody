@@ -80,6 +80,18 @@ def failure_reason(e: BaseException) -> str:
     return say(reason_phrases(e))
 
 
+def stored_notice(content: dict[str, Any], language: str) -> str:
+    """What a completed file row with no reading says about it in `language`
+    (`notice_phrases`, written by the extraction), else ""."""
+    phrases = content.get("notice_phrases")
+    if isinstance(phrases, list) and phrases:
+        try:
+            return say(phrases, language)
+        except (AttributeError, KeyError, TypeError):
+            pass  # a row is data; a notice is optional
+    return ""
+
+
 def stored_reason(content: dict[str, Any], language: str) -> str:
     """What a failed file row says in `language`: its phrases when it has
     them, else the text written at the time (rows from before phrases)."""
