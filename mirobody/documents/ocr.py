@@ -40,6 +40,12 @@ logger = logging.getLogger(__name__)
 #: OCR model in docker/local-models.ini), twice as long, for nothing.
 OCR_MAX_TOKENS = 8192
 
+#: Rule 6 is for app and device screens, part of whose meaning is not text: the
+#: selected tab says which series a chart plots. Unasked, deepseek-flash wrote
+#: a smart-scale screen's tab bar as `体重 | 脂肪 | 肌肉` with nothing marking
+#: 脂肪, and the fat and muscle charts were filed as body weight (#301, the
+#: synthetic screens in demo/screens/). Asked, it marked the selected tab on 6
+#: of 6 screens, and neither report photo in demo/upload/ gained a mark.
 OCR_PROMPT = """Extract and return ALL text content from this document/image.
 
 Requirements:
@@ -56,6 +62,9 @@ Requirements:
    - Address: keep only city/district level, replace detailed address with "***"
    - Patient ID / Medical record number: replace with "***"
    - Keep name, age, gender, and medical-related dates (examination date, report date) as is
+6. On an app or device screen, mark what is shown as selected only by colour, weight or an
+   underline: write the selected tab, segment or toggle as [selected] followed by its label,
+   e.g. "Day | [selected] Week | Month"
 
 Return ONLY the extracted text content. Do not add any explanations, summaries, or commentary.
 If the image contains no text at all, reply with exactly NO_TEXT and nothing else."""
