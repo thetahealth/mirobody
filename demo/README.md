@@ -131,6 +131,28 @@ Every file carries ONE collection date, because `resolve_report_date` gives a
 whole file a single date. A spreadsheet of seven mornings lands as one reading:
 measured, 7 rows in and 1 row out.
 
+## `screens/` — a smart-scale app, three tabs
+
+Not a demo account's file: the regression input for #301. One app page drawn
+three times, each with another tab selected, and the selected tab is marked by
+colour and an underline only. Above the tab bar a card prints a starting
+weight, a goal and today's figures; below it a chart plots seven dated points
+in kg (06/03 to 08/26 2026). `scale_tab_*.png` keep the title 体重曲线 on every
+tab, as the app the tester used did; `scale_neutral_tab_*.png` title the page
+身体成分. Every number is invented.
+
+Uploaded or run through `mirobody parse`, each screen should give:
+
+| Screen | The chart's seven points | From the card |
+| --- | --- | --- |
+| `*_tab_weight.png` | 体重, 74.6 … 76.2 kg → 29463-7 Body weight | 当前体重 76.2 kg, 体脂率 27.8 %, BMI 25.6 |
+| `*_tab_fat.png` | 脂肪, 19.8 … 21.2 kg → 73708-0 Body fat mass | the same |
+| `*_tab_muscle.png` | 肌肉, 51.2 … 51.7 kg → 73964-9 Body muscle mass | the same |
+
+初始体重 81.0 kg and 目标体重 68.0 kg are never readings. The card's figures
+are the same on every screen, and uploading all three still stores them once
+per file, three times in all: that part of #301 is open.
+
 ## Regenerating
 
     python demo/generate.py

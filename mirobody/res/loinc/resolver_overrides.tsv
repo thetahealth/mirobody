@@ -1534,16 +1534,16 @@ MCHC (ср. конц. Hb в эр.)	mchc
 Т3 свободный	free t3
 Трийодтиронин свободный	free t3
 # vitamins / витамины
-Витамин D	25-hydroxyvitamin D
-Витамин 25(ОН) D	25-hydroxyvitamin D
-Витамин D (25-OH)	25-hydroxyvitamin D
-25-гидроксивитамин D	25-hydroxyvitamin D
+Витамин D	Calcidiol
+Витамин 25(ОН) D	Calcidiol
+Витамин D (25-OH)	Calcidiol
+25-гидроксивитамин D	Calcidiol
 Витамин В12	vitamin B12
 Витамин B12	vitamin B12
 Фолиевая кислота	folate
 # Estonian (et) — the three terms a real Estonian (Synlab) report prints
 # that the release variants miss
-Vitamiin D (25-OH)	25-hydroxyvitamin D
+Vitamiin D (25-OH)	Calcidiol
 Vitamiin B12	vitamin B12
 Holotranskobalamiin	holotranscobalamin
 
@@ -1702,3 +1702,150 @@ TPSA	Prostate specific Ag [Mass/volume] in Serum or Plasma
 游离/总前列腺特异性抗原比值	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
 f/tPSA	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
 FPSA/TPSA	Prostate Specific Ag Free/Prostate specific Ag.total in Serum or Plasma
+
+# ── One abbreviation printed with its own hyphen (#322) ───────────────────
+# `HBs-Ag` split into `HBs` + `Ag`, and the half that resolved answered: the
+# surface ANTIBODY (5193-8) for an antigen result, `Cys-C` an amino-acid
+# screen for cystatin C, `NT-proBNP` BNP itself (30934-4, a different
+# assay with a different range). The resolver now refuses a hyphen split
+# whose surviving half is itself an abbreviation; these rows give the
+# spellings reports actually print their answer.
+Cys-C	Cystatin C
+CysC	Cystatin C
+Cys C	Cystatin C
+血清胱抑素C	Cystatin C
+HBs-Ag	Hepatitis B virus surface Ag
+HBe-Ag	HBeAg
+HBs-Ab	HBsAb
+Anti-HBs	HBsAb
+HBe-Ab	HBeAb
+Anti-HBe	HBeAb
+HBc-Ab	Hepatitis B virus core Ab
+HCV-Ab	Hepatitis C virus Ab
+HCV Ab	Hepatitis C virus Ab
+TPO-Ab	Thyroperoxidase Ab
+Anti-TG	Thyroglobulin Ab
+NT-proBNP	NTproBNP
+NT-pro BNP	NTproBNP
+NT pro BNP	NTproBNP
+N-terminal proBNP	NTproBNP
+UMA-CR	Albumin/Creatinine [Mass Ratio] in Urine
+UMA/CR	Albumin/Creatinine [Mass Ratio] in Urine
+mALB/CR	Albumin/Creatinine [Mass Ratio] in Urine
+
+# ── Vitamin D: every spelling in one series (#323) ────────────────────────
+# Reports print the test a dozen ways, and the rows above disagreed: most
+# went to Calcidiol (1989-3, 25-hydroxyvitamin D3), the Russian and Estonian
+# rows and the bare English `25-hydroxyvitamin D` to 62292-8 (D2+D3). The
+# series keeps COMPONENT, so one person's history split in two by spelling.
+# A name with no D2/D3 now answers 1989-3, the code the existing rows and
+# the maintainers' resolver set already used; a printed D3 is that code too.
+25-hydroxyvitamin D	Calcidiol
+Total 25-hydroxyvitamin D	Calcidiol
+Vitamin D 25-OH	Calcidiol
+25-OH-D	Calcidiol
+25-OH-D3	Calcidiol
+25-OH-VitD	Calcidiol
+25-OH维生素D	Calcidiol
+维生素D3	Calcidiol
+25-羟基维生素D3	Calcidiol
+25羟基维生素D3	Calcidiol
+25-羟维生素D	Calcidiol
+25羟维生素D	Calcidiol
+25-羟维生素D3	Calcidiol
+25羟维生素D3	Calcidiol
+血清25-羟基维生素D	Calcidiol
+血清25羟基维生素D	Calcidiol
+总25-羟基维生素D	Calcidiol
+总25羟基维生素D	Calcidiol
+ビタミンD	Calcidiol
+25-ヒドロキシビタミンD	Calcidiol
+25-OHビタミンD	Calcidiol
+D-vitamiin	Calcidiol
+维生素D(25-OH)	Calcidiol
+Vitamin D (25-OH)	Calcidiol
+
+# ── Lipoprotein(a) and its neighbours (#332) ──────────────────────────────
+# Reports print `脂蛋白(a)` / `脂蛋白（a）`; LOINC's zh-CN key is `脂蛋白 (a)`,
+# with a space, so no printed spelling reached it, the bracket split took
+# `a` for an abbreviation, `a` resolved to nothing, and the stem answered
+# total lipoproteins (2576-7): a person's Lp(a) history was filed as another
+# analyte. Full-width brackets and `A` fold to the same key. The split is
+# left as it is: a lone letter that resolves to nothing is also how
+# `钾(K)` and `磷(P)` reach potassium and phosphate.
+脂蛋白(a)	Lp(a)
+血清脂蛋白(a)	Lp(a)
+脂蛋白(a)(Lp(a))	Lp(a)
+# `载脂蛋白(a)` met apolipoprotein A (1883-8) once lower-cased: `载脂蛋白 a`
+# is the zh-CN component of 1883-8 written small. Apolipoprotein(a) is the
+# protein of Lp(a), LOINC's `Apolipoprotein LPA` (1881-2).
+载脂蛋白(a)	Apolipoprotein LPA
+# LOINC's zh-CN names use 总脂蛋白 for total lipoprotein (60344-9 is
+# `脂蛋白（a）/总脂蛋白`); zh.tsv sent it to Lp(a). `脂蛋白类` is the class,
+# not a test.
+总脂蛋白	lipoprotein
+脂蛋白类	!unresolved
+
+# ── Printed names coded as another analyte (#343) ─────────────────────────
+# From a synthetic-corpus check that compares each name's answer with the
+# LOINC analyte the generator printed it for.
+#
+# Absolute counts. `#`, `数` and `计数` are how a report marks the count
+# beside the percentage; they landed on the `/Leukocytes` ratio codes, so a
+# 4.2 ×10⁹/L joined a series of percentages. Same targets as `绝对值` above.
+中性粒细胞#	Neutrophils [#/volume] in Blood
+中性粒细胞数	Neutrophils [#/volume] in Blood
+中性粒细胞计数	Neutrophils [#/volume] in Blood
+淋巴细胞#	Lymphocytes [#/volume] in Blood
+淋巴细胞数	Lymphocytes [#/volume] in Blood
+淋巴细胞计数	Lymphocytes [#/volume] in Blood
+单核细胞#	Monocytes [#/volume] in Blood
+单核细胞数	Monocytes [#/volume] in Blood
+单核细胞计数	Monocytes [#/volume] in Blood
+嗜酸性粒细胞#	Eosinophils [#/volume] in Blood
+嗜酸性粒细胞数	Eosinophils [#/volume] in Blood
+嗜酸性粒细胞计数	Eosinophils [#/volume] in Blood
+嗜碱性粒细胞#	Basophils [#/volume] in Blood
+嗜碱性粒细胞数	Basophils [#/volume] in Blood
+嗜碱性粒细胞计数	Basophils [#/volume] in Blood
+# Abbreviations whose letters spell an unrelated LOINC short name:
+# `baPWV (left)` answered thyrotropin, `SBP` sex hormone binding globulin,
+# `DBP` vitamin D-binding protein, `ACR` an ankle-brachial pressure ratio,
+# `RhD` a fetal cfDNA test, `PAB` para-aminobenzoate, `LIP` a lipoprotein
+# subparticle. On a report they are the vital, the urine ratio, the blood
+# type, prealbumin and lipase.
+baPWV	pulse wave velocity
+baPWV (left)	pulse wave velocity
+baPWV (right)	pulse wave velocity
+SBP	sys bp
+DBP	dias bp
+ACR	Albumin/Creatinine [Mass Ratio] in Urine
+RhD	Rh typing
+PAB	prealbumin
+LIP	lipase
+# `总钙` answered the ionized/total ratio (49936-8), `部分凝血活酶时间` the
+# PT + aPTT panel (34529-8).
+总钙	calcium
+部分凝血活酶时间	aPTT
+# `酸碱度` answered ionized calcium adjusted to pH 7.4 (19072-8). The bare
+# word names no specimen; urine prints 尿酸碱度, which already answers 2756-5.
+酸碱度	!unresolved
+# The English name of 基础代谢率, which abstains for the reason given in
+# test_engine_coverage_devices.py; it answered the MET-and-RMR panel.
+Basal metabolic rate	!unresolved
+# Spirometry. `FVC` and `用力肺活量` answered 19869-7, the PREDICTED volume
+# a report prints beside the measured one, so a person's measured FVC joined
+# the reference values' series; the `% predicted` names answered nothing.
+# Bare `FEV1` and `FEV1/FVC` still answer their Predicted siblings (19925-7):
+# their own long names are the keys that collide, so no row here can reach
+# 20150-9 or 19926-5. With the unit printed, `FEV1 3.2 L` already switches to
+# 20150-9 and `FEV1/FVC 78 %` refuses.
+FVC	Forced vital capacity [Volume] Respiratory system
+用力肺活量	Forced vital capacity [Volume] Respiratory system
+FEV1 % predicted	FEV1 measured/predicted
+FEV1占预计值%	FEV1 measured/predicted
+FVC % predicted	FVC measured/predicted
+FVC占预计值%	FVC measured/predicted
+# `尿胆红素` answered nothing; under a urine heading `BIL` now codes 1977-8
+# (res/loinc/panel_terms.tsv), and the Chinese name lands in the same series.
+尿胆红素	Bilirubin.total [Presence] in Urine

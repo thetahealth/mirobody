@@ -1,5 +1,67 @@
 ## Unreleased
 
+### Upgrade notes
+
+- **Run `docker compose exec mirobody mirobody recode` after upgrading.** The
+  vitamin D, hepatitis B serology, cystatin C, NT-proBNP, urine
+  albumin/creatinine, lipoprotein(a) and the other names below now answer
+  differently. Readings stored before keep their old code (or none) until
+  `recode` moves them; every move is kept in the code history.
+- **The same `recode` also moves a device's daily totals (#333 below).** A
+  daily step count, floors climbed, distance, calories or sleep-stage total
+  computed before this release is still filed under its generated storage
+  key (`mirobody-device:dailyTotalSteps`); `recode` replays it under the
+  source metric's own LOINC code and drops the stale `th_day_authority` row
+  so election recomputes it. An `avg`/`min`/`max`/`last`-style daily figure
+  (oxygen, heart rate) is unaffected: it keeps its own per-name identity and
+  only gains a label.
+
+### Added
+
+- **An ECG's `HR`, `RV5` and `SV1` are coded under their heading** (#281
+  item 3). They were stored, but each as a series named only by its
+  abbreviation, under a `local:` key: nothing in the vocabulary answers them,
+  and `observations.Draft.panel_text` existed with nothing filling it. The
+  file extraction now keeps the section heading a row was printed under: the
+  model returns it as `panel`, and the table rules take it from the one-cell
+  row above a table's header, held over a repeated header and into a table
+  that continues the page's panel, and dropped by a table that opens on a
+  header of its own. What a page prints between two of its tables does not
+  replace it: a footer (`第2页共3页`, `以下空白`), the hospital's name or the
+  report's own title (`健康体检报告`, `Laboratory Report`); a title or a
+  department that names the exam (`心电图报告`, `心电检测中心`) is the
+  heading. A reading under an ECG heading (`心电图`, `心電圖`, `心電図`,
+  `ECG`, `EKG`, `Electrocardiogram`) is coded from a new table,
+  `res/loinc/panel_terms.tsv`, after a person's alias and before the
+  resolver: `HR` is 8867-4, the code `心率` already resolves to, so the two
+  spellings are one series; `RV5` 9995-2, `SV1` 10040-4, `PR` 8625-6, `QRS`
+  8633-0, `QT` 8634-8, `QTc` 8636-3, the axis 8632-2, and their Chinese
+  spellings the resolver misses (`P-R间期`, `QRS时限`, `电轴`). The same `HR`
+  on a lab page, or with no heading, is not guessed. The printed unit is
+  checked as the resolver checks its own answer, so `RV5 18 mm` (the paper's
+  millimetres) needs input instead of taking a millivolt code. A file read
+  before keeps its uncoded rows until it is read again (重新处理 in 数据 ›
+  文件).
+- **An Apple Watch ECG CSV is read by its header, not sent to a model**
+  (#334). Uploaded through the web upload box, `electrocardiograms/
+  ecg_YYYY-MM-DD.csv` (the header rows plus ~15,360 microvolt samples) went
+  whole to the text model in up to three requests, and the one word that
+  came back (`Classification: Sinus Rhythm`) was stored as an uncoded
+  lab-report row named `Classification`, joining any other document that
+  printed the same bare word. A new pure reader
+  (`kernel/decoders/apple_ecg.py`) recognises the file by its header before
+  any extraction starts (`AppleEcgHandler`, ahead of `documents.detect.kind`,
+  the same precedent `GeneticHandler` sets) and reads the recording's rhythm
+  classification only: `Name` and `Date of Birth` are read and discarded,
+  and the samples are never parsed past. The reading is filed as a device
+  reading (LOINC 8601-7, "EKG impression") under the watch's own recorded
+  offset, under the catalogue name `ecgRhythmClassification` — never the
+  printed word `Classification` — so it cannot join a lab report's series.
+  `mirobody import apple` still skips the `electrocardiograms/` folder. To
+  check: upload a `.csv` with that header shape; the Indicators page shows
+  one labelled ECG reading, not a bare "Classification" series, and no
+  extraction request is logged for the file.
+
 ### Fixed
 
 - **The published resolver score is the one the benchmark prints.** The
@@ -12,6 +74,278 @@
   case count disagree, so a case added without its pages turns the build
   red. How to tell: `pytest mirobody/tests/test_engine_coverage.py -s`
   prints `423/423`, the figure in the README.
+
+- **A scan under a watermark text layer is read by OCR** (#317). A PDF
+  page dominated by an image stays on its text layer when at least 20 of
+  that layer's characters sit on the image (#310): a born-digital report on
+  a letterhead background, or a scan already made searchable. A watermark
+  laid over a scan as text (`CONFIDENTIAL PATIENT RECORD DO NOT DISTRIBUTE
+  OUTSIDE THIS CLINIC`) also clears 20 characters, so the page kept only the
+  watermark and the lab table in the image was lost with no warning. The
+  text on the image must now also hold a digit, as a report's values and a
+  searchable lab scan's layer do; otherwise the page goes to OCR, and the
+  watermark is folded back in only where OCR did not read it. To check: the
+  watermark page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR,
+  and the letterhead and searchable-scan pages there still are not.
+
+- **A urine dipstick's abbreviations are coded under a urine heading, and
+  FVC is the measured volume** (#343, part). Alone, `PRO` answered proline,
+  `LEU` leucine, `URO` free PSA and `GLU` a blood glucose, and `KET`, `NIT`
+  and `BIL` nothing. Under a urine heading (`尿常规`, `尿液分析`,
+  `Urinalysis`; not `尿沉渣`) they now code to the codes their Chinese names
+  resolve to, so the two spellings are one series, the way #329 codes `HR`
+  under an ECG heading; with no heading they are still not guessed.
+  `尿胆红素` resolves to urine bilirubin (1977-8). `FVC` and `用力肺活量`
+  answered 19869-7, the predicted volume a report prints beside the
+  measured one, and now answer 19870-5; `FEV1 % predicted` and `FVC %
+  predicted` (and `…占预计值%`) answer the measured/predicted codes by name,
+  though a reading printed in `%` still asks for input, because `%` stays
+  out of that property until bare `FEV1` and `FEV1/FVC` stop answering the
+  predicted ratio. Still open in #343: bare `FEV1` and `FEV1/FVC`, `TG` /
+  `TCT`, `HPV16` / `HPV18`. To check: `mirobody resolve FVC` answers
+  19870-5, and a `PRO 阴性` row printed under 尿常规 is coded 2887-8.
+
+- **`code_exec` computes on the rows the model read, under the names it
+  read** (#340). Asked to compare lipids over three years and compute
+  non-HDL cholesterol and ApoB/ApoA1, deepseek-flash spent up to 22 steps
+  and three failed `code_exec` calls. The table it read showed `indicator`
+  as the label (高密度脂蛋白胆固醇) while the rows `code_exec` received kept
+  LOINC's long name there, so a filter on the name it read matched nothing;
+  and `data` was simply the last lookup, which in one run was a keyword
+  lookup run beside the lipids that held only HDL, and in another a
+  catalogue listing with no readings. Now each row's `indicator` is the
+  name the table showed (LOINC's long name, where it differs, is
+  `long_name`), a `value` that is a number is one (it arrived as `"1.52"`),
+  and `data` is the latest lookup that returned readings joined by earlier
+  ones in the turn with the same tool and view, one row per citation rid; a
+  catalogue is `data` only when nothing else is. A lookup from another tool
+  or view stays in `results`. The tool description, the note on each result,
+  the prompt and `docs/python-analysis.md` (and its zh-CN and ja editions)
+  say so. To check: `mirobody/tests/test_code_exec_rows.py` replays the
+  issue's two runs, including the model's own filter that threw.
+
+- **A file that leaves no reading says so, and a vision model that does not
+  read images is named on the upload** (#338). With a local vision model that
+  answered a report photo "The image shows a sheet of paper with some printed
+  text. I cannot make out the details.", `mirobody doctor --probe` failed the
+  vision probe, but the photo was filed 已处理 with 0 readings and
+  日期待确认 on the upload day: in 数据 › 文件 it could not be told from a
+  file whose readings were stored, and the answer was cached under the
+  photo's hash, so the same photo read the same way after the model was
+  replaced. A completed file with no reading is now listed `no_readings:
+  true` and shown as 未读出指标 (No readings), with the reason when it is
+  known (`notice`, in the page's language). An image whose text holds no
+  number, the test the vision probe applies, gets the reason "the vision
+  model's text for this image holds no number … check the vision model with
+  mirobody doctor --probe, then reprocess the file", is not cached by its
+  hash, and offers 重新处理 (Reprocess), which reads it again. A file that
+  stored nothing drops the date the probe gave it, so nothing asks which
+  date it belongs to. A photo with no text at all (a meal) is unaffected.
+  To check: point `UTILS_VISION_MODEL` at an endpoint that answers every
+  image with prose and upload a report photo; the row reads 未读出指标 with
+  that reason, and after the model is fixed 重新处理 stores its readings.
+
+- **A smart-scale screen's fat and muscle charts are no longer filed as body
+  weight, and its goal weight is no longer a reading** (#301, the reading
+  half; #315 fixed the resolver half). Three screenshots of one app page, the
+  体重, 脂肪 and 肌肉 tab each selected by colour and an underline only, went
+  through OCR as `体重 | 脂肪 | 肌肉` with nothing marking which tab the chart
+  plotted. The extractor then named the chart 体重 after the page title or the
+  first tab: with deepseek-flash, the fat and muscle charts' seven points
+  joined the body-weight series in 9 of 12 runs (19.8–21.6 kg and 51–52 kg
+  beside 74–77 kg, in every stats, trend and chart of body weight), and the
+  app's 初始体重 and 目标体重 were stored as readings in 16 of 18. The OCR
+  prompt now asks a vision model to write the selected tab, segment or toggle
+  as `[selected] label`, and both extraction prompts (the upload's and
+  `mirobody parse`'s) name a screen's chart after that tab, its legend or its
+  axis title, never the page title, a whole tab bar or a placeholder, and
+  leave out goals, targets and starting values. Measured the same way after:
+  every tab's seven points under the right code in 12 of 12, no goal or start
+  stored, 当前体重, 体脂率 and BMI still read; the four lab reports in
+  `demo/upload/` read the same 50 rows. A document-OCR model routed through
+  `UTILS_OCR_MODEL` (GLM-OCR) answers only its own task prompts and does not
+  mark a selected tab. Still open from #301: coding a screen against the
+  device catalogue rather than the lab vocabulary, a card value repeated on
+  three screenshots stored three times, and the agent reading a picture
+  itself. To check: upload `demo/screens/scale_tab_fat.png`; the Indicators
+  page shows seven 脂肪 readings coded 73708-0 and no 目标体重.
+
+- **A medication frequency is read whole or not at all; it no longer comes
+  back as a smaller regimen** (#349, #350). The English frequency grammar
+  was a list of literal phrases, and a phrase it did not know left a
+  fragment it did know: `500 mg 3 times daily` and `1 tablet 2x daily` read
+  as once daily (only the spelled-out `three times daily` was listed, so the
+  bare `daily` after the digit matched the once row), as did `several times
+  daily` and `每天数次`; `three times weekly` and `3x weekly` read as once
+  weekly. The weekday pattern matched any word starting with a day's
+  abbreviation, so `10 mg once a month` became every Monday (`mon`th),
+  `daily, monitor blood pressure` and `daily for 3 months` were refused as
+  two frequencies, and `store in fridge`, `sunlight` and `saturated` were
+  days. The same shape elsewhere: `Mon-Fri` and `周一至周五` read as the two
+  end days; `1 to 2 tablets` and `每次1到2片` as 2; `q24h` came back
+  unscheduled; `every 5 hours` and `once a month` kept the dose and dropped
+  the frequency; `1 tab t.i.d.` at the end of a sig never matched; and a
+  weekly count restated by the days (`twice a week on Mon and Thu`,
+  `每周一次，周日服用`) was refused. `parse_dose_instruction` now reads an
+  English count and its period as one token (`3 times daily`, `2x/day`,
+  `three times per day`, `once a month`), weekdays as whole words with
+  ranges expanded (`Sat`, `Sun` and `Wed` count alone only after
+  on/every/each), hours as a count per day or a whole number of days
+  (`q48h` is every 2 days) in digits, English words or zh numerals up to 99,
+  one named time of day as once a day at that time (`at bedtime`, `qhs`,
+  `每晚`, `睡前`; a bare noun such as "evening primrose oil" is not one)
+  and two different ones as two a day, `weekdays`/`weekends`/`工作日`/`周末`
+  as their days, `bd`/`tds`/`qds` and dotted Latin forms, and `8 am`/`8:30
+  pm` as clock times. A frequency with no field — a month, a year, a count
+  outside 1–4 a day, `N times a week` without the days, hours that do not
+  divide a day, a count with no number, a range in words, `Mon or Tue`, a
+  step or taper (`daily for 3 days, then twice daily` read as twice daily),
+  an exception (`daily except weekends`, `q4h while awake`), a count that
+  disagrees with the clock times or the named days — returns `None`. FHIR's structured
+  `Timing.repeat` gets the same rule: q24h is once daily, and a range
+  (`frequencyMax`/`periodMax`), two doses every 3 days, twice a week with no
+  days, a weekday list beside a period or a bare count, or a month now
+  leaves the instruction unscheduled instead of reading it as one dose per
+  period. A plan already stored keeps its schedule; a sig parsed again
+  (a journal sentence, an Apple or FHIR import) gets the new reading. How to
+  tell: `meds.parse_dose_instruction("500 mg 3 times daily")[0].slots()` is
+  length 3, `meds.parse_dose_instruction("10 mg once a month")` is `None`,
+  and `meds.parse_dose_instruction("5 mg daily, monitor blood
+  pressure")[0].period_days == 1`. The evidence is
+  `mirobody/tests/test_meds_frequency_grammar.py` (904 cases).
+
+- **An Apple device's daily figures had no name and sleep read in `ms`
+  (#333).** The aggregator names a day's figures `daily{Method}{Indicator}`
+  (`dailyMinOxygenSaturations`, `dailyTotalSleepAnalysis_Asleep(Core)`), and
+  none of those names is in the catalogue, so the Indicators page showed the
+  storage key with its `.apple_health_export`/`.apple_health` suffix still
+  on it, with no label in either language, and a sleep stage or time in bed
+  stayed in `ms` for lack of a code. `kernel.metrics.daily_aggregate_metric`
+  now reads a generated name back to the catalogue row and method that
+  produced it, over the same naming rule the aggregator writes with, so the
+  two cannot disagree. A daily figure now always has a label, in `zh` and
+  `en` or, lacking an English consumer name, the LOINC long name (the same
+  gap an ordinary vital sign already has); a single-method metric's daily
+  total (steps, a sleep stage, time in bed) is filed under the source
+  metric's own confident LOINC code, so it also reads in the unit that code
+  declares (`h`, `min`) instead of the device's storage `ms`; an `avg`/
+  `min`/`max` statistic keeps its own identity instead, so three different
+  numbers for one day do not collapse into one election winner. The same
+  day from an export and from a phone push already shared this identity;
+  only the label was missing. To check: import an Apple Health export with
+  sleep and oxygen saturation and open 健康指标 (Indicators) -- every row
+  reads with a name, and sleep answers in hours, not milliseconds.
+- **Lipoprotein(a) printed as `脂蛋白(a)` is Lp(a), not total lipoproteins
+  (#332).** No printed spelling reached LOINC's zh-CN key, which has a space
+  (`脂蛋白 (a)`), so the bracket split read `a` as an abbreviation and the
+  stem answered 2576-7: a person's Lp(a) history was filed and range-checked
+  as another analyte, and a reading in nmol/L was refused. `脂蛋白(a)`,
+  `脂蛋白（a）`, `脂蛋白(A)`, `血清脂蛋白(a)` and `脂蛋白(a)(Lp(a))` now answer
+  10835-7, and 43583-4 in nmol/L. `载脂蛋白(a)` answered apolipoprotein A
+  (1883-8) and now answers apolipoprotein(a) (1881-2). `总脂蛋白` and
+  `脂蛋白类`, which two alias rows sent to Lp(a), answer total lipoproteins
+  and nothing. To check: `mirobody resolve "脂蛋白(a)"` prints 10835-7.
+- **Twenty-eight more printed names stop answering an unrelated analyte (#343).**
+  `中性粒细胞#`, `淋巴细胞数` and the other absolute counts written with `#`,
+  `数` or `计数` answered the percentage codes, so a count joined a series of
+  percentages; they now answer the `[#/volume]` codes `绝对值` already used.
+  `baPWV (left)` answered thyrotropin, `SBP` sex hormone binding globulin,
+  `DBP` vitamin D-binding protein, `ACR` an ankle-brachial pressure ratio,
+  `RhD` a fetal cfDNA test, `PAB` para-aminobenzoate, `LIP` a lipoprotein
+  subparticle, `总钙` the ionized/total calcium ratio and `部分凝血活酶时间` the
+  PT + aPTT panel; each now answers its own test. `酸碱度` (no specimen) and
+  `Basal metabolic rate` (as 基础代谢率) now refuse rather than answer
+  ionized calcium and a panel. Spirometry, urine dipstick abbreviations
+  (`PRO`, `KET`, `BIL`…) and `TG`/`TCT`, which need the report's section to
+  answer, are unchanged. To check: `mirobody resolve SBP` prints 8480-6.
+- **The docs no longer imply that `SEED_DEMO_DATA=false` removes the public
+  demo sign-in (#337).** It stops the demo data and the sign-in page's hint,
+  and nothing else: `EMAIL_PREDEFINE_CODES` in `config.yaml` still let anyone
+  who reached the app sign in as `you@mirobody.ai` or `mom@mirobody.ai` with
+  `111111`, creating the account on first use. The quickstart (en, zh-CN, ja),
+  the walkthrough, the skill and SECURITY.md now say so and name the second
+  step, `EMAIL_PREDEFINE_CODES={}` in `.env`. The server logs a warning at
+  boot when the demo is off and codes are still set, and `deploy.sh` prints
+  the same advice. The codes are not switched off with the flag: an account
+  someone filled with real reports while trying the demo would become
+  unreachable on a deployment with no mail service. To check: run
+  `./deploy.sh` with `SEED_DEMO_DATA=false` in `.env`; its last lines say the
+  codes still sign in, and with `EMAIL_PREDEFINE_CODES={}` added, `111111` is
+  refused.
+- **A Chinese, Japanese or Korean member name is stored family name first
+  (#339).** 关爱圈 → 添加成员 joined 名 and 姓 given name first with a space,
+  so 姓 郑 名 雪 was saved and shown as "雪 郑", and the avatar showed 雪. When
+  both parts are Han, kana or Hangul, the name is now written family name
+  first with no space (郑雪, 山田太郎); a Latin name stays "John Smith". In
+  Chinese and Japanese the form asks for 姓 first. A name saved before keeps
+  its old order. To check: add 姓 郑 名 雪; the card reads 郑雪 with the
+  avatar 郑. Web client thetahealth/mirobody-web#36.
+- **查看 on an Excel file downloads it (#341).** For a file the browser does
+  not show in place (`.xlsx`, `.xls`), 查看 and 查看原文件 opened a tab that
+  stayed blank, and nothing was saved. Such a file now opens no tab and
+  downloads under its own name; PDF, images and text still open in a tab. To
+  check: upload `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
+  Web client thetahealth/mirobody-web#36.
+- **`<br>` in a chat answer is a line break (thetahealth/mirobody-web#35).**
+  A table cell is one line, so models break it with `<br>`
+  ("2024-06-15<br>仁和市第一医院"), and the answer showed the four characters
+  `<br>`. Exactly `<br>`, `<br/>` or `<br />` now renders as a line break, in
+  table cells and in text; every other tag is still shown as text, and code
+  is untouched. To check: ask for a table whose header puts the date and the
+  source on two lines with `<br>`. Web client thetahealth/mirobody-web#37.
+- **One abbreviation printed with its own hyphen no longer answers through
+  half of itself (#322).** `HBs-Ag` was split at the hyphen into `HBs` and
+  `Ag`, and the half that resolved answered: a hepatitis B surface ANTIGEN
+  result was filed as the surface antibody (5193-8). `HBc-Ag` likewise
+  answered the core antibody, `Cys-C` an amino-acid screen (15133-2),
+  `UMA-CR` serum creatinine, `HCV-Ab` an HCV RNA viral load, and `Anti-TG`
+  triglycerides; `NT-proBNP` answered BNP (30934-4), a different assay with
+  a different range. The resolver now refuses a hyphen split whose missing
+  half names an immunoassay's role (`Ag`, `Ab`, `antigen`, `antibody`) when
+  the half that resolved answers a code for the other role, as `HBs` does;
+  `HCV-Ag`, `CMV-Ab` and `EBV-Ab`, which answered a viral load, refuse too.
+  A tail that agrees (`Thyroglobulin Antibody-Ab`), an `Anti-` prefix
+  (`Anti-dsDNA`), a name with its abbreviation, element symbol or method
+  (`Ferritin-FER`, `Potassium-K`, `ANA-IFA`) and a bracket (`AFP(XYZ)`)
+  answer as before. The spellings reports print got rows of their own:
+  `HBs-Ag` 5196-1, `HBe-Ag` 13954-3, `Anti-HBs`/`HBs-Ab` 5193-8,
+  `Anti-HBe`/`HBe-Ab` 13953-5, `HBc-Ab` 13952-7, `HCV-Ab` 13955-0, `TPO-Ab`
+  8099-4, `Anti-TG` 8098-6, `Cys-C`/`CysC`/`血清胱抑素C` 33863-2, `NT-proBNP` and
+  its spaced spellings 33762-6, `UMA-CR`/`UMA/CR`/`mALB/CR` 9318-7. `HBc-Ag`
+  stays unresolved: LOINC's core-antigen code is a tissue stain. To check:
+  `mirobody resolve "HBs-Ag"` prints 5196-1.
+- **Every vitamin D spelling lands in one series (#323).** Most rows answered
+  1989-3 (25-hydroxyvitamin D3), but the Russian and Estonian rows and the
+  bare English `25-hydroxyvitamin D` answered 62292-8 (D2+D3), and the
+  series keeps the analyte, so one person's vitamin D history split in two
+  by spelling. Common spellings had no route at all: the `D3` forms
+  (`25-羟基维生素D3`), the short `羟` (`25-羟维生素D`), a `血清` prefix,
+  `25-OH-D`, `25-OH-D3`, `25-OH-VitD`, `Vitamin D 25-OH`, `Total
+  25-hydroxyvitamin D`, `25-羟基维生素D(25-OH-D)`, and Japanese `ビタミンD`.
+  All of them now answer 1989-3 in ng/mL and its sibling 14635-7 in nmol/L,
+  both in the `calcidiol` series; `维生素D3`, which answered cholecalciferol
+  (1990-1, the vitamin itself rather than the 25-OH test a report means),
+  joins them. The curated `25羟维生素D`/`25羥維生素D` rows pointed at a phrase
+  the index does not hold and now name Calcidiol. `25-hydroxyvitamin D2`
+  and `1,25-dihydroxyvitamin D` keep their own codes. To check:
+  `mirobody resolve "Витамин D"` prints 1989-3.
+- **A journal's `头晕嗜睡` is two coded complaints, and `嗜睡`, `视线发糊`
+  and a temple pain code** (#321). The model returned two complaints
+  written back to back as one entry in one run and as two in the next, and
+  as one entry `头晕嗜睡` could not be coded: the vocabulary is matched
+  whole. The journal now writes such an entry as its two complaints when
+  the name is CJK only, does not code whole, and exactly one cut leaves two
+  halves that each code on the symptom axis (`头晕嗜睡`, `头晕乏力`,
+  `头痛头晕`); a half that does not code (`头晕不嗜睡`), three complaints or
+  two possible cuts, or two halves with the same code (`头痛太阳穴痛`,
+  `头痛头疼`), keep the entry as written. `symptoms_zh.tsv` gains
+  `嗜睡`, `犯困` and `困倦` (AS99, where ICPC-3 lists drowsiness and
+  excludes it from AS04), `视线模糊`, `视线发糊` and `看东西模糊` (FS05,
+  blurred vision) and `太阳穴痛`, `太阳穴疼` and `太阳穴跳痛` (NS01: the
+  temple is the side of the head, and NS02 face pain excludes headache).
+  An entry written before codes with the new rows after `mirobody recode`;
+  a `头晕嗜睡` already written stays one entry, since the split happens when
+  a sentence is read.
 
 ## 1.6.2
 

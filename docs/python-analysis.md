@@ -22,7 +22,12 @@ the main Compose file alone.
 
 The code can use:
 
-- `data`: original rows from the latest successful, nonempty record query.
+- `data`: the rows of the latest successful query that returned readings,
+  joined by earlier queries in this turn with the same tool and view, one row
+  per citation `rid`. A catalogue listing is never `data` while a query with
+  readings exists. Each row's `indicator` is the name the table showed (LOINC's
+  long name, where it differs, is `long_name`), and a `value` that is a number
+  is one.
 - `results`: successful query results from the current turn, including
   metadata, assumptions, source information and tool-call IDs.
 - In Python only, `/workspace/data.json`: the same `data` and `results`

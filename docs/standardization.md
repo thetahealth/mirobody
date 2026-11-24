@@ -34,7 +34,7 @@ every machine. The running example is three reports of one test:
 | --- | --- | --- |
 | Lab report, photo, spreadsheet | `collect/files/services/indicator_extractor.py`: the table rules in `table_indicators.py` read every row that looks like a reading (columns mapped by header text, never by position); the model reads only what they leave. `indicator_store.py` hands the rows to `ingest()` | Reading the page. The prompt (`prompts/file_indicator_extract.py`) requires the name copied as printed, untranslated, because it is the key step 5 looks up. The model is never asked for a code |
 | Wearable, Apple Health | `kernel/decoders/` converts each vendor field into the unit `kernel/metrics.py` stores it in; the route from a vendor payload to a stored row, with its aggregation and election, is [pipeline.md](pipeline.md) stages 1–8 | None |
-| A journal sentence | `collect/sentence.py` splits `头疼，血压150/95` into a complaint and two readings; a part must quote the sentence, and negated, hypothetical or someone else's statements are not written | Splitting and typing. Codes come from step 5 |
+| A journal sentence | `collect/sentence.py` splits `头疼，血压150/95` into a complaint and two readings, and `头晕嗜睡` into two complaints when each half codes and the whole does not; a part must quote the sentence, and negated, hypothetical or someone else's statements are not written | Splitting and typing. Codes come from step 5 |
 | HTTP API | The name, value and unit as printed | None |
 
 ### 1. Keep the print (`observations.prepare`)
@@ -81,7 +81,14 @@ a measurement goes to `code()`, which asks in this order of authority:
 2. **The device catalogue**, for a device batch only. Its vendor names are
    ordinary words (`cholesterol` is dietary intake there), so a typed name
    never consults it.
-3. **The lexical resolver**, `engine.resolve_reading`, whose only accepted
+3. **A name its section's heading scopes** (`standardize/panels.py`, rows in
+   `res/loinc/panel_terms.tsv`). `HR`, `RV5` and `SV1` printed under `心电图`
+   or `ECG` are a heart rate and two lead amplitudes; with no such heading
+   they fall through, because an abbreviation alone is nobody's guess. The
+   heading is the row's `panel_text`, which the file extraction fills from
+   the section a row was printed under. The printed unit is checked against
+   the code as the resolver checks its own: `RV5 18 mm` needs input.
+4. **The lexical resolver**, `engine.resolve_reading`, whose only accepted
    method is `lexical`.
 
 Inside the resolver (`engine/resolver.py`):

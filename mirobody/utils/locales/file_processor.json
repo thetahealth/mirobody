@@ -118,6 +118,34 @@
     "ja": "遺伝子データの処理に失敗しました",
     "es": "Error al procesar los datos genéticos"
   },
+  "apple_ecg_processing_success": {
+    "en": "ECG processing completed",
+    "zh": "心电图处理完成",
+    "fr": "Traitement de l'ECG terminé",
+    "ja": "心電図の処理が完了しました",
+    "es": "Procesamiento del ECG completado"
+  },
+  "apple_ecg_processing_failed": {
+    "en": "ECG processing failed",
+    "zh": "心电图处理失败",
+    "fr": "Échec du traitement de l'ECG",
+    "ja": "心電図の処理に失敗しました",
+    "es": "Procesamiento del ECG falló"
+  },
+  "apple_ecg_not_readable": {
+    "en": "could not read a classification or a recorded time from this ECG file",
+    "zh": "无法从这份心电图文件中读取分类结果或记录时间",
+    "fr": "impossible de lire une classification ou une heure enregistrée dans ce fichier ECG",
+    "ja": "この心電図ファイルから分類結果または記録時刻を読み取れませんでした",
+    "es": "no se pudo leer una clasificación o una hora registrada en este archivo de ECG"
+  },
+  "apple_ecg_abstract": {
+    "en": "ECG reading: {classification} ({date})",
+    "zh": "心电图读数：{classification}（{date}）",
+    "fr": "Lecture ECG : {classification} ({date})",
+    "ja": "心電図の読み取り結果：{classification}（{date}）",
+    "es": "Lectura de ECG: {classification} ({date})"
+  },
   "with_reason": {
     "en": "{what}: {reason}",
     "zh": "{what}：{reason}",
@@ -180,5 +208,19 @@
     "fr": "{model} a renvoyé une réponse vide, ce que fait un fournisseur surchargé ; réessayez plus tard, ou pointez la route vers un autre modèle.",
     "ja": "{model} が空の応答を返しました。プロバイダーが過負荷のときに起こります。時間をおいて再試行するか、ルートを別のモデルに向けてください。",
     "es": "{model} devolvió una respuesta vacía, algo que hace un proveedor sobrecargado; inténtalo más tarde o apunta la ruta a otro modelo."
+  },
+  "no_readings_found": {
+    "en": "no readings were found in this file",
+    "zh": "这个文件里没有读出指标",
+    "fr": "aucune mesure n'a été trouvée dans ce fichier",
+    "ja": "このファイルから指標は読み取れませんでした",
+    "es": "no se encontraron mediciones en este archivo"
+  },
+  "image_text_has_no_numbers": {
+    "en": "the vision model's text for this image holds no number, which is how a model that does not read the image answers; if it shows values, check the vision model with mirobody doctor --probe, then reprocess the file",
+    "zh": "视觉模型给出的这张图片的文字里没有任何数字，读不懂图片的模型就是这样回答的；如果图片上有数值，请用 mirobody doctor --probe 检查视觉模型，再重新处理这个文件",
+    "fr": "le texte que le modèle de vision a donné pour cette image ne contient aucun chiffre, ce que fait un modèle qui ne lit pas l'image ; si elle montre des valeurs, vérifiez le modèle de vision avec mirobody doctor --probe, puis relancez le traitement du fichier",
+    "ja": "ビジョンモデルが返したこの画像のテキストには数字が一つもありません。画像を読めないモデルはこのように応答します。画像に数値がある場合は、mirobody doctor --probe でビジョンモデルを確認してから、このファイルを再処理してください",
+    "es": "el texto que el modelo de visión dio para esta imagen no contiene ningún número, que es como responde un modelo que no lee la imagen; si muestra valores, comprueba el modelo de visión con mirobody doctor --probe y vuelve a procesar el archivo"
   }
 }

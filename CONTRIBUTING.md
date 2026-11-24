@@ -235,6 +235,12 @@ be a key the alias index can look up — **not another row's left-hand side**; t
 resolver does not follow a two-hop chain, and such a row resolves to nothing
 while looking correct.
 
+A name that is a measurement only under its section's heading — an ECG's `HR`,
+`RV5`, `SV1` — is not an override row: the resolver answers a name wherever it
+is printed. It is one row in `mirobody/res/loinc/panel_terms.tsv`, whose
+right-hand side is the LOINC code itself, and `mirobody/tests/test_panel_terms.py`
+checks every row codes under its heading.
+
 A complaint phrase (a symptom or diagnosis, coded on ICPC-3 rather than
 LOINC) is a case in
 [`benchmarks/health_records/cases.json`](benchmarks/health_records/cases.json)

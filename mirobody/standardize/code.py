@@ -11,10 +11,14 @@ The order of authority:
    own report outranks the vocabulary. The alias names the analyte; a
    printed unit may still pick the variant of that analyte, so glucose in
    mmol/L lands on the moles code and not the alias's mass code;
-2. the lexical resolver, `mirobody.engine.resolve_reading`, which picks the
+2. a name its section's heading scopes (`panels`): `HR` printed under
+   `心电图` is a heart rate, and the same `HR` with no such heading falls
+   through to the resolver, which does not guess it. The printed unit is
+   checked against the code as the resolver checks its own;
+3. the lexical resolver, `mirobody.engine.resolve_reading`, which picks the
    analyte by name and the variant by unit. Only its `lexical` method is
    accepted as an identity; a semantic guess cannot abstain and is not one;
-3. the scale gate: a number is not coded to an ordinal presence code, and a
+4. the scale gate: a number is not coded to an ordinal presence code, and a
    "negative" is not coded to a mass concentration.
 
 Anything else is `needs-input` with the reason spelled out, never a guessed
@@ -36,10 +40,12 @@ from .outcome import (
     Alias,
     Coding,
 )
+from .panels import panel_code
 from .parse import KIND_ABSENT, KIND_NARRATIVE, KIND_NOMINAL, KIND_ORDINAL, KIND_QUANTITY
 from .series import Axes, local_series_id, series_id
 
 RULE_ALIAS = "alias"
+RULE_PANEL = "panel"
 RULE_ENGINE = "engine:lexical"
 
 #: The SCALE_TYP values a value kind may be coded to. `absent` places no
@@ -184,10 +190,12 @@ def code(
     unit_ucum: str = "",
     value_num: float | None = None,
     alias: Alias | None = None,
+    panel_text: str = "",
 ) -> Coding:
     """One reading to one `Coding`. See the module docstring for the order
     of authority. `local_key` is the series of the reading when it stays
-    uncoded; `name_key` is what the decision is shared under."""
+    uncoded; `name_key` is what the decision is shared under; `panel_text`
+    is the section heading the reading was printed under, as printed."""
     rel = release()
     local = local_series_id(local_key)
     # The unit a decision depends on: a printed unit that did not normalize
@@ -222,7 +230,30 @@ def code(
                 loinc = verdict.code
         return _coded(loinc, did, rule, rel, local, value_kind, value_num, unit_ucum, evidence, unit_text)
 
-    from mirobody.engine import resolve_reading
+    from mirobody.engine import get_resolver, resolve_reading
+
+    scoped = panel_code(panel_text, name_key)
+    if scoped is not None:
+        panel, loinc = scoped
+        rule = f"{RULE_PANEL}:{panel}"
+        did = decision_id(name_key, unit_part, value_kind, rel, rule)
+        evidence = (f"panel={panel}",)
+        if unit_text or unit_ucum:
+            # The unit is checked as the resolver checks its own answer: it
+            # may pick a sibling of the same measurement, and a unit no
+            # sibling carries is a conflict a person settles, never this
+            # row's code. `RV5 18 mm` is the paper's millimetres, not the
+            # millivolts of 9995-2. The value's kind is `_coded`'s scale gate.
+            verdict = get_resolver().variant_for_reading(loinc, None, unit_text or unit_ucum)
+            if verdict.outcome == "axis-conflict":
+                return Coding(
+                    OUTCOME_NEEDS_INPUT, local, did, rule, rel, reason="unit:conflict",
+                    evidence=evidence + (f"why={verdict.rejected_reason}",),
+                )
+            if verdict.outcome == "switched" and verdict.code:
+                evidence += ("unit=switched", f"variant_of={loinc}")
+                loinc = verdict.code
+        return _coded(loinc, did, rule, rel, local, value_kind, value_num, unit_ucum, evidence, unit_text)
 
     hit = resolve_reading(name_text, value_text or None, unit_text or unit_ucum or None)
     evidence = (

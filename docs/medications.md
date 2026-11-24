@@ -103,6 +103,28 @@ it is one (`Schedule` has an interval and named weekdays, not "N times a
 week") — refused rather than guessed, the same rule the per-day count
 follows.
 
+English says the same thing the other way round, count first: a count
+("3 times", "3x", "three times", "twice") joined to its period ("daily",
+"a day", "per day", "/day", "weekly", "a month") is ONE token, read whole.
+A count is never a bare number ("2 tablets daily" is a dose of two, once a
+day), and the bare "daily"/每天 is once a day only when nothing in the
+sentence says how many. When the two were separate phrases, a count the
+list did not spell out was skipped and the bare word after it read as once
+(#349: "3 times daily" was once daily).
+
+Every word is a whole word: a weekday is "Monday", "Mondays", "Mon",
+"Tues", "Thurs" — never a word that starts like one ("month", "monitor",
+"sunlight", #350). "Sat", "Sun" and "Wed" are also ordinary words, so
+alone they count only after "on"/"every"/"each" or next to another day.
+
+A frequency is read whole or the parse is `None`; what is read never
+becomes a smaller regimen. A month or a year is a frequency `Schedule` has
+no field for (a month is not 30 days), and so are hours that are not a
+whole number of doses a day (every 5 hours), a count with no number
+("several times a day", 每天数次), and days offered as a choice ("Mon or
+Tue"): each is refused rather than keeping the dose with the frequency
+dropped.
+
 | Written | Parsed |
 |---|---|
 | `500 mg twice daily` | dose 500 mg, `doses_per_day=2` |
@@ -117,12 +139,36 @@ follows.
 | `q8h` | `doses_per_day=3` (the clock times are NOT invented) |
 | `on Monday and Thursday` | `weekdays={1,4}` |
 | `as needed for pain` | `as_needed=True`, the reason kept out of `repr` |
+| `500 mg 3 times daily` / `1 tablet 2x daily` / `3x/day` / `two times a day` | `doses_per_day=3` / `2` / `3` / `2`: the count and its day are one token |
+| `q24h` / `every 24 hours` / `每24小时一次` | once daily (`period_days=1`) |
+| `q48h` / `every 72 hours` | `period_days=2` / `period_days=3` |
+| `every eight hours` / `q8hr` / `每八小时一次` / `每隔8小时一次` | `doses_per_day=3` |
+| `every two weeks` / `every second day` / `on alternate days` / `fortnightly` | `period_days=14` / `2` / `2` / `14` |
+| `Mon-Fri` / `Monday through Friday` / `周一至周五` | `weekdays={1,2,3,4,5}`: a range is every day in it |
+| `on weekdays` / `on weekends` / `工作日` / `周末` | `weekdays={1,2,3,4,5}` / `{6,7}` |
+| `twice a week on Mon and Thu` / `每周一次，周日服用` | `weekdays={1,4}` / `{7}`: the named days restate the count |
+| `at bedtime` / `qhs` / `every morning` / `每晚` / `睡前` | once daily; one named time of day qualifies a weekday or period ("every Monday morning") instead of competing with it. Said as when to take it: a bare "evening" ("evening primrose oil") invents no schedule |
+| `1 tablet in the morning and at night` / `早上一片，晚上一片` | `doses_per_day=2`: two different times of day are two a day |
+| `1 tab t.i.d.` / `bd` / `tds` / `qds` | `doses_per_day=3` / `2` / `3` / `4`, dotted or not |
+| `1 tablet at 8 am and 8 pm` | `times=("08:00","20:00")` |
+| `5 mg daily, monitor blood pressure` / `1 tablet daily for 3 months` | once daily: "monitor" and "months" are not Monday |
 | `1-2 tablets` | **`None`** — a range is not a dose |
 | `1 in the morning and 0.5 in the evening` | **`None`** — two regimens, not one |
 | `with food` | **`None`** — no dose, no frequency |
 | `每日10次` | **`None`** — a count outside 1–4 has no slot shape, so it is refused rather than guessed or read as once daily |
 | `每周2次` / `twice weekly` / `2 times a week` | **`None`** — no "N times a week" field unless the weekdays are named; not read as once weekly |
 | `每2天3次` | **`None`** — a period and a per-occurrence count other than one, and no field holds both |
+| `5 times daily` / `6x daily` | **`None`** — the same 1–4 the zh count accepts |
+| `10 mg once a month` / `monthly` / `every 3 months` / `每月一次` / `每年一次` | **`None`** — no field for a month or a year; not a Monday, and not the dose alone |
+| `three times a week` / `3x weekly` / `thrice weekly` / `biweekly` | **`None`** — no "N times a week" field (and "biweekly" is both "twice a week" and "every 2 weeks") |
+| `twice a week on Monday` | **`None`** — the count and the named days disagree |
+| `every 5 hours` / `every 36 hours` / `每8小时2次` | **`None`** — not a whole number of doses a day, nor a whole number of days |
+| `several times daily` / `每天数次` | **`None`** — a count with no number in it |
+| `1 to 2 tablets` / `once or twice daily` / `每次1到2片` / `每周一到两次` | **`None`** — a range in words is still a range, not its upper bound |
+| `Mon or Tue` / `every other Monday` | **`None`** — a choice of day, or a weekday that is not every week |
+| `1 tablet daily for 3 days, then twice daily` / `每日1次，然后每日2次` | **`None`** — a step or taper is two regimens, even when the first one names no count |
+| `daily except weekends` / `q4h while awake` | **`None`** — an exception no field holds |
+| `three times daily at 08:00 and 20:00` / `twice daily in the morning` | **`None`** — the count and the times disagree |
 | `每日2次 每天三次` / `每2周1次 每3周1次` | **`None`** — two different named counts or periods, two regimens |
 
 **No partial parses.** Half a regimen presented as a whole one is worse than no
@@ -130,6 +176,15 @@ regimen: the caller keeps the original text either way, and a `None` is visible.
 
 FHIR's `Dosage.text` goes through the same grammar when the structured fields
 are empty, which R4B expects and pharmacy systems commonly send.
+
+The structured `Timing.repeat` follows the same rule. `frequency` per
+`period` in `d`, `wk` or `h` is read when a field holds it: q24h is once
+daily, q48h every 2 days, two a day at two `timeOfDay` entries is those two
+times, `dayOfWeek` with a one-week period is those days. Anything else —
+`frequencyMax`/`periodMax` (a range), two doses every 3 days, twice a week
+with no days or with a `timeOfDay`, a weekday list with a period or a bare
+count beside it, hours that do not divide a day, a month — leaves the
+instruction unscheduled with its text kept, never a smaller regimen.
 
 ---
 
@@ -331,4 +386,9 @@ course's and stays.
 The local suite holds 77 cases across four groups: **G** the grammar, **A**
 adherence, **S** schedule projection and DST, **K** identity and FHIR
 round-trips, plus the Apple import path against a synthetic sample that ships
-with the package.
+with the package. The grammar's public evidence is in `mirobody/tests/`:
+`test_meds_per_day_count.py` (#302), `test_meds_frequency_periods.py` and
+`test_meds_frequency_grammar.py` (#349, #350: every count spelling crossed
+with every day tail, whole-word weekdays and their ranges, months and
+years, hours, times of day, Latin abbreviations, word ranges, clock times,
+and the FHIR structured `Timing` cases).

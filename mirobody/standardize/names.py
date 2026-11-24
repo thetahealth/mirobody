@@ -129,7 +129,14 @@ def label_for(system: str, code: str, language: str) -> str:
     there is none and the caller shows the printed name. A LOINC code reads as
     `names_for` names it; a device metric as the catalogue labels it (深睡比例,
     `Daily Deep Sleep Percentage`), where its key (`dailyDeepSleepPercentage`)
-    is what the model was handed before."""
+    is what the model was handed before.
+
+    A generated `daily{Method}{Indicator}` row (the aggregator's own output,
+    never a catalogue row: `kernel.metrics.daily_aggregate_metric`) reads as
+    its source metric's label with the statistic it names, 每日最低血氧饱和度 /
+    `Daily Min Blood Oxygen` for `dailyMinOxygenSaturations` off
+    `oxygenSaturations` -- not the stored key with its `.apple_health*` suffix
+    still on it (#333)."""
     from .outcome import LOINC_SYSTEM
 
     if system == LOINC_SYSTEM:
@@ -137,13 +144,18 @@ def label_for(system: str, code: str, language: str) -> str:
         return found.display if found is not None else ""
     from mirobody.kernel import metrics
 
-    metric = metrics.METRICS.get(code) if system == metrics.SYSTEM_DEVICE else None
-    if metric is None:
+    if system != metrics.SYSTEM_DEVICE:
         return ""
-    if is_chinese(language):
+    chinese = is_chinese(language)
+    metric = metrics.METRICS.get(code)
+    if metric is not None:
+        if chinese:
+            _device_labels()
+            return metrics.label(metric.member, "zh") or metric.display
+        return metric.display
+    if chinese:
         _device_labels()
-        return metrics.label(metric.member, "zh") or metric.display
-    return metric.display
+    return metrics.daily_aggregate_label(code, chinese=chinese)
 
 
 @lru_cache(maxsize=1)

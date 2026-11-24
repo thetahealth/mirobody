@@ -420,3 +420,166 @@ def test_the_extraction_offers_every_finding_method():
     for method in indicator_store.FINDING_METHODS:
         assert f"'{method}'" in offered
         assert f'"{method}"' in text
+
+
+_ECG_TABLE = ("<table><tr><td colspan=\"4\">心电图</td></tr>"
+              "<tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+              "<tr><td>HR</td><td>72</td><td>bpm</td><td>60-100</td></tr>"
+              "<tr><td>RV5</td><td>1.85</td><td>mV</td><td>&lt;2.5</td></tr></table>")
+
+
+def test_a_table_row_carries_the_heading_it_was_printed_under():
+    """#281 item 3: the section row above a table's header is each reading's
+    `panel`, held over the header repeated under it."""
+    rows, _, unread = table_indicators.table_indicators(_ECG_TABLE)
+    assert unread == 0
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [("HR", "心电图"), ("RV5", "心电图")]
+
+
+def test_a_heading_holds_until_a_table_opens_a_panel_of_its_own():
+    """A later table that opens on its own header, with no heading row, is
+    a new panel: its `K` is not an ECG reading. A table that continues the
+    page's panel with no header keeps the heading, as it keeps the header."""
+    lab = ("<table><tr><th>项目</th><th>结果</th><th>单位</th><th>参考范围</th></tr>"
+           "<tr><td>K</td><td>4.1</td><td>mmol/L</td><td>3.5-5.3</td></tr>"
+           "<tr><td>Na</td><td>140</td><td>mmol/L</td><td>137-147</td></tr></table>")
+    continued = "<table><tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr></table>"
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + continued + lab)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图"), ("K", ""), ("Na", "")]
+
+
+@pytest.mark.parametrize("footer", ["第2页共3页", "Page 2 of 3", "以下空白", "*表示异常", "※结果仅供参考", "本报告不作为法律依据"])
+def test_a_page_footer_between_two_tables_keeps_the_heading(footer):
+    """A multi-page report prints a footer between an ECG table and its
+    continuation; the continuation's `SV1` is still under the ECG heading."""
+    continued = "<table><tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr></table>"
+    footer_table = f"<table><tr><td>{footer}</td></tr></table>"
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + footer_table + continued)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
+
+
+@pytest.mark.parametrize("head", ["上海交通大学医学院附属瑞金医院", "霖蘅健康体检中心", "健康体检报告", "瑞金医院检验报告单",
+                                  "臺大醫院", "Laboratory Report", "St. Mary's Hospital"])
+@pytest.mark.parametrize("own_table", [True, False])
+def test_a_running_head_between_two_pages_keeps_the_heading(head, own_table):
+    """The hospital's name or the report's title, printed atop the next page
+    in a table of its own or as the first row of the continuation, is not a
+    section: the continuation's `SV1` stays under the ECG heading."""
+    sv1 = "<tr><td>SV1</td><td>0.92</td><td>mV</td><td>&lt;1.5</td></tr>"
+    page = (f"<table><tr><td>{head}</td></tr></table><table>{sv1}</table>" if own_table
+            else f"<table><tr><td colspan=\"4\">{head}</td></tr>{sv1}</table>")
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE + page)
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [
+        ("HR", "心电图"), ("RV5", "心电图"), ("SV1", "心电图")]
+
+
+@pytest.mark.parametrize("heading", ["瑞金医院心电图报告", "心电检测中心", "心电医学中心", "動態心電圖檢測中心"])
+def test_a_heading_that_names_the_exam_is_no_running_head(heading):
+    """`心电图报告` is the ECG page's own title and `心电检测中心` its
+    department, though each ends like a running head (`报告`, `检测中心`):
+    the rows are coded under it."""
+    from mirobody.standardize.panels import panel_of
+    rows, _, _ = table_indicators.table_indicators(_ECG_TABLE.replace(">心电图<", f">{heading}<"))
+    assert [(r["original_indicator"], r["panel"]) for r in rows] == [("HR", heading), ("RV5", heading)]
+    assert panel_of(rows[0]["panel"]) == "ecg"
+
+
+@pytest.mark.parametrize("cell,heading", [
+    ("肝功能", "肝功能"),
+    ("Comprehensive Metabolic Panel", "Comprehensive Metabolic Panel"),
+    ("备注：空腹采血", ""),
+    ("2026-03-04", ""),
+    ("72", ""),
+    ("结论", ""),
+    ("检验项目", ""),
+    ("审核者", ""),
+    ("第2页共3页", ""),
+    ("以下空白", ""),
+    ("*表示异常", ""),
+    ("本报告不作为法律依据", ""),
+    ("心电图。", "心电图"),
+    ("心电图.", "心电图"),
+    ("ECG.", "ECG"),
+    ("心电图仅供参考", "心电图仅供参考"),
+    ("仅供参考。", ""),
+    ("第2頁共3頁", ""),
+    ("芷沅市中心医院", ""),
+    ("某市疾病预防控制中心", ""),
+    ("Mayo Clinic", ""),
+    ("检验报告单", ""),
+    ("霖蘅健康体检中心 健康体检报告", ""),
+    ("健康檢查報告", ""),
+    ("Health Screening Report", ""),
+    ("心电图报告", "心电图报告"),
+    ("常规心电图报告单", "常规心电图报告单"),
+    ("ECG Report", "ECG Report"),
+    ("心电诊断中心", "心电诊断中心"),
+    ("心电检测中心", "心电检测中心"),
+    ("Electrocardiography Laboratory", "Electrocardiography Laboratory"),
+    ("检验中心", ""),
+    ("超声检查报告", "超声检查报告"),
+])
+def test_only_a_heading_is_read_as_a_section(cell, heading):
+    assert table_indicators._section(cell) == heading
+
+
+async def test_the_heading_reaches_the_stored_row(monkeypatch):
+    """A model's `panel` and a table row's land in `Draft.panel_text`, and so
+    does a blood pressure's, split into its two readings."""
+    rows = [{**_row("HR", "72", "bpm", "Physiological"), "panel": "心电图"},
+            {**_row("血压", "120/80", "", "Physiological"), "panel": "一般检查"},
+            _row("K", "4.1", "mmol/L")]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-panel-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-281-panel.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [(d.name_text, d.panel_text) for d in drafts] == [
+        ("HR", "心电图"), ("收缩压", "一般检查"), ("舒张压", "一般检查"), ("K", "")]
+
+
+def test_an_ecg_reading_is_coded_through_the_writer():
+    """The writer's own path, `prepare` then `coding_for`: `HR` printed under
+    `心电图` is the heart rate `心率` resolves to, and the same `HR` with no
+    heading keeps its local series."""
+    now = datetime(2026, 3, 5, tzinfo=UTC)
+    provenance = observations.Provenance(observations.MODALITY_LAB, observations.SOURCE_FILE, "file:synthetic-281")
+
+    def coding(panel_text):
+        draft = observations.Draft(name_text="HR", observed_start=datetime(2026, 3, 4), value_text="72",
+                                   unit_text="bpm", panel_text=panel_text)
+        row = observations.prepare(draft, provenance, "synthetic-281-user", "UTC", now=now)
+        assert row["panel_text"] == panel_text
+        return observations.coding_for(row, {})
+
+    assert coding("心电图").code == "8867-4"
+    assert not coding("").coded
+
+
+def test_the_extraction_asks_for_each_rows_heading():
+    """A field the schema does not require is one a strict provider never
+    returns, and one the prompt does not show a small model never fills."""
+    from mirobody.collect.files.services.prompts import file_indicator_extract as prompt
+    item = prompt.RESPONSE_SCHEMA_EXTRACT_INDICATORS["properties"]["indicators"]["items"]
+    assert "panel" in item["properties"] and "panel" in item["required"]
+    assert '"panel": "心电图"' in prompt.get_extract_indicators_prompt("en")
+
+
+def test_a_screen_names_its_chart_by_the_selected_tab_and_stores_no_goal():
+    """#301: a smart-scale screen's tab bar came out of OCR as `体重 | 脂肪 |
+    肌肉`, the fat and muscle charts were filed as body weight, and the app's
+    goal and starting weights were stored as readings. The OCR marks the
+    selected tab, and both extraction prompts (the upload's and `mirobody
+    parse`'s) name a chart after it and leave a goal or a start out."""
+    from mirobody.collect.files.services.prompts import file_indicator_extract as prompt
+    from mirobody.documents.ocr import OCR_PROMPT
+    from mirobody.engine.parse import _EXTRACT_PROMPT
+
+    assert "[selected]" in OCR_PROMPT
+    for text in (prompt.get_extract_indicators_prompt("en"), _EXTRACT_PROMPT):
+        assert "[selected]" in text and "page title" in text
+        assert "目标体重" in text and "初始体重" in text

@@ -126,8 +126,23 @@ test under three names and in two units. Upload all three and open LDL
 cholesterol under Indicators: they are one line, and each number opens the
 file it came from.
 
-**Before the first start of a deployment for real data, set
-`SEED_DEMO_DATA=false`.** Otherwise the app creates the two public demo accounts.
+**For real data, take two steps before the first start, and use an account of
+your own.**
+
+- `SEED_DEMO_DATA=false` in `.env` stops the two demo records from being
+  created. That is all it does.
+- The public code still works: anyone who reaches the app can sign in as
+  `you@mirobody.ai` or `mom@mirobody.ai` with `111111`, because those codes
+  come from `EMAIL_PREDEFINE_CODES` in `config.yaml`, not from the demo data.
+  Set `EMAIL_PREDEFINE_CODES={}` in `.env` as well to remove that sign-in.
+  `PRODUCTION: true` refuses to start while any code is set
+  ([SECURITY.md](../SECURITY.md)).
+- After changing `.env`, run `docker compose up -d`. Then register your own
+  account on the sign-in page.
+
+Setting the flag later does not remove records already seeded. If the demo was
+seeded and nothing real is stored yet, `docker compose down -v` followed by
+`./deploy.sh` starts again with an empty database. That deletes every record.
 
 You can also put a model key in `.env`: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`,
 `GOOGLE_API_KEY` or `ANTHROPIC_API_KEY`. Use `<PROVIDER>_BASE_URL` for an

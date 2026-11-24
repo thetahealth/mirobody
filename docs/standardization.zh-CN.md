@@ -27,7 +27,7 @@ README 里 **② 标准化 Standardize** 那一阶段的长版本：报告上印
 | --- | --- | --- |
 | 化验单、照片、表格 | `collect/files/services/indicator_extractor.py`：`table_indicators.py` 的表格规则先读所有像读数的行（按表头文字对列，从不按位置）；规则读不了的才交给模型。`indicator_store.py` 把读到的行交给 `ingest()` | 读页面。提示词（`prompts/file_indicator_extract.py`）要求名称照报告原样抄、不翻译，因为第 5 步就拿它去查。从不让模型给编码 |
 | 穿戴设备、Apple Health | `kernel/decoders/` 把每个厂商字段换成 `kernel/metrics.py` 规定的存储单位；从厂商数据到入库、再到按天汇总和选源的完整路线，见 [pipeline.md](pipeline.md) 第 1–8 段（英文） | 不用 |
-| 健康日记里的一句话 | `collect/sentence.py` 把 `头疼，血压150/95` 拆成一条主诉和两条读数；每一段都必须引用原句，否定、假设和说别人的话都不写入 | 拆句和判断类型。编码来自第 5 步 |
+| 健康日记里的一句话 | `collect/sentence.py` 把 `头疼，血压150/95` 拆成一条主诉和两条读数；`头晕嗜睡` 整体编不上码、两半各自编得上时，拆成两条主诉；每一段都必须引用原句，否定、假设和说别人的话都不写入 | 拆句和判断类型。编码来自第 5 步 |
 | HTTP API | 按报告原样传名称、数值和单位 | 不用 |
 
 ### 1. 原样保留（`observations.prepare`）
@@ -63,7 +63,11 @@ NFKC、统一大小写、拉丁词之间留一个空格、汉字旁不留空格�
    报告印的单位仍可以在这项检查的质量浓度和摩尔浓度编码之间切换。
 2. **设备目录**，只用于设备批次。目录里的厂商字段名是普通词（那里的 `cholesterol` 指饮食摄入），
    所以用户自己输入的名称从不查它。
-3. **词法解析器** `engine.resolve_reading`，只接受 `lexical` 方法给出的结果。
+3. **由所在栏目标题限定的名称**（`standardize/panels.py`，词条在 `res/loinc/panel_terms.tsv`）。
+   印在 `心电图` 或 `ECG` 栏目下的 `HR`、`RV5`、`SV1` 是心率和两个导联的波幅；没有这样的标题就交给下一步，
+   因为单看缩写谁也不该猜。标题是这一行的 `panel_text`，由文件提取按这一行所在的栏目填写。
+   报告印的单位照解析器检查自己答案的方式核对：`RV5 18 mm` 需要人确认。
+4. **词法解析器** `engine.resolve_reading`，只接受 `lexical` 方法给出的结果。
 
 解析器内部（`engine/resolver.py`）：
 

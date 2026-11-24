@@ -339,11 +339,29 @@ def catalog_alias(name: str) -> standardize.Alias | None:
     """The device catalogue's answer for a metric name, as an alias: the
     metric's confident LOINC when it has one, its own namespace otherwise.
     An unverified code is evidence in `standardize.devices`, not an identity.
-    `None` for a name the catalogue does not know."""
+    `None` for a name the catalogue does not know.
+
+    A `daily{Total,Sum}{Indicator}` name the aggregator generated (`name` not
+    itself a catalogue entry, `kernel.metrics.daily_aggregate_metric` reads it
+    back to one) is the source metric itself, filed as its confident LOINC:
+    `standardize.__init__`'s own words, "a daily total is the SAME quantity on
+    a different time axis". `avg`/`min`/`max` and the rest of a multi-method
+    metric's own generated names stay out of this -- three statistics of one
+    day sharing the source's code would share its series, and election would
+    publish only one of the three. An unconfident source's `total` is left
+    `None` too, for the same reason a direct unconfident match falls to the
+    code below rather than to this function: the caller's own fallback already
+    gives it the per-name device identity it would get here anyway (#333)."""
     head = name.split(".", 1)[0]
     metric = metrics.METRICS.get(head) or metrics.METRICS.get(name)
     if metric is None:
-        return None
+        found = metrics.daily_aggregate_metric(head)
+        if found is None or found[1] not in ("total", "sum"):
+            return None
+        source, system = found[0], found[0].canonical[0]
+        if system != metrics.SYSTEM_LOINC:
+            return None
+        return standardize.Alias(_ALIAS_SCOPE_CATALOG, standardize.LOINC_SYSTEM, source.loinc)
     system, code = metric.canonical
     if system == metrics.SYSTEM_LOINC:
         return standardize.Alias(_ALIAS_SCOPE_CATALOG, standardize.LOINC_SYSTEM, code)
@@ -387,6 +405,7 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.A
         unit_ucum=row["unit_ucum"],
         value_num=row["value_num"],
         alias=alias,
+        panel_text=row.get("panel_text") or "",
     )
 
 
@@ -1126,7 +1145,7 @@ async def merge_accounts(cur: Any, losing_user_id: str, winning_user_id: str) ->
 
 _SELECT_FOR_RECODE = """
 SELECT o.id, o.kind, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
-       o.value_num, o.source_kind, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
+       o.value_num, o.source_kind, o.panel_text, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
   FROM v_observation o
  WHERE o.user_id = :user_id AND o.id > :after {name_filter}
  ORDER BY o.id

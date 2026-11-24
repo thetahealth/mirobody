@@ -299,6 +299,7 @@ async def save_indicators_to_db(
             flag_text=flag,
             method_text=method,
             note_text=str(indicator.get("notes") or ""),
+            panel_text=str(indicator.get("panel") or ""),
             kind=kind,
             row_ix=ix,
             modality=modality,

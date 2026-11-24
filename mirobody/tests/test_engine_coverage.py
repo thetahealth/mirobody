@@ -624,6 +624,96 @@ CASES: list[tuple[str, str, str]] = [
     ("tPSA",                         r"^prostate specific ag \[mass", r"free|prostate volume"),
     ("fPSA",                         r"prostate specific ag free \[", r"total"),
     ("f/tPSA",                       r"free/prostate specific ag\.total", r""),
+    # ── one abbreviation printed with its own hyphen (#322) ─────────────────
+    # The half that resolved used to answer: `HBs-Ag` the surface ANTIBODY,
+    # `Cys-C` an amino-acid screen, `NT-proBNP` BNP itself.
+    ("Cys-C",                        r"^cystatin c \[",               r"cysteine|anserine"),
+    ("CYS-C",                        r"^cystatin c \[",               r"cysteine|anserine"),
+    ("血清胱抑素C",                      r"^cystatin c \[",               r""),
+    ("HBs-Ag",                       r"surface Ag",                   r"surface Ab"),
+    ("HBe-Ag",                       r"virus e Ag",                   r"virus e Ab"),
+    ("Anti-HBs",                     r"surface Ab",                   r"surface Ag"),
+    ("HBc-Ab",                       r"core Ab",                      r"core Ag"),
+    ("Anti-HBe",                     r"virus e Ab",                   r"virus e Ag"),
+    ("NT-proBNP",                    r"prohormone N-Terminal",        r""),
+    ("UMA-CR",                       r"^albumin/creatinine",          r""),
+    # The refusal is for a role word only: a method or standard tag after a
+    # real abbreviation still answers through it (review of #331).
+    ("HbA1c-NGSP",                   r"^hemoglobin a1c/",             r""),
+    ("ANA-IFA",                      r"^nuclear .*Ab",                r""),
+    # `Anti` is a prefix, not a role tail, and a role tail that agrees with
+    # the answer keeps it (second review of #331).
+    ("Anti-dsDNA",                   r"DNA double strand .*Ab",       r""),
+    ("Anti-SSA",                     r"Sjogrens syndrome-A .*Ab",     r""),
+    ("HAV-Ab",                       r"Hepatitis A virus .*Ab",       r""),
+    ("Thyroglobulin Antibody-Ab",    r"^thyroglobulin Ab",            r""),
+    ("Anti-TPO-Ab",                  r"^thyroperoxidase Ab",          r""),
+    # ── vitamin D: one series whatever the spelling (#323) ──────────────────
+    # 62292-8 (D2+D3) split a person's history from 1989-3 by spelling alone;
+    # `25羟维生素D` and `25-OH维生素D` were pinned misses, the first because
+    # its curated row targeted a phrase the index does not hold.
+    ("25-hydroxyvitamin D",          r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("Total 25-hydroxyvitamin D",    r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("Vitamin D 25-OH",              r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH-D",                      r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH-D3",                     r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH-VitD",                   r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25羟维生素D",                     r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-OH维生素D",                   r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-羟维生素D",                    r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-羟基维生素D3",                  r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25羟基维生素D3",                   r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("血清25-羟基维生素D",                r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("25-羟基维生素D(25-OH-D)",         r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    ("维生素D3",                       r"^25-hydroxyvitamin D3 \[",      r"D2|cholecalciferol"),
+    ("Витамин D",                    r"^25-hydroxyvitamin D3 \[",      r"D2"),
+    # ── lipoprotein(a) and its neighbours (#332) ────────────────────────────
+    # `脂蛋白(a)` answered total lipoproteins through its stem, `载脂蛋白(a)`
+    # apolipoprotein A through case folding, `总脂蛋白` Lp(a) through zh.tsv.
+    ("脂蛋白(a)",                       r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("脂蛋白（a）",                      r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("脂蛋白(A)",                       r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("血清脂蛋白(a)",                     r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("脂蛋白(a)(Lp(a))",                r"^lipoprotein a \[",            r"^lipoproteins"),
+    ("载脂蛋白(a)",                      r"^apolipoprotein lpa",          r"^apolipoprotein a \["),
+    ("载脂蛋白（a）",                     r"^apolipoprotein lpa",          r"^apolipoprotein a \["),
+    ("总脂蛋白",                        r"^lipoproteins",                r"^lipoprotein a"),
+    ("總脂蛋白",                        r"^lipoproteins",                r"^lipoprotein a"),
+    ("总脂蛋白(a)",                     r"",                             r"^lipoprotein a"),
+    # The bracket split this does not change: a lone letter still reaches
+    # the element through the stem.
+    ("钾(K)",                          r"^potassium",                   r""),
+    ("磷(P)",                          r"^phosphate",                   r""),
+    # ── printed names coded as another analyte (#343) ───────────────────────
+    ("中性粒细胞#",                      r"^neutrophils \[#/volume\]",     r"/leukocytes"),
+    ("中性粒细胞数",                      r"^neutrophils \[#/volume\]",     r"/leukocytes"),
+    ("中性粒细胞计数",                     r"^neutrophils \[#/volume\]",     r"/leukocytes"),
+    ("淋巴细胞#",                       r"^lymphocytes \[#/volume\]",     r"/leukocytes"),
+    ("淋巴细胞数",                       r"^lymphocytes \[#/volume\]",     r"/leukocytes"),
+    ("单核细胞#",                       r"^monocytes \[#/volume\]",       r"/leukocytes"),
+    ("嗜酸性粒细胞#",                     r"^eosinophils \[#/volume\]",     r"/leukocytes"),
+    ("嗜碱性粒细胞#",                     r"^basophils \[#/volume\]",       r"/leukocytes"),
+    # The percentage spellings stay on the ratio.
+    ("中性粒细胞",                       r"^neutrophils/leukocytes",      r""),
+    ("淋巴细胞百分比",                     r"^lymphocytes/leukocytes",      r""),
+    ("baPWV (left)",                 r"^pulse wave velocity",         r"thyrotropin"),
+    ("baPWV (right)",                r"^pulse wave velocity",         r""),
+    ("SBP",                          r"^systolic blood pressure",     r"binding globulin"),
+    ("DBP",                          r"^diastolic blood pressure",    r"binding protein"),
+    ("ACR",                          r"^albumin/creatinine",          r"brachial"),
+    ("RhD",                          r"^rh \[type\]",                 r"fetal"),
+    ("PAB",                          r"^prealbumin",                  r"aminobenzoate"),
+    ("LIP",                          r"^lipase",                      r"subparticle"),
+    ("总钙",                          r"^calcium \[",                  r"ionized"),
+    ("部分凝血活酶时间",                    r"^aPTT",                        r"panel"),
+    # The measured spirometry volume, not the predicted one printed beside it.
+    ("FVC",                          r"^forced vital capacity \[volume\] respiratory system$", r"predicted"),
+    ("用力肺活量",                       r"^forced vital capacity \[volume\] respiratory system$", r"predicted"),
+    ("FEV1 % predicted",             r"^fev1 measured/predicted",     r"^fev1$"),
+    ("FEV1占预计值%",                  r"^fev1 measured/predicted",     r"^fev1$"),
+    ("FVC % predicted",              r"^fvc measured/predicted",      r"pre bronchodilation"),
+    ("FVC占预计值%",                   r"^fvc measured/predicted",      r"pre bronchodilation"),
+    ("尿胆红素",                        r"^bilirubin\.total \[presence\] in urine", r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -692,13 +782,6 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # Kept exactly as main resolves it (unresolved): CLASS=CELLMARK excludes
     # bare 癌胚抗原, so the stem side of the split never resolves either.
     ("癌胚抗原CEA", "癌胚抗原 abstains on main (CLASS=CELLMARK); CEA alone answering is not evidence the pair agrees"),
-    # Neither half resolves (`25羟维生素` is not an index key on its own, nor
-    # is bare `D`), so this is an honest miss on main and stays one.
-    ("25羟维生素D", "neither half resolves; kept as main already has it"),
-    # Kept exactly as on main (F011 pin): the hyphen sits between two ASCII
-    # runs (`25`-`OH`), not at a Latin/CJK boundary, so
-    # `lexical.fold_script_boundary` never touches it.
-    ("25-OH维生素D", "the hyphen is ASCII-ASCII, not a script boundary; kept as main already has it"),
     # Each of these glues a real Chinese CBC/urinalysis name to an
     # abbreviation that means something ELSE entirely, or that splits the
     # same percent/absolute or quantitative/dipstick way `NEUT#`/`NEUT%`
@@ -717,6 +800,20 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # form reaches one), so these stay the honest miss main already gives.
     ("尿潜血BLD", "neither 尿潜血 nor BLD alone is in the index; stays unresolved"),
     ("尿比重SG", "SG carries no alias; 尿比重 alone resolves but the pair does not need to"),
+    # #322: one abbreviation cut at its own hyphen borrows nothing from the
+    # half that resolves. `HBc-Ag` answered the core ANTIBODY through `HBc`;
+    # LOINC's core-antigen code is a tissue stain, so no answer is right.
+    ("HBc-Ag", "HBc alone answers the core antibody; the antigen is a different test"),
+    ("HBs-Antigen", "HBs alone answers the surface antibody"),
+    ("HCV-Ag", "HCV alone answers an RNA viral load, not an antigen"),
+    ("CMV-Ab", "CMV alone answers a DNA viral load, not an antibody"),
+    ("EBV-Ab", "EBV alone answers a DNA viral load, not an antibody"),
+    # #332: the class, not a test; zh.tsv sent it to Lp(a).
+    ("脂蛋白类", "the lipoprotein class names no single test"),
+    ("脂蛋白類", "Traditional spelling of the same class word"),
+    # #343: no specimen, and the English name of the abstaining 基础代谢率.
+    ("酸碱度", "pH with no specimen; it answered ionized calcium adjusted to pH 7.4"),
+    ("Basal metabolic rate", "answered the MET-and-RMR panel; 基础代谢率 abstains for the same reason"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
@@ -897,8 +994,30 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # lowercase both reach the new `ürik asit`/`açlık kan şekeri` rows.
     ("ÜRİK ASİT",        "6.5", "mg/dL",  "3084-1",  "urate, all-caps Turkish"),
     ("ürik asit",        "6.5", "mg/dL",  "3084-1",  "urate, lowercase Turkish"),
+    # #322's refusal is for an immunoassay role word only: a name with its
+    # element symbol, method or standard still answers (review of #331).
+    ("Potassium-K",      "4.2", "mmol/L", "2823-3",  "K is the element, not a fragment"),
+    ("Phosphorus-P",     "3.5", "mg/dL",  "2777-1",  "P is the element"),
+    ("VLDL-C",           "20",  "mg/dL",  "13458-5", "VLDL is an analyte, not a fragment"),
+    # #322: the hyphenated spellings keep their own analyte through the unit.
+    ("NT-proBNP",        "85",  "pg/mL",  "33762-6", "NT-proBNP, not BNP"),
+    ("Cys-C",            "0.9", "mg/L",   "33863-2", "cystatin C, not an amino-acid screen"),
+    # #323: either unit stays in the calcidiol series.
+    ("25-羟基维生素D",      "28.5", "ng/mL",  "1989-3",  "25-OH D3, mass"),
+    ("25-hydroxyvitamin D", "71",  "nmol/L", "14635-7", "25-OH D3, moles; not the D2+D3 code"),
+    ("Витамин D",        "71",  "nmol/L", "14635-7", "Russian, same series as the rest"),
     ("AÇLIK KAN ŞEKERİ", "95",  "mg/dL",  "1558-6",  "fasting glucose, all-caps Turkish"),
     ("açlık kan şekeri", "95",  "mg/dL",  "1558-6",  "fasting glucose, lowercase Turkish"),
+    # #332: every printed spelling and unit of Lp(a) is one series.
+    ("脂蛋白(a)",          "426",   "mg/L",   "10835-7", "Lp(a), mass, not total lipoproteins"),
+    ("脂蛋白（a）",         "0.389", "g/L",    "10835-7", "Lp(a), full-width brackets"),
+    ("脂蛋白(a)",          "45",    "nmol/L", "43583-4", "Lp(a), moles, no longer refused"),
+    # #343: the count and the molar calcium keep their own codes.
+    ("中性粒细胞#",         "4.2",   "10*9/L", "26499-4", "absolute count, not the ratio"),
+    ("总钙",              "2.3",   "mmol/L", "2000-8",  "total calcium, moles"),
+    ("SBP",              "120",   "mmHg",   "8480-6",  "systolic pressure, not SHBG"),
+    ("FVC",              "4.1",   "L",      "19870-5", "measured FVC, not the predicted volume"),
+    ("用力肺活量",           "4.1",   "L",      "19870-5", "measured FVC, Chinese"),
 ]
 
 
@@ -939,6 +1058,7 @@ QUALITATIVE_READINGS: list[tuple[str, str, str, str]] = [
     ("尿白细胞酯酶",   "阴性", "5799-2",  "dipstick presence code"),
     ("便隐血",         "阴性", "2335-8",  "already a Presence code"),
     ("乙肝表面抗原",   "阴性", "5196-1",  "serology screen"),
+    ("HBs-Ag",         "阴性", "5196-1",  "serology screen, hyphenated (#322)"),
     ("丙肝抗体",       "阴性", "13955-0", "serology screen"),
     ("类风湿因子",     "阴性", "33910-1", "not 11572-5 [Units/volume], the numeric form's code"),
     ("妊娠试验",       "阳性", "2118-8",  "not 19080-1 [Units/volume]"),
@@ -2139,3 +2259,17 @@ def test_health_connect_activity_intensity_matches_its_two_levels():
     assert rows["moderate"].loinc == "101689-8"
     assert rows["vigorous"].metric == "dailyActivityIntensityHigh"
     assert rows["vigorous"].loinc == "101690-6"
+
+
+@pytest.mark.parametrize("code", ["10835-7", "1881-2", "2576-7", "1883-8"])
+def test_a_lipoprotein_label_resolves_back_to_its_code(code):
+    """The Chinese label a reader sees for each lipoprotein code is a name the
+    resolver answers with that code (#332). `脂蛋白（a）`, the app's own label
+    for Lp(a), resolved to total lipoproteins; `载脂蛋白（a）` to
+    apolipoprotein A."""
+    from mirobody.engine import resolve
+    from mirobody.standardize import label_for
+
+    label = label_for("http://loinc.org", code, "zh")
+    assert label
+    assert resolve(label).loinc == code, f"{label!r} -> {resolve(label).loinc}, not {code}"

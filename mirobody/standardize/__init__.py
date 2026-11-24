@@ -80,13 +80,18 @@ from .series import Axes, local_series_id, property_dim, series_id, symptom_seri
 from .code import NOTE_SERIES, code, code_note, decision_id, loinc_units, release, series_of
 from .icpc3 import ICPC3_SYSTEM, resolve_condition, resolve_symptom
 from .names import Names, label_for, names_for
+from mirobody.kernel.metrics import build_indicator_name
 
 #: The pure seam, imported above. `code` is the function, not the module;
 #: `from mirobody.standardize.code import code` still reaches the module.
+#: `build_indicator_name` lives in `kernel.metrics` (the library layer, #333:
+#: the read side needed the same naming rule `aggregate/` writes with), not
+#: in `aggregate/`, so it costs nothing to import eagerly either.
 _SEAM = [
     "Alias",
     "Axes",
     "Coding",
+    "build_indicator_name",
     "ICPC3_SYSTEM",
     "LOINC_SYSTEM",
     "OUTCOME_CODED",
@@ -145,7 +150,6 @@ _EXPORTS = {
     "AggregateIndicatorService": "aggregate.service",
     "AggregateDatabaseService": "aggregate.database_service",
     "build_apple_priority_case": "aggregate.aggregators.source_id_priority",
-    "build_indicator_name": "aggregate.naming",
     "get_all_aggregation_rules": "aggregate.rule_generator",
 }
 __all__ = [*_SEAM, *_EXPORTS]
@@ -165,7 +169,6 @@ if TYPE_CHECKING:  # static analyzers resolve the real symbols
     )
     from .aggregate.database_service import AggregateDatabaseService
     from .aggregate.aggregators.source_id_priority import build_apple_priority_case
-    from .aggregate.naming import build_indicator_name
     from .aggregate.rule_generator import get_all_aggregation_rules
     from .aggregate.service import AggregateIndicatorService
     from .aggregate.startup import start_aggregate_indicator_scheduler

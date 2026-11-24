@@ -29,6 +29,7 @@ This module provides comprehensive health data file processing capabilities, inc
 | PDF | `application/pdf` | `PDFHandler` | Multi-page parallel processing with automatic health indicator extraction |
 | Images | `image/*` | `ImageHandler` | `.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.heic`, `.heif`, `.tif`, `.tiff`; downscaled and OCR'd, then the same extraction path as PDF |
 | Genetic Data | Raw genotype export, `.txt` / `.csv` / VCF: WeGene, 23andMe, AncestryDNA, MyHeritage, FTDNA; plain, gzip, BGZF, or a ZIP holding one VCF with bounded BED/TXT sidecars | `GeneticHandler` | Recognised by its column header; uploaded rows enter `th_genotype_set` / `th_genotype` and become queryable only after atomic activation. The old `th_series_data_genetic` table is migration input only. See [genetics.md](genetics.md) |
+| Apple Watch ECG | `.csv`, the `electrocardiograms/ecg_YYYY-MM-DD.csv` shape an Apple Health export writes | `AppleEcgHandler` | Recognised by its header (`Name`, `Date of Birth`, `Recorded Date`, `Classification`, `Symptoms`, `Software Version`, `Device`, `Sample Rate`, then `Lead`, `Unit`); no model ever sees it. One reading, the rhythm classification (LOINC 8601-7), filed as a device reading under the recording's own offset; the ~15,360 microvolt samples that follow are never read past, never sent anywhere, never stored. `Name` and `Date of Birth` are read and discarded |
 | Text | `text/*` | `TextHandler` | `.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, `.htm`, `.log` decoded directly, same extraction path as PDF |
 | Excel | OOXML | `ExcelHandler` | `.xlsx`, `.xlsm` read with openpyxl as markdown tables under a row budget. `.xls` and `.xlsb` are refused at upload: openpyxl reads only the zip formats |
 | Word / PowerPoint | OOXML | `DocumentHandler` | `.docx`, `.pptx` as markdown (headings, paragraphs, tables, slides) |
@@ -61,9 +62,12 @@ OCR despite a text layer long enough to otherwise look usable, and that
 header or footer text is folded back in only if the vision model did not
 already read it off the rendered page. A letterhead or watermark image
 behind a born-digital report's real text, or a scan a prior OCR pass
-already made searchable, draws its own text ON the image instead, so it
-stays on that exact text layer rather than paying for a model call that
-could misread a digit the layer already has right. A photo is downscaled
+already made searchable, draws its own text ON the image instead, and that
+text prints values, so it stays on that exact text layer rather than paying
+for a model call that could misread a digit the layer already has right.
+Text on the image with no digit in it is a watermark laid over a scan
+(`CONFIDENTIAL PATIENT RECORD …`), not the page's content, and the page
+goes to OCR (#317). A photo is downscaled
 and OCR'd; a spreadsheet or Word file never reaches a model at all. A
 text-layer page also carries its tables as HTML, laid out from where
 the layer's characters sit (`extract._layer_tables`), so the table rules read
@@ -313,6 +317,18 @@ itself is stored and readable. `failed: false` with `indicators_count: 0` is a
 different and ordinary outcome: a document that genuinely has no indicators in
 it. A client must not render the first two like the third — that is what made a
 green row over an empty list, with the cause visible only in server logs.
+
+Nor the third like a file whose readings were stored. The files listing marks
+it `no_readings: true` (a genotype file, which loads variants, never is) and
+gives `notice`, in the language of the page reading the list, when the reason
+is known: an image whose text, as the vision model answered it, holds no number
+is the answer of a model that does not read images, and the notice says to
+check it with `mirobody doctor --probe` and reprocess the file. Such a text is
+not stored under the file's content hash, so the reprocess and a re-upload read
+the image again instead of taking the old answer. A file that stored nothing
+also drops the date the probe gave it (`report_date` and `date_source` come
+back empty), so the client does not ask which date readings that never came
+belong to.
 
 ##### 8. Heartbeat (ping/pong)
 

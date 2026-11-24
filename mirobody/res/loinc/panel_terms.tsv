@@ -1,0 +1,56 @@
+# A name that is a measurement only under its section's heading -> a LOINC
+# code. OUR judgement, Apache-2.0; the codes are LOINC's (LICENSE-3RD-PARTY).
+#
+# `HR`, `RV5` and `SV1` are real ECG measurements, and nothing in the alias
+# index answers them (#281): each was stored as a series of its own, named
+# only by its abbreviation. They are not added to resolver_overrides.tsv
+# because the abbreviation alone does not say what was measured: `HR` on a
+# lab page is not a heart rate anyone should guess. A row here is consulted
+# only when the reading was printed under its panel's heading
+# (`Draft.panel_text`, matched by `standardize.panels.panel_of`), after a
+# person's confirmed alias and before the lexical resolver.
+#
+# Matching is exact over standardize.fold.name_key: one row per spelling, no
+# substring search. The right-hand side is a LOINC code, not an alias key,
+# so there is no second hop for a row to miss. A spelling the resolver
+# already answers right on its own (`PR间期`, `QT间期`, `QTc间期`, `QRS电轴`,
+# `心率`) has no row: it codes the same whatever its heading.
+panel	term	loinc	note
+# ── ecg: a resting 12-lead ECG's measurements ────────────────────────────
+ecg	HR	8867-4	the code 心率 resolves to, so a report's two spellings are one series
+ecg	PR	8625-6
+ecg	P-R	8625-6
+ecg	P-R间期	8625-6
+ecg	QRS	8633-0	the QRS duration; an axis prints as 电轴 or Axis
+ecg	QRS时限	8633-0
+ecg	QRS时间	8633-0
+ecg	QRS间期	8633-0
+ecg	QT	8634-8
+ecg	Q-T	8634-8
+ecg	QTc	8636-3
+ecg	RV1	9991-1
+ecg	RV5	9995-2
+ecg	SV1	10040-4
+ecg	SV5	10044-6
+ecg	Axis	8632-2	the QRS axis, which is what an ECG's unqualified axis is
+ecg	电轴	8632-2
+ecg	心电轴	8632-2
+ecg	P电轴	8626-4
+ecg	T电轴	8638-9
+ecg	P波时限	8627-2	not a bare P波: the resolver reads that as the atrial rate (8894-8)
+ecg	P波时间	8627-2
+# ── urine: a dipstick panel's abbreviations (#343) ──────────────────────
+# Alone, `PRO` answered proline, `LEU` leucine, `URO` free PSA and `GLU` a
+# blood glucose, and `KET`, `NIT` and `BIL` nothing. Each code is the one the
+# Chinese name beside it resolves to (`尿蛋白`, `尿白细胞`, `尿酮体`,
+# `尿亚硝酸盐`, `尿胆原`, `尿胆红素`, `尿糖`), so a report's two spellings are
+# one series. A semi-quantitative value with a unit (`URO 3.2 µmol/L`) meets
+# the unit gate as any other reading does.
+urine	PRO	2887-8
+urine	LEU	5799-2	leukocyte esterase, the strip's pad; a microscopy count prints under 尿沉渣
+urine	KET	33903-6
+urine	NIT	32710-6
+urine	URO	13658-0
+urine	UBG	13658-0
+urine	BIL	1977-8
+urine	GLU	2349-9
