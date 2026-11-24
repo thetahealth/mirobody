@@ -64,6 +64,27 @@
 
 ### Fixed
 
+- **A file that leaves no reading says so, and a vision model that does not
+  read images is named on the upload** (#338). With a local vision model that
+  answered a report photo "The image shows a sheet of paper with some printed
+  text. I cannot make out the details.", `mirobody doctor --probe` failed the
+  vision probe, but the photo was filed 已处理 with 0 readings and
+  日期待确认 on the upload day: in 数据 › 文件 it could not be told from a
+  file whose readings were stored, and the answer was cached under the
+  photo's hash, so the same photo read the same way after the model was
+  replaced. A completed file with no reading is now listed `no_readings:
+  true` and shown as 未读出指标 (No readings), with the reason when it is
+  known (`notice`, in the page's language). An image whose text holds no
+  number, the test the vision probe applies, gets the reason "the vision
+  model's text for this image holds no number … check the vision model with
+  mirobody doctor --probe, then reprocess the file", is not cached by its
+  hash, and offers 重新处理 (Reprocess), which reads it again. A file that
+  stored nothing drops the date the probe gave it, so nothing asks which
+  date it belongs to. A photo with no text at all (a meal) is unaffected.
+  To check: point `UTILS_VISION_MODEL` at an endpoint that answers every
+  image with prose and upload a report photo; the row reads 未读出指标 with
+  that reason, and after the model is fixed 重新处理 stores its readings.
+
 - **A smart-scale screen's fat and muscle charts are no longer filed as body
   weight, and its goal weight is no longer a reading** (#301, the reading
   half; #315 fixed the resolver half). Three screenshots of one app page, the

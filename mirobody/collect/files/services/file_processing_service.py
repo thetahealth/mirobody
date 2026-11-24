@@ -157,7 +157,7 @@ async def reprocess_file(row: dict[str, Any], owner: str) -> str | None:
     erased_count = await observations.erase(str(owner), source_ref=file_source_ref(file_key))
     await FileDbService.update_file_content(file_key, {
         "status": "processing", "processed": False, "progress": 0, "indicators_count": 0,
-        "error": "", "error_phrases": None,
+        "error": "", "error_phrases": None, "notice_phrases": None,
     })
     name = content.get("original_filename") or row.get("file_name") or file_key.rsplit("/", 1)[-1]
     from mirobody.utils.tasks import spawn
