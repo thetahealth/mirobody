@@ -55,11 +55,12 @@ MIN_PAGE_TEXT = 40
 #: close to half of it.
 SCAN_IMAGE_AREA_FRACTION = 0.5
 #: A page whose dominant image (`SCAN_IMAGE_AREA_FRACTION`) has at least this
-#: many layer characters sitting on top of it is read from its layer, not
-#: OCR'd: that text sits ON the image, so it is a background graphic under
-#: real body text or a searchable scan's own invisible layer, not a scan's
-#: marginal stamp (review of #304). A header or footer sits OUTSIDE the
-#: image; 20 clears one label's width and stops well short of a paragraph.
+#: many layer characters ON it, a digit among them, is read from its layer:
+#: body text over a background graphic, or a searchable scan's own layer, not
+#: a scan's marginal stamp, which sits OUTSIDE the image (review of #304). 20
+#: clears one label and stops short of a paragraph. The digit: a watermark
+#: laid over a scan as text (`CONFIDENTIAL PATIENT RECORD …`) cleared 20 and
+#: kept the scanned table from OCR with no warning (#317).
 MAX_OVERLAID_SCAN_CHARS = 20
 #: Rendering resolution for scanned pages. DPI buys input-token cost, not speed.
 RENDER_DPI = 150
@@ -381,7 +382,7 @@ def _image_area_fraction(page, boxes: list[tuple[float, float, float, float]]) -
     """The share of `page`'s area `boxes` covers. Two images placed over the
     same spot (a compressed layer under a clean one) would double-count
     that overlap; a lab scan is one image, and overstating the fraction only
-    ever pushes a page towards OCR, which `_chars_over_images` can still
+    ever pushes a page towards OCR, which `_layer_is_the_content` can still
     pull back from."""
     width, height = page.get_size()
     page_area = width * height
@@ -391,9 +392,9 @@ def _image_area_fraction(page, boxes: list[tuple[float, float, float, float]]) -
     return min(covered / page_area, 1.0)
 
 
-def _chars_over_images(textpage, boxes: list[tuple[float, float, float, float]]) -> int:
-    """How many of `textpage`'s non-blank characters have their centre
-    inside one of `boxes`: the geometric signal the #304 review asked for,
+def _text_over_images(textpage, boxes: list[tuple[float, float, float, float]]) -> str:
+    """`textpage`'s non-blank characters whose centre falls inside one of
+    `boxes`, in layer order: the geometric signal the #304 review asked for,
     telling a scan's marginal header or footer (drawn OUTSIDE every image,
     in the margin) from a background graphic under real body text or a
     searchable scan's own invisible OCR layer (drawn ON an image). Centres,
@@ -403,7 +404,7 @@ def _chars_over_images(textpage, boxes: list[tuple[float, float, float, float]])
     import pypdfium2.raw as raw
 
     left_b, right_b, bottom_b, top_b = (ctypes.c_double() for _ in range(4))
-    count = 0
+    over: list[str] = []
     for i in range(raw.FPDFText_CountChars(textpage)):
         code = raw.FPDFText_GetUnicode(textpage, i)
         ch = chr(code) if 0 < code < 0x110000 else ""
@@ -413,15 +414,22 @@ def _chars_over_images(textpage, boxes: list[tuple[float, float, float, float]])
         cx = (left_b.value + right_b.value) / 2
         cy = (bottom_b.value + top_b.value) / 2
         if any(left <= cx <= right and bottom <= cy <= top for left, bottom, right, top in boxes):
-            count += 1
-    return count
+            over.append(ch)
+    return "".join(over)
+
+
+def _layer_is_the_content(over_image: str) -> bool:
+    """Whether the text a page's layer draws ON its dominant image is the
+    page's content (`MAX_OVERLAID_SCAN_CHARS`): long enough to be more than a
+    label, and holding a digit, which a watermark does not (#317)."""
+    return len(over_image) >= MAX_OVERLAID_SCAN_CHARS and any(ch.isdigit() for ch in over_image)
 
 
 def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = False, layer_tables: bool = False
                ) -> tuple[list[str], list[tuple[int, bytes, str]], list[tuple[int, bytes]]]:
     """Sync, CPU-bound: each page's text layer, the pages too thin to trust
     OR dominated by an image (`SCAN_IMAGE_AREA_FRACTION`) its OWN text
-    layer is not drawn on (`MAX_OVERLAID_SCAN_CHARS`), rendered to PNG for
+    layer does not cover with content (`_layer_is_the_content`), rendered to PNG for
     OCR with whatever text their layer had (for `pdf_text` to fold in if
     OCR missed it), and (`render_all`) the others rendered too, for a
     tables pass. With `layer_tables`, a text page whose layer lays out a
@@ -452,7 +460,7 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
                 if not thin:
                     boxes = _image_boxes(page)
                     if boxes and _image_area_fraction(page, boxes) >= SCAN_IMAGE_AREA_FRACTION:
-                        scan_like = _chars_over_images(textpage, boxes) < MAX_OVERLAID_SCAN_CHARS
+                        scan_like = not _layer_is_the_content(_text_over_images(textpage, boxes))
                 if not scan_like:
                     found = ""
                     if layer_tables:
@@ -483,11 +491,12 @@ def _merge_ocr_text(ocr_text: str, layer_text: str) -> str:
     number was then read a second time as if it were a value (#304). Checked
     line by line, not as one block, because a model that reads top to bottom
     puts the table it was asked for between the header and the footer, where
-    the layer has nothing. `_chars_over_images` keeps this safe: `layer_text`
-    only ever reaches here from a page whose own text sits OUTSIDE its
-    dominant image (a margin stamp), never from a background-image or
-    searchable-scan page kept on its text layer, so there is never a second,
-    possibly misread reading of the same digit to fold in."""
+    the layer has nothing. `_layer_is_the_content` keeps this safe:
+    `layer_text` only ever reaches here from a page whose own text sits
+    OUTSIDE its dominant image (a margin stamp) or lies on it without a digit
+    (a watermark), never from a background-image or searchable-scan page
+    kept on its text layer, so there is never a second, possibly misread
+    reading of an image's value to fold in."""
     if not layer_text:
         return ocr_text
     if not ocr_text:

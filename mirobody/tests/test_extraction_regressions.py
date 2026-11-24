@@ -567,3 +567,19 @@ def test_the_extraction_asks_for_each_rows_heading():
     item = prompt.RESPONSE_SCHEMA_EXTRACT_INDICATORS["properties"]["indicators"]["items"]
     assert "panel" in item["properties"] and "panel" in item["required"]
     assert '"panel": "心电图"' in prompt.get_extract_indicators_prompt("en")
+
+
+def test_a_screen_names_its_chart_by_the_selected_tab_and_stores_no_goal():
+    """#301: a smart-scale screen's tab bar came out of OCR as `体重 | 脂肪 |
+    肌肉`, the fat and muscle charts were filed as body weight, and the app's
+    goal and starting weights were stored as readings. The OCR marks the
+    selected tab, and both extraction prompts (the upload's and `mirobody
+    parse`'s) name a chart after it and leave a goal or a start out."""
+    from mirobody.collect.files.services.prompts import file_indicator_extract as prompt
+    from mirobody.documents.ocr import OCR_PROMPT
+    from mirobody.engine.parse import _EXTRACT_PROMPT
+
+    assert "[selected]" in OCR_PROMPT
+    for text in (prompt.get_extract_indicators_prompt("en"), _EXTRACT_PROMPT):
+        assert "[selected]" in text and "page title" in text
+        assert "目标体重" in text and "初始体重" in text
