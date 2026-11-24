@@ -64,6 +64,19 @@
 
 ### Fixed
 
+- **A scan under a watermark text layer is read by OCR** (#317). A PDF
+  page dominated by an image stays on its text layer when at least 20 of
+  that layer's characters sit on the image (#310): a born-digital report on
+  a letterhead background, or a scan already made searchable. A watermark
+  laid over a scan as text (`CONFIDENTIAL PATIENT RECORD DO NOT DISTRIBUTE
+  OUTSIDE THIS CLINIC`) also clears 20 characters, so the page kept only the
+  watermark and the lab table in the image was lost with no warning. The
+  text on the image must now also hold a digit, as a report's values and a
+  searchable lab scan's layer do; otherwise the page goes to OCR, and the
+  watermark is folded back in only where OCR did not read it. To check: the
+  watermark page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR,
+  and the letterhead and searchable-scan pages there still are not.
+
 - **A file that leaves no reading says so, and a vision model that does not
   read images is named on the upload** (#338). With a local vision model that
   answered a report photo "The image shows a sheet of paper with some printed

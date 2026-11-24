@@ -62,9 +62,12 @@ OCR despite a text layer long enough to otherwise look usable, and that
 header or footer text is folded back in only if the vision model did not
 already read it off the rendered page. A letterhead or watermark image
 behind a born-digital report's real text, or a scan a prior OCR pass
-already made searchable, draws its own text ON the image instead, so it
-stays on that exact text layer rather than paying for a model call that
-could misread a digit the layer already has right. A photo is downscaled
+already made searchable, draws its own text ON the image instead, and that
+text prints values, so it stays on that exact text layer rather than paying
+for a model call that could misread a digit the layer already has right.
+Text on the image with no digit in it is a watermark laid over a scan
+(`CONFIDENTIAL PATIENT RECORD …`), not the page's content, and the page
+goes to OCR (#317). A photo is downscaled
 and OCR'd; a spreadsheet or Word file never reaches a model at all. A
 text-layer page also carries its tables as HTML, laid out from where
 the layer's characters sit (`extract._layer_tables`), so the table rules read
