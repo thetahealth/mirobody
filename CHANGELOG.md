@@ -64,6 +64,18 @@
 
 ### Fixed
 
+- **The published resolver score is the one the benchmark prints.** The
+  three READMEs, `docs/standardization.md` and its Chinese edition,
+  `docs/testing.md` and the `standardize-health-data` skill said 347/347,
+  while `test_engine_coverage.py` printed 356/356 after #301, 423/423 by
+  1.6.2 and 501/501 after this release's resolver fixes (vitamin D, Lp(a),
+  urine dipstick, FVC and others) added their cases: every case added moved
+  the real number and no page followed. All seven now say 501, and a new
+  test, `test_the_published_score_is_the_case_count`, fails when a page and
+  the case count disagree, so a case added without its pages turns the
+  build red. How to tell: `pytest mirobody/tests/test_engine_coverage.py -s`
+  prints `501/501`, the figure in the README.
+
 - **A scan under a watermark text layer is read by OCR** (#317). A PDF
   page dominated by an image stays on its text layer when at least 20 of
   that layer's characters sit on the image (#310): a born-digital report on
