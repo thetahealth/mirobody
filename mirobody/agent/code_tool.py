@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import re
 from dataclasses import asdict
 
 from langchain.tools import ToolRuntime
@@ -25,7 +26,7 @@ from langchain_core.messages import ToolMessage
 from langchain_core.tools import BaseTool, tool
 from deepagents.backends.protocol import ExecuteResponse
 
-from mirobody.kernel import tools
+from mirobody.kernel import query, tools
 from . import js_sandbox
 from .models.messages import user_turn_start
 from .python_sandbox import LocalPythonSandbox, ping
@@ -35,10 +36,14 @@ logger = logging.getLogger(__name__)
 TOOL_NAME = "code_exec"
 
 COMPUTATION_NOTE = (
-    "The original rows from this call are already available as data in the code tool. "
-    "Use data directly; do not redefine it or copy the numbers. "
-    "Earlier lookups are available in results as full original envelopes."
+    "code_exec already has the original rows, named as this table names them: data is this turn's latest "
+    "readings, joined by its earlier lookups with the same tool and view (a catalogue is never data); "
+    "results holds every lookup. Use them directly; do not redefine data or copy the numbers."
 )
+
+#: A value that is a number and nothing else: `5.48`, `-1`, `120`. `<0.5`,
+#: `1+` and `阴性` stay text.
+_NUMBER = re.compile(r"[+-]?\d+(?:\.\d+)?")
 
 
 @functools.cache
@@ -98,9 +103,66 @@ def _no_source(exc: NoSource) -> tuple[str, dict]:
                              "error_kind": "no_source"}
 
 
+def _as_shown(rows: list) -> list:
+    """`rows` as the table showed them (`_render._readings_table`): a measured
+    row's `indicator` is its shown name (`query.shown_names`), its label where
+    it has one, with LOINC's long name kept as `long_name` when the two
+    differ, and a `value` that is a number is one. The table showed
+    高密度脂蛋白胆固醇 and the row said `Cholesterol in HDL [Moles/volume] in
+    Serum or Plasma`, so a filter on the name the model read matched nothing
+    (#340). A row with neither a label nor a numeric string is passed as is."""
+    measured = [r for r in rows if isinstance(r, dict) and r.get("provenance") != tools.PROVENANCE_REPORTED]
+    names = query.shown_names(measured)
+    shown = []
+    for row in rows:
+        if not isinstance(row, dict):
+            shown.append(row)
+            continue
+        out = row
+        if row.get("label") and row.get("provenance") != tools.PROVENANCE_REPORTED:
+            name = query.shown_name(row, names)
+            if name and name != row.get("indicator"):
+                out = {**out, "indicator": name, "long_name": row.get("indicator")}
+        value = row.get("value")
+        if isinstance(value, str) and _NUMBER.fullmatch(value.strip()):
+            number = float(value)
+            out = {**out, "value": int(number) if number.is_integer() and "." not in value else number}
+        shown.append(out)
+    return shown
+
+
+def _is_listing(result: dict) -> bool:
+    """A catalogue: which series exist, not their readings (`Meta.catalog_total`)."""
+    return bool((result.get("meta") or {}).get("catalog_total"))
+
+
+def _data(results: list[dict]) -> list:
+    """`data`: the latest lookup that holds readings, joined by every earlier
+    one in this turn from the same tool and view, one row per rid. A
+    catalogue listed after the readings became `data`, and so did a narrower
+    keyword lookup run beside them, and the model computed on either as if it
+    held the readings (#340). A catalogue is `data` only when nothing else is."""
+    readings = [r for r in results if not _is_listing(r) and r["data"]] or results[-1:]
+    last = readings[-1]
+    view = (last.get("meta") or {}).get("view")
+    rows, seen = [], set()
+    for result in readings:
+        if result["tool"] != last["tool"] or (result.get("meta") or {}).get("view") != view:
+            continue
+        for row in result["data"]:
+            rid = row.get("rid") if isinstance(row, dict) else None
+            if rid:
+                if rid in seen:
+                    continue
+                seen.add(rid)
+            rows.append(row)
+    return rows
+
+
 def _inputs(runtime: ToolRuntime) -> tuple[list[dict], dict]:
     results = source_results(runtime.state.get("messages", []))
-    return results, {"data": results[-1]["data"], "results": results}
+    shown = [{**r, "data": _as_shown(list(r["data"] or []))} for r in results]
+    return results, {"data": _data(shown), "results": shown}
 
 
 def _answer(result: ExecuteResponse, results: list[dict], *, language: str, seconds: int,
@@ -131,16 +193,20 @@ async def python_code(code: str, runtime: ToolRuntime, timeout_s: int = 15) -> t
     """Compute in local Python on original results from record tools.
 
     Query first, then provide only Python code; do not copy a table or its
-    numbers. data contains the original rows of the most recent record tool
-    result, with numeric types, all columns and citation rids preserved.
-    results contains all successful envelopes from this turn, including data,
-    meta, tool and tool_call_id; use results to combine earlier lookups. This works for
+    numbers. data contains the rows of the most recent lookup that returned
+    readings, joined by earlier lookups in this turn with the same tool and
+    view, one row per rid; a catalogue listing is never data. Each row's
+    indicator is the name the table showed (LOINC's long name, where it
+    differs, is long_name), value is a number when the reading is one, and
+    every column and citation rid is kept. results contains all successful
+    envelopes from this turn, rows named the same way, with meta, tool and
+    tool_call_id; use results to combine other lookups. This works for
     health indicators, medications, genetics and pharmacogenomics alike.
     Inspect results[i]['meta']['truncated'] before interpreting a total or
     mean as complete. Preserve the source rows' rids with computed numbers.
     Use print(...) to return results. The Python standard library is
     available; execution has no network, host files or application credentials.
-    Inside Python, /workspace/data.json is the original JSON object with data
+    Inside Python, /workspace/data.json is the same JSON object, with data
     and results; you may load that file instead of using the injected variables.
     For example: values = [float(row['value']) for row in data]; print(sum(values) / len(values)).
     """
@@ -177,10 +243,14 @@ async def javascript_code(code: str, runtime: ToolRuntime, timeout_s: int = 15) 
     """Compute in JavaScript on original results from record tools.
 
     Query first, then provide only JavaScript code; do not copy a table or its
-    numbers. data contains the original rows of the most recent record tool
-    result, with numeric types, all columns and citation rids preserved.
-    results contains all successful envelopes from this turn, including data,
-    meta, tool and tool_call_id; use results to combine earlier lookups. This works for
+    numbers. data contains the rows of the most recent lookup that returned
+    readings, joined by earlier lookups in this turn with the same tool and
+    view, one row per rid; a catalogue listing is never data. Each row's
+    indicator is the name the table showed (LOINC's long name, where it
+    differs, is long_name), value is a number when the reading is one, and
+    every column and citation rid is kept. results contains all successful
+    envelopes from this turn, rows named the same way, with meta, tool and
+    tool_call_id; use results to combine other lookups. This works for
     health indicators, medications, genetics and pharmacogenomics alike.
     Inspect results[i].meta.truncated before interpreting a total or
     mean as complete. Preserve the source rows' rids with computed numbers.
