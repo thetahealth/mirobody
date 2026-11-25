@@ -1405,7 +1405,7 @@ def test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too()
     neighbour, on an acylcarnitine or newborn-screening panel beside `C16`/
     `C18`) and must keep resolving on their own. Unlike `Rh`/`定量`/`定性`,
     which carry no code of their own, `C14` going into
-    `resolver_overrides.tsv` as `!unresolved` would abstain those panels to
+    `resolver_overrides.tsv` as `!category` would abstain those panels to
     guard one bracket shape, 幽门螺杆菌(C14)测定. That pair, and its C13 and
     尿素呼气试验 siblings, still abstain without a block: the bracket
     resolves to the carnitine analyte, a different one than either stem, so
@@ -1428,7 +1428,7 @@ def test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too()
         assert not r.resolved, f"{term!r} must abstain"
         assert r.method == "refused"
         # The two-analyte-mismatch path names both codes in its reason; a
-        # `!unresolved` block refusal (see `血型(Rh)测定` above) does not.
+        # `!category` block refusal (see `血型(Rh)测定` above) does not.
         assert stem_code in r.rejected_reason and "two analytes" in r.rejected_reason, (
             f"{term!r} refused for the wrong reason: {r.rejected_reason!r}"
         )
@@ -1878,7 +1878,7 @@ def test_a_blocked_category_word_stays_blocked_inside_a_longer_name(resolver):
     it derives then looked the category word up as an ordinary index key:
     `Stool OB` answered a budgerigar-droppings IgE, `电解质计数` an
     electrolytes panel and `流感 FLU` an influenza assay."""
-    blocked = [term for _, term, target in _override_rows() if target == "!unresolved"]
+    blocked = [term for _, term, target in _override_rows() if target.startswith("!")]
     assert blocked
     leaks = [
         name
@@ -1917,9 +1917,12 @@ def test_every_override_row_does_its_job(resolver):
         earlier, earlier_target = first.setdefault(index_fold(term), (number, target))
         if earlier_target != target:
             problems.append(f"line {number}: {term!r} repeats line {earlier} with another target")
-        elif target == "!unresolved":
-            if resolver.resolve(term).method != "refused":
+        elif target.startswith("!"):
+            found = resolver.resolve(term)
+            if found.method != "refused":
                 problems.append(f"line {number}: {term!r} does not refuse")
+            elif f"!{found.reason_kind}" != target:
+                problems.append(f"line {number}: {term!r} refuses as {found.reason_kind!r}, not {target!r}")
         elif not resolver.resolve(target).loinc:
             problems.append(f"line {number}: target {target!r} resolves to nothing")
         elif not resolver.resolve(term).loinc:

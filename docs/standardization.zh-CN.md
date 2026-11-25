@@ -71,7 +71,7 @@ NFKC、统一大小写、拉丁词之间留一个空格、汉字旁不留空格�
 
 解析器内部（`engine/resolver.py`）：
 
-- **类别名称拒绝编码。** 在 `resolver_overrides.tsv` 里目标是 `!unresolved` 的词（`血脂`、`lipid panel`）直接拒绝；所有表面变体都要检查，`lipid_panel` 绕不过去。
+- **有意不答的词拒绝编码，并说明原因。** `resolver_overrides.tsv` 里目标以 `!` 开头的词直接拒绝，目标就是拒绝的 `reason_kind`：`!category`（`血脂`、`lipid panel`）、`!condition`（`发烧`）、`!ambiguous`（没有尿检标题的 `KET`）、`!uncoded`（`BMR`）。所有表面变体都要检查，`lipid_panel` 绕不过去。
 - **候选键，越具体越先试。** 先查别名表，再查索引：`resolver_overrides.tsv`、
   `aliases_src/zh_curated.tsv` 和 `zh.tsv` 是「这个词就是这个概念」的明确陈述，
   而索引命中只是所有表面字符串相同的 LOINC 行。然后试表面变体（全角、各种横线、
@@ -140,10 +140,13 @@ NFKC、统一大小写、拉丁词之间留一个空格、汉字旁不留空格�
 }
 ```
 
-没有编码的读数会写明原因：有编码被放弃时写在 `rejectedReason`，否则写在 `reason`。
+没有编码的读数会写明原因。`reasonKind` 是给程序判断用的词：`category`（请改问单项检查）、
+`condition`（症状或诊断，用 ICPC-3 编码）、`ambiguous`（由单位或报告分区决定）、
+`uncoded`（LOINC 没有对应编码）、`timing`（该时点没有编码）、`unit_conflict`、
+`unknown`（应上报的写法）。原因的句子在有编码被放弃时写在 `rejectedReason`，否则写在 `reason`：
 `血脂` 是「a category or several tests in one name」（一个类别或一个名称里有几项检查），
 查不到的写法是「not in the lexical index」（词表里没有）。`resolve_indicator`
-对每个未解析的名称也在 `reason` 里给出同一句话。
+对每个未解析的名称也给出这两项，字段名是 `reason_kind` 和 `reason`。
 
 ### 6. 归入序列（`standardize/series.py`，`units.canonicalize`）
 

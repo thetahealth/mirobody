@@ -93,9 +93,12 @@ a measurement goes to `code()`, which asks in this order of authority:
 
 Inside the resolver (`engine/resolver.py`):
 
-- **Categories refuse.** A term whose target is `!unresolved` in
-  `resolver_overrides.tsv` (`血脂`, `lipid panel`) is refused, and every
-  surface variant is checked, so `lipid_panel` cannot walk around the block.
+- **Deliberate non-answers refuse, and say why.** A term whose target in
+  `resolver_overrides.tsv` starts with `!` is refused, and the target is the
+  refusal's `reason_kind`: `!category` (`血脂`, `lipid panel`), `!condition`
+  (`发烧`), `!ambiguous` (`KET` with no urine heading), `!uncoded` (`BMR`).
+  Every surface variant is checked, so `lipid_panel` cannot walk around the
+  block.
 - **Candidate keys, most specific first.** The alias-table hop comes before
   the index: `resolver_overrides.tsv` and `aliases_src/zh_curated.tsv` and
   `zh.tsv` are statements that one term means one concept, while an index hit
@@ -184,10 +187,15 @@ when the resolver answered, and an extension records how
 }
 ```
 
-A reading with no coding says why, in `rejectedReason` when a code was set
-aside, otherwise in `reason`: `血脂` is "a category or several tests in one
-name", an unknown spelling "not in the lexical index". `resolve_indicator`
-returns the same sentence as `reason` on each unresolved name.
+A reading with no coding says why. `reasonKind` is the word a program
+branches on: `category` (ask for one test), `condition` (a symptom or a
+diagnosis, coded in ICPC-3), `ambiguous` (a unit or the report's section
+decides), `uncoded` (LOINC has no code for it), `timing` (no code for that
+draw), `unit_conflict` or `unknown` (a spelling to report). The sentence is in
+`rejectedReason` when a code was set aside, otherwise in `reason`: `血脂` is "a
+category or several tests in one name", an unknown spelling "not in the
+lexical index". `resolve_indicator` returns both, as `reason_kind` and
+`reason`, on each unresolved name.
 
 ### 6. File it into a series (`standardize/series.py`, `units.canonicalize`)
 

@@ -78,14 +78,21 @@
   prints `561/561`, the figure in the README.
 
 - **`resolve_indicator` and `standardize_reading` say why a name has no
-  code.** `mirobody resolve 血脂` printed "a category or several tests in
-  one name", but over MCP `resolve_indicator` answered only `resolved:
-  false` and `standardize_reading` only `method: refused`, so a client could
-  not tell a panel name (ask for one test) from a missing spelling (report
-  it). Each unresolved name now carries `reason`, the sentence the CLI
-  prints, from one function (`engine.resolver.unresolved_reason`); a tie
-  (`TLC`) gives its own reason, and a complaint keeps `rejectedReason`. To
-  check: `resolve_indicator(["血脂", "XYZ指数"])` gives each a `reason`.
+  code, as a word and as a sentence.** `mirobody resolve 血脂` printed "a
+  category or several tests in one name", but over MCP `resolve_indicator`
+  answered only `resolved: false` and `standardize_reading` only `method:
+  refused`, so a client could not tell a panel name (ask for one test) from a
+  missing spelling (report it). The sentence was also wrong for most
+  refusals: every deliberate non-answer in `resolver_overrides.tsv` was one
+  `!unresolved`, so `KET` (one urine test), `发烧` (a symptom) and `BMR` (a
+  number LOINC has no code for) were each "a category". The 168 rows now say
+  which they are (`!category` 50, `!condition` 88, `!ambiguous` 9,
+  `!uncoded` 21). Each unresolved name carries `reason_kind` (`category`,
+  `condition`, `ambiguous`, `uncoded`, `timing`, `unit_conflict`, `unknown`)
+  and `reason`, the sentence the CLI prints; the FHIR coding-decision
+  extension carries `reasonKind`. A tie (`TLC`) and a complaint keep their own
+  sentence. To check: `resolve_indicator(["血脂", "KET", "发烧", "XYZ指数"])`
+  gives `category`, `ambiguous`, `condition` and `unknown`.
 
 - **Fasting insulin, a bare `Body fat` and `Waist` resolve.** A user's
   checkup report showed no spelling of fasting insulin coded (`空腹胰岛素`,

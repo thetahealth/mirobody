@@ -348,7 +348,7 @@ fix is here.
   13874-3 *Alkaline phosphatase.liver*, `胰腺` answers *Amylase.pancreatic*, and
   `肾脏` answers *Alkaline phosphatase.renal*. `胆囊` → *US Gallbladder* is the
   only right one. Narrative imaging findings are not lab observations; the
-  resolver should decline them (`!unresolved`) rather than reach for an enzyme
+  resolver should decline them (`!category`) rather than reach for an enzyme
   that merely shares the organ name.
 - **Findings are listed among lab analytes** (#235, symptom B). An Imaging or
   Pathological row is stored as `kind='finding'`, and every catalogue row

@@ -31,24 +31,24 @@
 # that resolves wrong or not at all, add one row here plus one case in
 # mirobody/tests/test_engine_coverage.py. Any language. That module checks
 # every row of this file: exactly two fields, no term repeated with another
-# target, a target that resolves, a term that then resolves, and an
-# `!unresolved` row that refuses. A typo'd target fails CI rather than
-# shipping.
+# target, a target that resolves, a term that then resolves, and a
+# deliberate non-answer that refuses with its kind. A typo'd target fails CI
+# rather than shipping.
 
 # ══ English ═══════════════════════════════════════════════════════════════
 # ── category-only terms ---------------------------------------------------
 # These names describe a family, specimen or treatment rather than one
 # observation. The lexical index can still find a narrow assay whose name
 # contains the word, but selecting it would invent the user's intended test.
-免疫	!unresolved
-stool	!unresolved
-重金属	!unresolved
-heavy metals	!unresolved
-激素	!unresolved
-enzymes	!unresolved
+免疫	!category
+stool	!category
+重金属	!category
+heavy metals	!category
+激素	!category
+enzymes	!category
 # `测定` is the assay word a report prints after a name (`尿酸(UA)测定`), never
 # a name: alone it answered 41960-6, the type of an HbA1c measurement device.
-测定	!unresolved
+测定	!category
 #
 # A bracket after a name is read as an abbreviation of the SAME analyte
 # (`尿酸(UA)测定` -> urate, `UA` resolves to urate on its own too) in
@@ -66,9 +66,9 @@ enzymes	!unresolved
 #     `乙肝表面抗原(定性)测定` was never wrong, but nothing ties that to the
 #     word -- some other analyte's default code being the quantitative one
 #     is the same bug the other way round.
-Rh	!unresolved
-定量	!unresolved
-定性	!unresolved
+Rh	!category
+定量	!category
+定性	!category
 #
 # `ABO`, `抗体`, `抗原` and `高危型` are NOT here: `血型(ABO)测定` already
 # refuses on its own ("two analytes in one name"), since `ABO` carries its
@@ -88,32 +88,32 @@ Rh	!unresolved
 # stem (17859-0 H. pylori IgG Ab, 29891-9 urea breath test), so
 # `OfflineResolver.resolve`'s own "two analytes in one name" check refuses
 # them -- the same path that already protects `血型(ABO)测定`, not a
-# `!unresolved` row. See `test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation`
+# `!category` row. See `test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation`
 # for the pinned proof that this is the path, not an accident of ranking.
 # A checkup's physical-exam rows are named by body site or department, with
 # a finding for a value (`胸廓 对称`). Each answered an unrelated assay:
 # 胸廓 a breast aspirate's microscopy, 口腔 a 1-hour glucose challenge.
-乳房	!unresolved
-胸廓	!unresolved
-腹部	!unresolved
-甲状腺	!unresolved
-心脏	!unresolved
-肺部	!unresolved
-双肺	!unresolved
-心肺	!unresolved
-肝脏	!unresolved
-脾脏	!unresolved
-肾脏	!unresolved
-胰腺	!unresolved
-膀胱	!unresolved
-前列腺	!unresolved
-卵巢	!unresolved
-淋巴结	!unresolved
-皮肤	!unresolved
-头颅	!unresolved
-四肢	!unresolved
-口腔	!unresolved
-外科	!unresolved
+乳房	!category
+胸廓	!category
+腹部	!category
+甲状腺	!category
+心脏	!category
+肺部	!category
+双肺	!category
+心肺	!category
+肝脏	!category
+脾脏	!category
+肾脏	!category
+胰腺	!category
+膀胱	!category
+前列腺	!category
+卵巢	!category
+淋巴结	!category
+皮肤	!category
+头颅	!category
+四肢	!category
+口腔	!category
+外科	!category
 
 # ── lipid panel ──────────────────────────────────────────────────────────
 total cholesterol	Cholesterol
@@ -434,17 +434,23 @@ Glukoz (açlık)	Fasting glucose [Mass/volume] in Serum or Plasma
 açlık kan şekeri	Fasting glucose [Mass/volume] in Serum or Plasma
 
 # ══ Deliberate non-answers ════════════════════════════════════════════════
-# Target `!unresolved` means: never answer this term. These name a category
-# with no panel code of its own, so any single code is a wrong answer: "血脂"
-# is four analytes and LOINC's lipid panels differ by which children they
-# include, so picking one is picking an assumption.
+# A target starting with `!` means: never answer this term, and says why, as
+# the `reason_kind` a caller reads (resolver.py, `_BLOCK_KINDS`):
+#   !category   a heading, a family of tests or a word from a name: ask for
+#               the test itself
+#   !condition  a symptom or a diagnosis: standardize_complaint codes it
+#   !ambiguous  more than one code fits and nothing printed with it says which
+#   !uncoded    a real measurement LOINC has no code for
+# These name a category with no panel code of its own, so any single code is
+# a wrong answer: "血脂" is four analytes and LOINC's lipid panels differ by
+# which children they include, so picking one is picking an assumption.
 #
 # A panel TERM that has a real panel CODE is NOT listed here — it is aliased to
 # that code in the "panel terms" section below. The two cases look alike and are
 # opposites: a panel code tells the caller "expect components", which is the
 # very thing we would be refusing in order to say.
-lipid panel	!unresolved
-血脂	!unresolved
+lipid panel	!category
+血脂	!category
 
 # Two more of the same kind: category headings whose wrong answers are
 # ORDINARY LAB CODES, so only an explicit refusal can catch them.
@@ -461,24 +467,24 @@ lipid panel	!unresolved
 #
 # The English and Japanese spellings (vitamins, tumor/tumour markers,
 # ビタミン, 腫瘍マーカー) already resolve to nothing and need no row.
-维生素	!unresolved
-維生素	!unresolved
+维生素	!category
+維生素	!category
 # The bare word answered 96450-2, a liver-cancer risk score, at full
 # confidence: it is a heading, not a test.
-Vitamin	!unresolved
-Vitamins	!unresolved
-肿瘤标志物	!unresolved
-腫瘤標誌物	!unresolved
+Vitamin	!category
+Vitamins	!category
+肿瘤标志物	!category
+腫瘤標誌物	!category
 # Two report SECTION headings. 尿常规 answered 19159-3 (a specimen collection
 # method) and 电解质 answered 19096-7 (a 24-hour urine narrative): the alias
 # index had nothing better than a code of the wrong kind. An axis rule that
 # rejected such candidates (PROPERTY Prid/Imp/Find, SCALE Nar/Doc) was
 # measured on 7,354 cases and cost several hundred correct answers for eight
 # saved, so the two headings are refused here, like 血脂 above.
-尿常规	!unresolved
-尿常規	!unresolved
-电解质	!unresolved
-電解質	!unresolved
+尿常规	!category
+尿常規	!category
+电解质	!category
+電解質	!category
 
 # ══ Complaints and diagnoses are not lab analytes ══════════════════════════
 # A complaint codes on the ICPC-3 complaint axis, so its LOINC match is a test
@@ -488,97 +494,97 @@ Vitamins	!unresolved
 # diuretic (41218-9 Xipamid), and 乳腺癌 a gene test (BRCA1 mutations). The
 # complaint axis answers these: `mirobody.standardize.resolve_symptom` /
 # `resolve_condition`, or `mirobody resolve --symptom` / `--condition`.
-aids	!unresolved
-allergy	!unresolved
-cancer	!unresolved
-covid-19	!unresolved
-diabetes	!unresolved
-hearing loss	!unresolved
-hep b	!unresolved
-hep c	!unresolved
-hiv	!unresolved
-ibd	!unresolved
-ibs	!unresolved
-light-headed	!unresolved
-mini-stroke	!unresolved
-tia	!unresolved
-whooping cough	!unresolved
-stroke	!unresolved
-ulcer	!unresolved
-ache	!unresolved
+aids	!condition
+allergy	!condition
+cancer	!condition
+covid-19	!condition
+diabetes	!condition
+hearing loss	!condition
+hep b	!condition
+hep c	!condition
+hiv	!condition
+ibd	!condition
+ibs	!condition
+light-headed	!condition
+mini-stroke	!condition
+tia	!condition
+whooping cough	!condition
+stroke	!condition
+ulcer	!condition
+ache	!condition
 # Russian.
-температура	!unresolved
-рак	!unresolved
-диабет	!unresolved
+температура	!condition
+рак	!condition
+диабет	!condition
 # Japanese.
-下痢	!unresolved
-不安	!unresolved
+下痢	!condition
+不安	!condition
 # Chinese and its Traditional spellings.
-乙肝	!unresolved
-乳糜泻	!unresolved
-乳腺癌	!unresolved
-传染性单核细胞增多症	!unresolved
-便血	!unresolved
-克罗恩病	!unresolved
-冠心病	!unresolved
-前列腺癌	!unresolved
-发烧	!unresolved
-口疮	!unresolved
-口腔溃疡	!unresolved
-呕吐	!unresolved
-嘔吐	!unresolved
-多毛	!unresolved
-大肠癌	!unresolved
-帕金森病	!unresolved
-带状疱疹	!unresolved
-心力衰竭	!unresolved
-心房颤动	!unresolved
-恶性肿瘤	!unresolved
-房颤	!unresolved
-梅毒	!unresolved
-氣喘	!unresolved
-水痘	!unresolved
-流感	!unresolved
-淋病	!unresolved
-炎症性肠病	!unresolved
-烧伤	!unresolved
-焦虑症	!unresolved
-甲减	!unresolved
-甲状腺功能减退	!unresolved
-甲状腺癌	!unresolved
-疟疾	!unresolved
-疥疮	!unresolved
-癌症	!unresolved
-癫痫	!unresolved
-白血病	!unresolved
-百日咳	!unresolved
-破伤风	!unresolved
-类风湿关节炎	!unresolved
-糖尿病	!unresolved
-結核	!unresolved
-结核病	!unresolved
-肠易激综合征	!unresolved
-肺结核	!unresolved
-胃癌	!unresolved
-脑膜炎	!unresolved
-腮腺炎	!unresolved
-膀胱癌	!unresolved
-艾滋病	!unresolved
-血友病	!unresolved
-过敏性鼻炎	!unresolved
-阳痿	!unresolved
-阿尔茨海默病	!unresolved
-风疹	!unresolved
-高血压	!unresolved
-高血压病	!unresolved
-麻疹	!unresolved
-发热	!unresolved
-疲倦	!unresolved
-疲乏	!unresolved
-血糖高	!unresolved
-淋巴结肿大	!unresolved
-腹水	!unresolved
-老年痴呆	!unresolved
+乙肝	!condition
+乳糜泻	!condition
+乳腺癌	!condition
+传染性单核细胞增多症	!condition
+便血	!condition
+克罗恩病	!condition
+冠心病	!condition
+前列腺癌	!condition
+发烧	!condition
+口疮	!condition
+口腔溃疡	!condition
+呕吐	!condition
+嘔吐	!condition
+多毛	!condition
+大肠癌	!condition
+帕金森病	!condition
+带状疱疹	!condition
+心力衰竭	!condition
+心房颤动	!condition
+恶性肿瘤	!condition
+房颤	!condition
+梅毒	!condition
+氣喘	!condition
+水痘	!condition
+流感	!condition
+淋病	!condition
+炎症性肠病	!condition
+烧伤	!condition
+焦虑症	!condition
+甲减	!condition
+甲状腺功能减退	!condition
+甲状腺癌	!condition
+疟疾	!condition
+疥疮	!condition
+癌症	!condition
+癫痫	!condition
+白血病	!condition
+百日咳	!condition
+破伤风	!condition
+类风湿关节炎	!condition
+糖尿病	!condition
+結核	!condition
+结核病	!condition
+肠易激综合征	!condition
+肺结核	!condition
+胃癌	!condition
+脑膜炎	!condition
+腮腺炎	!condition
+膀胱癌	!condition
+艾滋病	!condition
+血友病	!condition
+过敏性鼻炎	!condition
+阳痿	!condition
+阿尔茨海默病	!condition
+风疹	!condition
+高血压	!condition
+高血压病	!condition
+麻疹	!condition
+发热	!condition
+疲倦	!condition
+疲乏	!condition
+血糖高	!condition
+淋巴结肿大	!condition
+腹水	!condition
+老年痴呆	!condition
 
 # Specimen-prefixed Chinese, which is how a real report prints them. The index
 # carries the bare noun (肌酐, 尿酸, 总胆固醇) because that is the alias shape
@@ -711,22 +717,22 @@ Muscle Mass	Body muscle mass Calculated
 # The catalogue's own `bodySkeletalMuscleMass` carries no LOINC (metrics.tsv),
 # so there is no correct code to redirect to; these abstain rather than
 # answer an antibody test for a weight.
-骨骼肌	!unresolved
-骨骼肌量	!unresolved
-Skeletal Muscle Mass	!unresolved
+骨骼肌	!uncoded
+骨骼肌量	!uncoded
+Skeletal Muscle Mass	!uncoded
 # `基础代谢` named 24321-2 `Basic metabolic 2000 panel`; `基础代谢率`/BMR named
 # 82259-3 `Metabolic equivalent of task and Resting metabolic rate panel` —
 # both PANEL codes, not a number a device prints. The catalogue's own
 # `basalMetabolicRate` (metrics.tsv, member BMR) carries no LOINC either, so
 # these abstain.
-基础代谢	!unresolved
-基础代谢率	!unresolved
-BMR	!unresolved
+基础代谢	!uncoded
+基础代谢率	!uncoded
+BMR	!uncoded
 # A watch's 0-100 stress score named 61011-3 `Umbilical vein blood pressure`
 # — a specimen (umbilical vein) nothing about a stress reading states, and
 # an unrelated PROPERTY (pressure, not a score). No LOINC concept is a
 # consumer stress index; abstain.
-压力	!unresolved
+压力	!uncoded
 # #301 proposed redirecting bare `内脏脂肪` to abstain, reasoning that a
 # scale prints it as a dimensionless 1-30 LEVEL (catalogue `bodyVisFatLevel`,
 # no LOINC) rather than the Area 73707-2 already answers. Left unchanged: a
@@ -749,8 +755,8 @@ Visceral Fat Area	Visceral fat [Area] Measured
 # file; blocking turns a confidently WRONG immersion-method answer into an
 # honest miss, which this project's own standard (see this file's header)
 # ranks above it.
-去脂体重	!unresolved
-瘦体重	!unresolved
+去脂体重	!ambiguous
+瘦体重	!ambiguous
 当前体重	Body weight
 体水分	Body water mass
 总体水	Body water mass
@@ -1011,7 +1017,7 @@ BP	Blood pressure panel with all children optional
 # 血脂肪 is the Taiwan wording for the lipid panel — same category term, same
 # reason it cannot have one code. Listed here rather than in the block section
 # above because it is the 台灣 spelling of an entry that already exists there.
-血脂肪	!unresolved
+血脂肪	!category
 
 # ══ qualitative indicators ═════════════════════════════════════════════════
 # Half of what a report prints is not a number, and half the shipped corpus is
@@ -1342,10 +1348,10 @@ Red Blood Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
 # Answering the generic 30385-9 would put a volume in fL on the same line as a
 # CV percentage, so these abstain. With a unit the engine already refuses and
 # says why ("no code for this analyte carries EntVol").
-RDW-SD	!unresolved
-RDW-SD%	!unresolved
-Red Cell Distribution Width-SD	!unresolved
-Red Blood Cell Distribution Width-SD	!unresolved
+RDW-SD	!uncoded
+RDW-SD%	!uncoded
+Red Cell Distribution Width-SD	!uncoded
+Red Blood Cell Distribution Width-SD	!uncoded
 Mean Platelet Volume	Platelet [Entitic mean volume] in Blood
 Platelets	Platelets [#/volume] in Blood
 Erythrocyte Sedimentation Rate	Erythrocyte [Sedimentation Rate] in Blood
@@ -1354,8 +1360,8 @@ Sed Rate	Erythrocyte [Sedimentation Rate] in Blood
 红细胞分布宽度	Erythrocyte [DistWidth] in Blood
 红细胞分布宽度CV	Erythrocyte [DistWidth] in Blood
 红细胞分布宽度-变异系数	Erythrocyte [DistWidth] in Blood
-红细胞分布宽度SD	!unresolved
-红细胞分布宽度-标准差	!unresolved
+红细胞分布宽度SD	!uncoded
+红细胞分布宽度-标准差	!uncoded
 
 # ── CK-MB: stripping the trailing token changed the measurement ─────────────
 #
@@ -1444,13 +1450,13 @@ osmolality	Osmolality of Serum or Plasma
 bone percentage	Body bone percentage
 骨量率	Body bone percentage
 骨骼百分比	Body bone percentage
-HRV RMSSD	!unresolved
-HRV (RMSSD)	!unresolved
-HRV-RMSSD	!unresolved
-心率变异性(RMSSD)	!unresolved
-心率变异性 RMSSD	!unresolved
-heart rate variability RMSSD	!unresolved
-heart rate variability (RMSSD)	!unresolved
+HRV RMSSD	!uncoded
+HRV (RMSSD)	!uncoded
+HRV-RMSSD	!uncoded
+心率变异性(RMSSD)	!uncoded
+心率变异性 RMSSD	!uncoded
+heart rate variability RMSSD	!uncoded
+heart rate variability (RMSSD)	!uncoded
 
 # Russian (ru) — terms as printed on real Russian lab reports (МЕДСИ,
 # INVITRO, Moscow state clinics; collected from a personal record archive,
@@ -1567,11 +1573,11 @@ HLA-B*5801	HLA-B*58:01
 
 # These labels omit the measured variant or confuse a result with an order.
 # A wrong code would silently merge distinct genetic observations.
-CYP2C19 基因检测	!unresolved
-MTHFR 基因型	!unresolved
-APOE 基因检测	!unresolved
-HLA-B 基因型	!unresolved
-HLA-B*5801 基因型	!unresolved
+CYP2C19 基因检测	!category
+MTHFR 基因型	!category
+APOE 基因检测	!category
+HLA-B 基因型	!category
+HLA-B*5801 基因型	!category
 
 # --- catalogue self-consistency bridge (2026-10-26) ---
 # The product catalogue lists a LOINC per indicator; these rows make each
@@ -1784,7 +1790,7 @@ Vitamin D (25-OH)	Calcidiol
 # `脂蛋白（a）/总脂蛋白`); zh.tsv sent it to Lp(a). `脂蛋白类` is the class,
 # not a test.
 总脂蛋白	lipoprotein
-脂蛋白类	!unresolved
+脂蛋白类	!category
 
 # ── Printed names coded as another analyte (#343) ─────────────────────────
 # From a synthetic-corpus check that compares each name's answer with the
@@ -1829,10 +1835,10 @@ LIP	lipase
 部分凝血活酶时间	aPTT
 # `酸碱度` answered ionized calcium adjusted to pH 7.4 (19072-8). The bare
 # word names no specimen; urine prints 尿酸碱度, which already answers 2756-5.
-酸碱度	!unresolved
+酸碱度	!ambiguous
 # The English name of 基础代谢率, which abstains for the reason given in
 # test_engine_coverage_devices.py; it answered the MET-and-RMR panel.
-Basal metabolic rate	!unresolved
+Basal metabolic rate	!uncoded
 # Spirometry. `FVC` and `用力肺活量` answered 19869-7, the PREDICTED volume
 # a report prints beside the measured one, so a person's measured FVC joined
 # the reference values' series; the `% predicted` names answered nothing.
@@ -2122,12 +2128,12 @@ U-ALB/CREA	Albumin/Creatinine [Mass Ratio] in Urine
 # nitrogen, `URO` free PSA, `BIL` kidney weight. Under a urine heading they
 # are coded by res/loinc/panel_terms.tsv, which is consulted before the
 # resolver; alone they now ask. `UBG` and `GLU` mean one thing and stay.
-PRO	!unresolved
-LEU	!unresolved
-KET	!unresolved
-NIT	!unresolved
-URO	!unresolved
-BIL	!unresolved
+PRO	!ambiguous
+LEU	!ambiguous
+KET	!ambiguous
+NIT	!ambiguous
+URO	!ambiguous
+BIL	!ambiguous
 # A user's checkup report (2026-11-11) printed fasting insulin, and
 # no spelling of it resolved: bare `胰岛素` answers 20448-7, and the fasting
 # code is a TIME-of-challenge sibling (`insulin^post CFst`) the name never

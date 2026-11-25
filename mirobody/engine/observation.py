@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from mirobody.engine.resolver import Resolution, resolve_reading, unresolved_reason
+from mirobody.engine.resolver import Resolution, resolve_reading, unresolved_kind, unresolved_reason
 
 LOINC_SYSTEM = "http://loinc.org"
 UCUM_SYSTEM = "http://unitsofmeasure.org"
@@ -58,6 +58,7 @@ def _complaint(name: str, value: str) -> dict[str, Any] | None:
         if coding is not None and coding.outcome == "coded" and coding.code:
             return {
                 "method": "refused",
+                "reason_kind": "condition",
                 "rejected_reason": f"{name!r} is a {kind}, not a reading: use standardize_complaint (ICPC-3 {coding.code})",
             }
     return None
@@ -114,6 +115,7 @@ def observation(name: str, value: str, unit: str, resolution: Resolution) -> dic
         "rejectedReason": resolution.rejected_reason,
         # Only when nothing above already says why there is no code.
         "reason": "" if resolution.rejected_reason else unresolved_reason(resolution),
+        "reasonKind": unresolved_kind(resolution),
     })]
     return out
 

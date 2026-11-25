@@ -53,8 +53,16 @@ _RUNTIME_MEMBERS = (
     "loinc_rank_bonus.npy",
 )
 
-# Sentinel target in resolver_overrides.tsv meaning "deliberately unresolved".
-_BLOCK_SENTINEL = "!unresolved"
+# Sentinel targets in resolver_overrides.tsv: a deliberate non-answer, and
+# its `reason_kind`. One `!unresolved` used to cover all four, so `KET` (one
+# test whose abbreviation names three) and `发烧` (a symptom) were both told
+# they were "a category or several tests in one name".
+_BLOCK_KINDS = {
+    "!category": "category",
+    "!condition": "condition",
+    "!ambiguous": "ambiguous",
+    "!uncoded": "uncoded",
+}
 
 # A printed name that asks for the predicted (reference) value itself, which
 # `_switch_from_predicted` then leaves alone. `推算` is LOINC's Chinese for it.
@@ -281,6 +289,14 @@ class Resolution:
     #: reason; `rejected_reason` already says so in prose, this is the same
     #: fact in a field a caller can act on without parsing text.
     ambiguous: tuple[str, str] = ()
+    #: Why there is no code, as a word a caller can branch on: ``category``
+    #: (ask for one test), ``condition`` (a symptom or diagnosis: code it with
+    #: `standardize_complaint`), ``ambiguous`` (a unit or the report's section
+    #: decides), ``uncoded`` (a real measurement LOINC has no code for),
+    #: ``timing`` (the name says when it was drawn and no code carries that),
+    #: ``unit_conflict``. Empty on an answer and on a plain miss;
+    #: `unresolved_kind` names the miss ``unknown``.
+    reason_kind: str = ""
 
     @property
     def code(self) -> str:
@@ -566,9 +582,11 @@ class OfflineResolver:
                 return True
         return False
 
-    def _is_blocked(self, term: str) -> bool:
-        """True when ANY surface variant of the term is a deliberate
-        non-answer (target ``!unresolved`` in resolver_overrides.tsv).
+    def _block_kind(self, term: str) -> str:
+        """The `reason_kind` of a deliberate non-answer (a ``!category``,
+        ``!condition``, ``!ambiguous`` or ``!uncoded`` target in
+        resolver_overrides.tsv) when ANY surface variant of the term is one;
+        ``""`` when none is.
 
         Every variant, not only the term as written: variant lookup is a new
         route into the index, so a block that knew one spelling would simply be
@@ -581,10 +599,11 @@ class OfflineResolver:
         183 index rows and came back 8462-4, the DIASTOLIC code. Same back door,
         and the terms still on the block list use the same spellings.
         """
-        return any(
-            self._src.get(self._normalize(surface)) == _BLOCK_SENTINEL
-            for surface in surface_variants(term)
-        )
+        for surface in surface_variants(term):
+            kind = _BLOCK_KINDS.get(self._src.get(self._normalize(surface)) or "")
+            if kind:
+                return kind
+        return ""
 
     def _keys_for(self, norm: str) -> list[str]:
         """Alias-table hop then the raw key, for one already-normalized term.
@@ -597,7 +616,7 @@ class OfflineResolver:
         """
         keys: list[str] = []
         eng = self._src.get(norm)
-        if eng == _BLOCK_SENTINEL:
+        if eng in _BLOCK_KINDS:
             return keys
         if eng:
             keys.append(self._normalize(eng))
@@ -685,16 +704,17 @@ class OfflineResolver:
         if not term:
             return Resolution(term=term)
 
-        # Deliberate non-answers (target `!unresolved` in the overrides file).
-        # Some terms name a CATEGORY with no code of its own: "血脂" is four
-        # analytes and LOINC's lipid panels differ by which children they carry,
-        # so any single code assumes what was ordered. A panel term that HAS a
-        # real panel code ("blood pressure" -> 85354-9) still resolves, because
-        # a panel code says "expect components". All surface variants are
-        # checked, not just the term as written; `_is_blocked` has the back door
-        # that requires.
-        if self._is_blocked(term):
-            return Resolution(term=term, method="refused")
+        # Deliberate non-answers (a `!category`, `!condition`, `!ambiguous` or
+        # `!uncoded` target in the overrides file). "血脂" is four analytes and
+        # LOINC's lipid panels differ by which children they carry, so any
+        # single code assumes what was ordered. A panel term that HAS a real
+        # panel code ("blood pressure" -> 85354-9) still resolves, because a
+        # panel code says "expect components". All surface variants are
+        # checked, not just the term as written; `_block_kind` has the back
+        # door that requires.
+        kind = self._block_kind(term)
+        if kind:
+            return Resolution(term=term, method="refused", reason_kind=kind)
 
         # `PCT` ties plateletcrit against procalcitonin at the SAME
         # commonness rank, and row order alone picked the sepsis marker
@@ -710,7 +730,8 @@ class OfflineResolver:
                 term=term,
                 method="refused",
                 ambiguous=(code, tied),
-                rejected_reason=f"{term!r} ties {code} and {tied} at the same rank",
+                reason_kind="ambiguous",
+                rejected_reason=f"{term!r} names {code} or {tied}, and only a unit can say which",
             )
 
         # `尿酸(UA)测定`, `γ-谷氨酰基转移酶*`: the name with what the report
@@ -778,12 +799,13 @@ class OfflineResolver:
         # Both halves, and the whole name without its measure words: `Serum
         # HRV (RMSSD)` is the blocked `HRV (RMSSD)`, and its stem half alone
         # answers the SDNN code that block exists to refuse.
-        if (
-            (stem and self._is_blocked(stem))
-            or (label and self._is_blocked(label))
-            or any(self._is_blocked(measured) for measured in measure_stems(term))
-        ):
-            return Resolution(term=term, method="refused")
+        kind = (
+            (stem and self._block_kind(stem))
+            or (label and self._block_kind(label))
+            or next((k for k in map(self._block_kind, measure_stems(term)) if k), "")
+        )
+        if kind:
+            return Resolution(term=term, method="refused", reason_kind=kind)
 
         stem_hit = self._lookup(stem) if stem else None
         label_hit = self._lookup(label) if label else None
@@ -819,6 +841,7 @@ class OfflineResolver:
                     method="refused",
                     candidates=stem_hit.candidates + label_hit.candidates,
                     ambiguous=(stem_hit.loinc, label_hit.loinc),
+                    reason_kind="ambiguous",
                     rejected_reason=(
                         f"{stem!r} gives {stem_hit.loinc} and {label!r} gives {label_hit.loinc}: "
                         "two analytes in one name"
@@ -839,6 +862,7 @@ class OfflineResolver:
                     method="refused",
                     candidates=stem_hit.candidates + label_hit.candidates,
                     ambiguous=(stem_hit.loinc, label_hit.loinc),
+                    reason_kind="timing",
                     rejected_reason=(
                         f"{label!r} gives {label_hit.loinc}, one draw of a timed challenge "
                         f"({label_challenge}), and the name does not say which draw"
@@ -1232,6 +1256,26 @@ def resolve(term: str) -> Resolution:
     return get_resolver().resolve(term)
 
 
+#: The sentence for a refusal that carries no `rejected_reason` of its own.
+_REASON_SENTENCES = {
+    "category": "a category or several tests in one name, and no code is given rather than a guessed one",
+    "condition": "a symptom or a diagnosis, not a measurement, and those take an ICPC-3 code, not a LOINC one",
+    "ambiguous": "more than one code fits this name, and nothing printed with it says which",
+    "uncoded": "a real measurement that the LOINC release this bundle is cut from has no code for",
+    "timing": "the name says when the sample was drawn, and no code of its analyte carries that draw",
+    "unit_conflict": "the unit contradicts every code of this analyte",
+    "unknown": "not in the lexical index, and no code is given rather than a guessed one",
+}
+
+
+def unresolved_kind(resolution: Resolution) -> str:
+    """`Resolution.reason_kind`, with a plain miss named ``unknown``; ``""``
+    when ``resolution`` carries a code."""
+    if resolution.resolved:
+        return ""
+    return resolution.reason_kind or "unknown"
+
+
 def unresolved_reason(resolution: Resolution) -> str:
     """Why ``resolution`` carries no code, in one sentence; ``""`` when it has one.
 
@@ -1239,16 +1283,12 @@ def unresolved_reason(resolution: Resolution) -> str:
     `血脂` with `resolved: false` and `standardize_reading` with `method:
     refused`, and neither said the name is a category rather than a missing
     row, so a client could not tell "ask for one test" from "add a spelling".
+    The sentence is for a person; `unresolved_kind` is the same answer for a
+    program.
     """
     if resolution.resolved:
         return ""
-    if resolution.rejected_reason:
-        return resolution.rejected_reason
-    # A refusal is about a word the index HAS: 血脂 is four analytes, and
-    # "not in the lexical index" sent people looking for a row.
-    missing = ("a category or several tests in one name" if resolution.method == "refused"
-               else "not in the lexical index")
-    return f"{missing}, and no code is given rather than a guessed one"
+    return resolution.rejected_reason or _REASON_SENTENCES[unresolved_kind(resolution)]
 
 
 def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value: str | None, unit: str | None) -> Resolution | None:
@@ -1332,6 +1372,7 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
             unit_recognized=True,
             rejected_code=verdict.rejected_code,
             rejected_reason=verdict.rejected_reason,
+            reason_kind="unit_conflict",
         )
 
     unit_recognized: bool | None = None
