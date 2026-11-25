@@ -101,11 +101,12 @@ Closed:
   `Lipid-Low-Density Lipoprotein Calculated`). Benchmark 197 → 211.
 
 Open, and NOT alias gaps — the shipped lexical bundle has no key for these
-analytes at all, so an override row would have nothing to point at:
+analytes at all, so an override row would have nothing to point at.
+(`Postprandial Blood Glucose-PBG` was the fourth; since 2026-10-14 an
+override sends it to `Glucose^post meal`, 53094-9.)
 
 | term | what it needs |
 | --- | --- |
-| `Postprandial Blood Glucose-PBG` | a 2-hour post-meal glucose code |
 | `Lipid-Oxidized Low-Density Lipoprotein` | oxidized LDL |
 | `Lipid-Small Dense Low-Density Lipoprotein Cholesterol` | sdLDL-C |
 | `Lipid-Low-Density Lipoprotein Particle Number` | LDL-P — a particle COUNT, not LDL-C. The nearest reachable code, 43727-7, is `Lipoprotein.beta.subparticle.small`, which is a different measurement; mapping to it would be a wrong answer of exactly the kind the six above were |

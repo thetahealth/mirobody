@@ -17,12 +17,14 @@ for photos, and the plan for the whole thing to fit on an ordinary computer.
 
 ## Conclusion
 
-- **Today's default** (1.5.4) is the small size: **MiniCPM5-2B** (Q4_K_M,
+- **The default at 1.5.4** was the small size: **MiniCPM5-2B** (Q4_K_M,
   1.6 GB) answers and **GLM-OCR-0.9B** (1.4 GB) reads documents, 3.0 GB
-  together on llama.cpp, in 16 GB of memory with no GPU. On the evaluation now
+  together on llama.cpp, in 16 GB of memory with no GPU. 1.5.5 moved the
+  small size to Q8_0, about 4.1 GB together; [local-models.md](local-models.md)
+  has the current sizes. On the evaluation now
   published in [`benchmarks/local_models/`](../benchmarks/local_models/README.md)
-  it passes 19 of 24 questions (Claude Code grade 215 of 248), stores all
-  140 printed rows of its 12 documents and writes 22 of 31 journal entries; before 1.5.4's
+  it passed 19 of 24 questions (Claude Code grade 215 of 248), stored all
+  140 printed rows of its 12 documents and wrote 22 of 31 journal entries; before 1.5.4's
   harness changes ([below](#first-the-harness)) it passed 16 of 24 questions,
   stored 45 of 140 printed rows and wrote none of 31 journal entries.
 - **The large size** is Qwen3.8-27B (GSQ-RCO IQ3_S, 13 GB), and it sees

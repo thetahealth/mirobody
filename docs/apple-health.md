@@ -71,12 +71,8 @@ MIROBODY_TEST_POSTGRES_DSN=postgresql://localhost/mirobody_regression \
 `HEART_RATE`. That is what `export.xml` carries, what HealthKit names a type on
 the device, and what this endpoint now accepts.
 
-Earlier releases took a second vocabulary here, a `FlutterHealthTypeEnum` of
-names like `HEART_RATE`, and mapped it onto the same catalogue with a 74-row
-table. It described one client that no longer exists, and two tables for one
-mapping is how they drift. If you are moving a client off it: send Apple's
-identifier, `startDate`/`endDate` instead of `dateFrom`/`dateTo`, a plain
-`value` instead of `{"numericValue": n}`, and `unit` instead of `unitSymbol`.
+The retired Flutter client's names (`HEART_RATE`, `dateFrom`/`dateTo`,
+`{"numericValue": n}`, `unitSymbol`) are not read; send Apple's.
 
 ## POST /apple/health
 
