@@ -96,8 +96,25 @@ def _build_pdf(*, image_box: tuple[float, float, float, float] | None = None,
     nothing else is the issue's reproduction; the same `image_box` with
     `overlay_text` is the review's "text drawn ON the image" case; a small
     `image_box` with `body_text` is a born-digital page with a logo."""
+    return _build_pages({"image_box": image_box, "header_footer": header_footer,
+                             "body_text": body_text, "overlay_text": overlay_text})
+
+
+def _build_pages(*pages: dict) -> bytes:
+    """A PDF of one page per dict, each drawn as `_build_pdf` draws its one."""
     pdf = pdfium.PdfDocument.new()
-    page = pdf.new_page(PAGE_W, PAGE_H)
+    for spec in pages:
+        _draw_page(pdf, pdf.new_page(PAGE_W, PAGE_H), **spec)
+    buf = io.BytesIO()
+    pdf.save(buf)
+    pdf.close()
+    return buf.getvalue()
+
+
+def _draw_page(pdf: pdfium.PdfDocument, page: pdfium.PdfPage, *,
+               image_box: tuple[float, float, float, float] | None = None,
+               header_footer: bool = False, body_text: str | None = None,
+               overlay_text: str | None = None) -> None:
     if image_box is not None:
         _add_image(pdf, page, _lab_table_jpeg(), image_box)
     if header_footer:
@@ -118,10 +135,6 @@ def _build_pdf(*, image_box: tuple[float, float, float, float] | None = None,
             y -= 20
             assert y > bottom, "overlay_text ran past the bottom of image_box; shorten it or enlarge the box"
     page.gen_content()
-    buf = io.BytesIO()
-    pdf.save(buf)
-    pdf.close()
-    return buf.getvalue()
 
 
 #: A scan with margins, well past SCAN_IMAGE_AREA_FRACTION (0.5) of the A4
@@ -221,6 +234,38 @@ def test_scan_under_a_watermark_text_layer_is_routed_to_ocr():
     texts, to_ocr, _ = extract._pdf_pages(data, min_page_text=extract.MIN_PAGE_TEXT, dpi=extract.RENDER_DPI)
     assert [page for page, _, _ in to_ocr] == [0]
     assert to_ocr[0][2] == WATERMARK  # kept for `pdf_text` to fold in or fall back to
+
+
+#: The last page of a searchable scan or a letterhead report: signatures, no
+#: value, so no digit. The shape mirobody-gen's two-page reports print.
+SIGNATURES = "Performed By: Karen Warren\nVerified By: Karen Barker"
+
+
+@pytest.mark.parametrize("order", ["table first", "signatures first"])
+def test_a_searchable_scans_signature_page_stays_on_its_layer(order):
+    """#317's digit rule sent this page to OCR for nothing: another image page
+    of the same PDF already shows the layer is a transcription."""
+    table = {"image_box": SCAN_BOX, "overlay_text": "\n".join(LAB_ROWS)}
+    signed = {"image_box": SCAN_BOX, "overlay_text": SIGNATURES}
+    data = _build_pages(*([table, signed] if order == "table first" else [signed, table]))
+    texts, to_ocr, _ = extract._pdf_pages(data, min_page_text=extract.MIN_PAGE_TEXT, dpi=extract.RENDER_DPI)
+    assert to_ocr == []
+    assert any("Karen Barker" in t for t in texts)
+
+
+def test_a_watermark_on_every_page_of_a_scan_still_goes_to_ocr():
+    """No page's layer holds a value, so none vouches for another (#317)."""
+    data = _build_pages(*[{"image_box": SCAN_BOX, "overlay_text": WATERMARK}] * 2)
+    _, to_ocr, _ = extract._pdf_pages(data, min_page_text=extract.MIN_PAGE_TEXT, dpi=extract.RENDER_DPI)
+    assert [page for page, _, _ in to_ocr] == [0, 1]
+
+
+def test_a_born_digital_page_does_not_vouch_for_a_watermarked_scan():
+    """Only an IMAGE page whose layer held content says the document's layer
+    over its images is a transcription; a text page says nothing about it."""
+    data = _build_pages({"body_text": BODY_TEXT}, {"image_box": SCAN_BOX, "overlay_text": WATERMARK})
+    _, to_ocr, _ = extract._pdf_pages(data, min_page_text=extract.MIN_PAGE_TEXT, dpi=extract.RENDER_DPI)
+    assert [page for page, _, _ in to_ocr] == [1]
 
 
 async def test_pdf_text_reads_the_table_under_a_watermark():

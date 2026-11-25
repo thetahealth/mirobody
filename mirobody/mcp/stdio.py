@@ -68,8 +68,9 @@ TOOLS: list[dict[str, Any]] = [
             "Turn lab or vital-sign readings as printed (any language) into FHIR Observations with their "
             "LOINC code and UCUM unit, offline and without a key. The unit takes part in choosing the code "
             "(cholesterol in mmol/L and in mg/dL are different codes), so pass it. An Observation without "
-            "`coding` means no code was chosen, and the coding-decision extension's `rejectedReason` says why when a code was "
-            "set aside. A blood pressure such as 120/80 mmHg is two readings (systolic, diastolic). Pass "
+            "`coding` means no code was chosen: the coding-decision extension's `reasonKind` says why (category, "
+            "condition, ambiguous, uncoded, timing, unit_conflict, unknown) and `rejectedReason` or `reason` in a "
+            "sentence. A blood pressure such as 120/80 mmHg is two readings (systolic, diastolic). Pass "
             "one reading (name, value, unit) or up to 200 as `readings`."
         ),
         "inputSchema": {
@@ -124,8 +125,11 @@ TOOLS: list[dict[str, Any]] = [
         "title": "Look up LOINC codes by name",
         "description": (
             "Resolve indicator names to LOINC codes, offline. Same code from two names means the same test. "
-            "Unresolved is an honest no: report it unmatched, never invent a code. A panel name answers with "
-            "the panel's code (blood pressure gives 85354-9); a family of tests (血脂, lipid panel) is refused. "
+            "Unresolved is an honest no: report it unmatched, never invent a code. Each unresolved name carries "
+            "`reason_kind` (category: ask for one test; condition: use standardize_complaint; ambiguous: pass the "
+            "unit to standardize_reading; uncoded; timing; unknown: a spelling to report) and `reason`. A panel "
+            "name answers with the panel's code (blood pressure gives 85354-9); a family of tests (血脂, lipid "
+            "panel) is refused. "
             "Prefer standardize_reading when a value and unit are known."
         ),
         "inputSchema": {

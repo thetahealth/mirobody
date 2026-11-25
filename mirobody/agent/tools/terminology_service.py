@@ -45,11 +45,15 @@ class TerminologyService:
                 (e.g. "718-7", empty when unresolved), canonical (LOINC long
                 common name), candidates (matched corpus rows; a large number
                 means genuine ambiguity and one sensible default was chosen:
-                surface that when precision matters).
+                surface that when precision matters); an unresolved name adds
+                reason_kind and reason (a sentence).
 
         Notes for LLMs:
             - Unresolved is an honest "no": report it unmatched, never invent
-              a code.
+              a code. reason_kind says what to do next: category (ask for
+              one test), condition (a symptom or diagnosis, coded in ICPC-3,
+              not LOINC), ambiguous (the unit decides), uncoded, timing (no
+              code for that draw), unknown (a spelling to report).
             - A PANEL name answers with the panel's code ("blood pressure"
               gives 85354-9), which is not the code of any one value in it:
               resolve the member ("systolic blood pressure") for a reading.
