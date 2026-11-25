@@ -126,23 +126,11 @@ test under three names and in two units. Upload all three and open LDL
 cholesterol under Indicators: they are one line, and each number opens the
 file it came from.
 
-**For real data, take two steps before the first start, and use an account of
-your own.**
-
-- `SEED_DEMO_DATA=false` in `.env` stops the two demo records from being
-  created. That is all it does.
-- The public code still works: anyone who reaches the app can sign in as
-  `you@mirobody.ai` or `mom@mirobody.ai` with `111111`, because those codes
-  come from `EMAIL_PREDEFINE_CODES` in `config.yaml`, not from the demo data.
-  Set `EMAIL_PREDEFINE_CODES={}` in `.env` as well to remove that sign-in.
-  `PRODUCTION: true` refuses to start while any code is set
-  ([SECURITY.md](../SECURITY.md)).
-- After changing `.env`, run `docker compose up -d`. Then register your own
-  account on the sign-in page.
-
-Setting the flag later does not remove records already seeded. If the demo was
-seeded and nothing real is stored yet, `docker compose down -v` followed by
-`./deploy.sh` starts again with an empty database. That deletes every record.
+**Before using the app with real data**, follow
+[Deploying Mirobody safely](../SECURITY.md#deploying-mirobody-safely):
+`SEED_DEMO_DATA=false` alone does not remove the public demo sign-in codes,
+and clearing a seeded database means `docker compose down -v`, which deletes
+every record.
 
 You can also put a model key in `.env`: `OPENROUTER_API_KEY`, `OPENAI_API_KEY`,
 `GOOGLE_API_KEY` or `ANTHROPIC_API_KEY`. Use `<PROVIDER>_BASE_URL` for an
@@ -212,6 +200,7 @@ worker and server on port 18060.
 | `dev` cannot find Postgres | Pass `--pg-url` or set `PG_URL` / `DATABASE_URL`. For `serve`, set `PG_HOST`, `PG_PORT`, `PG_USER`, `PG_PASSWORD` and `PG_DBNAME`. |
 | Device sync does not run | Check worker logs and the Postgres connection. |
 | Docker Hub is unreachable | `deploy.sh` reports the failure and retries through a mirror. Set `DOCKER_MIRROR=<registry>/` in `.env` to choose one. |
+| `claude mcp add ... --` fails with `unknown option '--python'` on Windows | A default PowerShell window runs `claude` as its `.ps1` script and swallows the `--` before `uvx` sees it. Call `claude.cmd` instead, which PowerShell runs as a native command and passes `--` through unchanged. CMD and Git Bash run the original command as given. |
 
 <a id="next"></a>
 

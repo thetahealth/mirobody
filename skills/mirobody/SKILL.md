@@ -141,10 +141,10 @@ means that key's provider cannot serve that surface; the table says which.
 Open `http://localhost:18060`. The sign-in page offers the demo account
 (**Use it** fills the Email code tab): `you@mirobody.ai` with code `111111`.
 `SEED_DEMO_DATA` is on by default, so two accounts already hold data: this
-one, and `mom@mirobody.ai`, who shares her record view-only. Set
-`SEED_DEMO_DATA=false` in `.env` before the first start for an empty
-deployment. That stops the seed only: the code `111111` keeps signing in as
-both addresses until `EMAIL_PREDEFINE_CODES={}` is set in `.env` too.
+one, and `mom@mirobody.ai`, who shares her record view-only. Before the user
+stores real data, point them at
+[Deploying Mirobody safely](../../SECURITY.md#deploying-mirobody-safely):
+`SEED_DEMO_DATA=false` alone does not remove the public demo sign-in code.
 
 - **Data page**: drop a file. `demo/upload/` in the checkout holds seven the
   seed leaves out: the 2026 lab PDF and the CSV are `you`'s, the 2026 report
@@ -180,11 +180,11 @@ connector", ChatGPT or claude.ai: those connect from their vendor's cloud,
 which cannot reach `localhost`. They need the stack behind an HTTPS address,
 which is a server deployment (`SECURITY.md` first), not this one.
 
-The library's offline tools also run without the server, over stdio. Five
-need no key (`resolve_indicator`, `normalize_unit`, `convert_unit`,
-`standardize_reading`, `standardize_complaint`); `standardize_report` reads a
-whole document with a model, so it needs the `[parse]` extra and one model
-key, and says so when either is missing:
+The library's offline tools — resolving names, units and complaints without a
+database — also run without the server, over stdio
+([the full tool list](../standardize-health-data/SKILL.md#7-the-same-functions-over-mcp-without-the-server)).
+Most need no key; the one that reads a whole document needs the `[parse]`
+extra and one model key, and says so when either is missing:
 
 ```bash
 uvx --python 3.12 mirobody mcp

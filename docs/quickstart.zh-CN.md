@@ -95,13 +95,7 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 
 在「邮箱验证码」标签使用 `you@mirobody.ai`、验证码 `111111` 登录，无需配置邮件服务。可以先问「我的胆固醇有什么变化？」，再到「数据」页上传 [`demo/upload/`](../demo/) 中的合成文件。这些文件未预先导入，上传后可验证完整的文档处理流程。其中 `you_lab_report_zh_2023-03.pdf`、`you_checkup_photo_zh_2024-04.jpg`、`you_lab_results_en_2025-03.xlsx` 是三家机构、三个年份的合成化验单，同一项检查有三种写法、两种单位。三份都上传后，在「指标」里点开「低密度脂蛋白胆固醇」，可以看到它们连成一条趋势，每个数字都能点回原文件。
 
-**如需保存真实数据，请在首次启动前做两件事，并使用你自己注册的账号。**
-
-- 在 `.env` 中设置 `SEED_DEMO_DATA=false`，就不会创建两份演示记录。它只管这一件事。
-- 公开验证码仍然有效：任何能访问应用的人，都能用 `111111` 登录 `you@mirobody.ai` 或 `mom@mirobody.ai`，因为这些验证码来自 `config.yaml` 里的 `EMAIL_PREDEFINE_CODES`，与演示数据无关。要去掉这个登录方式，请同时在 `.env` 中设置 `EMAIL_PREDEFINE_CODES={}`。设置 `PRODUCTION: true` 时，只要还有验证码，应用就会拒绝启动（见 [SECURITY.md](../SECURITY.md)）。
-- 修改 `.env` 后执行 `docker compose up -d`，再在登录页注册你自己的账号。
-
-事后再设置这个开关，不会删除已经导入的演示记录。如果演示数据已经导入、还没有存任何真实数据，可以执行 `docker compose down -v` 再运行 `./deploy.sh`，从空数据库重新开始。这会删除所有记录。
+**保存真实数据前**，请先读[《安全部署 Mirobody》](../SECURITY.md#deploying-mirobody-safely)：仅设置 `SEED_DEMO_DATA=false` 并不会去掉公开的演示登录验证码；清空已导入的演示数据需要执行 `docker compose down -v`，这会删除所有记录。
 
 也可以在 `.env` 中设置 `OPENROUTER_API_KEY`、`OPENAI_API_KEY`、`GOOGLE_API_KEY` 或 `ANTHROPIC_API_KEY`；使用 OpenAI 兼容网关时，通过 `<PROVIDER>_BASE_URL` 指定地址。[`config.llm.yaml`](../config.llm.yaml) 仅声明各条目读取的变量名，密钥应保存在环境变量中。修改 `.env` 后执行 `docker compose up -d`，`restart` 不会重新加载配置。
 
@@ -161,6 +155,7 @@ Debian 或 Ubuntu 也可直接运行 `scripts/install_native.sh`，安装 Postgr
 | `dev` 找不到 Postgres | 使用 `--pg-url`，或设置 `PG_URL` / `DATABASE_URL`。`serve` 使用 `PG_HOST`、`PG_PORT`、`PG_USER`、`PG_PASSWORD` 和 `PG_DBNAME`。 |
 | 设备不同步 | 检查 worker 日志和 Postgres 连接。 |
 | Docker Hub 无法访问 | `deploy.sh` 会说明情况并通过镜像站重试；也可在 `.env` 中设置 `DOCKER_MIRROR=<registry>/` 指定镜像站。 |
+| Windows 上 `claude mcp add ... --` 报错 `unknown option '--python'` | 默认的 PowerShell 窗口会把 `claude` 当作它自己的 `.ps1` 脚本运行，在 `uvx` 看到 `--` 之前就把它吞掉了；改用 `.cmd` 这个外壳，PowerShell 会把它当作原生命令运行，`--` 会原样传下去。CMD 和 Git Bash 运行原来那条命令即可。 |
 
 <a id="next"></a>
 
