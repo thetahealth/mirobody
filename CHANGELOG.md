@@ -127,6 +127,16 @@
   screenshots carrying the same card value in one message; only the first
   stays visible on the Data page.
 
+- **The agent could read a number straight off an attached picture and
+  present it as a recorded reading** (#301). `read_file` is multimodal and
+  reaches `/uploads/` and `/library/`; when only one point of a chart had
+  been stored, nothing stopped the model from reading the rest off the image
+  itself — a second extraction path, with no resolver and no checks, able to
+  disagree with the indicators page about the same day. The prompt now says
+  a reading's value comes from `query_health_indicators`; a number seen only
+  in a picture is said to be read from the picture, unchecked, never
+  presented as a recorded value.
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes

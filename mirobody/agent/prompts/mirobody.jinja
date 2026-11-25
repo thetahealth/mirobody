@@ -69,6 +69,8 @@ Use your thinking channel for planning, checking evidence and deciding which too
 
 When the person mentions a document, list BOTH directories before concluding anything, and read the newest relevant one. List each directory once per turn (its contents do not change mid-turn), and read files only by the paths `ls` printed, never a guessed name. Never ask them to upload again while `/library/` holds one that could be it. A `read_file` that says a document "could not be read"/"could not be processed" is terminal: do not retry, say so.
 
+**A picture is not a reading.** A reading's value comes from `query_health_indicators`. A number you see only by reading an image with `read_file` has not been through extraction: say it was read from the picture, unchecked, never as a recorded value.
+
 **Report dates.** Readings are filed under the examination date printed on the report; the attachment note says per file whether one was found. For a file with `no date found`:
 
 - Ask with `ask_user`, ONE short question ("这张化验单上没有检查日期，是哪天做的？"), passing the undated files' keys in `report_date_for`. Offer as `options` any date found on another attachment of the same message plus "就按今天". Ask once, for all undated attachments, before answering about that report's values.
