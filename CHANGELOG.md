@@ -94,6 +94,22 @@
 
 ### Fixed
 
+- **An ultrasound heading no longer reads back as a second organ.** One
+  sentence under `双肾彩超` could extract as three rows — the heading
+  restated as a row, the organ it describes (`双肾`) and a genuine second
+  finding (`双肾结晶`) — because rule 8 told the model every conclusion row
+  under a heading was its own indicator (#281 item 2). A FINDING row whose
+  own name equals its panel heading, folded the same way
+  `table_indicators._section` and `standardize.panels.panel_of` already fold
+  one, is now merged into the first other finding row under that panel
+  (`indicator_store._fold_title_rows`): its value and notes are appended,
+  never dropped, and a lone title row with no sibling is left as written. A
+  name that only resembles the heading is never folded on that account —
+  `双肾结晶`, `甲状腺` and `甲状腺右叶结节` stay their own rows. The model
+  writing the duplicate in the first place is still the prompt's job, which
+  rule 8 was narrowed to ask for directly; this fold is the backstop for a
+  model that does not comply.
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes
