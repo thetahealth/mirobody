@@ -33,8 +33,8 @@ from mirobody._bundle import (
 from mirobody._strtab import StringTable
 from mirobody.lexical import (
     fold_plural, index_fold, is_component_suffix, measure_stems, split_camel, split_trailing_hyphen,
-    split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym, strip_report_marks,
-    surface_variants,
+    split_timing, split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym,
+    strip_report_marks, surface_variants, Timing,
 )
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
@@ -743,11 +743,128 @@ class OfflineResolver:
         if bare:
             return replace(self.resolve(bare), term=term)
 
+        timed = self._resolve_timed(term)
+        if timed is not None:
+            return timed
+
         hit = self._lookup(term)
         if hit is not None:
             return hit
 
         return self._resolve_seam(term)
+
+    def _resolve_timed(self, term: str) -> Resolution | None:
+        """A name that says when its sample was drawn (`空腹C肽`,
+        `胰岛素(120min)`, `Vancomycin trough`), answered with the analyte's
+        sibling code for that draw; `None` when the name says no such thing.
+
+        LOINC puts the draw in the COMPONENT (`insulin^post CFst`,
+        `insulin^2H post XXX challenge`), so the index answered only the
+        spellings someone had written out whole. The rest missed, or worse:
+        `胰岛素(120min)` split at the bracket, `120min` alone answered a
+        glucose draw (12610-2), the two halves were "two analytes", and the
+        unit then chose plain insulin. Three draws of one release test went
+        into the plain insulin series on the same day. Here the analyte is
+        resolved on its own and the draw is looked up among its siblings
+        (`_timed_sibling`); without one the name refuses rather than lose
+        the time. It never reaches `_resolve_seam`, whose label would be
+        the time.
+        """
+        split = split_timing(term)
+        if split is None:
+            return None
+        stem, timing = split
+        whole = self._lookup(term)
+        # A row written for this exact spelling is someone's decision about
+        # it (`餐后血糖`, `Glukoz (açlık)`); it stands.
+        if whole is not None and self._src.get(self._normalize(term)):
+            return whole
+        base = self.resolve(stem)
+        if not base.resolved or not base.loinc:
+            if base.method == "refused":
+                return replace(base, term=term)
+            return whole or Resolution(term=term)
+        # The word belongs to the analyte's own name (`Thrombin peak` is
+        # 97912-0, not thrombin at its peak), or the number was a collection's
+        # length, which LOINC keeps on TIME (`2h urine`), not a draw.
+        if whole is not None and (
+            self._analyte_of(whole.loinc) != self._analyte_of(base.loinc)
+            or self._time_of(whole.loinc) != self._time_of(base.loinc)
+        ):
+            return whole
+        row = self._timed_sibling(base.loinc, _loinc_challenges(timing))
+        if row >= 0:
+            code, _component, prop, scale, system, _method, lcn = self._axis_row(row)
+            return Resolution(
+                term=term, canonical=lcn, loinc=code, candidates=base.candidates, resolved=True,
+                method="lexical", evidence=("name",), axes=(prop, scale, system),
+            )
+        return Resolution(
+            term=term,
+            method="refused",
+            candidates=base.candidates,
+            rejected_code=base.loinc,
+            reason_kind="timing",
+            rejected_reason=(
+                f"{timing.said!r} says when the sample was drawn, and no code of {base.loinc}'s "
+                f"analyte carries that draw; {base.loinc} would file it with draws taken at any time"
+            ),
+        )
+
+    def _time_of(self, code: str) -> str:
+        row = self._row_for_code(code)
+        return self._axis.field(row, _TIME) if row >= 0 else ""
+
+    def _timed_sibling(self, code: str, challenges: tuple[str, ...]) -> int:
+        """The axis row of `code`'s analyte drawn at the first of `challenges`
+        LOINC has for it, or -1.
+
+        Same SCALE and TIME. Same PROPERTY first, then any other
+        concentration, which the unit settles (`variant_for_reading`). Same
+        SYSTEM, except that the venipuncture specimens stand in for each
+        other: `血糖` answers glucose in Blood (2339-0), and fasting glucose
+        lives in serum or plasma (1558-6), the code ten curated rows chose.
+        Among the rest, `_pick`'s commonness and specimen preferences, and a
+        code that claims no method over one claiming a method nobody printed.
+
+        A trough or a peak is a drug LEVEL whatever the drug's bare name
+        answers: `sertraline` alone is a presence screen (13579-8) and
+        `bictegravir` a susceptibility on an isolate (90080-3), and neither
+        property nor specimen has a trough sibling. For those two draws any
+        quantitative concentration in a venipuncture specimen will do.
+        """
+        row = self._row_for_code(code)
+        if row < 0:
+            return -1
+        _code, component, prop, scale, system, method, _lcn = self._axis_row(row)
+        time = self._axis.field(row, _TIME)
+        head = component.partition("^")[0]
+        level = set(challenges) <= {"trough", "peak"}
+        venipuncture = level or system in _PERSON_LEVEL_SYSTEMS_LITE
+        index = self._component_index()
+        for challenge in challenges:
+            rows = index.get(f"{head}^{challenge}".encode(), ())
+            for same_property in (True, False):
+                best, best_score = -1, float("-inf")
+                for r in rows:
+                    _c, _comp, p, s, sys_, m, _l = self._axis_row(r)
+                    if s != ("Qn" if level else scale) or self._axis.field(r, _TIME) != time:
+                        continue
+                    if (p != prop) if same_property else not (p.endswith("Cnc") and (level or prop.endswith("Cnc"))):
+                        continue
+                    if sys_ != system and not (venipuncture and sys_ in _PERSON_LEVEL_SYSTEMS_LITE):
+                        continue
+                    name = self._names.raw(r)
+                    score = float(self._rank[r]) + (0.1 if m == method else 0.05 if not m else 0.0)
+                    if _PLAIN_SPECIMEN.search(name):
+                        score += 0.25
+                    if _SPECIAL_SPECIMEN.search(name):
+                        score -= 0.25
+                    if score > best_score:
+                        best, best_score = r, score
+                if best >= 0:
+                    return best
+        return -1
 
     def _find_seam(self, term: str) -> tuple[str, str, str]:
         """``(stem, label, shape)`` for the first shape that matches a name
@@ -1289,6 +1406,28 @@ def unresolved_reason(resolution: Resolution) -> str:
     if resolution.resolved:
         return ""
     return resolution.rejected_reason or _REASON_SENTENCES[unresolved_kind(resolution)]
+
+
+def _loinc_challenges(timing: Timing) -> tuple[str, ...]:
+    """LOINC's challenge spellings for a printed draw, in the order to try.
+
+    A timed draw with no challenge named is LOINC's own unspecified one
+    (`XXX challenge`): an OGTT report rarely prints the 75 g. The 0-minute
+    draw is the challenge's baseline. A clock is written in hours where LOINC
+    writes it so (`1.5H`, `2H`) and in minutes otherwise (`30M`).
+    """
+    if timing.kind == "fasting":
+        return ("post cfst",)
+    if timing.kind == "baseline":
+        return ("baseline", "pre xxx challenge")
+    if timing.kind in ("trough", "peak"):
+        return (timing.kind,)
+    if timing.minutes is None:
+        return ("post meal",)
+    after = "post meal" if timing.kind == "post_meal" else "post xxx challenge"
+    minutes = timing.minutes
+    clocks = ([f"{minutes / 60:g}h"] if minutes >= 60 and minutes % 15 == 0 else []) + [f"{minutes}m"]
+    return tuple(f"{clock} {after}" for clock in clocks)
 
 
 def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value: str | None, unit: str | None) -> Resolution | None:

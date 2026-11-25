@@ -2134,17 +2134,13 @@ KET	!ambiguous
 NIT	!ambiguous
 URO	!ambiguous
 BIL	!ambiguous
-# A user's checkup report (2026-11-11) printed fasting insulin, and
-# no spelling of it resolved: bare `胰岛素` answers 20448-7, and the fasting
-# code is a TIME-of-challenge sibling (`insulin^post CFst`) the name never
-# reaches. pmol/L is 59179-2, the same component in moles.
-空腹胰岛素	Insulin [Units/volume] in Serum or Plasma --fasting
-空腹血清胰岛素	Insulin [Units/volume] in Serum or Plasma --fasting
-胰岛素(空腹)	Insulin [Units/volume] in Serum or Plasma --fasting
+# Fasting insulin where the rule cannot reach it. A spelled-out draw
+# (`空腹胰岛素`, `Insulin, Fasting`, `胰岛素(120min)`) needs no row:
+# `_resolve_timed` finds the analyte's sibling for it. `FINS` has no word to
+# read the draw from, and without `空腹` what is left of `空腹血清胰岛素`,
+# `血清胰岛素`, resolves to nothing, so the rule has no analyte to start from.
 FINS	Insulin [Units/volume] in Serum or Plasma --fasting
-Fasting insulin	Insulin [Units/volume] in Serum or Plasma --fasting
-Insulin, Fasting	Insulin [Units/volume] in Serum or Plasma --fasting
-Insulin fasting	Insulin [Units/volume] in Serum or Plasma --fasting
+空腹血清胰岛素	Insulin [Units/volume] in Serum or Plasma --fasting
 # A scale app and a checkup's vitals line print `Waist` alone; `腰围` and
 # `Waist Circumference` already answered 8280-0.
 Waist	Waist Circumference at umbilicus by Tape measure

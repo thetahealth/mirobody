@@ -114,6 +114,20 @@ Inside the resolver (`engine/resolver.py`):
   or a flag. When the name as printed misses, a trailing `测定`, `*`, `↑` or
   `↓` is stripped and the rest is answered as the bare name would be, the
   blocks and the rule below included (`lexical.strip_report_marks`).
+- **A name that says when its sample was drawn is read as the analyte plus
+  the draw.** LOINC keeps fasting, a meal, a challenge's timed draws and a
+  drug's trough or peak in the COMPONENT (`insulin^post CFst`,
+  `glucose^2H post XXX challenge`), so only spellings written out whole used
+  to resolve: `空腹血糖` did, through about thirty rows, and `空腹C肽` did not.
+  `lexical.split_timing` reads the draw (`空腹`, `餐后2小时`, `(120min)`,
+  `2 hour`, `谷浓度`, `trough`), the analyte is resolved on its own, and the
+  answer is its sibling for that draw: same scale and time, the same property
+  first, the venipuncture specimens standing in for each other. A trough or
+  peak is a level, so any concentration will do. With no sibling the name
+  refuses with `reason_kind: timing` and never answers the plain code, which
+  is where `胰岛素(120min)` used to land. A row written for the exact name
+  wins; `test_engine_coverage_timing.py` checks that the rule never answers a
+  row's name with another code.
 - **`Name (abbreviation)` must agree.** Both halves are resolved. One analyte:
   the stem wins (`空腹血糖(GLU)` → 1558-6). Two analytes: refused, with both
   codes named so a person can choose (`血糖(HbA1c)` gives 2339-0 and 4548-4).

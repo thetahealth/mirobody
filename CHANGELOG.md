@@ -94,17 +94,36 @@
   sentence. To check: `resolve_indicator(["血脂", "KET", "发烧", "XYZ指数"])`
   gives `category`, `ambiguous`, `condition` and `unknown`.
 
-- **Fasting insulin, a bare `Body fat` and `Waist` resolve.** A user's
-  checkup report showed no spelling of fasting insulin coded (`空腹胰岛素`,
-  `Insulin, Fasting`, `FINS`): bare `胰岛素` answers 20448-7, and the fasting
-  code is a sibling the name never reached. They now answer 27873-9, and
-  59179-2 in pmol/L. A scale's bare `Body fat` answered nothing; the name
-  alone now refuses as a tie and the unit decides, 41982-0 in `%` and
-  73708-0 in kg, the way `PCT` and `TLC` already work. `Waist` answers
-  8280-0 like `腰围`. HbA1c in mmol/mol (IFCC) still refuses: its code opens
-  a series of its own and % ↔ mmol/mol is an equation, not a unit factor.
-  On the maintained 7,354-case set no answer changes. To check: `mirobody
-  resolve 空腹胰岛素 Waist` answers 27873-9 and 8280-0.
+- **A name that says when its sample was drawn gets that draw's code, and an
+  insulin release test no longer lands in the plain insulin series.** LOINC
+  keeps fasting, a meal, a challenge's timed draws and a drug's trough or
+  peak in the COMPONENT (`insulin^post CFst`), and the resolver knew a timed
+  name only when the whole string was a row: `空腹血糖` resolved through about
+  thirty rows, while a user's checkup report showed `空腹胰岛素` with no code.
+  Of the 13 fasting analytes the bundle codes, only glucose resolved, and none
+  of the five 2-hour post-meal ones. Worse, `胰岛素(60min)`, `(120min)` and
+  `(180min)` with mU/L were all coded 20448-7, plain insulin: the bracket
+  split off `120min`, which alone answers a glucose draw, the halves became
+  "two analytes", and the unit chose insulin, so one release test put three
+  values into one series on one day. The draw is now read from the name
+  (`lexical.split_timing`: `空腹`, `餐后2小时`, `(120min)`, `2 hour`, `谷浓度`,
+  `trough`), the analyte is resolved on its own, and the answer is its sibling
+  for that draw (27873-9 for `空腹胰岛素`, 59179-2 in pmol/L; 27826-7 for
+  `胰岛素(120min)`; 13037-7 for `空腹C肽`; 74911-9 for `舍曲林谷浓度`). With no
+  sibling the name refuses with `reason_kind: timing` and never takes the
+  plain code. Of 766 such names generated from the axis table, 734 answer and
+  none answers another series (`test_engine_coverage_timing.py`). One answer
+  moves: `Insulin 120 min` was 1564-4 (after 75 g glucose, which nothing
+  printed) and is now 27826-7, the code every other spelling of that draw
+  answers; `recode` moves stored readings. A scale's bare `Body fat` refuses
+  and the unit decides, 41982-0 in `%` and 73708-0 in kg, the way `PCT` and
+  `TLC` work, and `Waist` answers 8280-0 like `腰围`. Not done, and in
+  `docs/roadmap.md`: a clock draw (`Cortisol AM` and `PM` still share
+  2143-6), body measurements printed without the measure word (`Hip`,
+  `Body Fat %`), and HbA1c in mmol/mol (IFCC), whose code opens a series of
+  its own and whose conversion from % is an equation, not a unit factor. On
+  the maintained 7,354-case set no answer changes. To check: `mirobody
+  resolve "胰岛素(120min)" 空腹C肽` answers 27826-7 and 13037-7.
 
 - **A scan under a watermark text layer is read by OCR** (#317). A PDF
   page dominated by an image stays on its text layer when at least 20 of
