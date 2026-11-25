@@ -62,6 +62,16 @@
   one labelled ECG reading, not a bare "Classification" series, and no
   extraction request is logged for the file.
 
+- **The web client speaks Russian.** Its language switcher offered English,
+  简体中文, 繁體中文 and 日本語, so a browser set to Russian got English. A
+  Russian bundle now covers every string the page shows; in Russian, dates
+  read DD.MM.YYYY and decimals take a comma, on screen only (what is stored
+  and sent is unchanged). The date pickers and the other built-in widgets now
+  follow the page's language in all five; Japanese and Traditional Chinese
+  showed them in English before. To check: pick Русский on the sign-in page;
+  the page declares `lang="ru"`. Contributed by Denis
+  (thetahealth/mirobody-web#39).
+
 - **The README in Russian.** The web client now has a Russian interface
   (thetahealth/mirobody-web#39), but the repository's front page came in
   English, Chinese and Japanese only. `README.ru.md` translates the English
@@ -83,6 +93,11 @@
   `import mirobody.documents.extract` works.
 
 ### Fixed
+
+- **Files served from `/files/...` could open slowly.** The endpoint split
+  every binary file (images, PDFs and the rest) into one chunk per newline
+  byte, thousands of chunks for a typical photo. It now sends the stored bytes
+  in one response body (#360).
 
 - **A Russian report's routine panel resolves.** Most of a Russian lipid
   panel did not: «Холестерин ЛПНП», «ЛПВП», «Триглицериды», «Общий
@@ -418,8 +433,9 @@
 - **查看 on an Excel file downloads it (#341).** For a file the browser does
   not show in place (`.xlsx`, `.xls`), 查看 and 查看原文件 opened a tab that
   stayed blank, and nothing was saved. Such a file now opens no tab and
-  downloads under its own name; PDF, images and text still open in a tab. To
-  check: upload `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
+  downloads under its own name; PDF, images and text open in the page's
+  viewer (#361, below). To check: upload
+  `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
   Web client thetahealth/mirobody-web#36.
 - **`<br>` in a chat answer is a line break (thetahealth/mirobody-web#35).**
   A table cell is one line, so models break it with `<br>`
@@ -428,6 +444,21 @@
   table cells and in text; every other tag is still shown as text, and code
   is untouched. To check: ask for a table whose header puts the date and the
   source on two lines with `<br>`. Web client thetahealth/mirobody-web#37.
+- **Uploading and 查看 work on an iPhone (#361).** Three faults in the web
+  client, all reported from iOS Safari and Chrome. A photo picked from the
+  library could fail to arrive, because the file input was never in the
+  page; it now is while the picker is open. After the page was hidden and
+  restored from the browser's back-forward cache, the upload socket came
+  back but every message was dropped while the upload showed as started;
+  the socket now rebuilds itself before it sends. 查看 opened a blank tab
+  and filled it once the file had downloaded, so a phone showed a white
+  screen for as long as the download took, and on the reporter's phone for
+  good. Images, PDFs and text now open in a viewer inside the page: the
+  name and a spinner at once, then the file, with links to open it in a
+  new tab or save it. On desktop this replaces the new tab. Text files also
+  open as UTF-8, so a Chinese `.md` no longer shows `鈥�` for a dash. To
+  check: on an iPhone, upload a photo from the library and click 查看; the
+  photo opens in the page. Web client thetahealth/mirobody-web#41.
 - **One abbreviation printed with its own hyphen no longer answers through
   half of itself (#322).** `HBs-Ag` was split at the hyphen into `HBs` and
   `Ag`, and the half that resolved answered: a hepatitis B surface ANTIGEN
