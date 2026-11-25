@@ -190,9 +190,13 @@ def loinc_units(loinc: str) -> tuple[str, ...]:
 #: `qtcInterval*`) is not a storage convenience, the same distinction #296
 #: draws for a CONFIDENT code whose own unit is `ms` (112429-6 HRV SDNN).
 #:
-#: `code()`'s own alias branch below also reads this table directly, to gate
-#: which device-namespace readings it canonicalizes: see the comment there
-#: for why every OTHER such reading stays uncanonicalized on purpose.
+#: `code()` below is unchanged: an uncoded device reading's `value_canonical`/
+#: `unit_canonical` stay `None`, as they always have (the writer is untouched
+#: by this fix, on purpose — a row already stored before this release has the
+#: same `None` pair, so an upgrade must not depend on it). The conversion
+#: this table feeds happens entirely at read time, in
+#: `collect.query._series_unit` and `_VALUE_STD`, straight off the row's own
+#: `unit_ucum` and `value_num`.
 _DEVICE_READING_UNITS: dict[str, str] = {
     "sleepAnalysis_Asleep(Total)": "h",
     "dailyInBedDuration": "h",
@@ -266,30 +270,9 @@ def code(
         if alias.code_system and alias.code_system != LOINC_SYSTEM:
             # A code in another namespace (the device catalogue's own) has no
             # LOINC axes; its series is the code itself, shared by everyone.
-            # Left uncanonicalized here on purpose, for every name but the
-            # handful `_DEVICE_READING_UNITS` lists: `aggregate/election.py`
-            # prefers `value_canonical` over `value_num` once it is set, on
-            # the standing assumption that a device-namespace reading (a
-            # generated daily avg/min/max among them, kept in this namespace
-            # by `catalog_alias` so three statistics of one day do not share
-            # a series) carries none. Canonicalizing every such reading
-            # turned a generated `heartRates` daily average into its `/s`
-            # value (`/min` folds ÷60) instead of the `/min` figure everyone
-            # reads. Only the reading-unit table's own names need the pair,
-            # to let `_series_unit` (`collect/query.py`) carry a value
-            # recorded in the decoder's storage unit into the swapped
-            # reading unit (#297), the same way it already does below for a
-            # LOINC-coded reading; never with a `loinc_code` (there is no
-            # LOINC here to look a molar mass up by, and none of the six is
-            # a concentration).
-            canonical_value = canonical_unit = None
-            if value_kind == KIND_QUANTITY and value_num is not None and unit_ucum and alias.code in _DEVICE_READING_UNITS:
-                folded = units.canonicalize(value_num, unit_ucum)
-                canonical_value, canonical_unit = folded.value, folded.unit
             return Coding(
                 OUTCOME_CODED, f"{alias.code_system}:{alias.code}", did, rule, rel,
                 code_system=alias.code_system, code=alias.code, display=alias.code, evidence=("alias",),
-                value_canonical=canonical_value, unit_canonical=canonical_unit,
             )
         loinc, evidence = alias.code, ("alias",)
         if unit_text or unit_ucum:

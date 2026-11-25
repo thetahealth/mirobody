@@ -872,20 +872,25 @@
   unverified or sibling LOINC codes already declare; `sleepAnalysis_Asleep
   (Total)` and the in-bed total `dailyInBedDuration` in `h`; a nap,
   `napDuration`, in `min`), and `collect.query._series_unit` consults it
-  whenever a device-only series carries no LOINC at all. A device-namespace
-  reading's `value_canonical`/`unit_canonical` were never computed at all
-  (`standardize.code`'s alias branch for a non-LOINC system returned before
-  the line that canonicalizes), so a swap could pick the right unit but had
-  no converted number to show in it; the six names above are now
-  canonicalized the same way a LOINC-coded reading already is, with no code
-  to look a molar mass up by. Every other device-namespace reading is left
-  as it was on purpose: `aggregate/election.py` prefers a row's
-  `value_canonical` over its `value_num` once the column is set, on the
-  standing assumption that nothing in this namespace carries one, and a
-  generated daily average or minimum (kept in this namespace so three
-  statistics of one day do not share a series) would otherwise publish its
-  canonical-unit figure instead of the one everyone reads (a heart rate
-  average in `/min`, divided by 60, is how this was caught). Everything else
+  whenever a device-only series carries no LOINC at all. Such a reading's
+  `value_canonical`/`unit_canonical` are never stored — `standardize.code`'s
+  device-namespace branch is untouched, the same as before this fix, so a
+  row from before this release and one written today are the identical
+  shape — which means the swap has no canonical pair to convert a reading
+  through the way the LOINC branch above does. It converts entirely at READ
+  time instead: `SeriesUnit` now also carries the series' own storage unit
+  and its factor to the chosen one (`stored_factor`), and `_VALUE_STD`
+  (and `_ratio`, the same conversion for a single reading) gets one more
+  branch, straight off `value_num`, for a row whose `unit_canonical` is
+  unset and whose own `unit_ucum` is that storage unit. No `recode`, no
+  backfill: existing Apple, Garmin, Oura and WHOOP sleep data reads
+  correctly the moment this ships. (An earlier draft of this fix did
+  canonicalize the six names at write time instead, until it broke
+  `aggregate/election.py`, which prefers a row's `value_canonical` once the
+  column is set, on the standing assumption that this namespace never
+  carries one: a generated `heartRates` daily average silently became its
+  `/s` value, `/min` divided by 60. The read-only design avoids that
+  entirely, by needing no write-side change at all.) Everything else
   uncoded keeps its storage unit on purpose: an
   epoch a decoder also writes in `ms` (`sleepEndTime`, `inBedStartTime`,
   `*ReportTimeOffset`) is not a duration, and a genuinely clinical

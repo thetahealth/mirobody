@@ -53,7 +53,13 @@ is the same lookup keyed by that name instead, for the few such durations a
 person actually reads as a clock figure (`sleepAnalysis_Awake`,
 `dailyAwakeTime`, `sleepAnalysis_Asleep(Core)`/`(Total)`, `dailyInBedDuration`,
 `napDuration`, #297); every other uncoded series, an epoch included
-(`sleepEndTime`), keeps its storage unit.
+(`sleepEndTime`), keeps its storage unit. Such a reading's own
+`value_canonical`/`unit_canonical` are never stored (the writer is
+untouched: `standardize.code`'s device-namespace branch computes neither,
+the same as before this fix), so the swap converts entirely at READ time,
+off `SeriesUnit.from_storage`/`stored_factor` and the row's own `unit_ucum`
+and `value_num` (`_VALUE_STD`, `_ratio`); a reading stored before this
+release and one stored after read alike, with no `recode` needed.
 
 Before this, the web chart plotted 212 mg/dL and 4.90 mmol/L of one
 cholesterol as a fall from 212 to 4.9, and a stats row answered in mol/L,
@@ -131,25 +137,35 @@ _LOCAL_TIME = (
     f" ELSE rtrim(rtrim(to_char({_LOCAL_TS}, 'YYYY-MM-DD HH24:MI:SS.US'), '0'), '.') END"
 )
 
-#: Each series' unit (`SeriesUnit`), joined to its readings: four parallel
+#: Each series' unit (`SeriesUnit`), joined to its readings: six parallel
 #: arrays from `_unit_params`, so one statement reads every series in its own
-#: unit.
+#: unit. `stored`/`stored_factor` are `from_storage` and its own factor to
+#: `base`: an uncoded series' swap (`standardize.device_reading_units`, #297)
+#: has no `unit_canonical` column to convert through (the writer stores none,
+#: old row or new), so `_VALUE_STD` converts a reading in `stored` straight
+#: off its `value_num` instead.
 _SERIES_UNIT_JOIN = (
     " LEFT JOIN unnest(CAST(:su_ids AS text[]), CAST(:su_ucum AS text[]), CAST(:su_base AS text[]),"
-    " CAST(:su_factor AS double precision[])) AS su(series_id, ucum, base, factor) ON su.series_id = o.series_id"
+    " CAST(:su_factor AS double precision[]), CAST(:su_stored AS text[]),"
+    " CAST(:su_stored_factor AS double precision[]))"
+    " AS su(series_id, ucum, base, factor, stored, stored_factor) ON su.series_id = o.series_id"
 )
 
 #: A reading's number in its series' unit, the one number every statistic,
 #: bucket and band reads: as printed in that unit (or in none), else its
-#: canonical value over the unit's factor, else NULL. Over canonical values
-#: stats answered in mol/L, which a small model called incomparable (#271);
-#: with no molar mass, 40 g/L and 600 umol/L of albumin averaged to 20.0003
-#: "mol/L". Full precision: four decimals once rounded a 1e-5 g/L daily mean
-#: to zero before the trend code saw it.
+#: canonical value over the unit's factor, else (only when the row's own
+#: canonical pair is unset but its raw unit is the series' known storage
+#: unit) its raw value converted through that unit's own factor, else NULL.
+#: Over canonical values stats answered in mol/L, which a small model called
+#: incomparable (#271); with no molar mass, 40 g/L and 600 umol/L of albumin
+#: averaged to 20.0003 "mol/L". Full precision: four decimals once rounded a
+#: 1e-5 g/L daily mean to zero before the trend code saw it.
 _VALUE_STD = (
     "CASE WHEN o.value_num IS NULL THEN NULL"
     " WHEN su.ucum IS NULL OR COALESCE(o.unit_ucum, '') IN ('', su.ucum) THEN o.value_num::double precision"
     " WHEN su.factor IS NOT NULL AND o.unit_canonical = su.base THEN o.value_canonical::double precision / su.factor"
+    " WHEN su.stored_factor IS NOT NULL AND o.unit_canonical IS NULL AND o.unit_ucum = su.stored"
+    " THEN o.value_num::double precision * su.stored_factor / su.factor"
     " END AS value_std"
 )
 
@@ -1378,7 +1394,12 @@ class SeriesUnit(NamedTuple):
     its own name's reading unit when it carries no code at all
     (`standardize.device_reading_units`, #297); empty otherwise. Only a
     reading in that unit was written by a decoder, whose value carries no
-    printed precision (`_like`'s `stored`)."""
+    printed precision (`_like`'s `stored`). `stored_factor` is that unit's
+    own factor to `base`, used instead of `factor` for a reading whose
+    `unit_canonical` was never stored at all: an uncoded series' rows carry
+    none, old or new (the writer computes nothing for them, #297), so
+    `factor`'s usual column-based conversion (`_VALUE_STD`, `_ratio`) never
+    applies to them and this is the only path that converts such a row."""
 
     ucum: str
     label: str
@@ -1388,6 +1409,7 @@ class SeriesUnit(NamedTuple):
     code: str = ""
     display: str = ""
     from_storage: str = ""
+    stored_factor: float | None = None
 
 
 #: Units a device decoder writes as a storage convenience rather than the unit
@@ -1412,23 +1434,32 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     label = chosen.get("label") or ucum
     loinc = chosen.get("loinc") or next((g["loinc"] for g in groups if g.get("loinc")), "") or ""
     stored_as = ""
-    if ucum in _STORAGE_UNITS and chosen.get("device_only") and base:
-        if loinc:
+    stored_factor: float | None = None
+    if ucum in _STORAGE_UNITS and chosen.get("device_only"):
+        declared: tuple[str, ...] = ()
+        if loinc and base:
             declared = standardize.loinc_units(loinc)
-        elif chosen.get("code_system") == metrics.SYSTEM_DEVICE:
+        elif not loinc and chosen.get("code_system") == metrics.SYSTEM_DEVICE:
             # No LOINC at all: `Metric.canonical` filed this series under its
             # catalogue name rather than a code (an unverified or absent
             # mapping), so the reading-unit table is keyed by that name
             # instead (#297).
             declared = standardize.device_reading_units(chosen.get("code") or "")
-        else:
-            declared = ()
-        if ucum not in declared:
+            if declared and not base:
+                # An uncoded reading's `unit_canonical` is never stored (the
+                # writer computes nothing for a device-namespace alias, old
+                # row or new: #297 is read-side only), so there is no column
+                # to fold `base` from. Fold the series' own raw storage unit
+                # instead; a `ms`/`s`/`J` series always has one.
+                raw = units.canonicalize(1.0, ucum)
+                base = raw.unit if raw.value else ""
+        if declared and ucum not in declared:
             for target in declared:
                 cand = units.canonicalize(1.0, target, loinc_code=loinc)
                 if cand.unit == base and cand.value:
                     existing = next((g for g in groups if g["unit_ucum"] == target), None)
                     stored_as = ucum
+                    stored_factor = units.canonicalize(1.0, ucum, loinc_code=loinc).value
                     ucum = target
                     if existing is not None:
                         chosen = existing
@@ -1442,7 +1473,7 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     factor = folded.value if base and folded.unit == base and folded.value else None
     return SeriesUnit(ucum, label, base, factor,
                       coded.get("code_system") or "", coded.get("code") or "", coded.get("display") or "",
-                      stored_as)
+                      stored_as, stored_factor)
 
 
 def _as_series(r: dict, su: SeriesUnit | None) -> dict:
@@ -1453,10 +1484,12 @@ def _as_series(r: dict, su: SeriesUnit | None) -> dict:
 
 
 def _unit_params(found: dict[str, SeriesUnit]) -> dict[str, list]:
-    """`found` as the four arrays `_SERIES_UNIT_JOIN` unnests."""
+    """`found` as the six arrays `_SERIES_UNIT_JOIN` unnests."""
     ids = list(found)
     return {"su_ids": ids, "su_ucum": [found[i].ucum for i in ids], "su_base": [found[i].base for i in ids],
-            "su_factor": [found[i].factor for i in ids]}
+            "su_factor": [found[i].factor for i in ids],
+            "su_stored": [found[i].from_storage for i in ids],
+            "su_stored_factor": [found[i].stored_factor for i in ids]}
 
 
 def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
@@ -1490,12 +1523,20 @@ def _in_series_unit(r: dict, su: SeriesUnit | None) -> dict:
 def _ratio(r: dict, ucum: str, su: SeriesUnit) -> float | None:
     """What one of `ucum` is in the series' unit: through the canonical unit
     both fold to, with the reading's own code for its molar mass. None when
-    they do not fold to one."""
-    if not su.factor or r.get("unit_canonical") != su.base:
-        return None
-    code = r.get("code") if r.get("code_system") == standardize.LOINC_SYSTEM else ""
-    folded = units.canonicalize(1.0, ucum, loinc_code=code or "")
-    return folded.value / su.factor if folded.unit == su.base else None
+    they do not fold to one.
+
+    An uncoded reading's `unit_canonical` is never stored (`#297`'s swap is
+    read-side only), so it cannot confirm anything this way; `stored_factor`
+    answers instead, for the one unit `_series_unit` already knows the whole
+    series was written in before the swap (`su.from_storage`), the same case
+    `_VALUE_STD`'s own fallback branch converts in SQL."""
+    if su.factor and r.get("unit_canonical") == su.base:
+        code = r.get("code") if r.get("code_system") == standardize.LOINC_SYSTEM else ""
+        folded = units.canonicalize(1.0, ucum, loinc_code=code or "")
+        return folded.value / su.factor if folded.unit == su.base else None
+    if su.stored_factor is not None and r.get("unit_canonical") is None and ucum == su.from_storage:
+        return su.stored_factor / su.factor if su.factor else None
+    return None
 
 
 def _range_in(r: dict, ratio: float) -> str:

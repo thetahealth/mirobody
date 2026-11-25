@@ -123,6 +123,10 @@ class _MemoryHealthQuery:
 
     @staticmethod
     def _value_std(r: dict[str, Any], su: SeriesUnit | None) -> float | None:
+        """Mirrors `_VALUE_STD`'s SQL CASE exactly, branch for branch,
+        `stored_factor` fallback included (#297: an uncoded reading's own
+        `unit_canonical` is never stored, old row or new, so this is the
+        only branch that ever converts one)."""
         val = r.get("value_num")
         if val is None:
             return None
@@ -131,6 +135,8 @@ class _MemoryHealthQuery:
             return float(val)
         if su.factor is not None and r.get("unit_canonical") == su.base and r.get("value_canonical") is not None:
             return float(r["value_canonical"]) / su.factor
+        if su.stored_factor is not None and r.get("unit_canonical") is None and ucum == su.from_storage:
+            return float(val) * su.stored_factor / su.factor
         return None
 
     def _select(self, sel: query.Selection, window: query.Window | None) -> list[dict[str, Any]]:
