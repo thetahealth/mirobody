@@ -542,6 +542,90 @@ async def test_the_heading_reaches_the_stored_row(monkeypatch):
         ("HR", "心电图"), ("收缩压", "一般检查"), ("舒张压", "一般检查"), ("K", "")]
 
 
+async def test_a_restated_heading_row_folds_into_its_organ(monkeypatch):
+    """#281 item 2: one ultrasound sentence read as three rows — the heading
+    restated as a row (`双肾彩超`), the organ it describes (`双肾`) and a
+    genuine second finding (`双肾结晶`) — comes out as the two real findings,
+    the restated row's value and notes appended to the organ's so nothing is
+    lost."""
+    rows = [
+        {**_row("双肾彩超", "未见明显异常。", method="Imaging"), "panel": "双肾彩超", "notes": "提示双肾彩超未见异常"},
+        {**_row("双肾", "双肾大小形态正常，包膜光整，实质回声均匀。", method="Imaging"), "panel": "双肾彩超"},
+        {**_row("双肾结晶", "左肾见数个强回声光点，大者约2mm。", method="Imaging"), "panel": "双肾彩超", "notes": "建议随访"},
+    ]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-title-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-281-title.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [d.name_text for d in drafts] == ["双肾", "双肾结晶"]
+    kidney, crystal = drafts
+    assert kidney.value_text == "双肾大小形态正常，包膜光整，实质回声均匀。\n未见明显异常。"
+    assert kidney.note_text == "提示双肾彩超未见异常"
+    assert crystal.value_text == "左肾见数个强回声光点，大者约2mm。"
+    assert crystal.note_text == "建议随访"
+
+
+async def test_a_name_merely_resembling_its_panel_is_not_folded(monkeypatch):
+    """The prompt's own worked example, `甲状腺` and `甲状腺右叶结节` under
+    `甲状腺彩超`, stays two rows: neither name equals the heading, so the fold
+    (equality, never resemblance) leaves both alone — `双肾结晶` next to
+    `双肾彩超` is not a reason to fold it either."""
+    rows = [
+        {**_row("甲状腺", "形态大小正常，包膜光整，实质回声均匀", method="Imaging"), "panel": "甲状腺彩超"},
+        {**_row("甲状腺右叶结节", "低回声结节，大小约6*4mm，边界清晰", method="Imaging"), "panel": "甲状腺彩超", "notes": "建议随访"},
+    ]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-thyroid-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-281-thyroid.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [(d.name_text, d.value_text, d.note_text) for d in drafts] == [
+        ("甲状腺", "形态大小正常，包膜光整，实质回声均匀", ""),
+        ("甲状腺右叶结节", "低回声结节，大小约6*4mm，边界清晰", "建议随访"),
+    ]
+
+
+async def test_a_numeric_row_named_for_its_panel_is_not_folded(monkeypatch):
+    """A measurement is never folded, whatever its name: `row_kind` reads
+    `170cm` as a quantity even though this row's name repeats its panel, so
+    it is left as its own measurement beside a real finding under the same
+    heading."""
+    rows = [
+        {**_row("身高", "170cm", method="Examination"), "panel": "身高"},
+        {**_row("体检异常", "左侧腰部可见陈旧瘢痕", method="Examination"), "panel": "身高"},
+    ]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-numeric-title-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-281-numeric-title.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [(d.name_text, d.value_text, d.kind) for d in drafts] == [
+        ("身高", "170cm", observations.KIND_MEASUREMENT),
+        ("体检异常", "左侧腰部可见陈旧瘢痕", observations.KIND_FINDING),
+    ]
+
+
+async def test_a_lone_restated_heading_has_no_sibling_to_fold_into(monkeypatch):
+    """A title row with nothing else under its panel has no sibling to carry
+    its text, so it is kept exactly as the model wrote it."""
+    rows = [{**_row("双肾彩超", "双肾大小形态正常", method="Imaging"), "panel": "双肾彩超"}]
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-281-lone-title-user", rows, datetime(2026, 3, 4), "extracted", "synthetic-281-lone-title.pdf",
+    )
+    _, drafts, _ = ingest.call_args.args
+    assert [(d.name_text, d.value_text) for d in drafts] == [("双肾彩超", "双肾大小形态正常")]
+
+
 def test_an_ecg_reading_is_coded_through_the_writer():
     """The writer's own path, `prepare` then `coding_for`: `HR` printed under
     `心电图` is the heart rate `心率` resolves to, and the same `HR` with no
