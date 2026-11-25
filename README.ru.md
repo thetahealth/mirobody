@@ -210,7 +210,7 @@ resolve("血脂").resolved                                       # False    ка
 
 | Утверждение | Как проверить |
 | --- | --- |
-| **561/561** на анализах из обычного медосмотра — на английском, китайском, японском, русском, эстонском и турецком | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) выводит результат |
+| **638/638** на анализах из обычного медосмотра — на английском, китайском, японском, русском, эстонском и турецком | [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) выводит результат |
 | **63 416 кодов LOINC 2.83**, отобранных по правилам, и **1 023 273 названия**, указывающих на них, включая 21 язык самого LOINC; написания из отчётов, которых нет в индексе, добавляются по одной проверенной строке | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE) · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [Как стандартизируется измерение](docs/site/standardization.md) |
 | **331 единица UCUM** с анализом размерностей и **902 элемента каталога** показателей устройств и лабораторий | [Стандартизация](docs/standardization.md) · [Таблица соответствий устройств](docs/device-crosswalk.md) |
 | Выгрузки 23andMe, AncestryDNA, WeGene, MyHeritage и FamilyTreeDNA и VCF на GRCh37 и GRCh38 дают **одни и те же 13 генотипов по 12 генам**; проверено на публичных образцах 1000 Genomes, которые входят в пакет | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [Публичные примеры генотипов](mirobody/testing/genomics/README.md) |

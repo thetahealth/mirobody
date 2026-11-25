@@ -84,6 +84,28 @@
 
 ### Fixed
 
+- **A Russian report's routine panel resolves.** Most of a Russian lipid
+  panel did not: «Холестерин ЛПНП», «ЛПВП», «Триглицериды», «Общий
+  холестерин» (that word order) and their spellings were unresolved, and so
+  were «Гликированный гемоглобин», «Глюкоза натощак», «СРБ», GGT, LDH,
+  lipase, total T3 and T4, PSA, LH, «МНО» and «АЧТВ». Seven answered
+  something else: «Хлор» chlorine in water (now chloride, 2075-0), «ФСГ» the
+  LH/FSH ratio (now FSH, 15067-2), «Паратгормон» an intraoperative PTH panel
+  (now intact PTH, 2731-8), «Гематокрит» the calculated hematocrit,
+  «Лактатдегидрогеназа» LDH in an unspecified specimen, «Фибриноген» a
+  fibrinogen "in Blood by calculation" (now the Clauss assay, 3255-7) and
+  «Глюкоза (натощак)» plain blood glucose. `resolver_overrides.tsv` gains 72
+  Russian rows, each landing where the English name for the test already
+  does, except fibrinogen and «Протромбиновое время» (the PT, 5902-2, where
+  English "Prothrombin time" answers the INR), and five deliberate
+  non-answers: the lipid panel names and the atherogenic index, which has no
+  LOINC code. A value in ммоль/л or мг/л picks the molar or mass code as it
+  does in English. Bare «СКФ», segmented and band neutrophils, «Протромбин по
+  Квику» and «Д-димер» stay unresolved on purpose; the file says why.
+  Readings stored under an old answer move with `mirobody recode`. Benchmark
+  561 → 638; of 2,968 names checked before and after, only these changed. To
+  check: `mirobody resolve "Холестерин ЛПНП" Триглицериды ФСГ Хлор`.
+
 - **The published resolver score is the one the benchmark prints.** The
   three READMEs, `docs/standardization.md` and its Chinese edition,
   `docs/testing.md` and the `standardize-health-data` skill said 347/347,
