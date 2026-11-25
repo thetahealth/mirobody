@@ -140,9 +140,8 @@ async def serve_storage_file(
     out exactly such URLs. **Clients rendering these links must now append the
     token**: a bare `<a href="/files/...">` gets 401.
     """
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import Response
     from mirobody.utils.config.storage import get_storage_client
-    import io
 
     # Storage keys name their owner (`demo/<email>/...`), so the log carries a
     # fingerprint of the key, never the key.
@@ -188,9 +187,8 @@ async def serve_storage_file(
         content_bytes = len(content)
         logger.debug("serving file from storage: key=%s bytes=%d", key_id, content_bytes)
         
-        # Return file as streaming response
-        return StreamingResponse(
-            io.BytesIO(content),
+        return Response(
+            content=content,
             media_type=content_type,
             headers={
                 # `attachment`, not `inline`: an uploaded .html or .svg served
