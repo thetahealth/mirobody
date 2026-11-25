@@ -150,8 +150,11 @@ Uploaded or run through `mirobody parse`, each screen should give:
 | `*_tab_muscle.png` | 肌肉, 51.2 … 51.7 kg → 73964-9 Body muscle mass | the same |
 
 初始体重 81.0 kg and 目标体重 68.0 kg are never readings. The card's figures
-are the same on every screen, and uploading all three still stores them once
-per file, three times in all: that part of #301 is open.
+are the same on every screen; uploaded together, as one message, the three
+copies are one upload batch and `observations.retract_batch_duplicates`
+keeps only the earliest, so 当前体重, 体脂率 and BMI each store once, not
+three times (#301). Uploaded separately, as three messages, each is its own
+batch and all three stay: a repeat upload is not a duplicate card.
 
 ## Regenerating
 

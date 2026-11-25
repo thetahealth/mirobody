@@ -89,7 +89,7 @@ class _NoneFound:
     async def probe_report_date(self, text: str) -> str:
         return ""
 
-    async def extract_indicators_from_text(self, text, user_id, file_key, report_date=None):
+    async def extract_indicators_from_text(self, text, user_id, file_key, report_date=None, message_id=None):
         from mirobody.collect.files.services.indicator_extractor import Filed
 
         return Filed([], {"indicators": [], "content_info": {}}, 0, None)
@@ -107,7 +107,7 @@ def extraction(monkeypatch):
     async def not_gone(*args, **kwargs):
         return False
 
-    async def upload_day(user_id, probed):
+    async def upload_day(user_id, probed, *, message_id=None):
         return datetime(2026, 11, 23, tzinfo=UTC), "upload_time"
 
     early: dict = {}

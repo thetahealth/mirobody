@@ -2065,7 +2065,7 @@ class _Extractor:
     async def probe_report_date(self, original_text):
         return "2026-03-01"
 
-    async def extract_indicators_from_text(self, original_text, user_id, file_key, report_date=None):
+    async def extract_indicators_from_text(self, original_text, user_id, file_key, report_date=None, message_id=None):
         from mirobody.collect import observations
         from mirobody.collect.files.services.indicator_extractor import Filed
         from mirobody.collect.files.services.report_date import file_source_ref
@@ -2253,3 +2253,121 @@ async def test_device_sleep_in_ms_reads_in_loinc_units_across_every_view(databas
     records = await reader.records("1", keywords="dailyTotalSleepTime", limit=5)
     exported = export_row(records["rows"][0])
     assert (exported["unit"], exported["printed_value"], exported["printed_unit"]) == ("h", "23256000", "ms")
+
+
+# ══ #301: a batch's repeated card value, stored once ════════════════════════
+
+
+async def _batch_file_row(database, *, file_key: str, batch_id: str) -> None:
+    """A `th_files` row that `retract_batch_duplicates`' `_SELECT_BATCH_FILES`
+    can find: the one column it keys on (`created_source_id`) plus what the
+    table requires."""
+    await database(
+        "INSERT INTO th_files (user_id, file_key, created_source, created_source_id, scene) "
+        "VALUES ('1', :file_key, 'data', :batch_id, 'report')",
+        {"file_key": file_key, "batch_id": batch_id}, log_sql=False,
+    )
+
+
+async def _batch_source_refs(database, prefix: str) -> list:
+    rows = await database(
+        "SELECT source_ref FROM v_observation WHERE user_id = '1' AND source_ref LIKE :pattern ORDER BY source_ref",
+        {"pattern": f"th_files:{prefix}%"}, log_sql=False,
+    )
+    return [r["source_ref"] for r in rows]
+
+
+async def test_a_batch_card_value_on_three_files_is_retracted_to_one(database):
+    """#301: a smart scale's weight card, printed again on two more
+    screenshots of the SAME upload, landed as three visible rows -- a
+    reading's identity (`prepare`'s fingerprint) never includes anything
+    beyond "this file" (`source_ref`). `retract_batch_duplicates` keeps the
+    earliest and retracts the rest."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services import indicator_store
+
+    batch_id = "synthetic-301-batch-same"
+    at = datetime(2026, 3, 1, 8, 0, 0, tzinfo=UTC)
+    for i in range(3):
+        file_key = f"synthetic-301-same-{i}"
+        await _batch_file_row(database, file_key=file_key, batch_id=batch_id)
+        await indicator_store.save_indicators_to_db(
+            "1", [{"original_indicator": "脂肪", "value": "18.2", "unit": "kg", "detection_method": "wearable"}],
+            at, "extracted", file_key,
+        )
+    retracted = await observations.retract_batch_duplicates("1", batch_id)
+    assert retracted == 2
+    assert await _batch_source_refs(database, "synthetic-301-same-") == ["th_files:synthetic-301-same-0"]
+    # Idempotent: a second sweep over the same, now-already-swept batch finds
+    # nothing left to retract (`v_observation` already hides the first two).
+    assert await observations.retract_batch_duplicates("1", batch_id) == 0
+
+
+async def test_separate_upload_batches_each_keep_their_own_reading(database):
+    """The sweep is scoped to one `batch_id`: a re-upload of the same
+    screenshot in a SEPARATE batch is never compared against the first, so
+    both stay -- a repeat upload is not a duplicate card."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services import indicator_store
+
+    at = datetime(2026, 3, 2, 8, 0, 0, tzinfo=UTC)
+    for i in range(2):
+        batch_id = f"synthetic-301-batch-separate-{i}"
+        file_key = f"synthetic-301-separate-{i}"
+        await _batch_file_row(database, file_key=file_key, batch_id=batch_id)
+        await indicator_store.save_indicators_to_db(
+            "1", [{"original_indicator": "脂肪", "value": "18.2", "unit": "kg", "detection_method": "wearable"}],
+            at, "extracted", file_key,
+        )
+        assert await observations.retract_batch_duplicates("1", batch_id) == 0
+    assert await _batch_source_refs(database, "synthetic-301-separate-") == [
+        "th_files:synthetic-301-separate-0", "th_files:synthetic-301-separate-1",
+    ]
+
+
+async def test_a_batch_with_two_different_card_values_keeps_both(database):
+    """Same batch, same name and time, a DIFFERENT value: the fat and muscle
+    cards of one scale screen never collapse into each other."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services import indicator_store
+
+    batch_id = "synthetic-301-batch-different"
+    at = datetime(2026, 3, 3, 8, 0, 0, tzinfo=UTC)
+    for i, value in enumerate(("18.2", "18.4")):
+        file_key = f"synthetic-301-different-{i}"
+        await _batch_file_row(database, file_key=file_key, batch_id=batch_id)
+        await indicator_store.save_indicators_to_db(
+            "1", [{"original_indicator": "脂肪", "value": value, "unit": "kg", "detection_method": "wearable"}],
+            at, "extracted", file_key,
+        )
+    assert await observations.retract_batch_duplicates("1", batch_id) == 0
+    assert await _batch_source_refs(database, "synthetic-301-different-") == [
+        "th_files:synthetic-301-different-0", "th_files:synthetic-301-different-1",
+    ]
+
+
+async def test_a_batch_with_no_printed_date_shares_one_fallback_and_dedupes(database):
+    """A prerequisite for the sweep: `resolve_report_date`'s fallback is "now"
+    PER FILE, so two screenshots with no printed date would land a tick apart
+    and never match on `observed_start`. `report_date._batch_fallback_now`
+    resolves it once for the batch; both files land on the same instant and
+    the sweep then sees one card value, not two."""
+    from mirobody.collect import observations
+    from mirobody.collect.files.services import indicator_store, report_date
+
+    batch_id = "synthetic-301-batch-nodate"
+    report_date._BATCH_FALLBACK_NOW.pop(batch_id, None)
+    try:
+        for i in range(2):
+            file_key = f"synthetic-301-nodate-{i}"
+            await _batch_file_row(database, file_key=file_key, batch_id=batch_id)
+            start, source = await report_date.resolve_report_date("1", "", message_id=batch_id)
+            assert source == "upload_time"
+            await indicator_store.save_indicators_to_db(
+                "1", [{"original_indicator": "脂肪", "value": "18.2", "unit": "kg", "detection_method": "wearable"}],
+                start, source, file_key,
+            )
+        assert await observations.retract_batch_duplicates("1", batch_id) == 1
+        assert await _batch_source_refs(database, "synthetic-301-nodate-") == ["th_files:synthetic-301-nodate-0"]
+    finally:
+        report_date._BATCH_FALLBACK_NOW.pop(batch_id, None)

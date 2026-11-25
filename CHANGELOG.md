@@ -109,6 +109,24 @@
   one of the same name and unit; only the first lands on the catalogue's own
   identity instead of serum sodium (2951-2).
 
+- **One card value repeated on several screenshots of one upload was stored
+  once per file, not once per upload** (#301). A reading's identity never
+  carries anything about which screenshot it came from beyond `source_ref`
+  (one per file), so a smart scale's weight card, printed again on two more
+  screenshots of the SAME upload, landed as three visible rows.
+  `observations.retract_batch_duplicates` sweeps one upload batch's visible
+  readings (`th_files.created_source_id`) once a file of it finishes
+  extracting, groups them by name, value, unit and time, and retracts every
+  row but the earliest when more than one file wrote the same one — never
+  deleted, the same mechanics as every other sweep here. A re-upload in a
+  separate batch, and two different values in one batch, are both left
+  alone. A prerequisite: a screenshot with no printed date fell back to "now"
+  per file, a few seconds apart from its siblings; `report_date` now resolves
+  that fallback once per batch, so siblings land on the same instant and the
+  sweep can tell them apart as one reading. How to tell: upload three
+  screenshots carrying the same card value in one message; only the first
+  stays visible on the Data page.
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes

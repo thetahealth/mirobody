@@ -223,17 +223,19 @@ class Filed:
 
 
 async def _filing_date(user_id: int, file_key: str, document_date: str,
-                       probed: tuple[datetime, str] | None) -> tuple[datetime, str]:
+                       probed: tuple[datetime, str] | None, message_id: str | None) -> tuple[datetime, str]:
     """The date a document's readings are filed under, and where it came
     from: the date the person set on the file (they may have answered
     "which date?" while this ran), else the probe's date when it read one off
-    the document, else this extraction's (`resolve_report_date`)."""
+    the document, else this extraction's (`resolve_report_date`). `message_id`
+    is the upload batch, so a fallback here lands on the same instant as any
+    sibling file's (#301)."""
     manual = await manual_report_date(file_key)
     if manual is not None:
         return manual, "manual"
     if probed is not None and probed[1] == "extracted":
         return probed
-    return await resolve_report_date(str(user_id), document_date)
+    return await resolve_report_date(str(user_id), document_date, message_id=message_id)
 
 
 class IndicatorExtractor:
@@ -308,11 +310,15 @@ class IndicatorExtractor:
         user_id: int,
         file_key: str,
         report_date: tuple[datetime, str] | None = None,
+        message_id: str | None = None,
     ) -> Filed:
         """Read a document's text (`read_indicators`) and file its readings
         under `file_key`. `report_date` is the date probe's `(datetime,
         date_source)`: an "extracted" one wins over this extraction's own
-        date field; an "upload_time" one is only a fallback.
+        date field; an "upload_time" one is only a fallback. `message_id` is
+        the upload batch this file arrived in (`th_files.created_source_id`),
+        None outside one (the chat channel, `mirobody parse`); it is how a
+        fallback date here lands on the same instant as a sibling file's.
 
         Raises `NothingStored` when rows were read and none could be written:
         reported as a document with no readings, a rejected batch or a
@@ -321,7 +327,7 @@ class IndicatorExtractor:
         reading = await IndicatorExtractor.read_indicators(original_text)
         if not reading.rows:
             return Filed([], reading.answer, 0, None)
-        start, source = await _filing_date(user_id, file_key, reading.date, report_date)
+        start, source = await _filing_date(user_id, file_key, reading.date, report_date, message_id)
         report = await save_indicators_to_db(str(user_id), reading.rows, start, source, file_key, reading.extractor,
                                              text=original_text)
         stored = report.inserted + report.skipped

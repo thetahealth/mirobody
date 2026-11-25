@@ -480,7 +480,7 @@ class BaseFileHandler(abc.ABC):
             # below, the row reading 已处理 with no readings meanwhile (#275).
             await wait_until_loaded(resolve_route("text"))
             probed = await self.indicator_extractor.probe_report_date(original_text)
-            probe_dt, probe_source = await resolve_report_date(str(user_id), probed)
+            probe_dt, probe_source = await resolve_report_date(str(user_id), probed, message_id=message_id)
             probe_report = {"report_date": probe_dt.strftime("%Y-%m-%d %H:%M:%S"), "date_source": probe_source}
             # On the file row now, not after extraction: the bar's answer
             # (set_file_report_date) reads and writes this row, and the
@@ -496,7 +496,7 @@ class BaseFileHandler(abc.ABC):
             })
 
             filed = await self.indicator_extractor.extract_indicators_from_text(
-                original_text, user_id, file_key, report_date=(probe_dt, probe_source))
+                original_text, user_id, file_key, report_date=(probe_dt, probe_source), message_id=message_id)
             if await FileDbService.gone(file_key, message_id):
                 # Deleted while the model read it: the delete erased the
                 # file's readings before these were written, so they go here.
@@ -532,6 +532,18 @@ class BaseFileHandler(abc.ABC):
                          exc_info=not is_driver_exception(e))
 
         stored_count = filed.stored if filed else 0
+        if message_id and stored_count:
+            # One batch's card value printed again on a sibling screenshot
+            # (#301): this file may just have written one. Safe to call once
+            # per file of a batch; the duplicate sweep itself decides whether
+            # there is anything to retract.
+            try:
+                from mirobody.collect import observations
+
+                await observations.retract_batch_duplicates(str(user_id), message_id)
+            except Exception as e:
+                logger.warning("batch duplicate sweep failed: file_key=%s error_type=%s", file_key,
+                               type(e).__name__, exc_info=not is_driver_exception(e))
         failed_reason = say(failed) if failed else ""
         status = "failed" if failed else "completed"
         report = filed.report if filed else None

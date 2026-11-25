@@ -25,6 +25,7 @@ methods away from the rule they have to agree with.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any
@@ -104,7 +105,42 @@ async def get_user_current_time_with_timezone(user_id: str) -> datetime:
     except Exception:
         return get_utc_now()
 
-async def resolve_report_date(user_id: str, exam_date: str) -> tuple[datetime, str]:
+#: One upload batch's stand-in for "now" (#301), keyed by `message_id`
+#: (`th_files.created_source_id`): several screenshots of one device screen
+#: print no date, so each file's own `resolve_report_date` call fell back to
+#: its OWN "now" a few seconds apart, and a card value repeated on every
+#: screenshot could never be told as the same reading -- the batch dedupe
+#: sweep's identity includes `observed_start`/`observed_end`. The first file
+#: of a batch to ask computes it; every sibling reuses the same instant.
+#: Entries are pruned by age, not by a teardown hook: the files of one batch
+#: extract as independent background tasks (`spawn`, `handlers/base.py`)
+#: that the upload loop does not wait for, so there is no single point that
+#: reliably knows the batch is done.
+_BATCH_FALLBACK_TTL = timedelta(minutes=30)
+_BATCH_FALLBACK_NOW: dict[str, tuple[datetime, datetime]] = {}
+_BATCH_FALLBACK_LOCK = asyncio.Lock()
+
+
+async def _batch_fallback_now(user_id: str, message_id: str | None) -> datetime:
+    """`get_user_current_time_with_timezone`, shared across one upload batch.
+    `message_id` is None for a caller outside an upload batch (the chat
+    channel, `mirobody parse`), which gets its own "now" as before."""
+    if not message_id:
+        return await get_user_current_time_with_timezone(user_id)
+    async with _BATCH_FALLBACK_LOCK:
+        stale = datetime.now() - _BATCH_FALLBACK_TTL
+        for key, (_, seen) in list(_BATCH_FALLBACK_NOW.items()):
+            if seen < stale:
+                del _BATCH_FALLBACK_NOW[key]
+        cached = _BATCH_FALLBACK_NOW.get(message_id)
+        if cached is not None:
+            return cached[0]
+        now = await get_user_current_time_with_timezone(user_id)
+        _BATCH_FALLBACK_NOW[message_id] = (now, datetime.now())
+        return now
+
+
+async def resolve_report_date(user_id: str, exam_date: str, *, message_id: str | None = None) -> tuple[datetime, str]:
     """The date a file's readings are filed under, and where it came from.
 
     Returns `(start_time, date_source)`; `date_source` is "extracted" when
@@ -119,7 +155,9 @@ async def resolve_report_date(user_id: str, exam_date: str) -> tuple[datetime, s
 
     A date that does not parse, or lies more than a day ahead (a misread
     year), counts as no date (`document_date`): an unknown date is a reason
-    to ask, not to drop the readings.
+    to ask, not to drop the readings. `message_id` names the upload batch
+    this file arrived in, so every one of its files that falls back shares
+    one "now" (`_batch_fallback_now`, #301) instead of drifting apart.
     """
     start_time = document_date(exam_date)
     if start_time is not None:
@@ -127,7 +165,7 @@ async def resolve_report_date(user_id: str, exam_date: str) -> tuple[datetime, s
     if exam_date and exam_date.strip():
         logger.warning("report date not usable, filed under the upload time: user_id=%s char_count=%d",
                        user_id, len(exam_date))
-    return await get_user_current_time_with_timezone(user_id), "upload_time"
+    return await _batch_fallback_now(user_id, message_id), "upload_time"
 
 async def manual_report_date(file_key: str) -> datetime | None:
     """The date the user set on this file, if they set one (`date_source:
