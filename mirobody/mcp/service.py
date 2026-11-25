@@ -35,7 +35,6 @@ CODE_INTERNAL_ERROR     = -32603
 # be allocated there, and receivers may assume no meaning), while -32020..-32099
 # is reserved for the specification itself. CODE_AUTH_REQUIRED below predates
 # that policy and stays for compatibility with clients already keyed to it.
-CODE_UNSUPPORTED_PROTOCOL_VERSION = -32022  # spec-defined (2026-07-28)
 
 # Custom application errors: -32768 to -32000.
 CODE_AUTH_REQUIRED      = -32000

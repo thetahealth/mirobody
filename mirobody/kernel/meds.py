@@ -51,9 +51,6 @@ MS = 1000
 # --- terminology ------------------------------------------------------------------
 
 SYSTEM_RXNORM = "http://www.nlm.nih.gov/research/umls/rxnorm"
-SYSTEM_ATC = "http://www.whocc.no/atc"
-SYSTEM_SNOMED = "http://snomed.info/sct"
-SYSTEM_NDC = "http://hl7.org/fhir/sid/ndc"
 
 
 @dataclass(frozen=True)

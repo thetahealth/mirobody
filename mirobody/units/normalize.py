@@ -41,10 +41,7 @@ from .tokens import ALIASES, MORPHEMES
 from .families import UCUM_FAMILY
 from .numerals import DIGITS, plain
 
-__all__ = [
-    "normalize_unit", "parse_value_unit", "ParsedQuantity",
-    "scan_value_units",
-]
+__all__ = ["normalize_unit", "parse_value_unit", "ParsedQuantity"]
 
 
 @dataclass(frozen=True)
@@ -231,8 +228,7 @@ def _resolve_strict(cleaned: str) -> str | None:
 
 # Cap on greedy-edge resolve attempts. Real CJK unit phrases sit at
 # 1-6 chars (``克``, ``毫升``, ``毫摩尔``, ``毫摩尔/升``); past that
-# we'd be eating into the surrounding noun. Mirrors the cap used in
-# ``scan_value_units``' CJK pass.
+# we'd be eating into the surrounding noun.
 _EDGE_RESOLVE_CAP = 8
 
 
@@ -333,118 +329,6 @@ def _comparator_and_value(raw_cmp: str, raw_num: str) -> tuple[str, float | None
         raw_cmp = ""
     reading = plain(raw_num)
     return raw_cmp, None if reading is None else float(sign + reading)
-
-
-# ``parse_value_unit`` expects a clean ``<value><unit>``; a LOINC name needs
-# ``75 g`` found inside longer text (``--2 hours post 75 g glucose PO``), which
-# the scanner below covers. It keeps to doses because a LOINC name says the
-# rest on axes of its own: TIME_ASPCT takes ``2 hours``, PROPERTY takes
-# concentrations. Doses are the gap: challenge doses (75 g, 50 mL),
-# body-weight variants (1.75 g/kg pediatric OGTT) and activity units
-# (``5 IU insulin``).
-_DOSE_FAMILIES = frozenset({"Mass", "Vol", "CCnt", "MCnt", "Arb"})
-
-# Two-pass scan, one regex per script class. Latin pass: number, optional
-# whitespace, then a Latin / micro-sign / degree-shaped token. The body allows
-# letters, digits and UCUM compositors (``./*[]+-``) so ``g/kg`` and ``10*9/L``
-# round-trip through ``_resolve_strict``, and excludes whitespace so it cannot
-# run across tokens. ``\b`` at the tail rejects partial matches like
-# ``75 grms``, but only Latin/digit-vs-non-Latin counts as a boundary, which is
-# why this pass alone misses compact CJK input.
-_LATIN_VALUE_UNIT_SCAN = re.compile(
-    rf"({DIGITS})"
-    r"\s*"
-    r"([A-Za-zμµ°][A-Za-z0-9./*\[\]+\-]{0,11})"
-    # Tail: not followed by another Latin-alnum (rejects ``75 grms``
-    # mid-word). Plain ``\b`` would *also* reject ``75g 后`` because
-    # ``g`` and the CJK ``后`` are both ``\w``, no boundary fires
-    # between them. Explicit negative lookahead targets the right
-    # adjacency: another Latin/digit char means the body cut short.
-    r"(?![A-Za-z0-9])",
-    re.UNICODE,
-)
-
-# **CJK pass**: number anchor only; the unit body is parsed by
-# greedy-longest-match against the morpheme table. ``\b`` between two
-# CJK ideographs doesn't fire (they're both ``\w``), so any
-# regex-only body would either eat the trailing noun
-# (``75克葡萄糖`` → ``克葡萄糖``) or refuse to start. Instead we find
-# digit runs, skip optional whitespace, and tokenize forward using
-# the same morpheme table the rest of the module uses: stops at the
-# first un-tokenizable char, which is exactly where the unit ends.
-_DIGIT_RUN = re.compile(DIGITS, re.UNICODE)
-
-
-def scan_value_units(text: str | None) -> list[tuple[float, str]]:
-    """Find every ``(value, UCUM unit)`` pair in *text* belonging to a
-    dose-relevant unit family.
-
-    For each numeric run in *text*, look ahead for a unit token, run it
-    through :func:`_resolve_strict` to canonicalize, and accept only
-    when the resulting UCUM's family is in :data:`_DOSE_FAMILIES`.
-    Returns deduped list in encounter order.
-
-    ::
-
-        scan_value_units("post 75 g glucose PO")        -> [(75.0, "g")]
-        scan_value_units("Glucose --2 hours post 100 g") -> [(100.0, "g")]
-        scan_value_units("OGTT 口服 75 克 葡萄糖")        -> [(75.0, "g")]
-        scan_value_units("5.6 mmol/L")                  -> []
-        scan_value_units("2 hours post")                -> []
-
-    Doses are the gap not covered by LOINC's TIME_ASPCT or PROPERTY
-    axes. ``mmol/L`` belongs to the SCnc concentration family, which the
-    PROPERTY axis already states, and is rejected.
-    """
-    if not isinstance(text, str) or not text:
-        return []
-    # Preserve whitespace as a token boundary: the standard ``_clean``
-    # collapses spaces (correct for compact UCUM input, wrong for
-    # arbitrary text scanning). NFKC + symbol fold are still applied so
-    # full-width digits and the µ/μ variants normalize before regex.
-    nfkc = unicodedata.normalize("NFKC", text)
-    scan_text = "".join(" " if ch in (" ", "\t") else _SYMBOL_FOLD.get(ch, ch) for ch in nfkc)
-
-    out: list[tuple[float, str]] = []
-    seen: set[tuple[float, str]] = set()
-
-    def _record(raw_value: str, ucum: str | None) -> None:
-        if ucum is None:
-            return
-        fam = UCUM_FAMILY.get(ucum)
-        if fam not in _DOSE_FAMILIES:
-            return
-        reading = plain(raw_value)
-        if reading is None:
-            return
-        key = (float(reading), ucum)
-        if key in seen:
-            return
-        seen.add(key)
-        out.append(key)
-
-    # Pass 1: Latin / micro / degree-shaped unit tokens.
-    for m in _LATIN_VALUE_UNIT_SCAN.finditer(scan_text):
-        _record(m.group(1), _resolve_strict(_clean(m.group(2))))
-
-    # Pass 2: CJK greedy unit parse via the shared edge-resolve
-    # primitive ``_resolve_prefix``. Same primitive
-    # :func:`parse_value_unit` uses for its compact-CJK fallback:
-    # both paths agree on what counts as a unit token sitting next
-    # to a value with no whitespace.
-    n = len(scan_text)
-    for m in _DIGIT_RUN.finditer(scan_text):
-        pos = m.end()
-        while pos < n and scan_text[pos] in (" ", "\t"):
-            pos += 1
-        # Skip if next char is Latin/digit: Pass 1's territory.
-        # Dedup would still drop the duplicate, but cleaner to gate
-        # up front.
-        if pos >= n or scan_text[pos].isascii():
-            continue
-        _record(m.group(0), _resolve_prefix(scan_text[pos:]))
-
-    return out
 
 
 def parse_value_unit(text: str | None) -> ParsedQuantity:

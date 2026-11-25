@@ -66,7 +66,7 @@ minutes: 2–3 on an Apple-silicon laptop's cores, up to about 15 on a 4-vCPU x8
 - Resolves alternate names such as `A1c`, `HbA1c` and `Glycated Hemoglobin` to one LOINC identity, and units to UCUM, keeping the source page as evidence.
 - Codes complaints and diagnoses with ICPC-3, and reports CPIC pharmacogenomic coverage without recommending a change of medication.
 - Shares a family member's record only when they allow it, view or edit; joining a care circle alone shares nothing.
-- Serves seven MCP tools, each scoped to the signed-in person: four read the record (`query_health_indicators`, `query_medications`, `query_genetic_data`, `query_pharmacogenomics`) and three resolve names and units (`resolve_indicator`, `convert_unit`, `normalize_unit`). Settings issues a personal link for Claude Code, Codex, Cursor or Gemini CLI.
+- Serves nine MCP tools to a signed-in person: four read their record (`query_health_indicators`, `query_medications`, `query_genetic_data`, `query_pharmacogenomics`), three resolve names and units (`resolve_indicator`, `convert_unit`, `normalize_unit`), and two search and read general medical references, never the record (`search_medical_knowledge`, `read_medical_source`). Settings issues a personal link for Claude Code, Codex, Cursor or Gemini CLI.
 - Refuses ambiguous category words instead of inventing a code.
 
 ## Use the engine without Docker

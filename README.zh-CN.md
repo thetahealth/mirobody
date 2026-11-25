@@ -59,15 +59,7 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
-在 Windows 上，默认的 PowerShell 窗口会把 `claude` 当作它自己的 `.ps1` 脚本运行，
-在 `uvx` 看到 `--` 之前就把它吞掉了，报错 `unknown option '--python'`；改用
-`.cmd` 这个外壳即可，PowerShell 会把它当作原生命令运行，`--` 会原样传下去：
-
-```powershell
-claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
-```
-
-CMD 和 Git Bash 运行原来那条命令即可。
+在 Windows 默认的 PowerShell 窗口里，把 `claude` 换成 `claude.cmd`（[原因](docs/quickstart.zh-CN.md#when-it-does-not-come-up)）。
 
 之后，你贴给 agent 的指标名称、读数、单位或症状，它都能在本机标准化，不需要 Key。
 读取整份报告还需要 `mirobody[parse]` 和一个模型 Key。
@@ -97,7 +89,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-建议主机有 16 GB 内存，至少分配 8 GB 给 Docker。不需要显卡；Windows 请在 WSL 2 终端里执行。首次启动需要联网下载容器镜像和模型权重；如果镜像仓库在你的网络里不可达，`deploy.sh` 会说明情况并改用镜像站，`.env` 里的 `DOCKER_MIRROR` 可以指定你自己的站点。下载完成后，文档识别、标准化和回答都在本机完成。CPU 回答可能需要几分钟；[Mac、NVIDIA 与 Windows 的配置方法](docs/local-models.zh-CN.md) 介绍了如何使用 GPU。
+建议主机有 16 GB 内存，至少分配 8 GB 给 Docker。不需要显卡；Windows 请在 WSL 2 终端里执行。首次启动需要联网下载容器镜像和模型权重；镜像仓库不可达时的处理方法见[排查说明](docs/quickstart.zh-CN.md#when-it-does-not-come-up)。下载完成后，文档识别、标准化和回答都在本机完成。CPU 回答可能需要几分钟；[Mac、NVIDIA 与 Windows 的配置方法](docs/local-models.zh-CN.md) 介绍了如何使用 GPU。
 
 打开脚本打印的应用链接，本地模型已自动选好。使用上面的示例账号登录、提问，或上传一份样例。[如何选择模型](docs/model-choice.zh-CN.md) 对比了本地模型的不同选项。
 

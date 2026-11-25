@@ -59,16 +59,7 @@ uvx --python 3.12 mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロ�
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
-Windows では、既定の PowerShell ウィンドウは `claude` を自身の `.ps1` スクリプト
-として実行し、`uvx` が見る前に `--` を飲み込んでしまい、`unknown option
-'--python'` で失敗します。代わりに `.cmd` シムを呼んでください。PowerShell は
-これをネイティブコマンドとして実行するので、`--` がそのまま渡ります。
-
-```powershell
-claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
-```
-
-CMD と Git Bash では、元のコマンドをそのまま実行できます。
+Windows の既定の PowerShell ウィンドウでは、`claude` の代わりに `claude.cmd` を使ってください（[理由](docs/quickstart.ja.md#when-it-does-not-come-up)）。
 
 エージェントに貼り付けた名称・測定値・単位・症状を、キーなしで手元のマシンの中で標準化できるようになります。報告書をまるごと読み取るには、さらに `mirobody[parse]` とモデルキーが必要です。[ほかの MCP クライアント](https://docs.mirobody.ai/ja/tools/mcp-integration#local-terminology-over-stdio)でも同じコマンドを使います。
 
@@ -96,7 +87,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-メモリは 16 GB、そのうち少なくとも 8 GB を Docker に割り当ててください。GPU は不要です。Windows では WSL 2 のターミナルでコマンドを実行します。初回起動時はコンテナイメージとモデルの重みをダウンロードするため、ネットワーク接続が必要です。レジストリに届かないネットワークでは、`deploy.sh` がその旨を表示してミラー経由で再試行します。`.env` の `DOCKER_MIRROR` で自分のミラーを指定できます。ダウンロードが済めば、文書の読み取り、標準化、回答はすべてローカルで動きます。CPU での回答には数分かかることがあります。GPU を使う方法は [Mac・NVIDIA・Windows の設定](docs/local-models.ja.md)で説明しています。
+メモリは 16 GB、そのうち少なくとも 8 GB を Docker に割り当ててください。GPU は不要です。Windows では WSL 2 のターミナルでコマンドを実行します。初回起動時はコンテナイメージとモデルの重みをダウンロードするため、ネットワーク接続が必要です。レジストリに届かない場合の対処は[トラブルシューティング](docs/quickstart.ja.md#when-it-does-not-come-up)を参照してください。ダウンロードが済めば、文書の読み取り、標準化、回答はすべてローカルで動きます。CPU での回答には数分かかることがあります。GPU を使う方法は [Mac・NVIDIA・Windows の設定](docs/local-models.ja.md)で説明しています。
 
 スクリプトが表示するアプリのリンクを開きます。ローカルモデルは選択済みです。上と同じデモアカウントでログインし、質問するか、サンプルをアップロードしてください。ローカルモデルの選択肢は[モデルの選び方](docs/model-choice.ja.md)で比較しています。
 

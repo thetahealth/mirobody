@@ -72,6 +72,18 @@
   the page declares `lang="ru"`. Contributed by Denis
   (thetahealth/mirobody-web#39).
 
+### Changed
+
+- **`[parse]` no longer installs `google-genai`, and `[app]` no longer names
+  `boto3`.** The parse layer reaches Gemini through its OpenAI-compatible
+  endpoint and imports neither SDK. `google-genai>=2.0.0` was there for the
+  agent's `langchain-google-genai`, so the floor moved to `[agent]`; `boto3`
+  was declared for a Bedrock client builder that no longer exists, and
+  `[app]` still installs it under aioboto3. An `[agent]` or `[app]` install
+  gets the same packages as before. To check: in a clean environment,
+  `pip install 'mirobody[parse]'` installs neither, and
+  `import mirobody.documents.extract` works.
+
 ### Fixed
 
 - **Files served from `/files/...` could open slowly.** The endpoint split
@@ -470,6 +482,27 @@
   An entry written before codes with the new rows after `mirobody recode`;
   a `头晕嗜睡` already written stays one entry, since the split happens when
   a sentence is read.
+
+### Removed
+
+- **The MFA challenge's second copy of the fallback token.** When a passkey
+  is required, the sign-in answer carried its fallback (AAL1) token as
+  `fallback_token` and again as `access_token`, `token_type`, `expires_in`
+  and `refresh_token`, for the retired Flutter client. The web client reads
+  only `fallback_token`, so the copies are gone. A client that signed in
+  from `access_token` on an `mfa_required` answer reads `fallback_token`.
+- **Library code nothing used**, found by searching the repository, its docs
+  and examples: `mirobody.units.scan_value_units` (its one caller, the old
+  `mirobody/indicator/` package, was deleted); the `SYSTEM_ATC`,
+  `SYSTEM_SNOMED` and `SYSTEM_NDC` constants in `kernel.meds` (concepts
+  compare RxNorm codes only); `Counts.correlations` in the Apple export
+  decoder, counted and never reported; the Garmin decoder's
+  unused `Field` alias; and the MCP server's unused
+  `CODE_UNSUPPORTED_PROTOCOL_VERSION`.
+- **Two documents that had stopped being maintained:** the Chinese edition
+  of `benchmarks/intent/README.md`, behind the English one and the only
+  non-English page under `benchmarks/`, and `docs/superpowers/plans/`,
+  working plans for past releases. Git history keeps both.
 
 ## 1.6.2
 
@@ -6997,7 +7030,7 @@ class.
   terminology bundles from raw UMLS / SNOMED CT / LOINC / RxNorm releases —
   contributor documentation shipping to every install, against this
   repository's own convention that a package README is short and long-form
-  guides live in `docs/`. It is [docs/vocabulary-build.md](docs/vocabulary-build.md).
+  guides live in `docs/`. It is `docs/vocabulary-build.md`.
   The section documenting `mirobody/units/` went to that package, which had no
   README, and the architecture block was three releases stale: it listed
   `lexical.py`, `zh_fold.py`, `value_scale.py` and `fhir/units/` inside the

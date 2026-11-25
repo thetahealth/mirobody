@@ -37,13 +37,12 @@ from .convert import (
     convert_value, convertible, needs_molar_mass, partition_units, pick_display_unit, scale,
 )
 from .normalize import (
-    ParsedQuantity, normalize_unit, parse_value_unit, scan_value_units,
+    ParsedQuantity, normalize_unit, parse_value_unit,
 )
 
 __all__ = [
     "normalize_unit",
     "parse_value_unit",
-    "scan_value_units",
     "ParsedQuantity",
     "unit_family",
     "unit_families",

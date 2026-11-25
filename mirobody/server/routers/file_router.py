@@ -241,8 +241,9 @@ async def websocket_upload_health_report(
     
     Args:
         token: Authentication token (required)
-        connectionId: Optional client-provided connection ID. If provided, the server will use it;
-                     otherwise, a new one will be generated. This enables reconnection to previous sessions.
+        connectionId: Optional client-provided connection ID, ``{user_id}_<suffix>``, so each
+                     tab keeps its own connection across reconnects. Absent, or not prefixed by
+                     the caller's own id, the connection is keyed by the user id alone.
     """
     user_id = None
     # Generate unique trace_id for this WebSocket connection
@@ -292,20 +293,18 @@ async def websocket_upload_health_report(
                 await websocket.close(code=1008, reason="Second factor required")
                 return
 
-            # Use client-provided connectionId or default to user_id (backward compatible)
+            # The web client sends `{user_id}_<tab>` so each tab keeps its own
+            # connection; an id under another account's prefix is not this
+            # caller's to attach to, so it gets the user's own id instead.
             if connectionId:
-                # Validate that connectionId starts with user_id (security check)
                 if not connectionId.startswith(f"{user_id}_") and connectionId != str(user_id):
                     logger.warning("upload socket ignored a connectionId not prefixed by its account: user_id=%s",
                                    user_id)
-                    # Fall back to user_id for backward compatibility
                     connection_id = str(user_id)
                 else:
                     connection_id = connectionId
                     logger.info(f"Using client-provided connectionId: {connection_id}")
             else:
-                # Default to user_id for backward compatibility (single tab per user)
-                # If frontend wants multi-tab support, it should provide a unique connectionId
                 connection_id = str(user_id)
             
             logger.info(f"WebSocket file upload connection established: user_id={user_id}, connection_id={connection_id}")

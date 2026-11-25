@@ -59,16 +59,8 @@ Give the same engine to your AI agent. In Claude Code:
 claude mcp add mirobody -- uvx --python 3.12 mirobody mcp
 ```
 
-On Windows, a default PowerShell window runs `claude` as its `.ps1` script and
-swallows the `--` before `uvx` ever sees it, failing with `unknown option
-'--python'`; call the `.cmd` shim instead, which PowerShell runs as a native
-command and passes `--` through unchanged:
-
-```powershell
-claude.cmd mcp add mirobody -- uvx --python 3.12 mirobody mcp
-```
-
-CMD and Git Bash run the original command as given.
+In a default Windows PowerShell window, run `claude.cmd` instead of `claude`
+([why](docs/quickstart.md#when-it-does-not-come-up)).
 
 Your agent can then standardize any name, reading, unit or complaint you paste, on your machine and without a key. Reading a whole report also needs `mirobody[parse]` and a model key. [Other MCP clients](https://docs.mirobody.ai/en/tools/mcp-integration#local-terminology-over-stdio) take the same command.
 
@@ -96,7 +88,7 @@ git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
 COMPOSE_PROFILES=local-cpu ./deploy.sh
 ```
 
-Allow 16 GB of memory, at least 8 GB of it for Docker. No GPU is required; on Windows, run the commands in a WSL 2 terminal. The first start needs a network connection to download container images and model weights. If the registry is not reachable from your network, `deploy.sh` says so and retries through a mirror; `DOCKER_MIRROR` in `.env` names your own. After those downloads, document reading, standardization and answers run locally. CPU answers can take minutes; [Mac, NVIDIA and Windows options](docs/local-models.md) explain how to use your GPU.
+Allow 16 GB of memory, at least 8 GB of it for Docker. No GPU is required; on Windows, run the commands in a WSL 2 terminal. The first start needs a network connection to download container images and model weights; if the registry is unreachable, see [the mirror option](docs/quickstart.md#when-it-does-not-come-up). After those downloads, document reading, standardization and answers run locally. CPU answers can take minutes; [Mac, NVIDIA and Windows options](docs/local-models.md) explain how to use your GPU.
 
 Open the app link the script prints. The local models are already selected; sign in with the same demo account above, ask a question or upload a sample. [Which model to choose](docs/model-choice.md) compares the local options.
 

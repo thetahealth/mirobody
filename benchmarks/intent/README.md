@@ -198,7 +198,6 @@ python -m benchmarks.intent.compare \
 Measured calibration, failures, per-item model disagreements and limits are
 recorded in [`validation.json`](validation.json). Do not use model agreement as
 clinical truth or a 32-item development calibration as an independent leaderboard.
-See [中文说明](README.zh-CN.md).
 
 ## Current calibration protocol
 

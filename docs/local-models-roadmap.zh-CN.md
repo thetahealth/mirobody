@@ -12,8 +12,9 @@ Mirobody 不填任何 API key 也能跑：一个模型回答问题，一个模�
 
 ## 结论
 
-- **现在的默认**（1.5.4）是小号：**MiniCPM5-2B**（Q4_K_M，1.6 GB）回答问题，**GLM-OCR-0.9B**（1.4 GB）读文档，
-  合计 3.0 GB，跑在 llama.cpp 上，16 GB 内存、没有显卡就行。在现已发布的 [`benchmarks/local_models/`](../benchmarks/local_models/README.md) 评测上，它 24 道题过了 19 道（Claude Code 评分 248 分得 215），12 份文档的 140 个印刷行全部存对，31 条日记条目写出 22 条；
+- **1.5.4 时的默认**是小号：**MiniCPM5-2B**（Q4_K_M，1.6 GB）回答问题，**GLM-OCR-0.9B**（1.4 GB）读文档，
+  合计 3.0 GB，跑在 llama.cpp 上，16 GB 内存、没有显卡就行。1.5.5 起小号改用 Q8_0，合计约 4.1 GB；
+  现在的配置见 [local-models.zh-CN.md](local-models.zh-CN.md)。在现已发布的 [`benchmarks/local_models/`](../benchmarks/local_models/README.md) 评测上，它 24 道题过了 19 道（Claude Code 评分 248 分得 215），12 份文档的 140 个印刷行全部存对，31 条日记条目写出 22 条；
   在 1.5.4 改 harness（[见下](#先改-harness)）之前，24 道题过了 16 道，140 个印刷行存对 45 个，31 条日记条目一条也没写出来。
 - **大号**是 Qwen3.8-27B（GSQ-RCO IQ3_S，13 GB），能看照片。在评测的 24 道题上得 248 分里的 240 分，
   同一台机器上的小号 229 分，云端模型 237–247 分；140 个印刷行存对 139 个，31 条日记条目写出 29 条（[实测](../benchmarks/local_models/HISTORY.md#small-and-large-on-one-machine-2026-10-08)，英文）。

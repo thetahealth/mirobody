@@ -93,7 +93,7 @@ the mail client.
     [docs/testing.md](docs/testing.md).
 
     A clone runs the public resolver/security gates and the two published
-    Python-analysis evidence modules. Those modules add 24 synthetic checks;
+    Python-analysis evidence modules. Those modules add synthetic checks;
     three need a local Docker daemon and the calculation image. Database
     cases skip until `MIROBODY_TEST_POSTGRES_DSN` names a database. The
     remaining maintainers' regression suite is gitignored. Write new tests under `tests/` at

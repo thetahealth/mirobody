@@ -21,7 +21,7 @@ mirobody/
 │                names · devices）、指标目录、单位、aggregate/、derive/
 ├── agent/       ③ 智能体 Agent   models/ filesystem/ wire/ middleware/ tools/ chat/
 ├── mcp/         MCP 服务端
-├── server/      HTTP 应用：路由、鉴权、自带的前端
+├── server/      HTTP 应用：路由、鉴权、中间件、构建好的网页前端
 ├── utils/       调用方自己接的机制：config、db、sse、net、llm_output、prompts、log
 ├── user/        身份与关爱圈：谁可以读谁的记录
 └── schema/      DDL，开发环境启动时重放
