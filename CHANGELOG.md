@@ -94,6 +94,31 @@
 
 ### Fixed
 
+- **The report spellings #357 left over resolve, and six answered another
+  test.** mirobody-gen's generated names and abbreviations, checked one by
+  one against their truth codes: 78 rows in `resolver_overrides.tsv`. Among
+  them `GLU(U)` (urine glucose), `RBC (HPF)` / `WBC (HPF)` / `RBC/HPF`,
+  `RBC(U)` / `WBC(U)` / `红细胞(尿)` and a bare `Urine RBC` / `Urine WBC`
+  answered the BLOOD count, and `白陶土部分凝血活酶时间` the kaolin clotting
+  time rather than the aPTT. A count per high-power field is now the
+  microscopy code (13945-1, 5821-4), and a value in /uL or a qualitative one
+  moves to its urine sibling by its unit; the `(U)` spellings follow the
+  existing `尿红细胞` / `尿白细胞` rows. Also: `ABO grp`, `AGR`, `PChE`, `TCH`,
+  `CREAT`, `BFM`, `Fg`, `FOL`, `GAlb`, `GLU0`, `IRI`, `LD`, `TTR`, `PG1`/`PG2`,
+  `IP`, `RESP`, `RhF`, `TGL`, `PROT`, `MAU`, `WCC`, spirometry's `FEV1%P` and
+  `FVC%P`, `高压`/`低压`, `直接反应胆红素`, `总三碘甲腺原氨酸`, the
+  brachial-ankle pulse wave velocities and HPV-18. **ApoB:** a bare `ApoB`
+  answered Apolipoprotein B-100 (1871-3) and `ApoB-100` an APOB gene-variant
+  test (73748-6); `ApoB` is now the generic 1884-6 that labs order, and
+  `ApoB-100` the B-100 code. Left as they are, on purpose: `RCC` and `VF`
+  (also renal cell carcinoma and ventricular fibrillation), skeletal muscle
+  (no LOINC code), the ECG and echo abbreviations (scoped to a heading), a
+  bare `BILI` (total bilirubin, as every other spelling) and 25-OH vitamin D
+  (1989-3 in every language since #323). Readings stored under an old answer
+  move with `mirobody recode`. Benchmark 638 → 716; of 8,639 names and 223
+  name-unit readings resolved before and after, only these 80 changed. To
+  check: `mirobody resolve "RBC (HPF)" ApoB "GLU(U)"`.
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes
