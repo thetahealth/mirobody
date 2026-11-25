@@ -64,6 +64,11 @@
 
 ### Fixed
 
+- **Files served from `/files/...` could open slowly.** The endpoint split
+  every binary file (images, PDFs and the rest) into one chunk per newline
+  byte, thousands of chunks for a typical photo. It now sends the stored bytes
+  in one response body (#360).
+
 - **The published resolver score is the one the benchmark prints.** The
   three READMEs, `docs/standardization.md` and its Chinese edition,
   `docs/testing.md` and the `standardize-health-data` skill said 347/347,
