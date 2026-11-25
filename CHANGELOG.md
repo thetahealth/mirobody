@@ -62,6 +62,14 @@
   one labelled ECG reading, not a bare "Classification" series, and no
   extraction request is logged for the file.
 
+- **The README in Russian.** The web client now has a Russian interface
+  (thetahealth/mirobody-web#39), but the repository's front page came in
+  English, Chinese and Japanese only. `README.ru.md` translates the English
+  one, with Russian editions of its diagrams (`docs/images/*.ru.svg`); the
+  guides it links are in English, and it says so. The published-score and
+  skills gates read it with the other three. To check: the language line at
+  the top of every README links Русский.
+
 ### Changed
 
 - **`[parse]` no longer installs `google-genai`, and `[app]` no longer names

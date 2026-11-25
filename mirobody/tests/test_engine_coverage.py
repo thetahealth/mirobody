@@ -962,6 +962,7 @@ _PUBLISHED_SCORE = {
     "README.md": "{n}/{n}",
     "README.zh-CN.md": "{n}/{n}",
     "README.ja.md": "{n}/{n}",
+    "README.ru.md": "{n}/{n}",
     "docs/standardization.md": "{n}/{n}",
     "docs/standardization.zh-CN.md": "{n}/{n}",
     "docs/testing.md": "{n} cases",
