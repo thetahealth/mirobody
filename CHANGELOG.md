@@ -62,6 +62,16 @@
   one labelled ECG reading, not a bare "Classification" series, and no
   extraction request is logged for the file.
 
+- **The web client speaks Russian.** Its language switcher offered English,
+  简体中文, 繁體中文 and 日本語, so a browser set to Russian got English. A
+  Russian bundle now covers every string the page shows; in Russian, dates
+  read DD.MM.YYYY and decimals take a comma, on screen only (what is stored
+  and sent is unchanged). The date pickers and the other built-in widgets now
+  follow the page's language in all five; Japanese and Traditional Chinese
+  showed them in English before. To check: pick Русский on the sign-in page;
+  the page declares `lang="ru"`. Contributed by Denis
+  (thetahealth/mirobody-web#39).
+
 ### Fixed
 
 - **Files served from `/files/...` could open slowly.** The endpoint split
