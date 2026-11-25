@@ -746,17 +746,26 @@ Visceral Fat Area	Visceral fat [Area] Measured
 # `去脂体重`/`瘦体重` (aliases_src/zh.tsv, pre-existing) post all FOUR LOINC
 # rows that share the COMPONENT "lean body weight" — 91557-9 itself, 8342-8
 # (Immersion), 8343-6 (Skin fold), 88334-8 (Calculated) — every one at the
-# SAME commonness rank (0.0), so `_pick` returns whichever is first in the
-# posting array, 8342-8, by accident of storage order rather than evidence.
-# No override TARGET can separate them: it is handed to the same `_posting`
-# lookup and ties the same way (confirmed — pointing at 91557-9's own exact
-# LONG_COMMON_NAME, "Lean body weight", still posts all four and still picks
-# 8342-8). Fixing the method-less preference belongs in `_pick`, not this
-# file; blocking turns a confidently WRONG immersion-method answer into an
-# honest miss, which this project's own standard (see this file's header)
-# ranks above it.
-去脂体重	!ambiguous
-瘦体重	!ambiguous
+# SAME commonness rank (0.0). This WAS unfixable from this file: no
+# candidate's own LONG_COMMON_NAME matched the lookup key exactly, so `_pick`
+# fell through to storage order and answered 8342-8 regardless of the
+# override's target — true the day this row was written, six days before
+# #357 (resolver.py ~665-684, `b0bbef3b2`) added the rule that now separates
+# them: when exactly one candidate's own LONG_COMMON_NAME equals the key,
+# that candidate wins outright. Nothing revisited this row after #357
+# landed (not even the later pass that relabeled the sentinel `!ambiguous`).
+# 91557-9's bare "Lean body weight" is the only one of the four whose name
+# is not "... estimated by Immersion/Skin fold method" or "... Calculated",
+# so pointing the override at that exact string is now a unique hit
+# (checked with a fresh `OfflineResolver()` after this edit).
+# `Lean Body Mass`/`去脂肪体重`/`Fat-Free Mass` had no alias of their own and
+# were left unresolved rather than risk the tie reappearing; now that the
+# tie itself resolves, all three get the same target.
+去脂体重	Lean body weight
+瘦体重	Lean body weight
+Lean Body Mass	Lean body weight
+去脂肪体重	Lean body weight
+Fat-Free Mass	Lean body weight
 当前体重	Body weight
 体水分	Body water mass
 总体水	Body water mass
@@ -773,6 +782,17 @@ Total Body Water	Body water mass
 最大摄氧量	Oxygen consumption (VO2)/Body weight [Volume Rate Content] --peak during exercise
 VO2max	Oxygen consumption (VO2)/Body weight [Volume Rate Content] --peak during exercise
 每日步数	Number of steps
+# `活动消耗`/`消耗热量` have no alias of their own; `Calories burned`, the
+# catalogue's own LCN for 41981-2, posts a FIVE-way tie at the same
+# commonness rank (`in 24 hour`, `in 1 week`, bare, `Machine estimate`,
+# `Pedometer`) — the same shape `去脂体重` above hit. The same singular-
+# exact-match `_pick` rule (#357) settles it the same way: 41981-2's bare
+# "Calories burned" is the only one of the five candidates whose own name
+# names neither a time window nor a method, so the override can point at
+# it directly instead of abstaining (checked with a fresh
+# `OfflineResolver()`).
+活动消耗	Calories burned
+消耗热量	Calories burned
 运动时长	Exercise duration
 # A glucometer's capillary reading, a CGM's interstitial one, and the
 # chronic-condition panel terms that follow a blood-pressure cuff or a

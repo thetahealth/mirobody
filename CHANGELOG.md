@@ -150,6 +150,24 @@
   real value it reads under the wrong tab's name is not caught by this
   guard.
 
+- **A scale's `去脂体重`/`瘦体重` (lean body mass) and `活动消耗`/`消耗热量`
+  (calories burned) now resolve instead of abstaining.** Both named a LOINC
+  component with several codes tied at the same commonness rank — four for
+  lean body weight (bare, Immersion, Skin fold, Calculated), five for
+  calories burned (bare, in 24 hour, in 1 week, Machine estimate,
+  Pedometer) — and `resolver_overrides.tsv` abstained rather than risk
+  answering the wrong one. #357 (this release) gave `_pick` a rule that
+  settles exactly this shape: when one candidate's own LONG_COMMON_NAME
+  matches the lookup key exactly, it wins outright. Pointing the override
+  at that bare name (`Lean body weight`, `Calories burned`) now resolves
+  both families to the code that names neither a method nor a time window
+  (91557-9, 41981-2); `Lean Body Mass`/`去脂肪体重`/`Fat-Free Mass`, which
+  had no alias at all, get the same target.
+  `test_engine_coverage_devices.py`'s floor is 63/63 again, and a check
+  against the 638-case lab benchmark, both benchmark files, the health-
+  record benchmark and a 7,354-term private eval set found no other
+  answer changed. To check: `mirobody resolve 去脂体重 活动消耗`.
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes
