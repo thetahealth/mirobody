@@ -86,9 +86,14 @@
   watermark and the lab table in the image was lost with no warning. The
   text on the image must now also hold a digit, as a report's values and a
   searchable lab scan's layer do; otherwise the page goes to OCR, and the
-  watermark is folded back in only where OCR did not read it. To check: the
-  watermark page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR,
-  and the letterhead and searchable-scan pages there still are not.
+  watermark is folded back in only where OCR did not read it. A page with no
+  digit of its own still stays on its layer when another image page of the
+  same PDF passed: a searchable scan's or a letterhead report's last page
+  often holds only signatures, and asking each page for a digit sent it to
+  OCR for nothing (2 of mirobody-gen's 9 PDF views). To check: the watermark
+  page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR, alone or on
+  every page, and the letterhead, searchable-scan and signature pages there
+  are not.
 
 - **A urine dipstick's abbreviations are coded under a urine heading, and
   spirometry is the measured value** (#343). Alone, `PRO` answered proline,
