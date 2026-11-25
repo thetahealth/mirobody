@@ -140,6 +140,11 @@ NFKC、统一大小写、拉丁词之间留一个空格、汉字旁不留空格�
 }
 ```
 
+没有编码的读数会写明原因：有编码被放弃时写在 `rejectedReason`，否则写在 `reason`。
+`血脂` 是「a category or several tests in one name」（一个类别或一个名称里有几项检查），
+查不到的写法是「not in the lexical index」（词表里没有）。`resolve_indicator`
+对每个未解析的名称也在 `reason` 里给出同一句话。
+
 ### 6. 归入序列（`standardize/series.py`，`units.canonicalize`）
 
 一个 LOINC 编码比「能画在一条线上」的范围更窄，所以序列键折叠了两条轴：

@@ -77,6 +77,16 @@
   mirobody/tests/test_engine_coverage.py -s` prints `558/558`, the figure in
   the README.
 
+- **`resolve_indicator` and `standardize_reading` say why a name has no
+  code.** `mirobody resolve 血脂` printed "a category or several tests in
+  one name", but over MCP `resolve_indicator` answered only `resolved:
+  false` and `standardize_reading` only `method: refused`, so a client could
+  not tell a panel name (ask for one test) from a missing spelling (report
+  it). Each unresolved name now carries `reason`, the sentence the CLI
+  prints, from one function (`engine.resolver.unresolved_reason`); a tie
+  (`TLC`) gives its own reason, and a complaint keeps `rejectedReason`. To
+  check: `resolve_indicator(["血脂", "XYZ指数"])` gives each a `reason`.
+
 - **A scan under a watermark text layer is read by OCR** (#317). A PDF
   page dominated by an image stays on its text layer when at least 20 of
   that layer's characters sit on the image (#310): a born-digital report on

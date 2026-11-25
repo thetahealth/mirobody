@@ -184,6 +184,11 @@ when the resolver answered, and an extension records how
 }
 ```
 
+A reading with no coding says why, in `rejectedReason` when a code was set
+aside, otherwise in `reason`: `血脂` is "a category or several tests in one
+name", an unknown spelling "not in the lexical index". `resolve_indicator`
+returns the same sentence as `reason` on each unresolved name.
+
 ### 6. File it into a series (`standardize/series.py`, `units.canonicalize`)
 
 A LOINC code is narrower than what a chart may plot together, so the series

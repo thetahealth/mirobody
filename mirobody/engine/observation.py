@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from mirobody.engine.resolver import Resolution, resolve_reading
+from mirobody.engine.resolver import Resolution, resolve_reading, unresolved_reason
 
 LOINC_SYSTEM = "http://loinc.org"
 UCUM_SYSTEM = "http://unitsofmeasure.org"
@@ -112,6 +112,8 @@ def observation(name: str, value: str, unit: str, resolution: Resolution) -> dic
         "bundle": bundle_version(),
         "rejectedCode": resolution.rejected_code,
         "rejectedReason": resolution.rejected_reason,
+        # Only when nothing above already says why there is no code.
+        "reason": "" if resolution.rejected_reason else unresolved_reason(resolution),
     })]
     return out
 

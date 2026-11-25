@@ -1229,6 +1229,25 @@ def resolve(term: str) -> Resolution:
     return get_resolver().resolve(term)
 
 
+def unresolved_reason(resolution: Resolution) -> str:
+    """Why ``resolution`` carries no code, in one sentence; ``""`` when it has one.
+
+    Only `mirobody resolve` said this: over MCP `resolve_indicator` answered
+    `血脂` with `resolved: false` and `standardize_reading` with `method:
+    refused`, and neither said the name is a category rather than a missing
+    row, so a client could not tell "ask for one test" from "add a spelling".
+    """
+    if resolution.resolved:
+        return ""
+    if resolution.rejected_reason:
+        return resolution.rejected_reason
+    # A refusal is about a word the index HAS: 血脂 is four analytes, and
+    # "not in the lexical index" sent people looking for a row.
+    missing = ("a category or several tests in one name" if resolution.method == "refused"
+               else "not in the lexical index")
+    return f"{missing}, and no code is given rather than a guessed one"
+
+
 def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value: str | None, unit: str | None) -> Resolution | None:
     """Settle a name-only "two analytes" refusal with the measurement, or
     hand back `None` to leave it refused (#306).

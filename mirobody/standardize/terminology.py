@@ -26,6 +26,7 @@ def resolve_indicators(names: list[str]) -> dict[str, Any]:
     if len(names) > MAX_BATCH:
         return {"success": False, "error": f"Too many names in one call (max {MAX_BATCH})."}
     from mirobody.engine import get_resolver
+    from mirobody.engine.resolver import unresolved_reason
 
     resolver = get_resolver()
     results = []
@@ -33,13 +34,16 @@ def resolve_indicators(names: list[str]) -> dict[str, Any]:
         if not isinstance(raw, str) or not raw.strip():
             continue
         r = resolver.resolve(raw)
-        results.append({
+        row = {
             "name": raw,
             "resolved": r.resolved,
             "loinc": r.loinc,
             "canonical": r.canonical,
             "candidates": r.candidates,
-        })
+        }
+        if not r.resolved:
+            row["reason"] = unresolved_reason(r)
+        results.append(row)
     matched = sum(1 for x in results if x["resolved"])
     return {"success": True, "message": f"{matched}/{len(results)} resolved", "results": results}
 
