@@ -129,6 +129,13 @@ direction is the one draws took (`_resolve_timed`): read the site or the
 substance off the name and let the unit choose the measure. Whether the cut
 should keep the body circumferences it drops is a separate decision.
 
+Three names answer a wrong code rather than none, which is worse and the place
+to start: `Skeletal muscle` alone is 13931-1, a striated-muscle antibody (the
+block list has only `Skeletal Muscle Mass`); `胸围` alone is 59074-5, a heart
+over thorax circumference ratio by ultrasound, where an adult's chest is
+8279-2; and `PBG` is 12916-3, porphobilinogen synthase, which is neither the
+postprandial glucose a Chinese report means by it nor porphobilinogen itself.
+
 ### A draw named by the clock
 
 **Status:** open, needs a decision.
