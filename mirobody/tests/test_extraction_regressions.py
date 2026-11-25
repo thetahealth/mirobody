@@ -583,3 +583,89 @@ def test_a_screen_names_its_chart_by_the_selected_tab_and_stores_no_goal():
     for text in (prompt.get_extract_indicators_prompt("en"), _EXTRACT_PROMPT):
         assert "[selected]" in text and "page title" in text
         assert "目标体重" in text and "初始体重" in text
+
+
+def test_a_wearable_screen_is_coded_against_the_device_catalogue():
+    """#301: `coding_for` consulted the device catalogue only for
+    `SOURCE_DEVICE`, so a device-app screenshot -- which still arrives as
+    `SOURCE_FILE` -- had a catalogue word coded the lab way. `sodium` and
+    `cholesterol` are both: dietary intake on the device catalogue,
+    serum/dietary-unrelated analytes on a lab report. The `laboratory` row
+    keeps its lab code; the same word under `wearable` reaches the
+    catalogue's own (non-LOINC) identity instead."""
+    now = datetime(2026, 3, 5, tzinfo=UTC)
+    provenance = observations.Provenance(observations.MODALITY_LAB, observations.SOURCE_FILE, "file:synthetic-301-device")
+
+    def coding(name, unit, method):
+        draft = observations.Draft(name_text=name, observed_start=datetime(2026, 3, 4), value_text="140",
+                                   unit_text=unit, method_text=method)
+        row = observations.prepare(draft, provenance, "synthetic-301-device-user", "UTC", now=now)
+        return observations.coding_for(row, {})
+
+    assert coding("sodium", "mmol/L", "laboratory").code == "2951-2"
+    assert coding("cholesterol", "mg/dL", "laboratory").code == "2093-3"
+    wearable_sodium = coding("sodium", "mg", "wearable")
+    assert wearable_sodium.coded and wearable_sodium.code == "sodium"
+    assert wearable_sodium.code_system != "http://loinc.org"
+    wearable_cholesterol = coding("cholesterol", "g", "wearable")
+    assert wearable_cholesterol.coded and wearable_cholesterol.code == "cholesterol"
+
+
+def test_a_wearable_screens_catalogue_concept_still_abstains_when_unknown():
+    """A `wearable` row only CONSULTS the catalogue (no raw-name fallback, the
+    way an actual device sync gets one): `压力`, a watch's stress score, is
+    not a catalogue metric name, so it still reaches the lexical resolver and
+    abstains (`resolver_overrides.tsv`) instead of filing under a
+    device-namespace pseudo-code made of the bare, untranslated name."""
+    now = datetime(2026, 3, 5, tzinfo=UTC)
+    provenance = observations.Provenance(observations.MODALITY_LAB, observations.SOURCE_FILE, "file:synthetic-301-stress")
+    draft = observations.Draft(name_text="压力", observed_start=datetime(2026, 3, 4), value_text="42",
+                               unit_text="", method_text="wearable")
+    row = observations.prepare(draft, provenance, "synthetic-301-stress-user", "UTC", now=now)
+    coding = observations.coding_for(row, {})
+    assert not coding.coded
+
+
+@pytest.mark.parametrize("method,expected_modality", [
+    ("wearable", observations.MODALITY_DEVICE),
+    ("laboratory", observations.MODALITY_LAB),
+])
+async def test_a_wearable_rows_modality_is_device_not_lab_report(monkeypatch, method, expected_modality):
+    """#301: every file row was written `modality=MODALITY_LAB`, so a
+    device-app screenshot's readings showed up in the reports list
+    (`user/profile.py::_get_records` reads only lab/self/manual/unverified)
+    instead of the device section. A `wearable` row now carries
+    `MODALITY_DEVICE`; any other method is unaffected."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-301-modality-user",
+        [{"original_indicator": "脂肪", "value": "18.2", "unit": "kg", "detection_method": method}],
+        datetime(2026, 10, 1), "extracted", "synthetic-301-modality.txt",
+    )
+    _, drafts, provenance = ingest.call_args.args
+    saved = observations.prepare(drafts[0], provenance, "synthetic-301-modality-user", "UTC",
+                                 now=datetime(2026, 10, 14, tzinfo=UTC))
+    assert saved["modality"] == expected_modality
+
+
+async def test_an_unconfirmed_wearable_value_stays_unverified_not_device(monkeypatch):
+    """The interplay of the two modalities: whether a value is trustworthy
+    (`MODALITY_UNVERIFIED`, the document's text does not print it) outranks
+    which vocabulary coded it (`MODALITY_DEVICE`). A wearable row the text
+    does not bear out must still surface as unverified, not quietly filed as
+    a confirmed device reading."""
+    ingest = AsyncMock(return_value=observations.Report())
+    monkeypatch.setattr(observations, "ingest", ingest)
+    monkeypatch.setattr(observations, "user_tz", AsyncMock(return_value="UTC"))
+    await indicator_store.save_indicators_to_db(
+        "synthetic-301-unverified-user",
+        [{"original_indicator": "脂肪", "value": "99.9", "unit": "kg", "detection_method": "wearable"}],
+        datetime(2026, 10, 1), "extracted", "synthetic-301-unverified.txt",
+        text="体重 | 脂肪 | 肌肉\n18.2 kg",
+    )
+    _, drafts, provenance = ingest.call_args.args
+    saved = observations.prepare(drafts[0], provenance, "synthetic-301-unverified-user", "UTC",
+                                 now=datetime(2026, 10, 14, tzinfo=UTC))
+    assert saved["modality"] == observations.MODALITY_UNVERIFIED

@@ -71,6 +71,12 @@ SOURCE_DEVICE = "device"
 SOURCE_MANUAL = "manual"
 SOURCE_API = "api"
 
+#: `Draft.method_text`/`row["method_text"]` for a file row the extraction
+#: prompt classified as a smart device or wearable's own screen (#301), the
+#: one `detection_method` enum member a file batch can still code against
+#: the device catalogue for (`coding_for`) and carry as `MODALITY_DEVICE`.
+METHOD_WEARABLE = "wearable"
+
 GRAIN_INSTANT = "instant"
 GRAIN_WINDOW = "window"
 GRAIN_DAY = "day"
@@ -370,7 +376,8 @@ def catalog_alias(name: str) -> standardize.Alias | None:
 
 def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.Alias]) -> standardize.Coding:
     """The coding of one prepared row. A person's alias first, then the
-    device catalogue for a device batch, then the vocabulary.
+    device catalogue for a device batch or a screenshot of one, then the
+    vocabulary.
 
     The catalogue is keyed by vendor metric names, and several of them are
     ordinary words that mean something else on a lab report: `cholesterol` is
@@ -378,7 +385,16 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.A
     `steps` is a per-sample delta (55423-8) where a person means the day
     (41950-7). Consulting it for a typed name filed all of those in the
     device namespace. It answers for a device batch, where the name did come
-    from a vendor.
+    from a vendor, and for a file row the extractor marked `wearable`
+    (#301): a device-app screenshot still arrives as `SOURCE_FILE`, and
+    before this, `脂肪`/`肌肉` from one were coded as the lab reading of the
+    word (`resolve_reading` alone has no specimen to prefer the body over).
+    A `wearable` row only CONSULTS the catalogue; unlike a real device
+    batch it gets no raw-name fallback alias, because the printed name is
+    natural language a lab row could print too (`sodium`), and an
+    unmatched one must still reach the lexical resolver -- which abstains
+    correctly for words like `压力` (`resolver_overrides.tsv`) -- rather
+    than file under a device-namespace pseudo-code made of the bare name.
     """
     alias = aliases.get((row["name_key"], row["unit_ucum"])) or aliases.get((row["name_key"], ""))
     if row["kind"] == KIND_SYMPTOM:
@@ -395,6 +411,8 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.A
         alias = catalog_alias(row["name_text"]) or standardize.Alias(
             _ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, row["name_text"].split(".", 1)[0]
         )
+    elif alias is None and row.get("method_text") == METHOD_WEARABLE:
+        alias = catalog_alias(row["name_text"])
     return standardize.code(
         row["name_text"],
         name_key=row["name_key"],
@@ -1145,7 +1163,8 @@ async def merge_accounts(cur: Any, losing_user_id: str, winning_user_id: str) ->
 
 _SELECT_FOR_RECODE = """
 SELECT o.id, o.kind, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
-       o.value_num, o.source_kind, o.panel_text, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
+       o.value_num, o.source_kind, o.method_text, o.panel_text, o.series_id, o.decision_id, o.release, o.outcome,
+       o.code_system, o.code
   FROM v_observation o
  WHERE o.user_id = :user_id AND o.id > :after {name_filter}
  ORDER BY o.id
@@ -1464,6 +1483,7 @@ __all__ = [
     "KIND_MEASUREMENT",
     "KIND_ORGANIZER",
     "KIND_SYMPTOM",
+    "METHOD_WEARABLE",
     "MODALITY_DERIVED",
     "MODALITY_DEVICE",
     "MODALITY_LAB",

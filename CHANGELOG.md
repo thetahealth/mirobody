@@ -94,6 +94,21 @@
 
 ### Fixed
 
+- **A device-app screenshot's reading was coded against the lab vocabulary,
+  never the device catalogue** (#301). `observations.coding_for` consulted
+  the catalogue only for a device sync (`source_kind == SOURCE_DEVICE`); a
+  screenshot still arrives as a file, and `indicator_store` filed every file
+  under `MODALITY_LAB`, so `脂肪`/`肌肉` from a smart scale's screen were coded
+  the lab way. A row the extractor marked `wearable` (`detection_method`) now
+  also consults the catalogue, after a person's own alias and before the
+  lexical resolver, and is stored `MODALITY_DEVICE` instead of `lab-report`
+  — unless the text does not bear out its value, which still outranks it
+  (`MODALITY_UNVERIFIED`). A lab row that merely shares a word with the
+  catalogue (`sodium`, `cholesterol`) is unaffected: the branch only fires on
+  `wearable`. How to tell: code a `wearable` `sodium` row and a `laboratory`
+  one of the same name and unit; only the first lands on the catalogue's own
+  identity instead of serum sodium (2951-2).
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes
