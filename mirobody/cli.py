@@ -443,6 +443,7 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
         _print_icpc3(args.terms, width, condition=args.condition)
         return
     from mirobody.engine import get_resolver
+    from mirobody.engine.resolver import unresolved_reason
 
     try:
         resolver = get_resolver()   # first call pays the bundle load (~seconds)
@@ -456,12 +457,7 @@ def _cmd_resolve(args: argparse.Namespace) -> None:
             print(f"  {_pad(term, width)}  {loinc:<16}  {r.canonical}"
                   + (f"   [{r.candidates} candidates]" if r.candidates > 1 else ""))
         else:
-            # A refusal is about a word the index HAS: 血脂 is four analytes,
-            # and "not in the lexical index" sent people looking for a row.
-            missing = ("a category or several tests in one name" if r.method == "refused"
-                       else "not in the lexical index")
-            why = _complaint_axis_hint(term) or r.rejected_reason or (
-                f"{missing}, and no code is given rather than a guessed one")
+            why = _complaint_axis_hint(term) or unresolved_reason(r)
             print(f"  {_pad(term, width)}  unresolved: {why}")
 
 

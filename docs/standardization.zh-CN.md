@@ -71,13 +71,14 @@ NFKC、统一大小写、拉丁词之间留一个空格、汉字旁不留空格�
 
 解析器内部（`engine/resolver.py`）：
 
-- **类别名称拒绝编码。** 在 `resolver_overrides.tsv` 里目标是 `!unresolved` 的词（`血脂`、`lipid panel`）直接拒绝；所有表面变体都要检查，`lipid_panel` 绕不过去。
+- **有意不答的词拒绝编码，并说明原因。** `resolver_overrides.tsv` 里目标以 `!` 开头的词直接拒绝，目标就是拒绝的 `reason_kind`：`!category`（`血脂`、`lipid panel`）、`!condition`（`发烧`）、`!ambiguous`（没有尿检标题的 `KET`）、`!uncoded`（`BMR`）。所有表面变体都要检查，`lipid_panel` 绕不过去。
 - **候选键，越具体越先试。** 先查别名表，再查索引：`resolver_overrides.tsv`、
   `aliases_src/zh_curated.tsv` 和 `zh.tsv` 是「这个词就是这个概念」的明确陈述，
   而索引命中只是所有表面字符串相同的 LOINC 行。然后试表面变体（全角、各种横线、
   `snake_case`，见 `lexical.surface_variants`）。末尾的缩写只在它重复主体时才去掉（`总胆固醇 TC`）；它补充了标本或限定时保留（`Protein CSF`、`Glucose OGTT`、`胆固醇 HDL`），这几个词因此解析不出，而不是悄悄答成去掉限定词后那项检查的编码。
   量词（`计数`、`count`）最后才去，所以只会把「查不到」变成「查到」。
 - **报告印在名称后面的字样，查不到时才去掉。** `尿酸(UA)测定`、`γ-谷氨酰基转移酶*` 是名称后面跟了「测定」或异常标记。原样查不到时，去掉末尾的 `测定`、`*`、`↑`、`↓`，再按主体名称解析，类别拒绝和下面这条规则照样适用（`lexical.strip_report_marks`）。
+- **名称写明了采样时点，就按「指标 + 时点」解析。** LOINC 把空腹、餐后、激发试验的各个抽血点、药物谷浓度和峰浓度写在 `COMPONENT` 里（`insulin^post CFst`、`glucose^2H post XXX challenge`），所以以前只有整串写进词表的写法才解析得出：`空腹血糖` 靠三十来行别名能解析，`空腹C肽` 不能。现在 `lexical.split_timing` 读出时点（`空腹`、`餐后2小时`、`(120min)`、`2 hour`、`谷浓度`、`trough`），指标单独解析，答案取它在该时点的兄弟编码：刻度和时间相同，性质优先相同，静脉采血的几种标本可以互相替代；谷浓度、峰浓度本身就是血药浓度，任何浓度性质都可以。找不到兄弟编码就以 `reason_kind: timing` 拒绝，绝不退回不带时点的编码，`胰岛素(120min)` 以前就是这样落进普通胰岛素序列的。为这个写法单独写的别名行优先；`test_engine_coverage_timing.py` 检查规则不会给这些写法答出别的编码。
 - **`名称(缩写)` 两半必须一致。** 两半分别解析。同一项检查：用主体（`空腹血糖(GLU)` → 1558-6）。
   两项不同的检查：拒绝，并写明两个编码，留给人选（`血糖(HbA1c)` 分别是 2339-0 和 4548-4）。
 - **在候选里挑一个**（`_pick`）：参考 LOINC 的 `COMMON_TEST_RANK`，普通血清、血浆、全血优先于脐血、毛细血管血，`COMPONENT` 完全一致的优先，但不能把人身上的测量换成器官或设备的测量（`weight` 不能变成结石重量）。
@@ -139,6 +140,14 @@ NFKC、统一大小写、拉丁词之间留一个空格、汉字旁不留空格�
   }]
 }
 ```
+
+没有编码的读数会写明原因。`reasonKind` 是给程序判断用的词：`category`（请改问单项检查）、
+`condition`（症状或诊断，用 ICPC-3 编码）、`ambiguous`（由单位或报告分区决定）、
+`uncoded`（LOINC 没有对应编码）、`timing`（该时点没有编码）、`unit_conflict`、
+`unknown`（应上报的写法）。原因的句子在有编码被放弃时写在 `rejectedReason`，否则写在 `reason`：
+`血脂` 是「a category or several tests in one name」（一个类别或一个名称里有几项检查），
+查不到的写法是「not in the lexical index」（词表里没有）。`resolve_indicator`
+对每个未解析的名称也给出这两项，字段名是 `reason_kind` 和 `reason`。
 
 ### 6. 归入序列（`standardize/series.py`，`units.canonicalize`）
 
@@ -222,7 +231,7 @@ ICPC-3 没有可用的中文版，它的 CC BY-ND 许可也不允许我们自己
 - **我们量这个说法，而不是断言它。**
   [`test_engine_coverage.py`](../mirobody/tests/test_engine_coverage.py) 拿常规体检会出现的那些套餐去考离线解析器，词按报告上真正的印法写，覆盖英文、简体中文、
   繁體中文、日本語、俄文、爱沙尼亚文和土耳其文，外加平台 API 教给我们的那套穿戴设备词汇。
-  **今天是 558/558；刚写出来那天是 32/94。**
+  **今天是 561/561；刚写出来那天是 32/94。**
   它判的是**临床**正确：把 `血红蛋白` 答成 HbA1c 的码算错，`血脂` 则必须解析不出结果。
 
 ```bash

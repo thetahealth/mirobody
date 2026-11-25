@@ -93,9 +93,12 @@ a measurement goes to `code()`, which asks in this order of authority:
 
 Inside the resolver (`engine/resolver.py`):
 
-- **Categories refuse.** A term whose target is `!unresolved` in
-  `resolver_overrides.tsv` (`血脂`, `lipid panel`) is refused, and every
-  surface variant is checked, so `lipid_panel` cannot walk around the block.
+- **Deliberate non-answers refuse, and say why.** A term whose target in
+  `resolver_overrides.tsv` starts with `!` is refused, and the target is the
+  refusal's `reason_kind`: `!category` (`血脂`, `lipid panel`), `!condition`
+  (`发烧`), `!ambiguous` (`KET` with no urine heading), `!uncoded` (`BMR`).
+  Every surface variant is checked, so `lipid_panel` cannot walk around the
+  block.
 - **Candidate keys, most specific first.** The alias-table hop comes before
   the index: `resolver_overrides.tsv` and `aliases_src/zh_curated.tsv` and
   `zh.tsv` are statements that one term means one concept, while an index hit
@@ -111,6 +114,20 @@ Inside the resolver (`engine/resolver.py`):
   or a flag. When the name as printed misses, a trailing `测定`, `*`, `↑` or
   `↓` is stripped and the rest is answered as the bare name would be, the
   blocks and the rule below included (`lexical.strip_report_marks`).
+- **A name that says when its sample was drawn is read as the analyte plus
+  the draw.** LOINC keeps fasting, a meal, a challenge's timed draws and a
+  drug's trough or peak in the COMPONENT (`insulin^post CFst`,
+  `glucose^2H post XXX challenge`), so only spellings written out whole used
+  to resolve: `空腹血糖` did, through about thirty rows, and `空腹C肽` did not.
+  `lexical.split_timing` reads the draw (`空腹`, `餐后2小时`, `(120min)`,
+  `2 hour`, `谷浓度`, `trough`), the analyte is resolved on its own, and the
+  answer is its sibling for that draw: same scale and time, the same property
+  first, the venipuncture specimens standing in for each other. A trough or
+  peak is a level, so any concentration will do. With no sibling the name
+  refuses with `reason_kind: timing` and never answers the plain code, which
+  is where `胰岛素(120min)` used to land. A row written for the exact name
+  wins; `test_engine_coverage_timing.py` checks that the rule never answers a
+  row's name with another code.
 - **`Name (abbreviation)` must agree.** Both halves are resolved. One analyte:
   the stem wins (`空腹血糖(GLU)` → 1558-6). Two analytes: refused, with both
   codes named so a person can choose (`血糖(HbA1c)` gives 2339-0 and 4548-4).
@@ -183,6 +200,16 @@ when the resolver answered, and an extension records how
   }]
 }
 ```
+
+A reading with no coding says why. `reasonKind` is the word a program
+branches on: `category` (ask for one test), `condition` (a symptom or a
+diagnosis, coded in ICPC-3), `ambiguous` (a unit or the report's section
+decides), `uncoded` (LOINC has no code for it), `timing` (no code for that
+draw), `unit_conflict` or `unknown` (a spelling to report). The sentence is in
+`rejectedReason` when a code was set aside, otherwise in `reason`: `血脂` is "a
+category or several tests in one name", an unknown spelling "not in the
+lexical index". `resolve_indicator` returns both, as `reason_kind` and
+`reason`, on each unresolved name.
 
 ### 6. File it into a series (`standardize/series.py`, `units.canonicalize`)
 
@@ -317,7 +344,7 @@ Standardization here is not a lookup table but a complete terminology-normalizat
   [`test_engine_coverage.py`](../mirobody/tests/test_engine_coverage.py) scores the offline
   resolver against the panels an ordinary checkup includes, written the way a report
   prints them, in English, 简体中文, 繁體中文, 日本語, Russian, Estonian and Turkish, plus
-  the wearable vocabulary the platform API teaches. **558/558 today; it scored 32/94 the day it
+  the wearable vocabulary the platform API teaches. **561/561 today; it scored 32/94 the day it
   was written.** It grades *clinical* correctness: answering `血红蛋白` with the
   HbA1c code is a failure, and `血脂` is required to resolve to nothing.
 
