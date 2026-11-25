@@ -249,16 +249,18 @@ the languages and vocabularies it covers.
 
 UI strings are **not** in this repo. `frontend/` holds the built web client, not
 its source, so there is no `i18n/` here to edit. What is translatable here is the
-three live READMEs — `README.md`, `README.zh-CN.md` and `README.ja.md` — and
+four live READMEs — `README.md`, `README.zh-CN.md`, `README.ja.md` and
+`README.ru.md` — and
 they are checked as a set: links, figures, runnable examples and cross-edition
 parity all have to agree before a release goes out. Each edition has its own
-diagrams (`docs/images/*.zh-CN.svg`, `*.ja.svg`), redrawn when the English one
-changes.
+diagrams (`docs/images/*.zh-CN.svg`, `*.ja.svg`, `*.ru.svg`), redrawn when the
+English one changes.
 Every in-package `README.md` stays English, and so does everything under
 `docs/` except the Chinese editions of the guides `README.zh-CN.md` links:
 `<guide>.zh-CN.md`, listed in [`docs/README.md`](docs/README.md) and edited
-together with the English page. `README.ja.md` links the English guides and
-says so.
+together with the English page. `README.ja.md` links the Japanese guides
+where they exist and the English ones otherwise; `README.ru.md` links the
+English guides and says so.
 
 ### Commits
 

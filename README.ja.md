@@ -12,7 +12,7 @@
 ひとつの標準で、あらゆる情報源をまとめ、あなたの全体像を映し出す。健康の行方を理解するための、長く続く記録です。<br>
 このオープンソース版は、その記録を自分のマシンに置きます。検査報告・ウェアラブル・遺伝子ファイルをまとめ、AI エージェントからも MCP で直接使えます。
 
-**[English](README.md)** · **[中文](README.zh-CN.md)** · **日本語**
+**[English](README.md)** · **[中文](README.zh-CN.md)** · **日本語** · **[Русский](README.ru.md)**
 
 [![PyPI](https://badgen.net/pypi/v/mirobody?label=PyPI&color=3775A9&icon=pypi)](https://pypi.org/project/mirobody/)
 [![License: Apache-2.0](https://badgen.net/badge/license/Apache-2.0/blue)](LICENSE)

@@ -12,7 +12,7 @@
 同一套标准，汇聚每一个来源，映出完整的你——让长期记录成为理解健康走向的依据。<br>
 开源版把这份记录留在你自己的机器上：体检报告、穿戴设备和基因数据都汇入其中，你的 AI 助手也能通过 MCP 直接查询。
 
-**[English](README.md)** · **中文** · **[日本語](README.ja.md)**
+**[English](README.md)** · **中文** · **[日本語](README.ja.md)** · **[Русский](README.ru.md)**
 
 [![PyPI](https://badgen.net/pypi/v/mirobody?label=PyPI&color=3775A9&icon=pypi)](https://pypi.org/project/mirobody/)
 [![License: Apache-2.0](https://badgen.net/badge/license/Apache-2.0/blue)](LICENSE)
