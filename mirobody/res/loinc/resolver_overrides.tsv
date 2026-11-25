@@ -1547,6 +1547,108 @@ MCHC (ср. конц. Hb в эр.)	mchc
 Витамин В12	vitamin B12
 Витамин B12	vitamin B12
 Фолиевая кислота	folate
+# A routine Russian panel (2026-11-25): the common spellings of lipids,
+# glucose, coagulation, hormones and biochemistry that the rows above did
+# not reach, written from the standard Russian names rather than collected
+# from reports. Each target is what the English name resolves to, unless the
+# comment says otherwise. Left unresolved on purpose: bare «СКФ» (the
+# English eGFR row means MDRD; Russian labs mostly report CKD-EPI, which
+# «СКФ (CKD-EPI)» already reaches), segmented and band neutrophils (a % and a count
+# share the name), «Протромбин по Квику» (a % of normal) and «Д-димер»
+# (DDU and FEU are both ng/mL, about 2x apart, and Russian labs often
+# print FEU: one code for both would merge two scales on one trend).
+# lipids / липидограмма. LDL and VLDL land on the calculated codes, as the
+# English LDL-C and VLDL rows do; a value in ммоль/л moves to the molar code.
+Общий холестерин	cholesterol
+Холестерин ЛПНП	LDL-C
+Холестерин-ЛПНП	LDL-C
+ЛПНП	LDL-C
+ХС ЛПНП	LDL-C
+ХС-ЛПНП	LDL-C
+Холестерин липопротеинов низкой плотности	LDL-C
+Холестерин липопротеинов низкой плотности (ЛПНП)	LDL-C
+Холестерин ЛПВП	HDL-C
+Холестерин-ЛПВП	HDL-C
+ЛПВП	HDL-C
+ХС ЛПВП	HDL-C
+ХС-ЛПВП	HDL-C
+Холестерин липопротеинов высокой плотности	HDL-C
+Холестерин липопротеинов высокой плотности (ЛПВП)	HDL-C
+Холестерин ЛПОНП	Cholesterol VLDL
+ЛПОНП	Cholesterol VLDL
+Холестерин липопротеинов очень низкой плотности	Cholesterol VLDL
+Холестерин не-ЛПВП	Cholesterol non HDL
+Триглицериды	triglyceride
+# glucose, HbA1c, insulin / углеводный обмен
+Гликированный гемоглобин	HbA1c
+Гемоглобин гликированный	HbA1c
+Гликозилированный гемоглобин	HbA1c
+Гликогемоглобин	HbA1c
+Глюкоза натощак	Fasting glucose [Mass/volume] in Serum or Plasma
+Глюкоза (натощак)	Fasting glucose [Mass/volume] in Serum or Plasma
+Глюкоза в крови	glucose
+Инсулин натощак	Insulin [Units/volume] in Serum or Plasma --fasting
+Индекс HOMA-IR	Homeostasis model assessment
+# inflammation / воспаление. СРБ follows «С-реактивный белок» above; a value
+# in мг/л moves it to the mass code (1988-5).
+СРБ	C reactive protein
+С-реактивный белок высокочувствительный	hs-CRP
+СРБ высокочувствительный	hs-CRP
+вчСРБ	hs-CRP
+# biochemistry, continued / биохимия. «Хлор» is how a serum panel prints
+# chloride; without this row it answered 16607-4, chlorine in WATER.
+Железо сывороточное	iron
+ГГТ	GGT
+ГГТП	GGT
+Гамма-ГТ	GGT
+Гамма-глутамилтрансфераза	GGT
+Гамма-глутамилтранспептидаза	GGT
+ЛДГ	LDH
+Лактатдегидрогеназа	LDH
+Альфа-амилаза	amylase
+Липаза	lipase
+Хлор	chloride
+Хлориды	chloride
+Кальций общий	calcium
+Фосфор	inorganic phosphate
+# hormones / гормоны. «ФСГ» answered 34434-1, the LH/FSH RATIO, and
+# «Паратгормон» an intraoperative PTH panel.
+Тестостерон общий	testosterone
+ЛГ	Luteinizing hormone
+Лютеинизирующий гормон	Luteinizing hormone
+ФСГ	FSH
+Фолликулостимулирующий гормон	FSH
+ДГЭА-С	DHEA-S
+ДГЭА-сульфат	DHEA-S
+ПСА общий	Prostate specific Ag
+ПСА свободный	Prostate specific Ag.free
+Т3 общий	Triiodothyronine
+Трийодтиронин общий	Triiodothyronine
+Т4 общий	Thyroxine (T4) [Mass/volume] in Serum or Plasma
+Тироксин общий	Thyroxine (T4) [Mass/volume] in Serum or Plasma
+Паратгормон	PTH
+Паратиреоидный гормон	PTH
+# coagulation / коагулограмма. Fibrinogen is the Clauss assay a coagulation
+# lab runs, not 97016-0 "in Blood by calculation"; «Протромбиновое время»
+# is the PT in seconds, not the INR.
+Фибриноген	Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay
+МНО	INR
+Протромбиновое время	Prothrombin time (PT)
+АЧТВ	aPTT
+# CBC and vitamins, continued. «Гематокрит» answered 20570-8, by
+# calculation; an analyser reports 4544-3, as the English row does.
+Гематокрит	HCT Fr Sg Auto
+Среднее содержание гемоглобина в эритроците	mch
+Средняя концентрация гемоглобина в эритроците	mchc
+Витамин D 25-OH	Calcidiol
+Витамин B9	folate
+Витамин В9	folate
+# Lipid panel names and the atherogenic index: deliberate non-answers.
+Липидограмма	!category
+Липидный профиль	!category
+Липидный спектр	!category
+Коэффициент атерогенности	!uncoded
+Индекс атерогенности	!uncoded
 # Estonian (et) — the three terms a real Estonian (Synlab) report prints
 # that the release variants miss
 Vitamiin D (25-OH)	Calcidiol
