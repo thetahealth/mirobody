@@ -27,7 +27,6 @@ Everything is emitted in the catalogue's standard unit for that metric.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from typing import Any
 
 from mirobody.kernel.series import Fact
@@ -41,8 +40,6 @@ _G_TO_KG = 1 / 1000
 def _same(x: float) -> float:
     return x
 
-
-Field = tuple[str, Callable[[float], float]]  # (metric, converter into the catalogue unit)
 
 CONFIG: dict[str, dict[str, Any]] = {
     "dailies": {

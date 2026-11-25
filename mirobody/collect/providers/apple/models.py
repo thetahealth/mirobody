@@ -3,11 +3,8 @@
 The wire vocabulary is Apple's own: a record's ``type`` is a HealthKit
 identifier (``HKQuantityTypeIdentifierHeartRate``) and its span is
 ``startDate``/``endDate``, which is what `export.xml` writes and what
-`mirobody.kernel.decoders.apple` decodes. There used to be a second
-vocabulary here, a `FlutterHealthTypeEnum` of names like ``HEART_RATE`` with a
-74-entry table mapping it onto the same catalogue the decoder already targets.
-It described one client that no longer exists, and two tables for one mapping
-is how they drift.
+`mirobody.kernel.decoders.apple` decodes, so one table maps both onto the
+catalogue.
 """
 
 from typing import Any

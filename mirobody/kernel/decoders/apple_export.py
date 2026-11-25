@@ -40,7 +40,6 @@ class Counts:
 
     def __init__(self) -> None:
         self.records = 0
-        self.correlations = 0
         self.clinical_files = 0
 
 
@@ -119,7 +118,6 @@ def iter_items(path: str | Path, counts: Counts | None = None) -> Iterator[tuple
                 continue
             if elem.tag == "Correlation":
                 depth -= 1
-                seen.correlations += 1
             elif elem.tag == "ClinicalRecord":
                 seen.clinical_files += 1
             elif elem.tag == "Record" and not depth:
