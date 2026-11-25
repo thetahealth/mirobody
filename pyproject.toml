@@ -144,10 +144,6 @@ parse = [
     # parameters against the installed signature rather than a hardcoded list,
     # and the next removal costs a DEBUG line instead of an outage.
     "anthropic>=1.5",
-    # Floor at 2.0: the Interactions API server dropped the legacy turn-list
-    # schema (breaking change, May 2026) and now requires the 2.x 'steps' schema,
-    # which only the >=2.0 SDK can send/parse. No upper cap.
-    "google-genai>=2.0.0",
     # `utils/config` is on the parse path (the client factory reads config), and
     # it needs these three.
     "python-dotenv",
@@ -216,13 +212,19 @@ agent = [
     "langchain>=1.4.4",
     "langchain-openai>=1.4.3",
     # 4.2.4 relaxed its google-genai cap to <3.0.0 (earlier 4.x pinned <2.0.0,
-    # which would block the google-genai>=2.0 required by [parse]).
+    # which would block the google-genai>=2.0 floor below).
     # 4.4.0 is the version verified to round-trip Gemini 3.x's
     # `thought_signature` through a tool loop (see `gemini-flash` in
     # config.llm.yaml). No upper cap: newer packages support newer models, and
     # the one time a floor without a verified lower bound bit us, `anthropic`
     # 1.x had silently removed `temperature` from `messages.create`.
     "langchain-google-genai>=4.4.0",
+    # The SDK under langchain-google-genai; the parse layer reaches Gemini
+    # through its OpenAI-compatible endpoint and imports none of it. Floor at
+    # 2.0: the Interactions API server dropped the legacy turn-list schema
+    # (breaking change, May 2026) and now requires the 2.x 'steps' schema,
+    # which only the >=2.0 SDK can send/parse. No upper cap.
+    "google-genai>=2.0.0",
     # Floor at 0.7.5. 0.7 is where the BackendProtocol settled: the deprecated
     # `*_info` / `grep_raw` shims are gone (we never used them), `glob`/`grep`
     # take `path: str | None`, `grep` gained a `max_count` cap that
@@ -278,11 +280,6 @@ app = [
     # runtime, never an install-time one.
     "aioboto3",
     "oss2",
-    # boto3 is the SYNC half of `utils/config/llm.py::_build_bedrock`, and it
-    # was never declared anywhere: it arrived transitively via aioboto3, which
-    # is the same class of bug as the undeclared python-multipart / starlette /
-    # anthropic before it. Named here so it stops being an accident.
-    "boto3",
     # Identity and mail.
     "pyjwt",
     "webauthn>=2.0.0",
