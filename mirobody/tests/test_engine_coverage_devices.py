@@ -123,6 +123,10 @@ CASES: list[tuple[str, str, str]] = [
     ("标准体重",                       r"ideal body weight",            r""),
     ("当前体重",                       r"^body weight$",                r""),
     ("腹围",                         r"waist circumference",          r""),
+    # A scale app's own word, from a user's report (2026-11-11). A bare
+    # `Body fat` is a tie the unit settles (`_KNOWN_TIES`), so it is a
+    # READING_CASES row in the lab benchmark, not a name-only case here.
+    ("Waist",                       r"waist circumference",          r""),
 
     # ── fitness (watch, band) ─────────────────────────────────────────────
     ("安静心率",                       r"heart rate.*resting",          r""),
@@ -173,11 +177,11 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("压力", "a watch's 0-100 stress score named 61011-3, Umbilical vein blood pressure — no specimen or PROPERTY in common"),
 ]
 
-# Ratchet, but not at 1.0 like the lab benchmark's: seven of the 62 cases
+# Ratchet, but not at 1.0 like the lab benchmark's: seven of the 63 cases
 # above are KNOWN misses (see the module docstring), so 100% is not an
 # honest target yet. Raise this when a case starts passing; never lower it
 # to make a red build green.
-DEVICE_COVERAGE_FLOOR = 55 / 62
+DEVICE_COVERAGE_FLOOR = 56 / 63
 
 
 def _miss_reason(r, must: str, must_not: str) -> str:

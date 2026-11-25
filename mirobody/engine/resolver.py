@@ -72,6 +72,9 @@ _KNOWN_TIES: dict[str, tuple[str, str]] = {
     # thrombin clotting time is seconds.
     "tlc": ("26464-8", "19862-2"),  # Leukocytes, Total lung capacity
     "tct": ("19762-4", "3243-3"),  # Cervical cytology categories, Thrombin time
+    # A bare `Body fat` is a scale's percentage (27.8 %) or its mass
+    # (21.2 kg); the name alone resolved to nothing.
+    "body fat": ("41982-0", "73708-0"),  # Percentage of body fat, Body fat mass
 }
 
 # R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a

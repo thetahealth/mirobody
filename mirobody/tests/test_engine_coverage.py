@@ -214,6 +214,11 @@ CASES: list[tuple[str, str, str]] = [
     ("促甲状腺素受体抗体",              r"thyrotropin receptor ab",      r"fetus"),
     # `TRAb` answered 63363-6, the antibody in blood from a fetus.
     ("TRAb",                        r"thyrotropin receptor ab",      r"fetus"),
+    # Fasting insulin answered nothing in any spelling (a user's checkup,
+    # 2026-11-11): the fasting code is a TIME sibling the name never reached.
+    ("空腹胰岛素",                    r"^insulin .*--fasting",         r""),
+    ("Insulin, Fasting",            r"^insulin .*--fasting",         r""),
+    ("胰岛素(空腹)",                   r"^insulin .*--fasting",         r""),
     ("CRP",                         r"c reactive protein",           r""),
     # ── Simplified Chinese ────────────────────────────────────────────────────
     ("血红蛋白",                     r"hemoglobin",                   r"A1c|glycated"),
@@ -1059,6 +1064,11 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # settles a bracketed stem/label disagreement.
     ("PCT",              "0.25", "%",      "51637-7", "plateletcrit, a volume fraction"),
     ("PCT",              "0.15", "ng/mL",  "33959-8", "procalcitonin, a mass concentration"),
+    # Same for a bare `Body fat`: a scale's percentage or its mass.
+    ("Body fat",         "27.8", "%",      "41982-0", "percentage of body fat"),
+    ("Body fat",         "21.2", "kg",     "73708-0", "body fat mass"),
+    # The fasting component survives the switch to moles.
+    ("空腹胰岛素",          "58",   "pmol/L", "59179-2", "fasting insulin in moles"),
     # Turkish, through the write path (Discussion #137): capitalised and
     # lowercase both reach the new `ürik asit`/`açlık kan şekeri` rows.
     ("ÜRİK ASİT",        "6.5", "mg/dL",  "3084-1",  "urate, all-caps Turkish"),

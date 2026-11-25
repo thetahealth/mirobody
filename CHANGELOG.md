@@ -68,14 +68,14 @@
   three READMEs, `docs/standardization.md` and its Chinese edition,
   `docs/testing.md` and the `standardize-health-data` skill said 347/347,
   while `test_engine_coverage.py` printed 356/356 after #301, 423/423 by
-  1.6.2 and 558/558 after this release's resolver fixes (vitamin D, Lp(a),
-  urine dipstick, spirometry, the #357 names and others) added their cases:
-  every case added moved the real number and no page followed. All seven
-  now say 558, and a new test, `test_the_published_score_is_the_case_count`,
-  fails when a page and the case count disagree, so a case added without its
-  pages turns the build red. How to tell: `pytest
-  mirobody/tests/test_engine_coverage.py -s` prints `558/558`, the figure in
-  the README.
+  1.6.2 and 561/561 after this release's resolver fixes (vitamin D, Lp(a),
+  urine dipstick, spirometry, the #357 names, fasting insulin and others)
+  added their cases: every case added moved the real number and no page
+  followed. All seven now say 561, and a new test,
+  `test_the_published_score_is_the_case_count`, fails when a page and the
+  case count disagree, so a case added without its pages turns the build
+  red. How to tell: `pytest mirobody/tests/test_engine_coverage.py -s`
+  prints `561/561`, the figure in the README.
 
 - **`resolve_indicator` and `standardize_reading` say why a name has no
   code.** `mirobody resolve 血脂` printed "a category or several tests in
@@ -86,6 +86,18 @@
   prints, from one function (`engine.resolver.unresolved_reason`); a tie
   (`TLC`) gives its own reason, and a complaint keeps `rejectedReason`. To
   check: `resolve_indicator(["血脂", "XYZ指数"])` gives each a `reason`.
+
+- **Fasting insulin, a bare `Body fat` and `Waist` resolve.** A user's
+  checkup report showed no spelling of fasting insulin coded (`空腹胰岛素`,
+  `Insulin, Fasting`, `FINS`): bare `胰岛素` answers 20448-7, and the fasting
+  code is a sibling the name never reached. They now answer 27873-9, and
+  59179-2 in pmol/L. A scale's bare `Body fat` answered nothing; the name
+  alone now refuses as a tie and the unit decides, 41982-0 in `%` and
+  73708-0 in kg, the way `PCT` and `TLC` already work. `Waist` answers
+  8280-0 like `腰围`. HbA1c in mmol/mol (IFCC) still refuses: its code opens
+  a series of its own and % ↔ mmol/mol is an equation, not a unit factor.
+  On the maintained 7,354-case set no answer changes. To check: `mirobody
+  resolve 空腹胰岛素 Waist` answers 27873-9 and 8280-0.
 
 - **A scan under a watermark text layer is read by OCR** (#317). A PDF
   page dominated by an image stays on its text layer when at least 20 of
