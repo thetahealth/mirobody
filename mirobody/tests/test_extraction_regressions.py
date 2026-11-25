@@ -15,7 +15,7 @@ pytest.importorskip("openai")
 from mirobody.agent.tools.health_indicators_service import _envelope_for
 from mirobody.collect import observations
 from mirobody.collect.files.services import indicator_store, table_indicators
-from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor
+from mirobody.collect.files.services.indicator_extractor import IndicatorExtractor, names_a_reading
 from mirobody.collect.query import _bucket_row, _catalog_row, _stats_row
 from mirobody.kernel import query
 
@@ -583,6 +583,28 @@ def test_a_screen_names_its_chart_by_the_selected_tab_and_stores_no_goal():
     for text in (prompt.get_extract_indicators_prompt("en"), _EXTRACT_PROMPT):
         assert "[selected]" in text and "page title" in text
         assert "目标体重" in text and "初始体重" in text
+
+
+@pytest.mark.parametrize("name", [
+    "体重 | 脂肪 | 肌肉", "体重丨脂肪丨肌肉", "体重 脂肪 肌肉", "体重/脂肪/肌肉",
+])
+def test_an_unlabelled_tab_bar_is_not_a_readings_name(name):
+    """#301: GLM-OCR cannot mark `[selected]` on a device screen (fixed task
+    prompts only, open), so the rule that names a chart after its selected
+    tab never reaches it and the whole bar comes through as one printed
+    label. The deterministic stand-in catches it whatever glyph OCR used for
+    the divider between tabs, bar or plain space."""
+    assert names_a_reading(name) is False
+
+
+@pytest.mark.parametrize("name", ["肌酐", "LDL/HDL", "血压 120/80", "E/A"])
+def test_a_ratio_or_a_single_name_is_still_a_readings_name(name):
+    """A two-way split is as often a printed RATIO as an un-selected tab bar
+    (`LDL/HDL`, `E/A`): the guard requires three segments, not two, before it
+    treats a name as a tab bar. `血压 120/80` splits into three on this
+    module's separators, but `120` and `80` are not indicator names, so it
+    stays under the two-segment floor the guard actually enforces."""
+    assert names_a_reading(name) is True
 
 
 def test_a_wearable_screen_is_coded_against_the_device_catalogue():

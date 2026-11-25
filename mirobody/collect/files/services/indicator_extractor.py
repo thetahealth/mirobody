@@ -105,9 +105,61 @@ NOT_READINGS = frozenset(standardize.name_key(label) for label in (
 ))
 
 
+#: The separators a device screen's un-selected tab bar is printed with,
+#: whatever glyph OCR used for the dividing line between tabs: the ASCII and
+#: fullwidth bars, and `丨`, the CJK stroke that reads the same on screen. A
+#: run of whitespace is ONE separator, so an ordinary multi-word name is not
+#: shredded into single words by it.
+_TAB_BAR_SEP = re.compile(r"[|｜丨/]+|\s+")
+
+#: `_is_unlabelled_tab_bar`'s two thresholds. A name must split into at least
+#: this many segments, `AND` at least this many of them must independently
+#: resolve as their own reading, before the whole name is treated as a tab
+#: bar rather than one printed name. Two is not enough on either count: a
+#: two-way split is a printed RATIO as often as it is a tab bar -- `LDL/HDL`
+#: splits into `LDL` and `HDL`, which both resolve (13457-7, 2085-9) exactly
+#: as a real tab bar's segments would, and `E/A` (above) is the same shape
+#: though neither half resolves alone. Three is what OCR actually reports for
+#: a scale or watch screen (#301: `体重 | 脂肪 | 肌肉`, `体重 脂肪 肌肉`), never
+#: a ratio's.
+_TAB_BAR_MIN_SEGMENTS = 3
+_TAB_BAR_MIN_RESOLVED = 2
+
+
+def _resolves_as_indicator(segment: str) -> bool:
+    """Whether `segment`, alone, is a known indicator's name: the device
+    catalogue first (`observations.catalog_alias`), then the lexical
+    vocabulary -- its `lexical` method only, the same trust `standardize.code`
+    gives a name (a semantic guess is not an identity, so it is not evidence
+    of a tab's own label either)."""
+    from mirobody.collect.observations import catalog_alias
+    from mirobody.engine import resolve_reading
+
+    if catalog_alias(segment) is not None:
+        return True
+    hit = resolve_reading(segment)
+    return bool(hit.resolved and hit.loinc and hit.method == "lexical")
+
+
+def _is_unlabelled_tab_bar(name: str) -> bool:
+    """Whether `name` prints a whole tab bar rather than one reading's name
+    (#301): GLM-OCR has no way to mark `[selected]` on a device screen (fixed
+    task prompts only), so the rule that names a chart after its selected tab
+    never reaches it, and the bar comes through as one label. The cheap
+    stand-in: split on a bar-like separator (`_TAB_BAR_SEP`) and, when enough
+    segments come out, check whether enough of them independently name a
+    reading -- the same outcome the prompt rule reaches a different way,
+    "when nothing names the series, leave its points out"."""
+    segments = [s for s in _TAB_BAR_SEP.split(name) if s.strip()]
+    if len(segments) < _TAB_BAR_MIN_SEGMENTS:
+        return False
+    return sum(_resolves_as_indicator(s) for s in segments) >= _TAB_BAR_MIN_RESOLVED
+
+
 def names_a_reading(name: str) -> bool:
-    """Whether a printed row label can be a reading's name (`NOT_READINGS`)."""
-    return standardize.name_key(name) not in NOT_READINGS
+    """Whether a printed row label can be a reading's name (`NOT_READINGS`,
+    `_is_unlabelled_tab_bar`)."""
+    return standardize.name_key(name) not in NOT_READINGS and not _is_unlabelled_tab_bar(name)
 
 
 def answer_budget(text: str) -> int:

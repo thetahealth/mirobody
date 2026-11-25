@@ -137,6 +137,19 @@
   in a picture is said to be read from the picture, unchecked, never
   presented as a recorded value.
 
+- **GLM-OCR's un-selected tab bar was read as a reading's own name** (#301,
+  partial). The `[selected]` rule the OCR and extraction prompts carry (fixed
+  earlier for #301) never reaches GLM-OCR, which takes fixed task prompts
+  only, so a device screen's tab bar still comes through whole (`体重 | 脂肪 |
+  肌肉`, `体重丨脂肪丨肌肉`). `indicator_extractor.names_a_reading` now drops a
+  name that splits into three or more segments (on `|`, `｜`, `丨`, `/` or a
+  run of spaces) where at least two independently resolve as their own
+  indicator, the device catalogue or the lexical vocabulary — a two-way
+  split is as often a printed ratio (`LDL/HDL`, `E/A`) as a tab bar, so it is
+  left alone. Still open: GLM-OCR itself cannot mark the selected tab, so a
+  real value it reads under the wrong tab's name is not caught by this
+  guard.
+
 - **Files served from `/files/...` could open slowly.** The endpoint split
   every binary file (images, PDFs and the rest) into one chunk per newline
   byte, thousands of chunks for a typical photo. It now sends the stored bytes
