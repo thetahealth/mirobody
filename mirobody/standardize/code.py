@@ -159,6 +159,61 @@ def loinc_units(loinc: str) -> tuple[str, ...]:
     return tuple(out)
 
 
+#: A device duration with no CONFIDENT code at all: `kernel/metrics.py`'s
+#: `Metric.canonical` files it under `mirobody-device:<name>` (its catalogue
+#: NAME, not a code), so `loinc_units` above never runs for it and
+#: `collect.query._series_unit` would otherwise leave it in the decoder's
+#: storage unit forever (#297; #296/#298 fixed only the CONFIDENT-code half
+#: of the same bug). Keyed by the catalogue name because that is the only
+#: identity such a series carries.
+#:
+#: `h` for the two night-spanning totals: `sleepAnalysis_Asleep(Total)` is
+#: Apple's own sum of its stage records and is never itself coded
+#: (`kernel/decoders/apple.py` `ASLEEP_TOTAL`); `dailyInBedDuration` has no
+#: code either, the same span as 103213-5 "Duration in bed" (confident,
+#: `loinc_units("103213-5") == ("h",)`).
+#:
+#: `min` for stage- and event-scale spans, each the unit its OWN code
+#: declares although the catalogue marks that code unverified for this name,
+#: so `loinc_units` is never consulted for it either: `sleepAnalysis_Awake`
+#: and `dailyAwakeTime` both carry 103210-1, which declares `min` like its
+#: sibling 103215-0 "Wake time after sleep onset"; `sleepAnalysis_Asleep
+#: (Core)` carries 93830-8, which declares `min`, the unit its CONFIDENT
+#: siblings 93831-6 (Deep) and 93829-0 (REM) already answer in (#298).
+#: `napDuration` carries no code; a nap is the same stage-granularity span
+#: (minutes to low hours), never a night's total.
+#:
+#: Deliberately absent: a decoder also writes an epoch or an offset in `ms`
+#: under this same namespace (`sleepEndTime`, `sleepStartTime`,
+#: `inBedStartTime`, `*ReportTimeOffset`) and that is not a duration at all;
+#: and a genuinely clinical millisecond (`hrvRMSSD`, `hrvMin`, `hrvMax`,
+#: `qtcInterval*`) is not a storage convenience, the same distinction #296
+#: draws for a CONFIDENT code whose own unit is `ms` (112429-6 HRV SDNN).
+#:
+#: `code()`'s own alias branch below also reads this table directly, to gate
+#: which device-namespace readings it canonicalizes: see the comment there
+#: for why every OTHER such reading stays uncanonicalized on purpose.
+_DEVICE_READING_UNITS: dict[str, str] = {
+    "sleepAnalysis_Asleep(Total)": "h",
+    "dailyInBedDuration": "h",
+    "sleepAnalysis_Awake": "min",
+    "dailyAwakeTime": "min",
+    "sleepAnalysis_Asleep(Core)": "min",
+    "napDuration": "min",
+}
+
+
+@lru_cache(maxsize=256)
+def device_reading_units(name: str) -> tuple[str, ...]:
+    """The reading unit of an uncoded device metric `name` (a `kernel.metrics`
+    catalogue NAME, never a code), as a one-element tuple so
+    `collect.query._series_unit` can consult it exactly as it does
+    `loinc_units`: `()` for a name this table does not list, which leaves
+    every other uncoded series in its storage unit, on purpose."""
+    unit = _DEVICE_READING_UNITS.get(name, "")
+    return (unit,) if unit else ()
+
+
 #: What a person wrote that is not a reading, a complaint or a diagnosis: a
 #: meal, a mood, a walk. It is kept as written and not coded, by design rather
 #: than for want of a match: there is no open vocabulary for meals or moods
@@ -211,9 +266,30 @@ def code(
         if alias.code_system and alias.code_system != LOINC_SYSTEM:
             # A code in another namespace (the device catalogue's own) has no
             # LOINC axes; its series is the code itself, shared by everyone.
+            # Left uncanonicalized here on purpose, for every name but the
+            # handful `_DEVICE_READING_UNITS` lists: `aggregate/election.py`
+            # prefers `value_canonical` over `value_num` once it is set, on
+            # the standing assumption that a device-namespace reading (a
+            # generated daily avg/min/max among them, kept in this namespace
+            # by `catalog_alias` so three statistics of one day do not share
+            # a series) carries none. Canonicalizing every such reading
+            # turned a generated `heartRates` daily average into its `/s`
+            # value (`/min` folds ÷60) instead of the `/min` figure everyone
+            # reads. Only the reading-unit table's own names need the pair,
+            # to let `_series_unit` (`collect/query.py`) carry a value
+            # recorded in the decoder's storage unit into the swapped
+            # reading unit (#297), the same way it already does below for a
+            # LOINC-coded reading; never with a `loinc_code` (there is no
+            # LOINC here to look a molar mass up by, and none of the six is
+            # a concentration).
+            canonical_value = canonical_unit = None
+            if value_kind == KIND_QUANTITY and value_num is not None and unit_ucum and alias.code in _DEVICE_READING_UNITS:
+                folded = units.canonicalize(value_num, unit_ucum)
+                canonical_value, canonical_unit = folded.value, folded.unit
             return Coding(
                 OUTCOME_CODED, f"{alias.code_system}:{alias.code}", did, rule, rel,
                 code_system=alias.code_system, code=alias.code, display=alias.code, evidence=("alias",),
+                value_canonical=canonical_value, unit_canonical=canonical_unit,
             )
         loinc, evidence = alias.code, ("alias",)
         if unit_text or unit_ucum:
@@ -335,4 +411,7 @@ def _coded(
     )
 
 
-__all__ = ["RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "loinc_units", "release", "series_of"]
+__all__ = [
+    "RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "device_reading_units",
+    "loinc_units", "release", "series_of",
+]

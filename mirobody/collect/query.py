@@ -46,6 +46,15 @@ it (#296). A unit a report printed is never a storage convenience: an ECG
 prints QT in `ms` while LOINC's 8634-8 declares `s`, and the person's report
 wins there, as it does for mg/dL (#271).
 
+A series with no CONFIDENT code at all is filed under its catalogue NAME
+(`kernel/metrics.py`'s `Metric.canonical`, `mirobody-device:<name>`), so it
+carries no LOINC to look `loinc_units` up by. `standardize.device_reading_units`
+is the same lookup keyed by that name instead, for the few such durations a
+person actually reads as a clock figure (`sleepAnalysis_Awake`,
+`dailyAwakeTime`, `sleepAnalysis_Asleep(Core)`/`(Total)`, `dailyInBedDuration`,
+`napDuration`, #297); every other uncoded series, an epoch included
+(`sleepEndTime`), keeps its storage unit.
+
 Before this, the web chart plotted 212 mg/dL and 4.90 mmol/L of one
 cholesterol as a fall from 212 to 4.9, and a stats row answered in mol/L,
 which a small model read as "these cannot be compared" (#271).
@@ -1365,9 +1374,11 @@ class SeriesUnit(NamedTuple):
     had a model give 1558-6 beside 5.4 mmol/L (`agent/tools/_render.py`).
 
     `from_storage` is the device storage unit (`ms`, `s`, `J`) the series was
-    read OUT of, when `_series_unit` swapped it for its code's unit; empty
-    otherwise. Only a reading in that unit was written by a decoder, whose
-    value carries no printed precision (`_like`'s `stored`)."""
+    read OUT of, when `_series_unit` swapped it for its code's unit, or for
+    its own name's reading unit when it carries no code at all
+    (`standardize.device_reading_units`, #297); empty otherwise. Only a
+    reading in that unit was written by a decoder, whose value carries no
+    printed precision (`_like`'s `stored`)."""
 
     ucum: str
     label: str
@@ -1384,8 +1395,9 @@ class SeriesUnit(NamedTuple):
 #: unit group written entirely by device rows (`device_only`) counts: the same
 #: `ms` on an ECG report is what the report printed. Kept when the series' LOINC
 #: code declares the unit itself (`112429-6` in `ms`, `14979-9` in `s`, `88667-1`
-#: in `J`) or when the series is uncoded; otherwise replaced by the code's first
-#: declared unit of the same canonical base.
+#: in `J`), or when the series is uncoded and its catalogue name is not in
+#: `standardize.device_reading_units` (#297); otherwise replaced by the code's,
+#: or that table's, first declared unit of the same canonical base.
 _STORAGE_UNITS = frozenset({"ms", "s", "J"})
 
 
@@ -1400,8 +1412,17 @@ def _series_unit(groups: list[dict]) -> SeriesUnit:
     label = chosen.get("label") or ucum
     loinc = chosen.get("loinc") or next((g["loinc"] for g in groups if g.get("loinc")), "") or ""
     stored_as = ""
-    if ucum in _STORAGE_UNITS and chosen.get("device_only") and base and loinc:
-        declared = standardize.loinc_units(loinc)
+    if ucum in _STORAGE_UNITS and chosen.get("device_only") and base:
+        if loinc:
+            declared = standardize.loinc_units(loinc)
+        elif chosen.get("code_system") == metrics.SYSTEM_DEVICE:
+            # No LOINC at all: `Metric.canonical` filed this series under its
+            # catalogue name rather than a code (an unverified or absent
+            # mapping), so the reading-unit table is keyed by that name
+            # instead (#297).
+            declared = standardize.device_reading_units(chosen.get("code") or "")
+        else:
+            declared = ()
         if ucum not in declared:
             for target in declared:
                 cand = units.canonicalize(1.0, target, loinc_code=loinc)

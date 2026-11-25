@@ -40,10 +40,11 @@ from mirobody.collect.query import (
     export_row,
 )
 from mirobody.kernel import metrics, query, tools
-from mirobody.kernel.decoders import garmin
+from mirobody.kernel.decoders import apple, garmin
 from mirobody.utils.req_ctx import set_req_ctx
 
 GARMIN_SAMPLES = Path(garmin.__file__).resolve().parent / "samples" / "garmin"
+APPLE_SAMPLES = Path(apple.__file__).resolve().parent / "samples" / "apple"
 NOW = datetime(2026, 10, 1, tzinfo=UTC)
 
 
@@ -525,11 +526,54 @@ def test_garmin_sleep_export_converts_every_coded_duration_to_its_loinc_unit():
     assert by_name["dailySleepEfficiency"]["unit"] == "%"
     assert by_name["dailySleepEfficiency"]["avg"] == pytest.approx(93.3333, rel=1e-4)
 
-    # `dailyAwakeTime` is in `mirobody-device` (103210-1 vs 103215-0 is unverified
-    # in the crosswalk), so its unit stays what the device wrote.
+    # `dailyAwakeTime` is in `mirobody-device` (its code, 103210-1, is
+    # unverified in the catalogue), so `loinc_units` never ran for it; it now
+    # reads in `min`, the unit `standardize.device_reading_units` names for
+    # it by that same code's own declared unit (#297).
     assert by_name["dailyAwakeTime"]["series"] == "mirobody-device:dailyAwakeTime"
-    assert by_name["dailyAwakeTime"]["unit"] == "ms"
-    assert by_name["dailyAwakeTime"]["avg"] == pytest.approx(1_800_000.0)
+    assert by_name["dailyAwakeTime"]["unit"] == "min"
+    assert by_name["dailyAwakeTime"]["avg"] == pytest.approx(30.0)
+
+
+def test_apple_sleep_export_reads_its_uncoded_night_total_in_hours():
+    """Real Apple `export.xml` sleep record decoded through `apple.decode`:
+    Apple writes no code at all for the night's own summed total
+    (`kernel/decoders/apple.py`'s `ASLEEP_TOTAL`, derived from the stage
+    records, never itself coded), so before the reading-unit table (#297) it
+    answered in the decoder's raw `ms` forever, the same bug #296/#298 fixed
+    only for a CONFIDENT code's storage unit. It now reads in `h`, the unit
+    `standardize.device_reading_units` names for it."""
+    payload = json.loads((APPLE_SAMPLES / "sleep_and_blood_pressure.json").read_text(encoding="utf-8"))
+    # HKCategoryValueSleepAnalysisAsleepDeep, 01:00-02:30 +0800: a 5,400,000 ms
+    # (1.5 h) Deep-stage span that also lands as the derived Total.
+    case = payload["cases"][0]
+    facts = apple.decode(case["data_type"], case["input"], case["tz"])
+    drafts = [
+        observations.Draft(
+            name_text=f.metric_key,
+            value_text=str(f.value_num),
+            unit_text=f.unit,
+            tz=case["tz"],
+            observed_start=datetime.fromtimestamp(f.effective_start_ms / 1000, tz=UTC),
+            observed_end=(
+                datetime.fromtimestamp(f.effective_end_ms / 1000, tz=UTC) if f.effective_end_ms else None
+            ),
+        )
+        for f in facts
+        if f.value_num is not None
+    ]
+    assert {d.name_text for d in drafts} == {"sleepAnalysis_Asleep(Deep)", "sleepAnalysis_Asleep(Total)"}
+    prov = observations.Provenance("device-sensed", "device", "device:apple", vendor="apple")
+    store = _MemoryHealthQuery(_store_drafts(drafts, prov, user_tz=case["tz"]), tz_name=case["tz"])
+    win = query.Window(0, 0, case["tz"])
+
+    [total] = query.presentable(
+        store.stats("1", query.Selection(indicators=("sleepAnalysis_Asleep(Total)",)), win)
+    )
+    assert total["series"] == "mirobody-device:sleepAnalysis_Asleep(Total)"
+    assert total["unit"] == "h"
+    assert total["avg"] == pytest.approx(1.5)
+    assert total["last"] == "1.50"
 
 
 def test_legacy_device_rows_and_mixed_demo_hours_unify_under_hours_label():
@@ -600,13 +644,30 @@ def test_legacy_device_rows_and_mixed_demo_hours_unify_under_hours_label():
         # Clinical codes whose own LOINC `EXAMPLE_UCUM_UNITS` IS `ms` or `s`: keep!
         ("hrvSDNN", "device", "apple", "42", "ms", "ms", 42.0),
         ("coagulationPpp", "file", None, "31.2", "s", "s", 31.2),
+        # Uncoded device durations the reading-unit table names (#297): these
+        # carry no LOINC at all (`loinc` column empty), so they used to stay
+        # in storage units forever; each now reads in the unit
+        # `standardize.device_reading_units` names for its catalogue name.
+        ("dailyAwakeTime", "device", "garmin", "1800000", "ms", "min", 30.0),
+        ("sleepAnalysis_Awake", "device", "apple", "600000", "ms", "min", 10.0),
+        ("sleepAnalysis_Asleep(Core)", "device", "apple", "12600000", "ms", "min", 210.0),
+        ("sleepAnalysis_Asleep(Total)", "device", "apple", "25200000", "ms", "h", 7.0),
+        ("dailyInBedDuration", "device", "garmin", "27000000", "ms", "h", 7.5),
+        ("napDuration", "device", "apple", "1800000", "ms", "min", 30.0),
         # Human-chosen units that differ from LOINC's example (`min` on 93832-4,
         # `kJ` on 41981-2, `m` on 103208-5): keep what the person/report printed!
         ("dailyTotalSleepTime", "device", "fitbit", "420", "min", "min", 420.0),
         ("activeCalories", "device", "whoop", "1500", "kJ", "kJ", 1500.0),
         ("dailyDistance", "device", "garmin", "5200", "m", "m", 5200.0),
-        # Uncoded / device-namespace durations: keep `ms`.
+        # Uncoded / device-namespace durations not in the reading-unit table:
+        # keep `ms`. An epoch is not a duration at all, and a genuinely
+        # clinical millisecond is not a storage convenience (#296's own
+        # distinction for a CONFIDENT code's own `ms`, 112429-6, applies the
+        # same way to an uncoded one): a blanket "uncoded device ms" rule
+        # would wrongly convert both.
         ("activeDuration", "device", "garmin", "900000", "ms", "ms", 900000.0),
+        ("sleepEndTime", "device", "apple", "1760000000000", "ms", "ms", 1760000000000.0),
+        ("hrvRMSSD", "device", "apple", "42", "ms", "ms", 42.0),
         # A unit a report printed is the person's, not a storage convenience,
         # even where LOINC's example differs: an ECG prints QT and PR in `ms`
         # (8634-8 and 8625-6 declare `s`), a lab may print bleeding time in `s`
