@@ -114,6 +114,41 @@ override sends it to `Glucose^post meal`, 53094-9.)
 Closing these means adding the terms to `aliases_src/*_curated.tsv` and
 rebuilding the bundle, not editing `resolver_overrides.tsv`.
 
+### Body measurements a scale prints without the measure word
+
+**Status:** open; measured 2026-11-25.
+
+LOINC codes a body measurement by what is measured and where (`circumference`
+at `Abdomen.mid` is waist, 8280-0), and a scale app prints the site or the
+substance alone and leaves the measure to the unit (`Waist 82 cm`, `Body fat
+27.8 %`). Of 60 common scale and tape-measure names, 24 resolve with their
+unit. `Waist` and a bare `Body fat` answer because a row or a `_KNOWN_TIES`
+entry spells each out; `Body Fat %`, `Body Fat(%)`, `体脂`, `Waistline` and
+`腰臀比` miss. `Hip`, `臀围` and even `Hip circumference` cannot be fixed by a
+row: the bundle's 15 `circumference` rows have no hip, neck or thigh. The
+direction is the one draws took (`_resolve_timed`): read the site or the
+substance off the name and let the unit choose the measure. Whether the cut
+should keep the body circumferences it drops is a separate decision.
+
+Three names answer a wrong code rather than none, which is worse and the place
+to start: `Skeletal muscle` alone is 13931-1, a striated-muscle antibody (the
+block list has only `Skeletal Muscle Mass`); `胸围` alone is 59074-5, a heart
+over thorax circumference ratio by ultrasound, where an adult's chest is
+8279-2; and `PBG` is 12916-3, porphobilinogen synthase, which is neither the
+postprandial glucose a Chinese report means by it nor porphobilinogen itself.
+
+### A draw named by the clock
+
+**Status:** open, needs a decision.
+
+`Cortisol AM` and `Cortisol PM` both answer 2143-6, so a diurnal cortisol
+pair lands in one series. LOINC codes cortisol `--AM peak specimen`, `--PM
+trough specimen` and clock times (`--8 AM specimen`), and `lexical.split_timing`
+does not read them yet: on most other analytes an AM label is the routine
+morning draw, not a series of its own, and refusing `Testosterone AM` for want
+of an AM code would lose an answer that is right today. Which analytes take a
+clock draw has to be decided before it is read.
+
 ## Structural work
 
 ### Four tables with no ingestion path
@@ -349,7 +384,7 @@ fix is here.
   13874-3 *Alkaline phosphatase.liver*, `胰腺` answers *Amylase.pancreatic*, and
   `肾脏` answers *Alkaline phosphatase.renal*. `胆囊` → *US Gallbladder* is the
   only right one. Narrative imaging findings are not lab observations; the
-  resolver should decline them (`!unresolved`) rather than reach for an enzyme
+  resolver should decline them (`!category`) rather than reach for an enzyme
   that merely shares the organ name.
 - **Findings are listed among lab analytes** (#235, symptom B). An Imaging or
   Pathological row is stored as `kind='finding'`, and every catalogue row

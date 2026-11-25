@@ -214,6 +214,11 @@ CASES: list[tuple[str, str, str]] = [
     ("促甲状腺素受体抗体",              r"thyrotropin receptor ab",      r"fetus"),
     # `TRAb` answered 63363-6, the antibody in blood from a fetus.
     ("TRAb",                        r"thyrotropin receptor ab",      r"fetus"),
+    # Fasting insulin answered nothing in any spelling (a user's checkup,
+    # 2026-11-11): the fasting code is a TIME sibling the name never reached.
+    ("空腹胰岛素",                    r"^insulin .*--fasting",         r""),
+    ("Insulin, Fasting",            r"^insulin .*--fasting",         r""),
+    ("胰岛素(空腹)",                   r"^insulin .*--fasting",         r""),
     ("CRP",                         r"c reactive protein",           r""),
     # ── Simplified Chinese ────────────────────────────────────────────────────
     ("血红蛋白",                     r"hemoglobin",                   r"A1c|glycated"),
@@ -1059,6 +1064,11 @@ READING_CASES: list[tuple[str, str, str, str, str]] = [
     # settles a bracketed stem/label disagreement.
     ("PCT",              "0.25", "%",      "51637-7", "plateletcrit, a volume fraction"),
     ("PCT",              "0.15", "ng/mL",  "33959-8", "procalcitonin, a mass concentration"),
+    # Same for a bare `Body fat`: a scale's percentage or its mass.
+    ("Body fat",         "27.8", "%",      "41982-0", "percentage of body fat"),
+    ("Body fat",         "21.2", "kg",     "73708-0", "body fat mass"),
+    # The fasting component survives the switch to moles.
+    ("空腹胰岛素",          "58",   "pmol/L", "59179-2", "fasting insulin in moles"),
     # Turkish, through the write path (Discussion #137): capitalised and
     # lowercase both reach the new `ürik asit`/`açlık kan şekeri` rows.
     ("ÜRİK ASİT",        "6.5", "mg/dL",  "3084-1",  "urate, all-caps Turkish"),
@@ -1395,7 +1405,7 @@ def test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too()
     neighbour, on an acylcarnitine or newborn-screening panel beside `C16`/
     `C18`) and must keep resolving on their own. Unlike `Rh`/`定量`/`定性`,
     which carry no code of their own, `C14` going into
-    `resolver_overrides.tsv` as `!unresolved` would abstain those panels to
+    `resolver_overrides.tsv` as `!category` would abstain those panels to
     guard one bracket shape, 幽门螺杆菌(C14)测定. That pair, and its C13 and
     尿素呼气试验 siblings, still abstain without a block: the bracket
     resolves to the carnitine analyte, a different one than either stem, so
@@ -1418,7 +1428,7 @@ def test_a_real_abbreviation_is_not_blocked_just_because_a_bracket_uses_it_too()
         assert not r.resolved, f"{term!r} must abstain"
         assert r.method == "refused"
         # The two-analyte-mismatch path names both codes in its reason; a
-        # `!unresolved` block refusal (see `血型(Rh)测定` above) does not.
+        # `!category` block refusal (see `血型(Rh)测定` above) does not.
         assert stem_code in r.rejected_reason and "two analytes" in r.rejected_reason, (
             f"{term!r} refused for the wrong reason: {r.rejected_reason!r}"
         )
@@ -1868,7 +1878,7 @@ def test_a_blocked_category_word_stays_blocked_inside_a_longer_name(resolver):
     it derives then looked the category word up as an ordinary index key:
     `Stool OB` answered a budgerigar-droppings IgE, `电解质计数` an
     electrolytes panel and `流感 FLU` an influenza assay."""
-    blocked = [term for _, term, target in _override_rows() if target == "!unresolved"]
+    blocked = [term for _, term, target in _override_rows() if target.startswith("!")]
     assert blocked
     leaks = [
         name
@@ -1907,9 +1917,12 @@ def test_every_override_row_does_its_job(resolver):
         earlier, earlier_target = first.setdefault(index_fold(term), (number, target))
         if earlier_target != target:
             problems.append(f"line {number}: {term!r} repeats line {earlier} with another target")
-        elif target == "!unresolved":
-            if resolver.resolve(term).method != "refused":
+        elif target.startswith("!"):
+            found = resolver.resolve(term)
+            if found.method != "refused":
                 problems.append(f"line {number}: {term!r} does not refuse")
+            elif f"!{found.reason_kind}" != target:
+                problems.append(f"line {number}: {term!r} refuses as {found.reason_kind!r}, not {target!r}")
         elif not resolver.resolve(target).loinc:
             problems.append(f"line {number}: target {target!r} resolves to nothing")
         elif not resolver.resolve(term).loinc:

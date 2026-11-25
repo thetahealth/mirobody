@@ -55,7 +55,8 @@ MIN_PAGE_TEXT = 40
 #: close to half of it.
 SCAN_IMAGE_AREA_FRACTION = 0.5
 #: A page whose dominant image (`SCAN_IMAGE_AREA_FRACTION`) has at least this
-#: many layer characters ON it, a digit among them, is read from its layer:
+#: many layer characters ON it, a digit among them (or on another image page
+#: of the same PDF, `_layer_is_the_content`), is read from its layer:
 #: body text over a background graphic, or a searchable scan's own layer, not
 #: a scan's marginal stamp, which sits OUTSIDE the image (review of #304). 20
 #: clears one label and stops short of a paragraph. The digit: a watermark
@@ -418,11 +419,19 @@ def _text_over_images(textpage, boxes: list[tuple[float, float, float, float]]) 
     return "".join(over)
 
 
-def _layer_is_the_content(over_image: str) -> bool:
+def _layer_is_the_content(over_image: str, *, layer_document: bool = False) -> bool:
     """Whether the text a page's layer draws ON its dominant image is the
     page's content (`MAX_OVERLAID_SCAN_CHARS`): long enough to be more than a
-    label, and holding a digit, which a watermark does not (#317)."""
-    return len(over_image) >= MAX_OVERLAID_SCAN_CHARS and any(ch.isdigit() for ch in over_image)
+    label, and holding a digit, which a watermark does not (#317).
+
+    The digit is not asked of a page when another image page of the same PDF
+    already passed (`layer_document`): one searchable-scan run or one
+    letterhead template made them all, and their last page often holds only
+    signatures. #317's rule sent that page to OCR for nothing, 2 of 9 PDF
+    views in a mirobody-gen build against 0 before it."""
+    if len(over_image) < MAX_OVERLAID_SCAN_CHARS:
+        return False
+    return layer_document or any(ch.isdigit() for ch in over_image)
 
 
 def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = False, layer_tables: bool = False
@@ -450,21 +459,35 @@ def _pdf_pages(data: bytes, *, min_page_text: int, dpi: int, render_all: bool = 
         to_ocr: list[tuple[int, bytes, str]] = []
         layered: list[tuple[int, bytes]] = []
         carried = None
+        # Every page's layer text, and the part of it drawn ON a dominant image
+        # (None where no image dominates), before any page is decided:
+        # `layer_document` can come from a page after the one it settles.
+        layers: list[tuple[str, str | None]] = []
         for i in range(n):
             page = doc[i]
             try:
                 textpage = page.get_textpage()
                 text = (textpage.get_text_range() or "").strip()
-                thin = len(text) < min_page_text
-                scan_like = thin
-                if not thin:
+                over = None
+                if len(text) >= min_page_text:
                     boxes = _image_boxes(page)
                     if boxes and _image_area_fraction(page, boxes) >= SCAN_IMAGE_AREA_FRACTION:
-                        scan_like = not _layer_is_the_content(_text_over_images(textpage, boxes))
+                        over = _text_over_images(textpage, boxes)
+                layers.append((text, over))
+            finally:
+                page.close()
+        layer_document = any(over is not None and _layer_is_the_content(over) for _, over in layers)
+        for i in range(n):
+            text, over = layers[i]
+            page = doc[i]
+            try:
+                thin = len(text) < min_page_text
+                scan_like = thin or (over is not None
+                                     and not _layer_is_the_content(over, layer_document=layer_document))
                 if not scan_like:
                     found = ""
                     if layer_tables:
-                        found, carried = _layer_tables(textpage, carried)
+                        found, carried = _layer_tables(page.get_textpage(), carried)
                     texts[i] = f"{text}\n\n{found}" if found else text
                     if render_all and not found:
                         layered.append((i, png(page)))

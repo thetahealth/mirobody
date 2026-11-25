@@ -35,9 +35,11 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from typing import NamedTuple
 
 __all__ = [
     "TRAILING_PARENTHETICAL",
+    "Timing",
     "fold_plural",
     "fold_script_boundary",
     "index_fold",
@@ -46,6 +48,7 @@ __all__ = [
     "measure_stems",
     "normalize",
     "split_camel",
+    "split_timing",
     "split_trailing_hyphen",
     "split_trailing_latin",
     "split_trailing_parenthetical",
@@ -445,6 +448,117 @@ def strip_report_marks(term: str) -> str:
             break
     stem = text[:end].rstrip()
     return stem if stem and stem != text else ""
+
+
+class Timing(NamedTuple):
+    """When a reading was drawn, as a report prints it beside the name.
+
+    ``kind`` is ``fasting``, ``post_meal``, ``after_challenge``, ``baseline``
+    (a challenge's 0-minute draw), ``trough`` or ``peak``; ``minutes`` is the
+    time after the meal or the challenge, ``None`` when none was printed;
+    ``said`` is the qualifier as printed, for a refusal to quote.
+    """
+
+    kind: str
+    minutes: int | None
+    said: str
+
+
+# LOINC writes when a sample was drawn into the COMPONENT (`insulin^post
+# CFst`, `glucose^2H post XXX challenge`), so a name with that word in it was
+# a string the index had to know whole: `空腹血糖` resolved because ten rows
+# spelled it out, and `空腹C肽`, `Fasting triglycerides` and every draw of an
+# insulin release test did not. These are the words; the resolver maps them
+# onto LOINC's challenge and finds the analyte's sibling code.
+_TIME_UNIT = r"(?:minutes?|mins?|分钟|分鐘|'|′|hours?|hrs?|h|小时|小時)"
+_TIME = rf"\d+(?:\.\d+)?\s*-?\s*{_TIME_UNIT}(?:\s*(?:post|after|后|後))?"
+_MEAL = r"(?:餐后|饭后|餐後|飯後|食后|食後|post[- ]?prandial|post[- ]?meal|after (?:a )?meal)"
+_CHALLENGE = r"(?:口服葡萄糖耐量试验|糖耐量试验|糖耐量試驗|糖耐量|糖耐|OGTT)"
+_TIMING_PHRASES: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("post_meal", re.compile(rf"{_MEAL}\s*{_TIME}|{_TIME}\s*-?\s*{_MEAL}", re.I)),
+    ("after_challenge", re.compile(rf"(?:{_CHALLENGE}\s*-?\s*)?{_TIME}(?:\s*{_CHALLENGE})?", re.I)),
+    ("fasting", re.compile(r"空腹时|空腹時|空腹|禁食|fasting|fasted|açlık|açlik", re.I)),
+    ("post_meal", re.compile(_MEAL, re.I)),
+    ("trough", re.compile(r"谷浓度|谷濃度|谷值|trough(?: level)?", re.I)),
+    ("peak", re.compile(r"峰浓度|峰濃度|peak(?: level)?", re.I)),
+)
+# Leading the name, a trough or peak word is the analyte's own (`Peak
+# expiratory flow`), never when it was drawn.
+_PREFIX_KINDS = frozenset({"post_meal", "after_challenge", "fasting"})
+_TIME_PARTS = re.compile(rf"(\d+(?:\.\d+)?)\s*-?\s*({_TIME_UNIT})", re.I)
+_TIMING_SEPARATORS = " \t,，:：_-"
+# A challenge series runs for hours, not a day: `24小时尿蛋白` is a 24-hour
+# collection, a duration LOINC keeps on another axis, not a draw 24 hours
+# after a challenge.
+_MAX_TIMED_MINUTES = 240
+# No printed name is longer; past it the scan below is not worth running.
+_MAX_TIMED_NAME = 64
+
+
+def _timing_of(kind: str, said: str) -> Timing | None:
+    found = _TIME_PARTS.search(said)
+    if kind in ("post_meal", "after_challenge") and found:
+        number, unit = float(found.group(1)), found.group(2).lower()
+        minutes = round(number if unit[0] in "m分'′" else number * 60)
+        if minutes > _MAX_TIMED_MINUTES:
+            return None
+        if kind == "after_challenge" and minutes == 0:
+            return Timing("baseline", 0, said)
+        return Timing(kind, minutes, said)
+    return Timing(kind, None, said)
+
+
+def _glued_latin(left: str, right: str) -> bool:
+    """Two Latin runs with nothing between them are one word: `2hPG`,
+    `5-HT` (`5-H` reads as five hours), `Insulin2h`."""
+    return bool(left) and bool(right) and left[-1].isascii() and left[-1].isalnum() \
+        and right[0].isascii() and right[0].isalnum()
+
+
+def split_timing(term: str) -> tuple[str, Timing] | None:
+    """``(name, timing)`` when ``term`` says when it was drawn; ``None`` otherwise.
+
+    ``空腹C肽`` → ``("C肽", fasting)``, ``胰岛素(120min)`` → ``("胰岛素",
+    after_challenge 120)``, ``Glucose 2h post meal`` → ``("Glucose",
+    post_meal 120)``, ``Vancomycin trough`` → ``("Vancomycin", trough)``.
+    The qualifier is read in brackets at the end, at the end, or leading the
+    name; trough and peak only after it.
+    """
+    text = unicodedata.normalize("NFKC", term or "").strip()
+    if not text or len(text) > _MAX_TIMED_NAME:
+        return None
+
+    def found(stem: str, kind: str, said: str) -> tuple[str, Timing] | None:
+        stem = stem.strip(_TIMING_SEPARATORS)
+        if not any(ch.isalpha() for ch in stem):
+            return None
+        timing = _timing_of(kind, said)
+        return (stem, timing) if timing else None
+
+    bracket = TRAILING_PARENTHETICAL.search(text)
+    if bracket:
+        inside = bracket.group(1).strip()
+        for kind, phrase in _TIMING_PHRASES:
+            if phrase.fullmatch(inside):
+                return found(text[:bracket.start()], kind, inside)
+    # The longest qualifier that ends the name: `2h post meal`, not `post meal`.
+    for start in range(1, len(text)):
+        for kind, phrase in _TIMING_PHRASES:
+            if phrase.fullmatch(text, start):
+                stem = text[:start]
+                if stem.rstrip(_TIMING_SEPARATORS) == stem and _glued_latin(stem, text[start:]):
+                    break
+                return found(stem, kind, text[start:])
+    for kind, phrase in _TIMING_PHRASES:
+        if kind not in _PREFIX_KINDS:
+            continue
+        lead = phrase.match(text)
+        if lead:
+            rest = text[lead.end():]
+            if rest.lstrip(_TIMING_SEPARATORS) == rest and _glued_latin(lead.group(), rest):
+                return None
+            return found(rest, kind, lead.group())
+    return None
 
 
 def split_trailing_parenthetical(term: str) -> tuple[str, str]:

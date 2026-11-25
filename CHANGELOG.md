@@ -62,6 +62,16 @@
   one labelled ECG reading, not a bare "Classification" series, and no
   extraction request is logged for the file.
 
+- **The web client speaks Russian.** Its language switcher offered English,
+  简体中文, 繁體中文 and 日本語, so a browser set to Russian got English. A
+  Russian bundle now covers every string the page shows; in Russian, dates
+  read DD.MM.YYYY and decimals take a comma, on screen only (what is stored
+  and sent is unchanged). The date pickers and the other built-in widgets now
+  follow the page's language in all five; Japanese and Traditional Chinese
+  showed them in English before. To check: pick Русский on the sign-in page;
+  the page declares `lang="ru"`. Contributed by Denis
+  (thetahealth/mirobody-web#39).
+
 ### Changed
 
 - **`[parse]` no longer installs `google-genai`, and `[app]` no longer names
@@ -76,18 +86,71 @@
 
 ### Fixed
 
+- **Files served from `/files/...` could open slowly.** The endpoint split
+  every binary file (images, PDFs and the rest) into one chunk per newline
+  byte, thousands of chunks for a typical photo. It now sends the stored bytes
+  in one response body (#360).
+
 - **The published resolver score is the one the benchmark prints.** The
   three READMEs, `docs/standardization.md` and its Chinese edition,
   `docs/testing.md` and the `standardize-health-data` skill said 347/347,
   while `test_engine_coverage.py` printed 356/356 after #301, 423/423 by
-  1.6.2 and 558/558 after this release's resolver fixes (vitamin D, Lp(a),
-  urine dipstick, spirometry, the #357 names and others) added their cases:
-  every case added moved the real number and no page followed. All seven
-  now say 558, and a new test, `test_the_published_score_is_the_case_count`,
-  fails when a page and the case count disagree, so a case added without its
-  pages turns the build red. How to tell: `pytest
-  mirobody/tests/test_engine_coverage.py -s` prints `558/558`, the figure in
-  the README.
+  1.6.2 and 561/561 after this release's resolver fixes (vitamin D, Lp(a),
+  urine dipstick, spirometry, the #357 names, fasting insulin and others)
+  added their cases: every case added moved the real number and no page
+  followed. All seven now say 561, and a new test,
+  `test_the_published_score_is_the_case_count`, fails when a page and the
+  case count disagree, so a case added without its pages turns the build
+  red. How to tell: `pytest mirobody/tests/test_engine_coverage.py -s`
+  prints `561/561`, the figure in the README.
+
+- **`resolve_indicator` and `standardize_reading` say why a name has no
+  code, as a word and as a sentence.** `mirobody resolve 血脂` printed "a
+  category or several tests in one name", but over MCP `resolve_indicator`
+  answered only `resolved: false` and `standardize_reading` only `method:
+  refused`, so a client could not tell a panel name (ask for one test) from a
+  missing spelling (report it). The sentence was also wrong for most
+  refusals: every deliberate non-answer in `resolver_overrides.tsv` was one
+  `!unresolved`, so `KET` (one urine test), `发烧` (a symptom) and `BMR` (a
+  number LOINC has no code for) were each "a category". The 168 rows now say
+  which they are (`!category` 50, `!condition` 88, `!ambiguous` 9,
+  `!uncoded` 21). Each unresolved name carries `reason_kind` (`category`,
+  `condition`, `ambiguous`, `uncoded`, `timing`, `unit_conflict`, `unknown`)
+  and `reason`, the sentence the CLI prints; the FHIR coding-decision
+  extension carries `reasonKind`. A tie (`TLC`) and a complaint keep their own
+  sentence. To check: `resolve_indicator(["血脂", "KET", "发烧", "XYZ指数"])`
+  gives `category`, `ambiguous`, `condition` and `unknown`.
+
+- **A name that says when its sample was drawn gets that draw's code, and an
+  insulin release test no longer lands in the plain insulin series.** LOINC
+  keeps fasting, a meal, a challenge's timed draws and a drug's trough or
+  peak in the COMPONENT (`insulin^post CFst`), and the resolver knew a timed
+  name only when the whole string was a row: `空腹血糖` resolved through about
+  thirty rows, while a user's checkup report showed `空腹胰岛素` with no code.
+  Of the 13 fasting analytes the bundle codes, only glucose resolved, and none
+  of the five 2-hour post-meal ones. Worse, `胰岛素(60min)`, `(120min)` and
+  `(180min)` with mU/L were all coded 20448-7, plain insulin: the bracket
+  split off `120min`, which alone answers a glucose draw, the halves became
+  "two analytes", and the unit chose insulin, so one release test put three
+  values into one series on one day. The draw is now read from the name
+  (`lexical.split_timing`: `空腹`, `餐后2小时`, `(120min)`, `2 hour`, `谷浓度`,
+  `trough`), the analyte is resolved on its own, and the answer is its sibling
+  for that draw (27873-9 for `空腹胰岛素`, 59179-2 in pmol/L; 27826-7 for
+  `胰岛素(120min)`; 13037-7 for `空腹C肽`; 74911-9 for `舍曲林谷浓度`). With no
+  sibling the name refuses with `reason_kind: timing` and never takes the
+  plain code. Of 766 such names generated from the axis table, 734 answer and
+  none answers another series (`test_engine_coverage_timing.py`). One answer
+  moves: `Insulin 120 min` was 1564-4 (after 75 g glucose, which nothing
+  printed) and is now 27826-7, the code every other spelling of that draw
+  answers; `recode` moves stored readings. A scale's bare `Body fat` refuses
+  and the unit decides, 41982-0 in `%` and 73708-0 in kg, the way `PCT` and
+  `TLC` work, and `Waist` answers 8280-0 like `腰围`. Not done, and in
+  `docs/roadmap.md`: a clock draw (`Cortisol AM` and `PM` still share
+  2143-6), body measurements printed without the measure word (`Hip`,
+  `Body Fat %`), and HbA1c in mmol/mol (IFCC), whose code opens a series of
+  its own and whose conversion from % is an equation, not a unit factor. On
+  the maintained 7,354-case set no answer changes. To check: `mirobody
+  resolve "胰岛素(120min)" 空腹C肽` answers 27826-7 and 13037-7.
 
 - **A scan under a watermark text layer is read by OCR** (#317). A PDF
   page dominated by an image stays on its text layer when at least 20 of
@@ -98,9 +161,14 @@
   watermark and the lab table in the image was lost with no warning. The
   text on the image must now also hold a digit, as a report's values and a
   searchable lab scan's layer do; otherwise the page goes to OCR, and the
-  watermark is folded back in only where OCR did not read it. To check: the
-  watermark page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR,
-  and the letterhead and searchable-scan pages there still are not.
+  watermark is folded back in only where OCR did not read it. A page with no
+  digit of its own still stays on its layer when another image page of the
+  same PDF passed: a searchable scan's or a letterhead report's last page
+  often holds only signatures, and asking each page for a digit sent it to
+  OCR for nothing (2 of mirobody-gen's 9 PDF views). To check: the watermark
+  page in `test_pdf_scanned_page_ocr_routing.py` is sent to OCR, alone or on
+  every page, and the letterhead, searchable-scan and signature pages there
+  are not.
 
 - **A urine dipstick's abbreviations are coded under a urine heading, and
   spirometry is the measured value** (#343). Alone, `PRO` answered proline,
@@ -335,8 +403,9 @@
 - **查看 on an Excel file downloads it (#341).** For a file the browser does
   not show in place (`.xlsx`, `.xls`), 查看 and 查看原文件 opened a tab that
   stayed blank, and nothing was saved. Such a file now opens no tab and
-  downloads under its own name; PDF, images and text still open in a tab. To
-  check: upload `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
+  downloads under its own name; PDF, images and text open in the page's
+  viewer (#361, below). To check: upload
+  `demo/upload/you_lab_results_en_2025-03.xlsx` and click 查看.
   Web client thetahealth/mirobody-web#36.
 - **`<br>` in a chat answer is a line break (thetahealth/mirobody-web#35).**
   A table cell is one line, so models break it with `<br>`
@@ -345,6 +414,21 @@
   table cells and in text; every other tag is still shown as text, and code
   is untouched. To check: ask for a table whose header puts the date and the
   source on two lines with `<br>`. Web client thetahealth/mirobody-web#37.
+- **Uploading and 查看 work on an iPhone (#361).** Three faults in the web
+  client, all reported from iOS Safari and Chrome. A photo picked from the
+  library could fail to arrive, because the file input was never in the
+  page; it now is while the picker is open. After the page was hidden and
+  restored from the browser's back-forward cache, the upload socket came
+  back but every message was dropped while the upload showed as started;
+  the socket now rebuilds itself before it sends. 查看 opened a blank tab
+  and filled it once the file had downloaded, so a phone showed a white
+  screen for as long as the download took, and on the reporter's phone for
+  good. Images, PDFs and text now open in a viewer inside the page: the
+  name and a spinner at once, then the file, with links to open it in a
+  new tab or save it. On desktop this replaces the new tab. Text files also
+  open as UTF-8, so a Chinese `.md` no longer shows `鈥�` for a dash. To
+  check: on an iPhone, upload a photo from the library and click 查看; the
+  photo opens in the page. Web client thetahealth/mirobody-web#41.
 - **One abbreviation printed with its own hyphen no longer answers through
   half of itself (#322).** `HBs-Ag` was split at the hyphen into `HBs` and
   `Ag`, and the half that resolved answered: a hepatitis B surface ANTIGEN

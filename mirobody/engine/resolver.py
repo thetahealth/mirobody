@@ -33,8 +33,8 @@ from mirobody._bundle import (
 from mirobody._strtab import StringTable
 from mirobody.lexical import (
     fold_plural, index_fold, is_component_suffix, measure_stems, split_camel, split_trailing_hyphen,
-    split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym, strip_report_marks,
-    surface_variants,
+    split_timing, split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym,
+    strip_report_marks, surface_variants, Timing,
 )
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
@@ -53,8 +53,16 @@ _RUNTIME_MEMBERS = (
     "loinc_rank_bonus.npy",
 )
 
-# Sentinel target in resolver_overrides.tsv meaning "deliberately unresolved".
-_BLOCK_SENTINEL = "!unresolved"
+# Sentinel targets in resolver_overrides.tsv: a deliberate non-answer, and
+# its `reason_kind`. One `!unresolved` used to cover all four, so `KET` (one
+# test whose abbreviation names three) and `发烧` (a symptom) were both told
+# they were "a category or several tests in one name".
+_BLOCK_KINDS = {
+    "!category": "category",
+    "!condition": "condition",
+    "!ambiguous": "ambiguous",
+    "!uncoded": "uncoded",
+}
 
 # A printed name that asks for the predicted (reference) value itself, which
 # `_switch_from_predicted` then leaves alone. `推算` is LOINC's Chinese for it.
@@ -72,6 +80,9 @@ _KNOWN_TIES: dict[str, tuple[str, str]] = {
     # thrombin clotting time is seconds.
     "tlc": ("26464-8", "19862-2"),  # Leukocytes, Total lung capacity
     "tct": ("19762-4", "3243-3"),  # Cervical cytology categories, Thrombin time
+    # A bare `Body fat` is a scale's percentage (27.8 %) or its mass
+    # (21.2 kg); the name alone resolved to nothing.
+    "body fat": ("41982-0", "73708-0"),  # Percentage of body fat, Body fat mass
 }
 
 # R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a
@@ -278,6 +289,14 @@ class Resolution:
     #: reason; `rejected_reason` already says so in prose, this is the same
     #: fact in a field a caller can act on without parsing text.
     ambiguous: tuple[str, str] = ()
+    #: Why there is no code, as a word a caller can branch on: ``category``
+    #: (ask for one test), ``condition`` (a symptom or diagnosis: code it with
+    #: `standardize_complaint`), ``ambiguous`` (a unit or the report's section
+    #: decides), ``uncoded`` (a real measurement LOINC has no code for),
+    #: ``timing`` (the name says when it was drawn and no code carries that),
+    #: ``unit_conflict``. Empty on an answer and on a plain miss;
+    #: `unresolved_kind` names the miss ``unknown``.
+    reason_kind: str = ""
 
     @property
     def code(self) -> str:
@@ -563,9 +582,11 @@ class OfflineResolver:
                 return True
         return False
 
-    def _is_blocked(self, term: str) -> bool:
-        """True when ANY surface variant of the term is a deliberate
-        non-answer (target ``!unresolved`` in resolver_overrides.tsv).
+    def _block_kind(self, term: str) -> str:
+        """The `reason_kind` of a deliberate non-answer (a ``!category``,
+        ``!condition``, ``!ambiguous`` or ``!uncoded`` target in
+        resolver_overrides.tsv) when ANY surface variant of the term is one;
+        ``""`` when none is.
 
         Every variant, not only the term as written: variant lookup is a new
         route into the index, so a block that knew one spelling would simply be
@@ -578,10 +599,11 @@ class OfflineResolver:
         183 index rows and came back 8462-4, the DIASTOLIC code. Same back door,
         and the terms still on the block list use the same spellings.
         """
-        return any(
-            self._src.get(self._normalize(surface)) == _BLOCK_SENTINEL
-            for surface in surface_variants(term)
-        )
+        for surface in surface_variants(term):
+            kind = _BLOCK_KINDS.get(self._src.get(self._normalize(surface)) or "")
+            if kind:
+                return kind
+        return ""
 
     def _keys_for(self, norm: str) -> list[str]:
         """Alias-table hop then the raw key, for one already-normalized term.
@@ -594,7 +616,7 @@ class OfflineResolver:
         """
         keys: list[str] = []
         eng = self._src.get(norm)
-        if eng == _BLOCK_SENTINEL:
+        if eng in _BLOCK_KINDS:
             return keys
         if eng:
             keys.append(self._normalize(eng))
@@ -682,16 +704,17 @@ class OfflineResolver:
         if not term:
             return Resolution(term=term)
 
-        # Deliberate non-answers (target `!unresolved` in the overrides file).
-        # Some terms name a CATEGORY with no code of its own: "血脂" is four
-        # analytes and LOINC's lipid panels differ by which children they carry,
-        # so any single code assumes what was ordered. A panel term that HAS a
-        # real panel code ("blood pressure" -> 85354-9) still resolves, because
-        # a panel code says "expect components". All surface variants are
-        # checked, not just the term as written; `_is_blocked` has the back door
-        # that requires.
-        if self._is_blocked(term):
-            return Resolution(term=term, method="refused")
+        # Deliberate non-answers (a `!category`, `!condition`, `!ambiguous` or
+        # `!uncoded` target in the overrides file). "血脂" is four analytes and
+        # LOINC's lipid panels differ by which children they carry, so any
+        # single code assumes what was ordered. A panel term that HAS a real
+        # panel code ("blood pressure" -> 85354-9) still resolves, because a
+        # panel code says "expect components". All surface variants are
+        # checked, not just the term as written; `_block_kind` has the back
+        # door that requires.
+        kind = self._block_kind(term)
+        if kind:
+            return Resolution(term=term, method="refused", reason_kind=kind)
 
         # `PCT` ties plateletcrit against procalcitonin at the SAME
         # commonness rank, and row order alone picked the sepsis marker
@@ -707,7 +730,8 @@ class OfflineResolver:
                 term=term,
                 method="refused",
                 ambiguous=(code, tied),
-                rejected_reason=f"{term!r} ties {code} and {tied} at the same rank",
+                reason_kind="ambiguous",
+                rejected_reason=f"{term!r} names {code} or {tied}, and only a unit can say which",
             )
 
         # `尿酸(UA)测定`, `γ-谷氨酰基转移酶*`: the name with what the report
@@ -719,11 +743,128 @@ class OfflineResolver:
         if bare:
             return replace(self.resolve(bare), term=term)
 
+        timed = self._resolve_timed(term)
+        if timed is not None:
+            return timed
+
         hit = self._lookup(term)
         if hit is not None:
             return hit
 
         return self._resolve_seam(term)
+
+    def _resolve_timed(self, term: str) -> Resolution | None:
+        """A name that says when its sample was drawn (`空腹C肽`,
+        `胰岛素(120min)`, `Vancomycin trough`), answered with the analyte's
+        sibling code for that draw; `None` when the name says no such thing.
+
+        LOINC puts the draw in the COMPONENT (`insulin^post CFst`,
+        `insulin^2H post XXX challenge`), so the index answered only the
+        spellings someone had written out whole. The rest missed, or worse:
+        `胰岛素(120min)` split at the bracket, `120min` alone answered a
+        glucose draw (12610-2), the two halves were "two analytes", and the
+        unit then chose plain insulin. Three draws of one release test went
+        into the plain insulin series on the same day. Here the analyte is
+        resolved on its own and the draw is looked up among its siblings
+        (`_timed_sibling`); without one the name refuses rather than lose
+        the time. It never reaches `_resolve_seam`, whose label would be
+        the time.
+        """
+        split = split_timing(term)
+        if split is None:
+            return None
+        stem, timing = split
+        whole = self._lookup(term)
+        # A row written for this exact spelling is someone's decision about
+        # it (`餐后血糖`, `Glukoz (açlık)`); it stands.
+        if whole is not None and self._src.get(self._normalize(term)):
+            return whole
+        base = self.resolve(stem)
+        if not base.resolved or not base.loinc:
+            if base.method == "refused":
+                return replace(base, term=term)
+            return whole or Resolution(term=term)
+        # The word belongs to the analyte's own name (`Thrombin peak` is
+        # 97912-0, not thrombin at its peak), or the number was a collection's
+        # length, which LOINC keeps on TIME (`2h urine`), not a draw.
+        if whole is not None and (
+            self._analyte_of(whole.loinc) != self._analyte_of(base.loinc)
+            or self._time_of(whole.loinc) != self._time_of(base.loinc)
+        ):
+            return whole
+        row = self._timed_sibling(base.loinc, _loinc_challenges(timing))
+        if row >= 0:
+            code, _component, prop, scale, system, _method, lcn = self._axis_row(row)
+            return Resolution(
+                term=term, canonical=lcn, loinc=code, candidates=base.candidates, resolved=True,
+                method="lexical", evidence=("name",), axes=(prop, scale, system),
+            )
+        return Resolution(
+            term=term,
+            method="refused",
+            candidates=base.candidates,
+            rejected_code=base.loinc,
+            reason_kind="timing",
+            rejected_reason=(
+                f"{timing.said!r} says when the sample was drawn, and no code of {base.loinc}'s "
+                f"analyte carries that draw; {base.loinc} would file it with draws taken at any time"
+            ),
+        )
+
+    def _time_of(self, code: str) -> str:
+        row = self._row_for_code(code)
+        return self._axis.field(row, _TIME) if row >= 0 else ""
+
+    def _timed_sibling(self, code: str, challenges: tuple[str, ...]) -> int:
+        """The axis row of `code`'s analyte drawn at the first of `challenges`
+        LOINC has for it, or -1.
+
+        Same SCALE and TIME. Same PROPERTY first, then any other
+        concentration, which the unit settles (`variant_for_reading`). Same
+        SYSTEM, except that the venipuncture specimens stand in for each
+        other: `血糖` answers glucose in Blood (2339-0), and fasting glucose
+        lives in serum or plasma (1558-6), the code ten curated rows chose.
+        Among the rest, `_pick`'s commonness and specimen preferences, and a
+        code that claims no method over one claiming a method nobody printed.
+
+        A trough or a peak is a drug LEVEL whatever the drug's bare name
+        answers: `sertraline` alone is a presence screen (13579-8) and
+        `bictegravir` a susceptibility on an isolate (90080-3), and neither
+        property nor specimen has a trough sibling. For those two draws any
+        quantitative concentration in a venipuncture specimen will do.
+        """
+        row = self._row_for_code(code)
+        if row < 0:
+            return -1
+        _code, component, prop, scale, system, method, _lcn = self._axis_row(row)
+        time = self._axis.field(row, _TIME)
+        head = component.partition("^")[0]
+        level = set(challenges) <= {"trough", "peak"}
+        venipuncture = level or system in _PERSON_LEVEL_SYSTEMS_LITE
+        index = self._component_index()
+        for challenge in challenges:
+            rows = index.get(f"{head}^{challenge}".encode(), ())
+            for same_property in (True, False):
+                best, best_score = -1, float("-inf")
+                for r in rows:
+                    _c, _comp, p, s, sys_, m, _l = self._axis_row(r)
+                    if s != ("Qn" if level else scale) or self._axis.field(r, _TIME) != time:
+                        continue
+                    if (p != prop) if same_property else not (p.endswith("Cnc") and (level or prop.endswith("Cnc"))):
+                        continue
+                    if sys_ != system and not (venipuncture and sys_ in _PERSON_LEVEL_SYSTEMS_LITE):
+                        continue
+                    name = self._names.raw(r)
+                    score = float(self._rank[r]) + (0.1 if m == method else 0.05 if not m else 0.0)
+                    if _PLAIN_SPECIMEN.search(name):
+                        score += 0.25
+                    if _SPECIAL_SPECIMEN.search(name):
+                        score -= 0.25
+                    if score > best_score:
+                        best, best_score = r, score
+                if best >= 0:
+                    return best
+        return -1
 
     def _find_seam(self, term: str) -> tuple[str, str, str]:
         """``(stem, label, shape)`` for the first shape that matches a name
@@ -775,12 +916,13 @@ class OfflineResolver:
         # Both halves, and the whole name without its measure words: `Serum
         # HRV (RMSSD)` is the blocked `HRV (RMSSD)`, and its stem half alone
         # answers the SDNN code that block exists to refuse.
-        if (
-            (stem and self._is_blocked(stem))
-            or (label and self._is_blocked(label))
-            or any(self._is_blocked(measured) for measured in measure_stems(term))
-        ):
-            return Resolution(term=term, method="refused")
+        kind = (
+            (stem and self._block_kind(stem))
+            or (label and self._block_kind(label))
+            or next((k for k in map(self._block_kind, measure_stems(term)) if k), "")
+        )
+        if kind:
+            return Resolution(term=term, method="refused", reason_kind=kind)
 
         stem_hit = self._lookup(stem) if stem else None
         label_hit = self._lookup(label) if label else None
@@ -816,6 +958,7 @@ class OfflineResolver:
                     method="refused",
                     candidates=stem_hit.candidates + label_hit.candidates,
                     ambiguous=(stem_hit.loinc, label_hit.loinc),
+                    reason_kind="ambiguous",
                     rejected_reason=(
                         f"{stem!r} gives {stem_hit.loinc} and {label!r} gives {label_hit.loinc}: "
                         "two analytes in one name"
@@ -836,6 +979,7 @@ class OfflineResolver:
                     method="refused",
                     candidates=stem_hit.candidates + label_hit.candidates,
                     ambiguous=(stem_hit.loinc, label_hit.loinc),
+                    reason_kind="timing",
                     rejected_reason=(
                         f"{label!r} gives {label_hit.loinc}, one draw of a timed challenge "
                         f"({label_challenge}), and the name does not say which draw"
@@ -1229,6 +1373,63 @@ def resolve(term: str) -> Resolution:
     return get_resolver().resolve(term)
 
 
+#: The sentence for a refusal that carries no `rejected_reason` of its own.
+_REASON_SENTENCES = {
+    "category": "a category or several tests in one name, and no code is given rather than a guessed one",
+    "condition": "a symptom or a diagnosis, not a measurement, and those take an ICPC-3 code, not a LOINC one",
+    "ambiguous": "more than one code fits this name, and nothing printed with it says which",
+    "uncoded": "a real measurement that the LOINC release this bundle is cut from has no code for",
+    "timing": "the name says when the sample was drawn, and no code of its analyte carries that draw",
+    "unit_conflict": "the unit contradicts every code of this analyte",
+    "unknown": "not in the lexical index, and no code is given rather than a guessed one",
+}
+
+
+def unresolved_kind(resolution: Resolution) -> str:
+    """`Resolution.reason_kind`, with a plain miss named ``unknown``; ``""``
+    when ``resolution`` carries a code."""
+    if resolution.resolved:
+        return ""
+    return resolution.reason_kind or "unknown"
+
+
+def unresolved_reason(resolution: Resolution) -> str:
+    """Why ``resolution`` carries no code, in one sentence; ``""`` when it has one.
+
+    Only `mirobody resolve` said this: over MCP `resolve_indicator` answered
+    `血脂` with `resolved: false` and `standardize_reading` with `method:
+    refused`, and neither said the name is a category rather than a missing
+    row, so a client could not tell "ask for one test" from "add a spelling".
+    The sentence is for a person; `unresolved_kind` is the same answer for a
+    program.
+    """
+    if resolution.resolved:
+        return ""
+    return resolution.rejected_reason or _REASON_SENTENCES[unresolved_kind(resolution)]
+
+
+def _loinc_challenges(timing: Timing) -> tuple[str, ...]:
+    """LOINC's challenge spellings for a printed draw, in the order to try.
+
+    A timed draw with no challenge named is LOINC's own unspecified one
+    (`XXX challenge`): an OGTT report rarely prints the 75 g. The 0-minute
+    draw is the challenge's baseline. A clock is written in hours where LOINC
+    writes it so (`1.5H`, `2H`) and in minutes otherwise (`30M`).
+    """
+    if timing.kind == "fasting":
+        return ("post cfst",)
+    if timing.kind == "baseline":
+        return ("baseline", "pre xxx challenge")
+    if timing.kind in ("trough", "peak"):
+        return (timing.kind,)
+    if timing.minutes is None:
+        return ("post meal",)
+    after = "post meal" if timing.kind == "post_meal" else "post xxx challenge"
+    minutes = timing.minutes
+    clocks = ([f"{minutes / 60:g}h"] if minutes >= 60 and minutes % 15 == 0 else []) + [f"{minutes}m"]
+    return tuple(f"{clock} {after}" for clock in clocks)
+
+
 def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value: str | None, unit: str | None) -> Resolution | None:
     """Settle a name-only "two analytes" refusal with the measurement, or
     hand back `None` to leave it refused (#306).
@@ -1310,6 +1511,7 @@ def resolve_reading(name: str, value: str | None = None, unit: str | None = None
             unit_recognized=True,
             rejected_code=verdict.rejected_code,
             rejected_reason=verdict.rejected_reason,
+            reason_kind="unit_conflict",
         )
 
     unit_recognized: bool | None = None
