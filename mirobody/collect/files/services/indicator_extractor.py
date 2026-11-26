@@ -105,12 +105,15 @@ NOT_READINGS = frozenset(standardize.name_key(label) for label in (
 ))
 
 
-#: The separators a device screen's un-selected tab bar is printed with,
-#: whatever glyph OCR used for the dividing line between tabs: the ASCII and
-#: fullwidth bars, and `丨`, the CJK stroke that reads the same on screen. A
-#: run of whitespace is ONE separator, so an ordinary multi-word name is not
-#: shredded into single words by it.
-_TAB_BAR_SEP = re.compile(r"[|｜丨/]+|\s+")
+#: CJK ideographs, kana and hangul: scripts that never space a name's words.
+_CJK = r"⺀-鿿가-힯豈-﫿"
+
+#: The separators a device screen's un-selected tab bar is printed with: the
+#: ASCII and fullwidth bars, `丨` (the CJK stroke that reads the same on
+#: screen), and a space touching a `_CJK` character. Any other space is a word
+#: break: split there, `Systolic Blood Pressure` had two words resolving alone,
+#: and 4 of the demo checkup's 9 readings and 23 benchmark names were dropped.
+_TAB_BAR_SEP = re.compile(rf"[|｜丨/]+|(?<=[{_CJK}])\s+|\s+(?=[{_CJK}])")
 
 #: `_is_unlabelled_tab_bar`'s thresholds: at least this many segments, and at
 #: least this many resolving on their own. Two segments is a printed RATIO as
@@ -145,7 +148,7 @@ def _is_unlabelled_tab_bar(name: str) -> bool:
     segments come out, check whether enough of them independently name a
     reading -- the same outcome the prompt rule reaches a different way,
     "when nothing names the series, leave its points out"."""
-    segments = [s for s in _TAB_BAR_SEP.split(name) if s.strip()]
+    segments = [s.strip() for s in _TAB_BAR_SEP.split(name) if s.strip()]
     if len(segments) < _TAB_BAR_MIN_SEGMENTS:
         return False
     return sum(_resolves_as_indicator(s) for s in segments) >= _TAB_BAR_MIN_RESOLVED
