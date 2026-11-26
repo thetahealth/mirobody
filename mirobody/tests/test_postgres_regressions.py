@@ -62,6 +62,87 @@ async def test_competing_printed_units_do_not_create_a_canonical_glucose_value(d
     assert row["value_canonical"] is None
 
 
+async def test_uncoded_device_durations_with_no_canonical_column_still_read_in_their_unit(database):
+    """#297's swap is read-side only on purpose: `standardize.code`'s
+    device-namespace branch (`dailyAwakeTime`, 103210-1 unverified, so
+    `Metric.canonical` files it under `mirobody-device:dailyAwakeTime`
+    rather than a code) writes `value_canonical`/`unit_canonical` as NULL,
+    the same as every row this writer has ever produced for such a name —
+    a reading stored before this release has the identical shape, so
+    upgrading needs no `recode`. The series still reads in `min`, converted
+    from `value_num`/`unit_ucum` entirely at query time
+    (`collect.query._series_unit`'s `stored_factor`, `_VALUE_STD`'s own
+    fallback branch, never a stored canonical pair)."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    drafts = [
+        observations.Draft(name_text="dailyAwakeTime", value_text=str(ms), unit_text="ms",
+                            observed_start=datetime(2026, 1, 1 + i, tzinfo=UTC))
+        for i, ms in enumerate([1_800_000, 2_400_000])  # 30 min, 40 min
+    ]
+    prov = observations.Provenance("device-sensed", "device", "device:garmin", vendor="garmin")
+    report = await observations.ingest("1", drafts, prov, user_tz="UTC")
+    assert report.inserted == 2
+
+    rows = await database(
+        "SELECT series_id, value_canonical, unit_canonical, unit_ucum FROM v_observation WHERE name_text = :name",
+        {"name": "dailyAwakeTime"}, log_sql=False,
+    )
+    assert len(rows) == 2
+    assert all(r["value_canonical"] is None and r["unit_canonical"] is None for r in rows)
+    assert all(r["unit_ucum"] == "ms" for r in rows)
+    assert {r["series_id"] for r in rows} == {"mirobody-device:dailyAwakeTime"}
+
+    [stats] = await PostgresHealthQuery().stats(
+        "1", query.Selection(indicators=("dailyAwakeTime",)), query.Window(0, 0, "UTC"),
+    )
+    assert stats["unit"] == "min"
+    assert stats["avg"] == pytest.approx(35.0)
+    assert stats["last"] == "40.0"
+
+
+async def test_a_historical_import_and_a_fresh_one_of_the_same_uncoded_series_agree(database):
+    """A mixed series: one reading from a simulated earlier import and one
+    from a later one, both of a name #297 names (`sleepAnalysis_Asleep
+    (Total)`, no code at all). Since the writer never canonicalizes either
+    one (the fix stays read-side, `value_canonical` would be NULL for a row
+    from 1.6.2 and for one written today alike), the two are indistinguishable
+    in storage; the series still has to read both in `h`, converted off the
+    same `stored_factor` path, not a per-row canonical check that would
+    silently drop whichever reading lacks one."""
+    from mirobody.collect import observations
+    from mirobody.collect.query import PostgresHealthQuery
+    from mirobody.kernel import query
+
+    prov = observations.Provenance("device-sensed", "device", "device:apple", vendor="apple")
+    earlier = await observations.ingest("1", [observations.Draft(
+        name_text="sleepAnalysis_Asleep(Total)", value_text="25200000", unit_text="ms",  # 7.0 h
+        observed_start=datetime(2026, 1, 1, tzinfo=UTC),
+    )], prov, user_tz="UTC")
+    assert earlier.inserted == 1
+    later = await observations.ingest("1", [observations.Draft(
+        name_text="sleepAnalysis_Asleep(Total)", value_text="23400000", unit_text="ms",  # 6.5 h
+        observed_start=datetime(2026, 1, 2, tzinfo=UTC),
+    )], prov, user_tz="UTC")
+    assert later.inserted == 1
+
+    rows = await database(
+        "SELECT value_canonical, unit_canonical FROM v_observation WHERE name_text = :name",
+        {"name": "sleepAnalysis_Asleep(Total)"}, log_sql=False,
+    )
+    assert len(rows) == 2 and all(r["value_canonical"] is None and r["unit_canonical"] is None for r in rows)
+
+    [stats] = await PostgresHealthQuery().stats(
+        "1", query.Selection(indicators=("sleepAnalysis_Asleep(Total)",)), query.Window(0, 0, "UTC"),
+    )
+    assert stats["unit"] == "h"
+    assert stats["count"] == 2
+    assert stats["avg"] == pytest.approx(6.75)
+    assert stats["first"] == "7.00" and stats["last"] == "6.50"
+
+
 @pytest.fixture
 async def database(monkeypatch):
     import psycopg

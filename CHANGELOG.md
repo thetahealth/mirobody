@@ -70,13 +70,16 @@
   follow the page's language in all five; Japanese and Traditional Chinese
   showed them in English before. To check: pick Русский on the sign-in page;
   the page declares `lang="ru"`. Contributed by Denis
-  (thetahealth/mirobody-web#39).
+  (thetahealth/mirobody-web#39). A count reads in Russian's own plural forms
+  («5 шагов», not "Thought for 17 seconds · 5 steps", thetahealth/mirobody-web#42).
 
 - **The README in Russian.** The web client now has a Russian interface
   (thetahealth/mirobody-web#39), but the repository's front page came in
   English, Chinese and Japanese only. `README.ru.md` translates the English
   one, with Russian editions of its diagrams (`docs/images/*.ru.svg`); the
-  guides it links are in English, and it says so. The published-score and
+  guides it links are in English, and it says so. Its recordings are Russian
+  too: the Ask demo asked in Russian, the resolve demo with `гемоглобин` and
+  the first-run page (`docs/images/*.ru.gif`). The published-score and
   skills gates read it with the other three. To check: the language line at
   the top of every README links Русский.
 
@@ -964,13 +967,59 @@
   energy in `kcal`. Every view, the web chart and the export follow it; the
   device's value and unit stay in `printed`. A unit a report printed is left
   as printed (an ECG's QT in `ms` stays `ms`), and so is a code that declares
-  the storage unit itself (HRV SDNN in `ms`, aPTT in `s`). Apple Health's
-  sleep still answers in `ms` until #297's reading units land: what an
-  import or a push leaves for every view to read is its daily figures
-  (`dailyTotalSleepAnalysis_*`), which carry no LOINC code, so every stage
-  and the time in bed stay in `ms` (measured on the 1.6.2 release image).
-  To tell: import a Garmin or Oura sleep export and ask `stats` for sleep
-  duration; the row says `unit=h`.
+  the storage unit itself (HRV SDNN in `ms`, aPTT in `s`). A series with no
+  LOINC code at all (Apple's own summed sleep total, its awake and core
+  stages among them) still answered in raw `ms` here; the next entry below
+  (#297) is its fix. To tell: import a Garmin or Oura sleep export and ask
+  `stats` for sleep duration; the row says `unit=h`.
+
+- **The sleep durations with no LOINC code at all now also read in hours
+  and minutes, not milliseconds** (#297, following #296/#298 above, which
+  fixed only the half of this bug with a CONFIDENT code to read a unit off
+  of). `kernel/metrics.py`'s `Metric.canonical` files a name the catalogue
+  marks unverified or carries no code for under its own namespace
+  (`mirobody-device:<name>`), so `loinc_units` never ran for it and the
+  series kept the decoder's raw count forever: Apple's own summed night
+  (`sleepAnalysis_Asleep(Total)`, `kernel/decoders/apple.py`'s `ASLEEP_TOTAL`,
+  which Apple itself never codes), its awake and core sleep stages
+  (`sleepAnalysis_Awake`, `sleepAnalysis_Asleep(Core)`), and Garmin, Oura and
+  WHOOP's own `dailyAwakeTime`. A new table,
+  `standardize.device_reading_units`, names six such fields by their
+  catalogue NAME instead of a code (`sleepAnalysis_Awake`, `dailyAwakeTime`
+  and `sleepAnalysis_Asleep(Core)` in `min`, the same unit their own
+  unverified or sibling LOINC codes already declare; `sleepAnalysis_Asleep
+  (Total)` and the in-bed total `dailyInBedDuration` in `h`; a nap,
+  `napDuration`, in `min`), and `collect.query._series_unit` consults it
+  whenever a device-only series carries no LOINC at all. Such a reading's
+  `value_canonical`/`unit_canonical` are never stored — `standardize.code`'s
+  device-namespace branch is untouched, the same as before this fix, so a
+  row from before this release and one written today are the identical
+  shape — which means the swap has no canonical pair to convert a reading
+  through the way the LOINC branch above does. It converts entirely at READ
+  time instead: `SeriesUnit` now also carries the series' own storage unit
+  and its factor to the chosen one (`stored_factor`), and `_VALUE_STD`
+  (and `_ratio`, the same conversion for a single reading) gets one more
+  branch, straight off `value_num`, for a row whose `unit_canonical` is
+  unset and whose own `unit_ucum` is that storage unit. No `recode`, no
+  backfill: existing Apple, Garmin, Oura and WHOOP sleep data reads
+  correctly the moment this ships. (An earlier draft of this fix did
+  canonicalize the six names at write time instead, until it broke
+  `aggregate/election.py`, which prefers a row's `value_canonical` once the
+  column is set, on the standing assumption that this namespace never
+  carries one: a generated `heartRates` daily average silently became its
+  `/s` value, `/min` divided by 60. The read-only design avoids that
+  entirely, by needing no write-side change at all.) Everything else
+  uncoded keeps its storage unit on purpose: an
+  epoch a decoder also writes in `ms` (`sleepEndTime`, `inBedStartTime`,
+  `*ReportTimeOffset`) is not a duration, and a genuinely clinical
+  millisecond (`hrvRMSSD`, `hrvMin`, `hrvMax`, `qtcInterval*`) is not a
+  storage convenience, the same distinction #296 already draws for a
+  CONFIDENT code's own `ms`. Per-person unit preferences and a device
+  original layer that keeps the vendor's own value and unit beside the
+  catalogue one are still open design questions on the parent issue (#297),
+  not this fix. To tell: import an Apple Health export with a night's sleep
+  and ask `stats` for `sleepAnalysis_Asleep(Total)`; the row says `unit=h`,
+  not `unit=ms`.
 
 - **A body-composition device's own words (脂肪, 肌肉, 血氧…) no longer code
   to a lab specimen or an antibody test** (#301, cause 1). A smart scale's

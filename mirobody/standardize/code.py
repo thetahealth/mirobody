@@ -159,6 +159,33 @@ def loinc_units(loinc: str) -> tuple[str, ...]:
     return tuple(out)
 
 
+#: A device duration with no CONFIDENT code is filed under its catalogue name
+#: (`Metric.canonical`, `mirobody-device:<name>`), so `loinc_units` never runs
+#: for it and it stayed in the decoder's `ms` (#297). This names its reading
+#: unit by that name, read side only: the writer is unchanged, so a row stored
+#: before this release converts too. A table, not a rule: the same namespace
+#: holds epochs (`sleepEndTime`) and clinical milliseconds (`hrvRMSSD`).
+_DEVICE_READING_UNITS: dict[str, str] = {
+    "sleepAnalysis_Asleep(Total)": "h",   # Apple's night total, the span of 103213-5 (h)
+    "dailyInBedDuration": "h",            # the span of 103213-5 "Duration in bed" (h)
+    "sleepAnalysis_Awake": "min",         # its unverified 103210-1 declares min
+    "dailyAwakeTime": "min",              # the same 103210-1
+    "sleepAnalysis_Asleep(Core)": "min",  # 93830-8 declares min, as Deep and REM answer (#298)
+    "napDuration": "min",                 # a nap is stage-scale, never a night's total
+}
+
+
+@lru_cache(maxsize=256)
+def device_reading_units(name: str) -> tuple[str, ...]:
+    """The reading unit of an uncoded device metric `name` (a `kernel.metrics`
+    catalogue NAME, never a code), as a one-element tuple so
+    `collect.query._series_unit` can consult it exactly as it does
+    `loinc_units`: `()` for a name this table does not list, which leaves
+    every other uncoded series in its storage unit, on purpose."""
+    unit = _DEVICE_READING_UNITS.get(name, "")
+    return (unit,) if unit else ()
+
+
 #: What a person wrote that is not a reading, a complaint or a diagnosis: a
 #: meal, a mood, a walk. It is kept as written and not coded, by design rather
 #: than for want of a match: there is no open vocabulary for meals or moods
@@ -335,4 +362,7 @@ def _coded(
     )
 
 
-__all__ = ["RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "loinc_units", "release", "series_of"]
+__all__ = [
+    "RULE_ALIAS", "RULE_ENGINE", "axes_for", "code", "decision_id", "device_reading_units",
+    "loinc_units", "release", "series_of",
+]
