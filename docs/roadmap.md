@@ -149,6 +149,24 @@ morning draw, not a series of its own, and refusing `Testosterone AM` for want
 of an AM code would lose an answer that is right today. Which analytes take a
 clock draw has to be decided before it is read.
 
+### A device screenshot with the local models
+
+**Status:** open; measured 2026-11-26 (1.6.3 release test).
+
+With no key, a smart-scale screen from `demo/screens/` stores nothing.
+GLM-OCR reads its text well enough (`当前体重 76.2 kg`, `体脂率 27.8 %`,
+`BMI 25.6`, the chart's seven values), but it cannot mark the selected tab,
+and it lays the tab names out as a table row above the chart's values.
+MiniCPM5-2B then answers `content_type: non_health_related` with no rows:
+9 of 9 runs with 1.6.3's extraction prompt and 9 of 9 with 1.6.2's, so the
+upload path has never read these screens locally. `mirobody parse`, which
+has a shorter prompt of its own, read 26 rows on 1.6.2 (the card right; the
+fat and muscle charts given the weight chart's values; the goal and starting
+weights stored) and one on 1.6.3 (`初始体重`, which rule 10 asks it to leave
+out). The card's three figures are real readings and the place to start;
+the chart's points cannot be named until the OCR says which tab is shown.
+A cloud model reads all three screens right (#301).
+
 ## Structural work
 
 ### Four tables with no ingestion path

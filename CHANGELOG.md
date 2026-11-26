@@ -1,7 +1,13 @@
 ## Unreleased
 
+## 1.6.3
+
 ### Upgrade notes
 
+- **No schema change; run one command afterwards.** Upgrade a Docker install
+  with `git pull` and `./deploy.sh`, with the same `COMPOSE_PROFILES` it was
+  started with; it pulls `thetahealth4mirobody/mirobody:1.6.3`. Then run the
+  `recode` the next two notes describe, once.
 - **Run `docker compose exec mirobody mirobody recode` after upgrading.** The
   vitamin D, hepatitis B serology, cystatin C, NT-proBNP, urine
   albumin/creatinine, lipoprotein(a) and the other names below now answer
@@ -15,6 +21,13 @@
   so election recomputes it. An `avg`/`min`/`max`/`last`-style daily figure
   (oxygen, heart rate) is unaffected: it keeps its own per-name identity and
   only gains a label.
+- **Some readings change only when their file is read again.** An ECG's
+  `HR`, `RV5` and `SV1` under their heading (#281), an ultrasound heading
+  restated as its own row, a value a report restates without a date, a
+  scanned page under a watermark text layer (#317) and a device screen's
+  tab bar (#301) are read correctly from now on. A file read before keeps what was stored until you choose 重新处理 on
+  its row in 数据 › 文件 (`POST /api/v1/data/reprocess-file`), which erases
+  that file's readings and reads it again from the stored file.
 
 ### Added
 
@@ -167,7 +180,10 @@
   of the demo checkup's nine rows, and 23 benchmark names.
   `test_no_benchmark_name_reads_as_a_tab_bar` holds every benchmark name to
   it. Still open: GLM-OCR itself cannot mark the selected tab, so a real
-  value it reads under the wrong tab's name is not caught by this guard.
+  value it reads under the wrong tab's name is not caught by this guard;
+  and with the local models alone a device screen stores nothing at all,
+  as on 1.6.2: MiniCPM5-2B reads GLM-OCR's text of it as non-health content
+  (docs/roadmap.md, "A device screenshot with the local models").
 
 - **A scale's `去脂体重`/`瘦体重` (lean body mass) and `活动消耗`/`消耗热量`
   (calories burned) now resolve instead of abstaining.** Both named a LOINC
