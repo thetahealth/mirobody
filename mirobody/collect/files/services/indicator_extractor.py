@@ -112,16 +112,11 @@ NOT_READINGS = frozenset(standardize.name_key(label) for label in (
 #: shredded into single words by it.
 _TAB_BAR_SEP = re.compile(r"[|｜丨/]+|\s+")
 
-#: `_is_unlabelled_tab_bar`'s two thresholds. A name must split into at least
-#: this many segments, `AND` at least this many of them must independently
-#: resolve as their own reading, before the whole name is treated as a tab
-#: bar rather than one printed name. Two is not enough on either count: a
-#: two-way split is a printed RATIO as often as it is a tab bar -- `LDL/HDL`
-#: splits into `LDL` and `HDL`, which both resolve (13457-7, 2085-9) exactly
-#: as a real tab bar's segments would, and `E/A` (above) is the same shape
-#: though neither half resolves alone. Three is what OCR actually reports for
-#: a scale or watch screen (#301: `体重 | 脂肪 | 肌肉`, `体重 脂肪 肌肉`), never
-#: a ratio's.
+#: `_is_unlabelled_tab_bar`'s thresholds: at least this many segments, and at
+#: least this many resolving on their own. Two segments is a printed RATIO as
+#: often as a tab bar: `LDL/HDL` splits into two names that both resolve
+#: (13457-7, 2085-9), exactly as a tab bar's would. Three is what OCR reports
+#: for a scale or watch screen (#301: `体重 | 脂肪 | 肌肉`), never a ratio.
 _TAB_BAR_MIN_SEGMENTS = 3
 _TAB_BAR_MIN_RESOLVED = 2
 

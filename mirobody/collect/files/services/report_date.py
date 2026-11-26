@@ -105,17 +105,12 @@ async def get_user_current_time_with_timezone(user_id: str) -> datetime:
     except Exception:
         return get_utc_now()
 
-#: One upload batch's stand-in for "now" (#301), keyed by `message_id`
-#: (`th_files.created_source_id`): several screenshots of one device screen
-#: print no date, so each file's own `resolve_report_date` call fell back to
-#: its OWN "now" a few seconds apart, and a card value repeated on every
-#: screenshot could never be told as the same reading -- the batch dedupe
-#: sweep's identity includes `observed_start`/`observed_end`. The first file
-#: of a batch to ask computes it; every sibling reuses the same instant.
-#: Entries are pruned by age, not by a teardown hook: the files of one batch
-#: extract as independent background tasks (`spawn`, `handlers/base.py`)
-#: that the upload loop does not wait for, so there is no single point that
-#: reliably knows the batch is done.
+#: One upload batch's stand-in for "now" (#301), keyed by `message_id`: each
+#: undated screenshot fell back to its OWN "now" seconds apart, so a card value
+#: repeated on every screenshot never matched (the batch dedupe compares the
+#: observed time). The first file asks, its siblings reuse the instant. Pruned
+#: by age: a batch's files extract as background tasks nobody awaits
+#: (`spawn`, `handlers/base.py`), so nothing knows when the batch is done.
 _BATCH_FALLBACK_TTL = timedelta(minutes=30)
 _BATCH_FALLBACK_NOW: dict[str, tuple[datetime, datetime]] = {}
 _BATCH_FALLBACK_LOCK = asyncio.Lock()
