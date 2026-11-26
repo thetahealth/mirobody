@@ -97,6 +97,80 @@
 
 ### Fixed
 
+- **A device-app screenshot's reading was coded against the lab vocabulary,
+  never the device catalogue** (#301). `observations.coding_for` consulted
+  the catalogue only for a device sync (`source_kind == SOURCE_DEVICE`); a
+  screenshot still arrives as a file, and `indicator_store` filed every file
+  under `MODALITY_LAB`, so `脂肪`/`肌肉` from a smart scale's screen were coded
+  the lab way. A row the extractor marked `wearable` (`detection_method`) now
+  also consults the catalogue, after a person's own alias and before the
+  lexical resolver, and is stored `MODALITY_DEVICE` instead of `lab-report`
+  — unless the text does not bear out its value, which still outranks it
+  (`MODALITY_UNVERIFIED`). A lab row that merely shares a word with the
+  catalogue (`sodium`, `cholesterol`) is unaffected: the branch only fires on
+  `wearable`. How to tell: code a `wearable` `sodium` row and a `laboratory`
+  one of the same name and unit; only the first lands on the catalogue's own
+  identity instead of serum sodium (2951-2).
+
+- **One card value repeated on several screenshots of one upload was stored
+  once per file, not once per upload** (#301). A reading's identity never
+  carries anything about which screenshot it came from beyond `source_ref`
+  (one per file), so a smart scale's weight card, printed again on two more
+  screenshots of the SAME upload, landed as three visible rows.
+  `observations.retract_batch_duplicates` sweeps one upload batch's visible
+  readings (`th_files.created_source_id`) once a file of it finishes
+  extracting, groups them by name, value, unit and time, and retracts every
+  row but the earliest when more than one file wrote the same one — never
+  deleted, the same mechanics as every other sweep here. A re-upload in a
+  separate batch, and two different values in one batch, are both left
+  alone. A prerequisite: a screenshot with no printed date fell back to "now"
+  per file, a few seconds apart from its siblings; `report_date` now resolves
+  that fallback once per batch, so siblings land on the same instant and the
+  sweep can tell them apart as one reading. How to tell: upload three
+  screenshots carrying the same card value in one message; only the first
+  stays visible on the Data page.
+
+- **The agent could read a number straight off an attached picture and
+  present it as a recorded reading** (#301). `read_file` is multimodal and
+  reaches `/uploads/` and `/library/`; when only one point of a chart had
+  been stored, nothing stopped the model from reading the rest off the image
+  itself — a second extraction path, with no resolver and no checks, able to
+  disagree with the indicators page about the same day. The prompt now says
+  a reading's value comes from `query_health_indicators`; a number seen only
+  in a picture is said to be read from the picture, unchecked, never
+  presented as a recorded value.
+
+- **GLM-OCR's un-selected tab bar was read as a reading's own name** (#301,
+  partial). The `[selected]` rule the OCR and extraction prompts carry (fixed
+  earlier for #301) never reaches GLM-OCR, which takes fixed task prompts
+  only, so a device screen's tab bar still comes through whole (`体重 | 脂肪 |
+  肌肉`, `体重丨脂肪丨肌肉`). `indicator_extractor.names_a_reading` now drops a
+  name that splits into three or more segments (on `|`, `｜`, `丨`, `/` or a
+  run of spaces) where at least two independently resolve as their own
+  indicator, the device catalogue or the lexical vocabulary — a two-way
+  split is as often a printed ratio (`LDL/HDL`, `E/A`) as a tab bar, so it is
+  left alone. Still open: GLM-OCR itself cannot mark the selected tab, so a
+  real value it reads under the wrong tab's name is not caught by this
+  guard.
+
+- **A scale's `去脂体重`/`瘦体重` (lean body mass) and `活动消耗`/`消耗热量`
+  (calories burned) now resolve instead of abstaining.** Both named a LOINC
+  component with several codes tied at the same commonness rank — four for
+  lean body weight (bare, Immersion, Skin fold, Calculated), five for
+  calories burned (bare, in 24 hour, in 1 week, Machine estimate,
+  Pedometer) — and `resolver_overrides.tsv` abstained rather than risk
+  answering the wrong one. #357 (this release) gave `_pick` a rule that
+  settles exactly this shape: when one candidate's own LONG_COMMON_NAME
+  matches the lookup key exactly, it wins outright. Pointing the override
+  at that bare name (`Lean body weight`, `Calories burned`) now resolves
+  both families to the code that names neither a method nor a time window
+  (91557-9, 41981-2); `Lean Body Mass`/`去脂肪体重`/`Fat-Free Mass`, which
+  had no alias at all, get the same target.
+  `test_engine_coverage_devices.py`'s floor is 63/63 again, and a check
+  against the 638-case lab benchmark, both benchmark files, the health-
+  record benchmark and a 7,354-term private eval set found no other
+  answer changed. To check: `mirobody resolve 去脂体重 活动消耗`.
+
 - **An ultrasound heading no longer reads back as a second organ.** One
   sentence under `双肾彩超` could extract as three rows — the heading
   restated as a row, the organ it describes (`双肾`) and a genuine second

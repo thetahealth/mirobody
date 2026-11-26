@@ -358,8 +358,18 @@ async def save_indicators_to_db(
         kind = row_kind(indicator, value)
         modality = ""
         if bears_out is not None and kind == observations.KIND_MEASUREMENT and bears_out(value) is False:
+            # Whether the value is trustworthy outranks which vocabulary
+            # codes it: an unconfirmed wearable reading is still unverified,
+            # not quietly filed as a confirmed device one.
             modality = observations.MODALITY_UNVERIFIED
             unverified_count += 1
+        elif method == observations.METHOD_WEARABLE and kind == observations.KIND_MEASUREMENT:
+            # A device-app screenshot (#301): coded against the device
+            # catalogue (`observations.coding_for`), so it is filed with the
+            # device's own modality, not `MODALITY_LAB` every other file row
+            # gets. `records()` (`user/profile.py`) reads a device's stream
+            # from its own section, not the reports list, by this modality.
+            modality = observations.MODALITY_DEVICE
         drafts.append(observations.Draft(
             name_text=str(original_indicator),
             observed_start=row_time(indicator.get("date_time"), start_time),

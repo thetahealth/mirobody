@@ -29,16 +29,20 @@ Run just this benchmark, with the score printed::
 
     pytest tests/test_engine_coverage_devices.py -v -s
 
-Unlike the lab benchmark's 1.0 ratchet, `DEVICE_COVERAGE_FLOOR` is set to
-today's honestly-achieved score, not to 100%: five names (`去脂体重`'s
-family, see `resolver_overrides.tsv`) hit a resolver-level ambiguity no
-override row can fix (four LOINC codes share one component at equal
-commonness rank) and two (`活动消耗`'s family) have no alias at all without
-risking the same ambiguity if one were added. Both stay in CASES, miss on
-purpose, and are visible in the printed list — "not fixed yet" is not the
-same thing as "not tracked". Fixing either is a `_pick`/build-time change,
-out of scope for a `resolver_overrides.tsv`-only pass; raise the floor when
-one lands, never lower it to paper over a new regression.
+`DEVICE_COVERAGE_FLOOR` is 1.0, like the lab benchmark's: the `去脂体重`-
+and `活动消耗`-family rows below were written six days before #357
+(`b0bbef3b2`) gave `_pick` a rule that answers a tie outright when exactly
+one candidate's own LONG_COMMON_NAME equals the lookup key — added for an
+unrelated bare-abbreviation shape (`fev1`, `thrombin time`), but it also
+separates a commonness tie whose WINNING candidate carries no METHOD or
+TIME qualifier, which is exactly these two families' four-way and five-way
+ties. Neither `resolver_overrides.tsv` nor this file was revisited after
+#357 landed (even the later pass that relabeled the sentinel `!ambiguous`
+left the stale comment and the abstaining target in place); pointing their
+override rows at the bare LONG_COMMON_NAME ("Lean body weight", "Calories
+burned") now resolves them the same way `fev1` already did. Raise the
+floor again if a FUTURE case needs it; never lower it to paper over a new
+regression.
 """
 
 from __future__ import annotations
@@ -93,11 +97,10 @@ CASES: list[tuple[str, str, str]] = [
     ("肌肉量",                        r"body muscle mass",             r"antibody|titer"),
     ("Muscle Mass",                 r"body muscle mass",             r"antibody|titer"),
     ("肌肉率",                        r"body muscle mass.*body weight", r""),
-    # `去脂体重`/`瘦体重` now abstain rather than answer the immersion-method
-    # code (`resolver_overrides.tsv` has the four-way commonness tie this
-    # exposed); `Lean Body Mass`/`去脂肪体重`/`Fat-Free Mass` have no alias of
-    # their own and are left that way rather than risk the same tie. All five
-    # are expected MISSES — see the module docstring.
+    # `去脂体重`/`瘦体重`/`Lean Body Mass`/`去脂肪体重`/`Fat-Free Mass` all reach
+    # 91557-9's bare "Lean body weight", not the immersion-method code the
+    # four-way commonness tie used to fall through to — see the module
+    # docstring and `resolver_overrides.tsv`.
     ("去脂体重",                       r"^lean body weight$",           r"immersion"),
     ("瘦体重",                        r"^lean body weight$",           r"immersion"),
     ("Lean Body Mass",               r"^lean body weight$",           r"immersion"),
@@ -135,10 +138,10 @@ CASES: list[tuple[str, str, str]] = [
     ("最大摄氧量",                      r"oxygen consumption",           r""),
     ("VO2max",                      r"oxygen consumption",           r""),
     ("每日步数",                       r"number of steps",              r""),
-    # `活动消耗`/`消耗热量` have no alias; `Calories burned` (the catalogue's
-    # own LCN for 41981-2) posts FIVE rows tied at the same commonness rank
-    # — `in 24 hour`, `in 1 week`, bare, `Machine estimate`, `Pedometer` —
-    # the exact shape that made `去脂体重` unsafe to redirect. Expected MISSES.
+    # `活动消耗`/`消耗热量` reach 41981-2's bare "Calories burned", the one
+    # candidate of its five-way commonness tie (`in 24 hour`, `in 1 week`,
+    # bare, `Machine estimate`, `Pedometer`) naming neither a time window
+    # nor a method — see the module docstring and `resolver_overrides.tsv`.
     ("活动消耗",                       r"^calories burned$",            r""),
     ("消耗热量",                       r"^calories burned$",            r""),
     ("运动时长",                       r"exercise duration",            r""),
@@ -177,11 +180,11 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("压力", "a watch's 0-100 stress score named 61011-3, Umbilical vein blood pressure — no specimen or PROPERTY in common"),
 ]
 
-# Ratchet, but not at 1.0 like the lab benchmark's: seven of the 63 cases
-# above are KNOWN misses (see the module docstring), so 100% is not an
-# honest target yet. Raise this when a case starts passing; never lower it
-# to make a red build green.
-DEVICE_COVERAGE_FLOOR = 56 / 63
+# Ratchet, at 1.0 like the lab benchmark's: all 63 cases plus the 7
+# MUST_NOT_RESOLVE rows pass (see the module docstring for how the last
+# seven — `去脂体重`'s and `活动消耗`'s families — got there). Never lower
+# this to make a red build green.
+DEVICE_COVERAGE_FLOOR = 1.0
 
 
 def _miss_reason(r, must: str, must_not: str) -> str:

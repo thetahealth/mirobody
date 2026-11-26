@@ -71,6 +71,12 @@ SOURCE_DEVICE = "device"
 SOURCE_MANUAL = "manual"
 SOURCE_API = "api"
 
+#: `Draft.method_text`/`row["method_text"]` for a file row the extraction
+#: prompt classified as a smart device or wearable's own screen (#301), the
+#: one `detection_method` enum member a file batch can still code against
+#: the device catalogue for (`coding_for`) and carry as `MODALITY_DEVICE`.
+METHOD_WEARABLE = "wearable"
+
 GRAIN_INSTANT = "instant"
 GRAIN_WINDOW = "window"
 GRAIN_DAY = "day"
@@ -370,7 +376,8 @@ def catalog_alias(name: str) -> standardize.Alias | None:
 
 def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.Alias]) -> standardize.Coding:
     """The coding of one prepared row. A person's alias first, then the
-    device catalogue for a device batch, then the vocabulary.
+    device catalogue for a device batch or a screenshot of one, then the
+    vocabulary.
 
     The catalogue is keyed by vendor metric names, and several of them are
     ordinary words that mean something else on a lab report: `cholesterol` is
@@ -378,7 +385,16 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.A
     `steps` is a per-sample delta (55423-8) where a person means the day
     (41950-7). Consulting it for a typed name filed all of those in the
     device namespace. It answers for a device batch, where the name did come
-    from a vendor.
+    from a vendor, and for a file row the extractor marked `wearable`
+    (#301): a device-app screenshot still arrives as `SOURCE_FILE`, and
+    before this, `脂肪`/`肌肉` from one were coded as the lab reading of the
+    word (`resolve_reading` alone has no specimen to prefer the body over).
+    A `wearable` row only CONSULTS the catalogue; unlike a real device
+    batch it gets no raw-name fallback alias, because the printed name is
+    natural language a lab row could print too (`sodium`), and an
+    unmatched one must still reach the lexical resolver -- which abstains
+    correctly for words like `压力` (`resolver_overrides.tsv`) -- rather
+    than file under a device-namespace pseudo-code made of the bare name.
     """
     alias = aliases.get((row["name_key"], row["unit_ucum"])) or aliases.get((row["name_key"], ""))
     if row["kind"] == KIND_SYMPTOM:
@@ -395,6 +411,8 @@ def coding_for(row: dict[str, Any], aliases: dict[tuple[str, str], standardize.A
         alias = catalog_alias(row["name_text"]) or standardize.Alias(
             _ALIAS_SCOPE_CATALOG, metrics.SYSTEM_DEVICE, row["name_text"].split(".", 1)[0]
         )
+    elif alias is None and row.get("method_text") == METHOD_WEARABLE:
+        alias = catalog_alias(row["name_text"])
     return standardize.code(
         row["name_text"],
         name_key=row["name_key"],
@@ -858,6 +876,74 @@ async def retract_unconfirmed(
         return await _retract(tx, str(user_id), [int(r["id"]) for r in rows or []], f"repair:{task_id}")
 
 
+# A batch's files (`th_files.created_source_id`), owned by the person this
+# sweep runs for: `query_user_id` is the upload's target when it was filed
+# for someone else, `user_id` the uploader otherwise (`file_db_service.
+# insert_files_batch`).
+_SELECT_BATCH_FILES = """
+SELECT file_key FROM th_files
+ WHERE created_source_id = :batch_id AND is_del = false
+   AND COALESCE(query_user_id, user_id) = :user_id
+"""
+
+# A batch's visible readings, earliest first: a value a device catalogue or a
+# lab name shares across the batch's files is told apart by the identity the
+# writer never puts in a row (`observed_start`/`observed_end` sharing one
+# fallback instant, #301's `report_date._batch_fallback_now`), so this is
+# exactly `prepare`'s own identity minus `source_ref` -- the one field the
+# bug is in.
+_SELECT_BATCH_ROWS = """
+SELECT id, name_key, value_text, COALESCE(unit_ucum, '') AS unit_ucum, observed_start, observed_end, source_ref
+  FROM v_observation
+ WHERE user_id = :user_id AND source_ref = ANY(:source_refs)
+ ORDER BY id
+"""
+
+
+async def retract_batch_duplicates(user_id: str, batch_id: str) -> int:
+    """One upload's card value, printed again on another screenshot of the
+    SAME batch, stored once (#301): a reading's identity (`prepare`'s
+    `fingerprint`) is keyed by `source_ref`, one per FILE, so three
+    screenshots of a smart scale's weight card landed as three visible rows.
+
+    Groups this batch's visible readings (`th_files.created_source_id ==
+    batch_id`) by `(name_key, value_text, unit_ucum, observed_start,
+    observed_end)`; a group touching more than one `source_ref` keeps its
+    earliest row (lowest id, the file whose extraction landed first) and
+    retracts the rest, same as any other sweep here -- never deleted, each
+    retraction a row that says which batch and which row it duplicates.
+
+    A group confined to one `source_ref` is untouched: two genuinely
+    different cards on one screenshot that happen to share a value are each
+    that file's own business, not this sweep's. Call once a file of the
+    batch finishes extracting (`handlers/base.py`); safe to call more than
+    once for one batch; a duplicate across two different `batch_id`s (a
+    re-upload) is never reached, because the SELECT is scoped to one.
+    """
+    async with db.transaction() as tx:
+        files = await tx.execute(_SELECT_BATCH_FILES, {"batch_id": batch_id, "user_id": str(user_id)})
+        source_refs = [f"th_files:{r['file_key']}" for r in files or []]
+        if len(source_refs) < 2:
+            return 0
+        rows = await tx.execute(_SELECT_BATCH_ROWS, {"user_id": str(user_id), "source_refs": source_refs})
+        groups: dict[tuple[str, str, str, Any, Any], list[dict[str, Any]]] = {}
+        for row in rows or []:
+            key = (row["name_key"], row["value_text"], row["unit_ucum"], row["observed_start"], row["observed_end"])
+            groups.setdefault(key, []).append(row)
+        duplicate_ids = [
+            int(row["id"])
+            for group in groups.values()
+            if len({row["source_ref"] for row in group}) > 1
+            for row in group[1:]  # earliest first (ORDER BY id): group[0] is kept
+        ]
+        if not duplicate_ids:
+            return 0
+        count = await _retract(tx, str(user_id), duplicate_ids, f"duplicate:{batch_id}")
+    if count:
+        logger.info("duplicate batch readings retracted: batch_id=%s count=%d", batch_id, count)
+    return count
+
+
 # A source's visible readings on a run of local days.
 _SELECT_SOURCE_DAYS = """
 SELECT id, name_key, observed_start, observed_end, COALESCE(source_record_id, '') AS record_id, local_date
@@ -1145,7 +1231,8 @@ async def merge_accounts(cur: Any, losing_user_id: str, winning_user_id: str) ->
 
 _SELECT_FOR_RECODE = """
 SELECT o.id, o.kind, o.name_text, o.name_key, o.local_key, o.value_kind, o.value_text, o.unit_text, o.unit_ucum,
-       o.value_num, o.source_kind, o.panel_text, o.series_id, o.decision_id, o.release, o.outcome, o.code_system, o.code
+       o.value_num, o.source_kind, o.method_text, o.panel_text, o.series_id, o.decision_id, o.release, o.outcome,
+       o.code_system, o.code
   FROM v_observation o
  WHERE o.user_id = :user_id AND o.id > :after {name_filter}
  ORDER BY o.id
@@ -1464,6 +1551,7 @@ __all__ = [
     "KIND_MEASUREMENT",
     "KIND_ORGANIZER",
     "KIND_SYMPTOM",
+    "METHOD_WEARABLE",
     "MODALITY_DERIVED",
     "MODALITY_DEVICE",
     "MODALITY_LAB",
@@ -1510,6 +1598,7 @@ __all__ = [
     "recode",
     "redate",
     "retract",
+    "retract_batch_duplicates",
     "retract_unconfirmed",
     "retract_unproduced",
     "user_tz",

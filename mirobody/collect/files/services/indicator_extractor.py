@@ -105,9 +105,56 @@ NOT_READINGS = frozenset(standardize.name_key(label) for label in (
 ))
 
 
+#: The separators a device screen's un-selected tab bar is printed with,
+#: whatever glyph OCR used for the dividing line between tabs: the ASCII and
+#: fullwidth bars, and `丨`, the CJK stroke that reads the same on screen. A
+#: run of whitespace is ONE separator, so an ordinary multi-word name is not
+#: shredded into single words by it.
+_TAB_BAR_SEP = re.compile(r"[|｜丨/]+|\s+")
+
+#: `_is_unlabelled_tab_bar`'s thresholds: at least this many segments, and at
+#: least this many resolving on their own. Two segments is a printed RATIO as
+#: often as a tab bar: `LDL/HDL` splits into two names that both resolve
+#: (13457-7, 2085-9), exactly as a tab bar's would. Three is what OCR reports
+#: for a scale or watch screen (#301: `体重 | 脂肪 | 肌肉`), never a ratio.
+_TAB_BAR_MIN_SEGMENTS = 3
+_TAB_BAR_MIN_RESOLVED = 2
+
+
+def _resolves_as_indicator(segment: str) -> bool:
+    """Whether `segment`, alone, is a known indicator's name: the device
+    catalogue first (`observations.catalog_alias`), then the lexical
+    vocabulary -- its `lexical` method only, the same trust `standardize.code`
+    gives a name (a semantic guess is not an identity, so it is not evidence
+    of a tab's own label either)."""
+    from mirobody.collect.observations import catalog_alias
+    from mirobody.engine import resolve_reading
+
+    if catalog_alias(segment) is not None:
+        return True
+    hit = resolve_reading(segment)
+    return bool(hit.resolved and hit.loinc and hit.method == "lexical")
+
+
+def _is_unlabelled_tab_bar(name: str) -> bool:
+    """Whether `name` prints a whole tab bar rather than one reading's name
+    (#301): GLM-OCR has no way to mark `[selected]` on a device screen (fixed
+    task prompts only), so the rule that names a chart after its selected tab
+    never reaches it, and the bar comes through as one label. The cheap
+    stand-in: split on a bar-like separator (`_TAB_BAR_SEP`) and, when enough
+    segments come out, check whether enough of them independently name a
+    reading -- the same outcome the prompt rule reaches a different way,
+    "when nothing names the series, leave its points out"."""
+    segments = [s for s in _TAB_BAR_SEP.split(name) if s.strip()]
+    if len(segments) < _TAB_BAR_MIN_SEGMENTS:
+        return False
+    return sum(_resolves_as_indicator(s) for s in segments) >= _TAB_BAR_MIN_RESOLVED
+
+
 def names_a_reading(name: str) -> bool:
-    """Whether a printed row label can be a reading's name (`NOT_READINGS`)."""
-    return standardize.name_key(name) not in NOT_READINGS
+    """Whether a printed row label can be a reading's name (`NOT_READINGS`,
+    `_is_unlabelled_tab_bar`)."""
+    return standardize.name_key(name) not in NOT_READINGS and not _is_unlabelled_tab_bar(name)
 
 
 def answer_budget(text: str) -> int:
@@ -223,17 +270,19 @@ class Filed:
 
 
 async def _filing_date(user_id: int, file_key: str, document_date: str,
-                       probed: tuple[datetime, str] | None) -> tuple[datetime, str]:
+                       probed: tuple[datetime, str] | None, message_id: str | None) -> tuple[datetime, str]:
     """The date a document's readings are filed under, and where it came
     from: the date the person set on the file (they may have answered
     "which date?" while this ran), else the probe's date when it read one off
-    the document, else this extraction's (`resolve_report_date`)."""
+    the document, else this extraction's (`resolve_report_date`). `message_id`
+    is the upload batch, so a fallback here lands on the same instant as any
+    sibling file's (#301)."""
     manual = await manual_report_date(file_key)
     if manual is not None:
         return manual, "manual"
     if probed is not None and probed[1] == "extracted":
         return probed
-    return await resolve_report_date(str(user_id), document_date)
+    return await resolve_report_date(str(user_id), document_date, message_id=message_id)
 
 
 class IndicatorExtractor:
@@ -308,11 +357,15 @@ class IndicatorExtractor:
         user_id: int,
         file_key: str,
         report_date: tuple[datetime, str] | None = None,
+        message_id: str | None = None,
     ) -> Filed:
         """Read a document's text (`read_indicators`) and file its readings
         under `file_key`. `report_date` is the date probe's `(datetime,
         date_source)`: an "extracted" one wins over this extraction's own
-        date field; an "upload_time" one is only a fallback.
+        date field; an "upload_time" one is only a fallback. `message_id` is
+        the upload batch this file arrived in (`th_files.created_source_id`),
+        None outside one (the chat channel, `mirobody parse`); it is how a
+        fallback date here lands on the same instant as a sibling file's.
 
         Raises `NothingStored` when rows were read and none could be written:
         reported as a document with no readings, a rejected batch or a
@@ -321,7 +374,7 @@ class IndicatorExtractor:
         reading = await IndicatorExtractor.read_indicators(original_text)
         if not reading.rows:
             return Filed([], reading.answer, 0, None)
-        start, source = await _filing_date(user_id, file_key, reading.date, report_date)
+        start, source = await _filing_date(user_id, file_key, reading.date, report_date, message_id)
         report = await save_indicators_to_db(str(user_id), reading.rows, start, source, file_key, reading.extractor,
                                              text=original_text)
         stored = report.inserted + report.skipped
