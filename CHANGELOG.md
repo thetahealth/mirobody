@@ -97,6 +97,18 @@
 
 ### Fixed
 
+- **A value a report restated without a date was stored a second time.** A
+  check-up book whose rows print several dates keeps each row's own date,
+  and the in-document dedupe compared only rows with the same date. A local
+  model read the conclusion page's `BMI` (no date) beside the table's
+  `体重指数BMI` (dated), one value, and both were stored under 39156-5, so
+  the chart showed two equal points on one day. A row with no date of its
+  own now matches a dated row with the same value and analyte, and the
+  stored row keeps that date; two dated rows still need the same date, so a
+  log's same weight on two mornings stays two readings. Found by the 1.6.3
+  release test on a real check-up book; a file read before keeps both rows
+  until it is read again (重新处理 in 数据 › 文件).
+
 - **A device-app screenshot's reading was coded against the lab vocabulary,
   never the device catalogue** (#301). `observations.coding_for` consulted
   the catalogue only for a device sync (`source_kind == SOURCE_DEVICE`); a
