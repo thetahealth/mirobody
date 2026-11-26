@@ -146,12 +146,16 @@
   only, so a device screen's tab bar still comes through whole (`体重 | 脂肪 |
   肌肉`, `体重丨脂肪丨肌肉`). `indicator_extractor.names_a_reading` now drops a
   name that splits into three or more segments (on `|`, `｜`, `丨`, `/` or a
-  run of spaces) where at least two independently resolve as their own
-  indicator, the device catalogue or the lexical vocabulary — a two-way
-  split is as often a printed ratio (`LDL/HDL`, `E/A`) as a tab bar, so it is
-  left alone. Still open: GLM-OCR itself cannot mark the selected tab, so a
-  real value it reads under the wrong tab's name is not caught by this
-  guard.
+  space beside a Chinese, Japanese or Korean word) where at least two
+  independently resolve as their own indicator, the device catalogue or the
+  lexical vocabulary — a two-way split is as often a printed ratio
+  (`LDL/HDL`, `E/A`) as a tab bar, so it is left alone. A space between two
+  English or Russian words is a word break, not a divider: split there, the
+  guard dropped `Systolic Blood Pressure`, `Resting Heart Rate` and two more
+  of the demo checkup's nine rows, and 23 benchmark names.
+  `test_no_benchmark_name_reads_as_a_tab_bar` holds every benchmark name to
+  it. Still open: GLM-OCR itself cannot mark the selected tab, so a real
+  value it reads under the wrong tab's name is not caught by this guard.
 
 - **A scale's `去脂体重`/`瘦体重` (lean body mass) and `活动消耗`/`消耗热量`
   (calories burned) now resolve instead of abstaining.** Both named a LOINC
