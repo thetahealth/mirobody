@@ -1,5 +1,28 @@
 ## Unreleased
 
+### Fixed
+
+- **A health app's screenshot stored nothing with the local models.** With
+  no key, GLM-OCR read a smart-scale screen's text, but MiniCPM5-2B answered
+  it `non_health_related` with no rows (9 of 9 runs, on 1.6.2's prompt as
+  well), so the card's 当前体重, 体脂率 and BMI were lost. The table rules
+  now read a row of dashboard cards, each cell a name and its value as
+  GLM-OCR lays it out (`当前体重 76.2kg`), when every cell of the row is one
+  and its name alone names an indicator; a goal, a starting value or a date
+  on a card is skipped. Reading the card made the small model read the rest
+  of the screen, and there it filed the weight chart's values under every
+  tab (5.8 wrong points a screen) and stored the goal weight: on a screen
+  with a card and a tab bar and no tab marked `[selected]`, a model's row
+  named after a tab, a goal or a start is now dropped. The six screens in
+  `demo/screens/` store the card's three figures and nothing else in 18 of
+  18 runs. A cloud OCR that marks the selected tab is unaffected (DeepSeek:
+  card 3.00 of 3 and chart 6.67 of 7 against main's 2.92 and 6.75, no wrong
+  point either way); the table rules read the same rows as before on 14
+  real and demo reports and 336 stored OCR pages. The chart's points still
+  need a marked tab (docs/roadmap.md). To check: upload
+  `demo/screens/scale_tab_fat.png` with no key; the Data page shows
+  当前体重 76.2 kg, 体脂率 27.8 % and BMI 25.6, and no 目标体重.
+
 ## 1.6.3
 
 ### Upgrade notes

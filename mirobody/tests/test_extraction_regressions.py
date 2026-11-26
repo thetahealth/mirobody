@@ -749,6 +749,75 @@ def test_no_benchmark_name_reads_as_a_tab_bar():
     assert sorted(n for n in names if not names_a_reading(n)) == []
 
 
+#: GLM-OCR's table pass over `demo/screens/scale_tab_weight.png` (synthetic):
+#: the card, the tab bar with nothing marking 体重, the chart's values, its
+#: dates. The text pass above it repeats the card's values, as GLM-OCR's does.
+_SCALE_SCREEN = """体重曲线
+初始体重 81.0 kg 目标体重 68.0 kg 当前体重 76.2 kg 体脂率 27.8 % BMI 25.6 测量时间 08/26
+<table><tr><td colspan="4">体重曲线</td></tr><tr><td>初始体重
+81.0kg</td><td>目标体重
+68.0kg</td><td>当前体重
+76.2kg</td><td></td></tr><tr><td>体脂率
+27.8%</td><td>BMI
+25.6</td><td>测量时间
+08/26</td><td></td></tr><tr><td>体重</td><td>脂肪</td><td>肌肉</td><td></td></tr><tr><td colspan="4">kg</td></tr>\
+<tr><td>74.6</td><td>75.8</td><td>74.9</td><td>76.3</td></tr><tr><td>75.1</td><td>76.9</td><td>76.2</td><td></td></tr>\
+<tr><td>06/03
+2026</td><td>06/10
+2026</td><td>06/17
+2026</td></tr></table>"""
+
+
+def test_a_screens_card_is_read_by_the_rules():
+    """With no key, MiniCPM5-2B answered this screen `non_health_related`
+    with no rows (9 of 9 runs, on 1.6.2's prompt too), so a local install
+    stored nothing from it. The rules now read the card's cells: the three
+    figures for today, not the goal, the starting weight or the date. The
+    chart is left to a model."""
+    rows, _, unread = table_indicators.table_indicators(_SCALE_SCREEN)
+    assert [(r["original_indicator"], r["value"], r["unit"]) for r in rows] == [
+        ("当前体重", "76.2", "kg"), ("体脂率", "27.8", "%"), ("BMI", "25.6", "")]
+    assert unread > 0
+
+
+def test_a_lab_row_merged_into_its_name_cell_is_not_a_card():
+    """Every cell must be a card: an OCR that merged a name into its value
+    cell beside a unit and a range is still the header's to read, so the
+    unit is not lost to a card reading of `总胆固醇 4.5` alone."""
+    assert table_indicators._card_row(["总胆固醇 4.5", "mmol/L", "3.0-5.2"]) is None
+    cards = table_indicators._card_row(["当前体重 76.2kg", "目标体重 68.0kg", "测量时间 08/26"])
+    assert [(r["original_indicator"], r["detection_method"]) for r in cards] == [("当前体重", "Physiological")]
+
+
+def test_only_an_unmarked_dashboard_has_unattributed_tabs():
+    assert table_indicators.unattributed_tabs(_SCALE_SCREEN) == frozenset({"体重", "脂肪", "肌肉"})
+    marked = _SCALE_SCREEN.replace("<td>脂肪</td>", "<td>[selected] 脂肪</td>")
+    assert table_indicators.unattributed_tabs(marked) == frozenset()
+    lab = ("<table><tr><td>项目</td><td>结果</td><td>单位</td></tr>"
+           "<tr><td>白细胞</td><td>5.6</td><td>10^9/L</td></tr></table>")
+    assert table_indicators.unattributed_tabs(lab) == frozenset()
+
+
+@pytest.mark.parametrize("marked", [False, True])
+async def test_a_models_points_under_an_unmarked_tab_are_dropped(monkeypatch, marked):
+    """Given the rest of the screen, MiniCPM5-2B filed the weight chart's
+    values under all three tabs (5.8 wrong points a screen in 18 runs) and
+    stored the goal or starting weight in most. With no tab marked, a model's
+    row named after a tab, a goal or a start is dropped; the rules' card rows
+    stay. With 体重 marked `[selected]`, the model's points are its to name."""
+    text = _SCALE_SCREEN.replace("<td>体重</td>", "<td>[selected] 体重</td>") if marked else _SCALE_SCREEN
+    model_rows = [_row("体重", "74.6", "kg"), _row("脂肪", "75.8", "kg"), _row("目标体重", "68.0", "kg"),
+                  _row("初始体重", "81.0", "kg")]
+    answer = {"content_type": "medical_report", "content_info": {"date_time": ""}, "indicators": model_rows}
+    monkeypatch.setattr(IndicatorExtractor, "_llm_extract", AsyncMock(return_value=answer))
+
+    reading = await IndicatorExtractor.read_indicators(text)
+
+    names = [r["original_indicator"] for r in reading.rows]
+    assert names[:3] == ["当前体重", "体脂率", "BMI"]
+    assert names[3:] == (["体重", "脂肪", "目标体重", "初始体重"] if marked else [])
+
+
 def test_a_wearable_screen_is_coded_against_the_device_catalogue():
     """#301: `coding_for` consulted the device catalogue only for
     `SOURCE_DEVICE`, so a device-app screenshot -- which still arrives as

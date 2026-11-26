@@ -151,21 +151,20 @@ clock draw has to be decided before it is read.
 
 ### A device screenshot with the local models
 
-**Status:** open; measured 2026-11-26 (1.6.3 release test).
+**Status:** the card is read since 2026-11-26; the chart and `mirobody parse`
+are open.
 
-With no key, a smart-scale screen from `demo/screens/` stores nothing.
-GLM-OCR reads its text well enough (`当前体重 76.2 kg`, `体脂率 27.8 %`,
-`BMI 25.6`, the chart's seven values), but it cannot mark the selected tab,
-and it lays the tab names out as a table row above the chart's values.
-MiniCPM5-2B then answers `content_type: non_health_related` with no rows:
-9 of 9 runs with 1.6.3's extraction prompt and 9 of 9 with 1.6.2's, so the
-upload path has never read these screens locally. `mirobody parse`, which
-has a shorter prompt of its own, read 26 rows on 1.6.2 (the card right; the
-fat and muscle charts given the weight chart's values; the goal and starting
-weights stored) and one on 1.6.3 (`初始体重`, which rule 10 asks it to leave
-out). The card's three figures are real readings and the place to start;
-the chart's points cannot be named until the OCR says which tab is shown.
-A cloud model reads all three screens right (#301).
+With no key, a smart-scale screen from `demo/screens/` stored nothing:
+GLM-OCR cannot mark the selected tab, and MiniCPM5-2B answered
+`content_type: non_health_related` with no rows (9 of 9 runs, on 1.6.2's
+prompt too). The table rules now read the card GLM-OCR lays out as table
+cells (`当前体重 76.2kg`, `table_indicators._card_row`), and the model's rows
+named after an unmarked tab, a goal or a start are dropped
+(`unattributed_tabs`), so all six screens store the card's three figures and
+nothing else, 18 of 18 runs. Still open: the chart's seven points, which no
+model can name until the OCR says which tab is shown; and `mirobody parse`,
+which has its own prompt and no table rules, and keeps only `初始体重` from
+these screens on 1.6.3.
 
 ## Structural work
 
