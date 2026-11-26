@@ -118,7 +118,7 @@ a clone can re-run it.
 
 | Module | Covers | Notes |
 | --- | --- | --- |
-| `test_engine_coverage.py` | **the published accuracy number** | 638 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文, 日本語, Russian, Estonian and Turkish, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
+| `test_engine_coverage.py` | **the published accuracy number** | 716 cases: the panels an ordinary checkup prints, in English, 简体中文, 繁體中文, 日本語, Russian, Estonian and Turkish, plus device vocabulary, report shapes (`名称(缩写)`, `Name-ABBREV`, snake_case, full-width), unit-dependent codes and non-numeric readings. Run with `-s` to print the score; `COVERAGE_FLOOR = 1.0` |
 | `test_engine_coverage_timing.py` | a name that says when its sample was drawn | 766 names generated from the axis table: every analyte LOINC codes fasting, after a meal, at a challenge's 0/30/60/120/180-minute draw, or at a trough or peak, written the way a report prints it. None may answer the plain analyte or another one; `DRAW_COVERAGE_FLOOR` holds the share that answers (734/766). Run with `-s` to print it |
 | `test_cross_language_identity.py` | one analyte, one code, in every language | `SAME_ANALYTE` rows must agree; `KNOWN_SPLITS` are the rows that do not yet, each a strict xfail that fails once fixed, so the row moves up |
 | `test_skills.py` | agent skill commands, frontmatter, Compose names and resolver examples | ships in the wheel and sdist as public evidence; it skips the repository-only skill files when run from `site-packages` |

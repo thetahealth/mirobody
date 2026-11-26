@@ -25,8 +25,9 @@ from mirobody.collect.files.services.report_date import document_date, file_sour
 from mirobody.collect.files.services.table_indicators import printed_flag, split_flag, split_pressure
 from mirobody.collect.sentence import blood_pressure
 from mirobody.kernel.ops import is_driver_exception
-from mirobody.standardize import RANGE_SEPARATOR, parse_range, parse_value
+from mirobody.standardize import RANGE_SEPARATOR, name_key, parse_range, parse_value
 from mirobody.units import normalize_unit, numerals, unit_family
+from mirobody.zh_fold import fold_to_hans
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +252,74 @@ def value_and_flag(indicator: dict[str, Any]) -> tuple[str, str]:
     return value, flag if flag in STORED_FLAGS else ""
 
 
+def _title_key(text: str) -> str:
+    """The fold that says a row's own name is its panel heading restated.
+    `name_key` is the engine's one identity fold for a printed name
+    (`standardize.fold`); widened by `fold_to_hans` because a heading and the
+    row copying it are not guaranteed to share a Han script variant, the same
+    widening `table_indicators._section` and `standardize.panels.panel_of`
+    apply before comparing a heading."""
+    return fold_to_hans(name_key(text))
+
+
+def _fold_title_rows(indicators: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A finding row whose own name is its panel heading restated, folded
+    into the first other finding row under that panel.
+
+    One ultrasound sentence read as three rows (#281 item 2): the heading
+    restated as a row (`双肾彩超`, `panel` also `双肾彩超` since #329 carries
+    the heading into every row under it), the organ it describes (`双肾`) and
+    a genuine second finding (`双肾结晶`). The title row is not a second
+    organ, so it is not a sibling: its value and notes are appended to
+    `双肾` and it is dropped, leaving the two real findings. A name that
+    merely resembles its panel (`双肾结晶` next to `双肾彩超`) is left alone;
+    only equality after `_title_key` folds a row.
+
+    Never a measurement: `row_kind` already excludes a `laboratory`/
+    `Physiological`/`wearable` row, a blood pressure half and an `Examination`
+    row whose value is a number, so this never swallows a reading something
+    could chart. Never with no sibling: a lone title row (the prompt wrote
+    only the heading, no organ finding under it) carries nothing to fold
+    into and is kept as the model wrote it.
+    """
+    def is_finding(row: dict[str, Any]) -> bool:
+        value, _ = value_and_flag(row)
+        return row_kind(row, value) == observations.KIND_FINDING
+
+    titles = [i for i, row in enumerate(indicators)
+              if (name := str(row.get("original_indicator") or ""))
+              and (panel := str(row.get("panel") or ""))
+              and _title_key(name) == _title_key(panel) and is_finding(row)]
+    if not titles:
+        return indicators
+
+    title_set = set(titles)
+    out = list(indicators)
+    dropped = set()
+    for i in titles:
+        panel_key = _title_key(str(indicators[i].get("panel") or ""))
+        sibling = next((j for j, row in enumerate(indicators)
+                        if j not in title_set
+                        and _title_key(str(row.get("panel") or "")) == panel_key and is_finding(row)), None)
+        if sibling is None:
+            continue
+        out[sibling] = {
+            **out[sibling],
+            "value": _fold_text(str(out[sibling].get("value") or ""), str(indicators[i].get("value") or "")),
+            "notes": _fold_text(str(out[sibling].get("notes") or ""), str(indicators[i].get("notes") or "")),
+        }
+        dropped.add(i)
+    return [row for i, row in enumerate(out) if i not in dropped]
+
+
+def _fold_text(base: str, extra: str) -> str:
+    """`extra` appended after `base`, so a folded title row's text is kept,
+    not overwritten; `base` alone when `extra` is blank, the usual case for
+    `notes`."""
+    base, extra = base.strip(), extra.strip()
+    return f"{base}\n{extra}" if base and extra else base or extra
+
+
 async def save_indicators_to_db(
     user_id: str,
     indicators: list[dict[str, Any]],
@@ -276,6 +345,7 @@ async def save_indicators_to_db(
     readings in it.
     """
     indicators = _split_blood_pressure(indicators)
+    indicators = _fold_title_rows(indicators)
     drafts = []
     bears_out = text_bears_out(text) if text else None
     unverified_count = 0

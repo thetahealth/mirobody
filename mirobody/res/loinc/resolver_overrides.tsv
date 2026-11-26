@@ -2246,3 +2246,93 @@ FINS	Insulin [Units/volume] in Serum or Plasma --fasting
 # A scale app and a checkup's vitals line print `Waist` alone; `腰围` and
 # `Waist Circumference` already answered 8280-0.
 Waist	Waist Circumference at umbilicus by Tape measure
+
+# #357, second pass (2026-11-25): report spellings mirobody-gen's generated
+# names and abbreviations still answered with nothing or another test, each
+# checked against its truth code. Left out on purpose: RCC (also renal cell
+# carcinoma), VF (also ventricular fibrillation), SKM and 骨骼肌重量 (skeletal
+# muscle is not total muscle mass; the device benchmark refuses it), the
+# ECG and echo terms (scoped to a heading in panel_terms.tsv), single
+# letters (L#, M%), real homonyms (BT, CP) and urea vs urea nitrogen.
+# A count per high-power field is the microscopy code, never a presence
+# code or the leukocyte-esterase strip. A bare `Urine RBC` / `Urine WBC`
+# answered the BLOOD count; a value in /uL, or a qualitative one, moves to
+# its urine sibling by its unit.
+Urine RBC	Erythrocytes [#/area] in Urine sediment by Microscopy high power field
+Urine WBC	Leukocytes [#/area] in Urine sediment by Microscopy high power field
+ABO grp	ABO group [Type] in Blood
+ABO血型正反定型	ABO group [Type] in Blood
+AGR	Albumin/Globulin [Mass Ratio] in Serum or Plasma
+PChE	Cholinesterase [Enzymatic activity/volume] in Serum or Plasma
+TCH	Cholesterol [Mass/volume] in Serum or Plasma
+CREAT	Creatinine [Mass/volume] in Serum or Plasma
+BFM	Body fat [Mass] Calculated
+FEV1%P	FEV1 measured/predicted
+第一秒呼气量	FEV1
+一秒钟率	FEV1/FVC
+强迫肺活量	Forced vital capacity [Volume] Respiratory system
+用力呼气肺活量	Forced vital capacity [Volume] Respiratory system
+FVC%P	FVC measured/predicted
+Fg	Fibrinogen [Mass/volume] in Platelet poor plasma by Coagulation assay
+FOL	Folate [Mass/volume] in Serum or Plasma
+GAlb	Albumin.glycated/Albumin.total in Serum or Plasma
+GlycAlb	Albumin.glycated/Albumin.total in Serum or Plasma
+GLU0	Fasting glucose [Mass/volume] in Serum or Plasma
+Anti-HP	Helicobacter pylori Ab [Presence] in Serum
+IRI	Insulin [Units/volume] in Serum or Plasma
+LD	Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma by Lactate to pyruvate reaction
+Lp(a) mass	Lipoprotein a [Mass/volume] in Serum or Plasma
+平均红细胞血红蛋白含量	MCH [Entitic mass] by Automated count
+TTR	Prealbumin [Mass/volume] in Serum or Plasma
+PG1	Pepsinogen I [Mass/volume] in Serum or Plasma
+PG2	Pepsinogen II [Mass/volume] in Serum or Plasma
+IP	Phosphate [Mass/volume] in Serum or Plasma
+RESP	Respiratory rate
+Resp	Respiratory rate
+呼吸频次	Respiratory rate
+RhF	Rheumatoid factor [Units/volume] in Serum or Plasma
+D antigen typing	Rh [Type] in Blood
+D type	Rh [Type] in Blood
+O2 sat	Oxygen saturation in Blood
+TGL	Triglyceride [Mass/volume] in Serum or Plasma
+PROT	Protein [Mass/volume] in Serum or Plasma
+ALB/CREA	Albumin/Creatinine [Mass Ratio] in Urine
+Alb/Cr	Albumin/Creatinine [Mass Ratio] in Urine
+MAU	Microalbumin [Mass/volume] in Urine
+UMA	Microalbumin [Mass/volume] in Urine
+WCC	Leukocytes [#/volume] in Blood
+直接反应胆红素	Bilirubin.direct [Mass/volume] in Serum or Plasma
+低压	Diastolic blood pressure
+最小血压	Diastolic blood pressure
+最大血压	Systolic blood pressure
+高压	Systolic blood pressure
+胆红素总量	Bilirubin.total [Mass/volume] in Serum or Plasma
+总三碘甲腺原氨酸	Triiodothyronine (T3) [Mass/volume] in Serum or Plasma
+总四碘甲状腺原氨酸	Thyroxine (T4) [Mass/volume] in Serum or Plasma
+左侧臂踝脉搏波速度	Pulse wave velocity
+左臂踝脉搏波传导速度	Pulse wave velocity
+左臂踝脉搏波速度	Pulse wave velocity
+右侧臂踝脉搏波速度	Pulse wave velocity
+右臂踝脉搏波传导速度	Pulse wave velocity
+右臂踝脉搏波速度	Pulse wave velocity
+RBC/HP	Erythrocytes [#/area] in Urine sediment by Microscopy high power field
+RBC/HPF	Erythrocytes [#/area] in Urine sediment by Microscopy high power field
+WBC/HP	Leukocytes [#/area] in Urine sediment by Microscopy high power field
+WBC/HPF	Leukocytes [#/area] in Urine sediment by Microscopy high power field
+RBC (HPF)	Erythrocytes [#/area] in Urine sediment by Microscopy high power field
+RBC (micro)	Erythrocytes [#/area] in Urine sediment by Microscopy high power field
+WBC (HPF)	Leukocytes [#/area] in Urine sediment by Microscopy high power field
+WBC (micro)	Leukocytes [#/area] in Urine sediment by Microscopy high power field
+GLU(U)	Glucose [Mass/volume] in Urine
+白陶土部分凝血活酶时间	aPTT in Blood by Coagulation assay
+HPV-18	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+HPV-18 DNA	Human papilloma virus 18 DNA [Presence] in Cervix by NAA with probe detection
+RBC(U)	Erythrocytes [Presence] in Urine
+红细胞(尿)	Erythrocytes [Presence] in Urine
+WBC(U)	Leukocyte esterase [Presence] in Urine by Test strip
+白细胞(尿)	Leukocyte esterase [Presence] in Urine by Test strip
+ApoB	Apolipoprotein B [Mass/volume] in Serum or Plasma
+APOB	Apolipoprotein B [Mass/volume] in Serum or Plasma
+Apo B	Apolipoprotein B [Mass/volume] in Serum or Plasma
+APO-B	Apolipoprotein B [Mass/volume] in Serum or Plasma
+ApoB-100	Apolipoprotein B-100 [Mass/volume] in Serum or Plasma

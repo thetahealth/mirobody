@@ -79,6 +79,23 @@ const L10N = {
     note: '血红蛋白 と ヘモグロビン &rarr; <b>同じコード</b> 718-7。'
         + '<span class="miss">血脂</span>は検査名ではなくカテゴリなので、<b>あえて解決しません</b>。',
   },
+  // Its own command: a Russian reader is shown a Russian name landing on the
+  // same code. Real output of
+  //   mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン гемоглобин 血脂
+  // re-run 2026-11-25.
+  "ru": {
+    bar:  "mirobody — офлайн, без ключа, без сети",
+    note: '血红蛋白, ヘモグロビン и гемоглобин &rarr; <b>один и тот же код</b>, 718-7. '
+        + '<span class="miss">血脂</span> — это категория, поэтому она <b>намеренно не распознаётся</b>.',
+    cmd:  'mirobody resolve "LDL cholesterol" 血红蛋白 ヘモグロビン гемоглобин 血脂',
+    rows: [
+      ["LDL cholesterol", "LOINC 13457-7", "Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation", "[47 candidates]"],
+      ["血红蛋白",         "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[65 candidates]"],
+      ["ヘモグロビン",     "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[65 candidates]"],
+      ["гемоглобин",       "LOINC 718-7",   "Hemoglobin [Mass/volume] in Blood", "[40 candidates]"],
+      ["血脂",             null,            "unresolved — a category or several tests in one name", ""],
+    ],
+  },
 };
 const ROWS = [
   ["LDL cholesterol", "LOINC 13457-7", "Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation", "[47 candidates]"],
@@ -92,6 +109,7 @@ const TYPE_FRAMES = 7;
 const FRAMES = 13, TYPE = TYPE_FRAMES;
 const q = new URLSearchParams(location.search);
 const T = L10N[q.get("lang") || ""] || L10N[""];
+const SHOW_CMD = T.cmd || CMD, SHOW_ROWS = T.rows || ROWS;
 const only = q.has("step") ? [+q.get("step")] : [...Array(FRAMES).keys()];
 
 function build(step) {
@@ -110,11 +128,11 @@ function build(step) {
   win.querySelector(".note").innerHTML = T.note;
   const typed = Math.min(step, TYPE);
   win.querySelector(".cmdtext").textContent =
-    CMD.slice(0, Math.round(CMD.length * typed / TYPE));
+    SHOW_CMD.slice(0, Math.round(SHOW_CMD.length * typed / TYPE));
   const shown = Math.max(0, step - TYPE);
   if (shown > 0) win.querySelector(".cur").remove();
   const g = win.querySelector(".rows");
-  for (const [term, code, name, cand] of ROWS.slice(0, shown)) {
+  for (const [term, code, name, cand] of SHOW_ROWS.slice(0, shown)) {
     const t = document.createElement("div"); t.className = "t";
     t.textContent = term; g.append(t);
     if (code === null) {
@@ -130,7 +148,7 @@ function build(step) {
       g.append(n);
     }
   }
-  if (shown >= ROWS.length) win.querySelector(".note").hidden = false;
+  if (shown >= SHOW_ROWS.length) win.querySelector(".note").hidden = false;
   return win;
 }
 
