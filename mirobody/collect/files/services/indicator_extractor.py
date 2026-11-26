@@ -26,6 +26,7 @@ from mirobody.collect.files.services.prompts.file_indicator_extract import (
 from mirobody.collect.files.services.report_date import manual_report_date, resolve_report_date
 from mirobody.collect.files.services.table_indicators import (
     EXTRACTOR as TABLE_EXTRACTOR,
+    is_tab_bar,
     is_unit,
     left_for_model,
     printed_flag,
@@ -33,6 +34,8 @@ from mirobody.collect.files.services.table_indicators import (
     split_flag,
     status_of,
     table_indicators,
+    unattributed,
+    unattributed_tabs,
     value_key,
     without_rows,
 )
@@ -115,29 +118,6 @@ _CJK = r"⺀-鿿가-힯豈-﫿"
 #: and 4 of the demo checkup's 9 readings and 23 benchmark names were dropped.
 _TAB_BAR_SEP = re.compile(rf"[|｜丨/]+|(?<=[{_CJK}])\s+|\s+(?=[{_CJK}])")
 
-#: `_is_unlabelled_tab_bar`'s thresholds: at least this many segments, and at
-#: least this many resolving on their own. Two segments is a printed RATIO as
-#: often as a tab bar: `LDL/HDL` splits into two names that both resolve
-#: (13457-7, 2085-9), exactly as a tab bar's would. Three is what OCR reports
-#: for a scale or watch screen (#301: `体重 | 脂肪 | 肌肉`), never a ratio.
-_TAB_BAR_MIN_SEGMENTS = 3
-_TAB_BAR_MIN_RESOLVED = 2
-
-
-def _resolves_as_indicator(segment: str) -> bool:
-    """Whether `segment`, alone, is a known indicator's name: the device
-    catalogue first (`observations.catalog_alias`), then the lexical
-    vocabulary -- its `lexical` method only, the same trust `standardize.code`
-    gives a name (a semantic guess is not an identity, so it is not evidence
-    of a tab's own label either)."""
-    from mirobody.collect.observations import catalog_alias
-    from mirobody.engine import resolve_reading
-
-    if catalog_alias(segment) is not None:
-        return True
-    hit = resolve_reading(segment)
-    return bool(hit.resolved and hit.loinc and hit.method == "lexical")
-
 
 def _is_unlabelled_tab_bar(name: str) -> bool:
     """Whether `name` prints a whole tab bar rather than one reading's name
@@ -148,10 +128,7 @@ def _is_unlabelled_tab_bar(name: str) -> bool:
     segments come out, check whether enough of them independently name a
     reading -- the same outcome the prompt rule reaches a different way,
     "when nothing names the series, leave its points out"."""
-    segments = [s.strip() for s in _TAB_BAR_SEP.split(name) if s.strip()]
-    if len(segments) < _TAB_BAR_MIN_SEGMENTS:
-        return False
-    return sum(_resolves_as_indicator(s) for s in segments) >= _TAB_BAR_MIN_RESOLVED
+    return is_tab_bar([s.strip() for s in _TAB_BAR_SEP.split(name) if s.strip()])
 
 
 def names_a_reading(name: str) -> bool:
@@ -347,11 +324,20 @@ class IndicatorExtractor:
         read = answer.get("indicators") or []
         indicators = [i for i in read if names_a_reading(str(i.get("original_indicator") or ""))]
         not_a_reading_count = len(read) - len(indicators)
+        # A model's row from a dashboard whose chart no tab mark attributes
+        # (`unattributed_tabs`); a rule's row carries `_printed_flag`, which
+        # `_as_printed` strips from every model row.
+        tabs = unattributed_tabs(original_text) if rules else frozenset()
+        unattributed_count = len(indicators)
+        indicators = [i for i in indicators
+                      if "_printed_flag" in i or not unattributed(str(i.get("original_indicator") or ""), tabs)]
+        unattributed_count -= len(indicators)
         date = (answer.get("content_info") or {}).get("date_time", "") or _latest_row_date(indicators)
         rows = IndicatorExtractor._deduplicate_indicators(_row_dates_in_a_log_only(indicators))
         duration_ms = int((time.monotonic() - started) * 1000)
         logger.info("indicators read: row_count=%d rule_row_count=%d unread_row_count=%d not_a_reading_count=%d "
-                    "duration_ms=%d", len(rows), len(rules), unread_count, not_a_reading_count, duration_ms)
+                    "unattributed_count=%d duration_ms=%d", len(rows), len(rules), unread_count,
+                    not_a_reading_count, unattributed_count, duration_ms)
         return Reading(rows, answer, extractor, date)
 
     @staticmethod

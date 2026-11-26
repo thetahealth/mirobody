@@ -974,6 +974,111 @@ def _confirmed(reading: dict[str, str], elsewhere: str) -> bool:
     return re.search(r"(?<![\d.])" + re.escape(reading["value"]) + r"(?![\d.])", elsewhere) is not None
 
 
+def names_an_indicator(name: str) -> bool:
+    """Whether `name`, alone, is a known indicator's name: the device
+    catalogue first (`observations.catalog_alias`), then the lexical
+    vocabulary -- its `lexical` method only, the same trust `standardize.code`
+    gives a name (a semantic guess is not an identity)."""
+    from mirobody.collect.observations import catalog_alias
+    from mirobody.engine import resolve_reading
+
+    if catalog_alias(name) is not None:
+        return True
+    hit = resolve_reading(name)
+    return bool(hit.resolved and hit.loinc and hit.method == "lexical")
+
+
+#: `is_tab_bar`'s thresholds: at least this many segments, and at least this
+#: many resolving on their own. Two segments is a printed RATIO as often as a
+#: tab bar: `LDL/HDL` splits into two names that both resolve (13457-7,
+#: 2085-9), exactly as a tab bar's would. Three is what OCR reports for a
+#: scale or watch screen (#301: `体重 | 脂肪 | 肌肉`), never a ratio.
+_TAB_BAR_MIN_SEGMENTS = 3
+_TAB_BAR_MIN_RESOLVED = 2
+
+
+def is_tab_bar(segments: list[str]) -> bool:
+    """Whether these names, printed side by side, are a device screen's tab
+    bar: enough of them, and enough naming an indicator on their own."""
+    if len(segments) < _TAB_BAR_MIN_SEGMENTS:
+        return False
+    return sum(names_an_indicator(s) for s in segments) >= _TAB_BAR_MIN_RESOLVED
+
+
+#: A card's words for a figure that is not the person's reading now: a goal,
+#: a target, a starting value, a recommended or recorded change (rule 10 of
+#: the extraction prompt). The vocabulary refuses `初始体重` and `目标体重`
+#: today; this keeps a goal out if a later row ever resolves one.
+_NOT_NOW = re.compile(r"(?i)目标|目標|初始|起始|初期|基线|基準|建议|建議|控制|变化|變化|"
+                      r"goal|target|initial|start|baseline|recommend|change")
+
+
+def not_now(name: str) -> bool:
+    """Whether a dashboard's label names a goal, a start or a change rather
+    than the person's reading now (`_NOT_NOW`)."""
+    return _NOT_NOW.search(name) is not None
+#: A card's date or time (`测量时间 08/26`, `07:30`): a label, not a reading.
+_CARD_DATE = re.compile(rf"{_DATE_VALUE}|\d{{1,2}}[/-]\d{{1,2}}|\d{{1,2}}:\d{{2}}")
+#: One card: a name, then one number with its unit or nothing after it.
+_CARD = re.compile(r"^(?P<name>\S.*?)\s+(?P<value>[<>≤≥]?[-+]?\d+(?:\.\d+)?(?:\s*[^\s\d]\S*)?)$")
+
+
+def _card_row(cells: list[str]) -> list[dict[str, str]] | None:
+    """The readings of a table row of dashboard cards, each cell a name and
+    its value (`当前体重 76.2kg`): a smart-scale app's card as GLM-OCR lays it
+    out. No header names a column there, so the rules left it unread, and
+    MiniCPM5-2B answered the screen `non_health_related` with no rows in 9 of
+    9 runs (1.6.3 release test): a local install stored nothing from it.
+
+    Every cell must be a card, so a lab row the OCR merged into its name cell
+    (`总胆固醇 4.5 | mmol/L | 3.0-5.2`) is still read by its header. A card is
+    read when its name alone names an indicator; a goal, a starting value or a
+    date on a card is no reading. None when the row is not all cards or no
+    card in it is read."""
+    readings: list[dict[str, str]] = []
+    for cell in cells:
+        m = _CARD.match(cell)
+        if not m:
+            return None
+        name, value = m.group("name").strip(), m.group("value")
+        if not_now(name) or _CARD_DATE.fullmatch(value):
+            continue
+        got = _reading([name, value], {"name": 0, "value": 1}, borrowed=False)
+        if not isinstance(got, list) or not names_an_indicator(name):
+            return None
+        readings.extend({**r, "detection_method": "Physiological"} for r in got)
+    return readings or None
+
+
+def unattributed_tabs(text: str) -> frozenset[str]:
+    """The tab names (`_key`) of a dashboard screen whose chart nothing
+    attributes: a table on it holds a row of cards (`_card_row`) and a row
+    that is a tab bar (`is_tab_bar`), and no tab is marked `[selected]`.
+    GLM-OCR cannot mark one (`documents.ocr`), and given the rest of such a
+    screen MiniCPM5-2B filed the weight chart's seven values under all three
+    tabs, 5.8 wrong points a screen in 18 runs, and stored the goal or the
+    starting weight in most of them. Empty for any other document."""
+    if "[selected]" in text:
+        return frozenset()
+    tabs: set[str] = set()
+    for table in _html_tables(text) + _markdown_tables(text):
+        rows = [[c for c in row if c] for row in _rejoined(table)]
+        if not any(_card_row(cells) for cells in rows if len(cells) > 1):
+            continue
+        for cells in rows:
+            if all(not re.search(r"\d", c) for c in cells) and is_tab_bar(cells):
+                tabs.update(_key(c) for c in cells)
+    return frozenset(tabs)
+
+
+def unattributed(name: str, tabs: frozenset[str]) -> bool:
+    """Whether a model's row from a screen with `unattributed_tabs` is one
+    nothing attributes: named after a tab, or after a goal, a start or a
+    change (`not_now`, rule 10 of the prompt, which MiniCPM5-2B did not
+    keep)."""
+    return bool(tabs) and (_key(name) in tabs or not_now(name))
+
+
 def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
     """(readings, examination date or "", unread) from every table in `text`
     that has a name and a result column. `unread` counts the table rows of two
@@ -1021,6 +1126,11 @@ def table_indicators(text: str) -> tuple[list[dict[str, str]], str, int]:
                     section, titled = heading, True
                     continue
                 if len(cells) == 1 or _admin(cells[0]):
+                    continue
+                if cards := _card_row(cells):
+                    confirmed = [{**r, "panel": section} for r in cards if not from_ocr or _confirmed(r, elsewhere)]
+                    table_readings.extend(confirmed)
+                    table_unread += int(len(confirmed) < len(cards))
                     continue
                 if found := _header_at(table, i):
                     # A header whose every panel its cells contradict reads
