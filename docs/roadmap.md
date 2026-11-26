@@ -397,10 +397,20 @@ fix is here.
   stays a measurement. `Imaging` and `Pathological` rows are findings
   whatever their value, except a blood pressure, which is split into its
   systolic and diastolic readings whatever method the model gave the row,
-  as a table row or journal entry already was. Still open: one ultrasound
-  sentence came out as three rows (`双肾彩超`, `双肾`, `双肾结晶`). Scanner
-  settings and history headings are closed:
-  `indicator_extractor.NOT_READINGS`.
+  as a table row or journal entry already was. A third case, one ultrasound
+  sentence coming out as three rows (`双肾彩超`, `双肾`, `双肾结晶`), is
+  closed for the equality case (#281 item 2): a FINDING row whose own name
+  equals its panel heading is folded into the first other finding row under
+  that panel (`indicator_store._fold_title_rows`), its value and notes
+  appended rather than dropped. What rests on the prompt: the model writing
+  the restated heading under wording that does not equal `panel`, after the
+  same fold `table_indicators._section` and `standardize.panels.panel_of`
+  use, is not caught — rule 8 was narrowed to ask for one row per organ
+  instead, but a small model can still ignore it. Folding by name
+  *resemblance* rather than equality was deliberately not built: `双肾结晶`
+  next to `双肾彩超` is a real second finding, the distinction the prompt's
+  own `甲状腺`/`甲状腺右叶结节` example already makes. Scanner settings and
+  history headings are closed: `indicator_extractor.NOT_READINGS`.
 - **Indicator extraction fails on a long report and nothing surfaces.**
   `async_get_structured_output` ran 175s against a 12-page panel and came back
   with truncated JSON (`Unterminated string`); with only one provider configured

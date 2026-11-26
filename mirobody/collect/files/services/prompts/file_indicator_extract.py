@@ -24,6 +24,17 @@ def get_extract_indicators_prompt(language: str = "zh-cn") -> str:
     its abbreviation (#281), and `standardize.panels` codes those names only
     under an ECG heading. The ECG example is there for the same small models.
 
+    Item 2 of #281: one ultrasound sentence read as three rows, the heading
+    restated as a row (`双肾彩超`) beside the organ it describes (`双肾`) and a
+    genuine second finding (`双肾结晶`), because rule 8 told the model a
+    conclusion row under a heading is always its own indicator. The restated
+    heading is now folded deterministically (`indicator_store.
+    _fold_title_rows`, by name equality with `panel`, never by one name
+    merely resembling another); rule 8 itself was narrowed to ask for one row
+    per organ carrying its own conclusion, not a second row that only repeats
+    one, so a small model is asked not to write the duplicate in the first
+    place rather than relying on the fold alone.
+
     Rules 9 and 10 are for app and device screens (#301). Measured with
     deepseek-flash through `read_indicators` on the synthetic smart-scale
     screens in `demo/screens/`, each drawn with two page titles: before, the
@@ -139,7 +150,7 @@ Dental, eye, ENT and other bedside examination written up as findings (`牙周`,
 5. **Include sub-items**: If a test has multiple components (e.g., lipid panel), extract each component separately
 6. **Split pairs**: A value printed as a pair (blood pressure "120/80") is two indicators, each with its own value and named for its half — 收缩压/舒张压, or Systolic/Diastolic blood pressure — never the pair's own printed name ("血压") twice
 7. **Rows with their own dates**: In a log or a table by day, each row's values are separate indicators carrying that row's `date_time`; the same name on twelve days is twelve indicators
-8. **Section headings**: A row printed under a section heading (心电图, 血常规, Lipid Panel) carries that heading in `panel`. The heading itself is not an indicator, but a conclusion or impression row under it (`结论：窦性心律，正常心电图`) still is one, with `panel` set
+8. **Section headings**: A row printed under a section heading (心电图, 血常规, Lipid Panel) carries that heading in `panel`, never as the row's own name. Write one finding per organ, its description and its own conclusion together, and do not add the exam's overall conclusion or impression as an extra row when it only restates an organ already written (a `双肾彩超` row repeating what the `双肾` row already said is not a second finding). `甲状腺右叶结节` beside `甲状腺` stays two rows: a nodule is its own finding, not a restated organ. A conclusion that covers no organ already written (`结论：窦性心律，正常心电图` under an ECG panel with no organ row in it) is still its own row, with `panel` set
 9. **A chart on an app or device screen**: its points are named after what names the series: the tab or segment marked `[selected]`, the legend, or the axis title. Never after the page title, never a whole tab bar ("体重 | 脂肪 | 肌肉"), never a placeholder ("数值", "Value"). When nothing on the screen names the series, leave its points out
 10. **Not measurements**: a goal, a target, a starting or initial value and a recommended change (目标体重, 初始体重, 体重控制, Goal weight, Target, Baseline) are not readings of the person; leave them out
 
