@@ -219,6 +219,46 @@ async def test_scanner_settings_and_record_headings_are_not_readings(monkeypatch
     assert len(reading.answer["indicators"]) == len(rows)
 
 
+def _dated(name, value, date_time, unit="", reference_range=""):
+    return {**_row(name, value, unit), "date_time": date_time, "reference_range": reference_range}
+
+
+def test_an_undated_restatement_is_the_dated_rows_twin():
+    """1.6.3 release test, MiniCPM5-2B on a check-up book: its rows printed
+    several dates, so each kept its own, and the conclusion page's undated
+    `BMI` was stored beside the table's dated `体重指数BMI`, one value,
+    twice under 39156-5. One reading now, with the table row's date."""
+    rows = IndicatorExtractor._deduplicate_indicators([
+        _dated("体重指数BMI", "27.1", "2024-03-29", "kg/m2", "18.5-24"),
+        _dated("身高", "175", "2024-03-29 15:34:06", "cm"),
+        _dated("BMI", "27.1", ""),
+    ])
+    assert [(r["original_indicator"], r["date_time"]) for r in rows] == [
+        ("体重指数BMI", "2024-03-29"), ("身高", "2024-03-29 15:34:06")]
+
+
+def test_a_fuller_undated_twin_keeps_the_dated_rows_date():
+    rows = IndicatorExtractor._deduplicate_indicators([
+        _dated("BMI", "27.1", "2024-03-29"),
+        _dated("体重指数BMI", "27.1", "", "kg/m2", "18.5-24"),
+        _dated("身高", "175", "2024-03-30"),
+    ])
+    assert [(r["original_indicator"], r["unit"], r["date_time"]) for r in rows] == [
+        ("体重指数BMI", "kg/m2", "2024-03-29"), ("身高", "", "2024-03-30")]
+
+
+def test_a_logs_same_value_on_two_dates_stays_two_readings():
+    """Two dated rows still need one date: the same weight on two mornings,
+    or one glucose at two times of a day, is two readings."""
+    rows = IndicatorExtractor._deduplicate_indicators([
+        _dated("体重", "70.1", "2026-11-01 07:00:00", "kg"),
+        _dated("体重", "70.1", "2026-11-02 07:00:00", "kg"),
+        _dated("血糖", "5.6", "2026-11-01 07:00:00", "mmol/L"),
+        _dated("血糖", "5.6", "2026-11-01 19:00:00", "mmol/L"),
+    ])
+    assert len(rows) == 4
+
+
 async def test_the_table_rules_rows_pass_the_same_gate(monkeypatch):
     """The table rules read a scanner's `FR | 25 | Hz` as a laboratory row, so
     the gate is on what both readers found, not on the model's rows alone."""

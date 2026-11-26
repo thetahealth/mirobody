@@ -452,30 +452,47 @@ class IndicatorExtractor:
         row that also carries the printed range and unit is the one kept, so a
         summary page's `Apolipoprotein A1 1.69 g/L↑` gives way to the table's
         row. A log's same weight on two mornings is two readings: the dates
-        differ. A row whose value is a unit and nothing else (`HGB | L`,
-        `CREA | mmol/L`) is no reading: MiniCPM5-2B wrote 22 such rows for one
-        check-up book on the 2026-10-07 eval, and each sat in the catalogue as
-        a series of its own (`unit:conflict`)."""
+        differ. A row with no date of its own matches a dated twin, and the
+        date is kept: a check-up book whose rows print several dates keeps
+        each row's (`_row_dates_in_a_log_only`), and its conclusion page's
+        undated `BMI` was stored beside the table's dated `体重指数BMI`, one
+        value, twice under 39156-5 (1.6.3 release test, MiniCPM5-2B). A row
+        whose value is a unit and nothing else (`HGB | L`, `CREA | mmol/L`) is
+        no reading: MiniCPM5-2B wrote 22 such rows for one check-up book on
+        the 2026-10-07 eval, and each sat in the catalogue as a series of its
+        own (`unit:conflict`)."""
         if not indicators:
             return []
 
         def fullness(row: dict[str, Any]) -> int:
             return bool(str(row.get("reference_range") or "").strip()) + bool(str(row.get("unit") or "").strip())
 
-        groups: dict[tuple, list[int]] = {}
+        def dated(row: dict[str, Any]) -> str:
+            return str(parse_date(str(row.get("date_time") or "")) or "")
+
+        groups: dict[str, list[int]] = {}
         unique_indicators: list[dict[str, Any]] = []
         for indicator in indicators:
             name = str(indicator.get("original_indicator") or "").strip()
             value = str(indicator.get("value") or "").strip()
             if not name or not value or is_unit(split_flag(value, "")[0].strip()):
                 continue
-            key = (value_key(value), str(parse_date(str(indicator.get("date_time") or "")) or ""))
-            twins = groups.setdefault(key, [])
-            twin = next((k for k in twins if same_reading(unique_indicators[k], indicator)), None)
+            date = dated(indicator)
+            twins = groups.setdefault(value_key(value), [])
+            twin = next((k for k in twins
+                         if (not date or not dated(unique_indicators[k]) or date == dated(unique_indicators[k]))
+                         and same_reading(unique_indicators[k], indicator)), None)
             if twin is None:
                 twins.append(len(unique_indicators))
                 unique_indicators.append(indicator)
-            elif fullness(indicator) > fullness(unique_indicators[twin]):
-                unique_indicators[twin] = indicator
+                continue
+            kept = unique_indicators[twin]
+            if fullness(indicator) > fullness(kept):
+                kept, other = indicator, kept
+            else:
+                other = indicator
+            if not dated(kept) and dated(other):
+                kept = {**kept, "date_time": other.get("date_time")}
+            unique_indicators[twin] = kept
 
         return unique_indicators
