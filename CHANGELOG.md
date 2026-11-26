@@ -70,13 +70,16 @@
   follow the page's language in all five; Japanese and Traditional Chinese
   showed them in English before. To check: pick Русский on the sign-in page;
   the page declares `lang="ru"`. Contributed by Denis
-  (thetahealth/mirobody-web#39).
+  (thetahealth/mirobody-web#39). A count reads in Russian's own plural forms
+  («5 шагов», not "Thought for 17 seconds · 5 steps", thetahealth/mirobody-web#42).
 
 - **The README in Russian.** The web client now has a Russian interface
   (thetahealth/mirobody-web#39), but the repository's front page came in
   English, Chinese and Japanese only. `README.ru.md` translates the English
   one, with Russian editions of its diagrams (`docs/images/*.ru.svg`); the
-  guides it links are in English, and it says so. The published-score and
+  guides it links are in English, and it says so. Its recordings are Russian
+  too: the Ask demo asked in Russian, the resolve demo with `гемоглобин` and
+  the first-run page (`docs/images/*.ru.gif`). The published-score and
   skills gates read it with the other three. To check: the language line at
   the top of every README links Русский.
 
