@@ -151,15 +151,13 @@ _SERIES_UNIT_JOIN = (
     " AS su(series_id, ucum, base, factor, stored, stored_factor) ON su.series_id = o.series_id"
 )
 
-#: A reading's number in its series' unit, the one number every statistic,
-#: bucket and band reads: as printed in that unit (or in none), else its
-#: canonical value over the unit's factor, else (only when the row's own
-#: canonical pair is unset but its raw unit is the series' known storage
-#: unit) its raw value converted through that unit's own factor, else NULL.
-#: Over canonical values stats answered in mol/L, which a small model called
-#: incomparable (#271); with no molar mass, 40 g/L and 600 umol/L of albumin
-#: averaged to 20.0003 "mol/L". Full precision: four decimals once rounded a
-#: 1e-5 g/L daily mean to zero before the trend code saw it.
+#: A reading's number in its series' unit, which every statistic reads: as
+#: printed in that unit (or none), else its canonical value over the unit's
+#: factor, else, for a row with no canonical pair in the series' storage unit,
+#: its raw value through that unit's factor (#297), else NULL. Over canonical
+#: values stats answered in mol/L, which a small model called incomparable
+#: (#271). Full precision: four decimals once rounded a 1e-5 g/L daily mean to
+#: zero before the trend code saw it.
 _VALUE_STD = (
     "CASE WHEN o.value_num IS NULL THEN NULL"
     " WHEN su.ucum IS NULL OR COALESCE(o.unit_ucum, '') IN ('', su.ucum) THEN o.value_num::double precision"

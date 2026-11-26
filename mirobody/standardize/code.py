@@ -159,51 +159,19 @@ def loinc_units(loinc: str) -> tuple[str, ...]:
     return tuple(out)
 
 
-#: A device duration with no CONFIDENT code at all: `kernel/metrics.py`'s
-#: `Metric.canonical` files it under `mirobody-device:<name>` (its catalogue
-#: NAME, not a code), so `loinc_units` above never runs for it and
-#: `collect.query._series_unit` would otherwise leave it in the decoder's
-#: storage unit forever (#297; #296/#298 fixed only the CONFIDENT-code half
-#: of the same bug). Keyed by the catalogue name because that is the only
-#: identity such a series carries.
-#:
-#: `h` for the two night-spanning totals: `sleepAnalysis_Asleep(Total)` is
-#: Apple's own sum of its stage records and is never itself coded
-#: (`kernel/decoders/apple.py` `ASLEEP_TOTAL`); `dailyInBedDuration` has no
-#: code either, the same span as 103213-5 "Duration in bed" (confident,
-#: `loinc_units("103213-5") == ("h",)`).
-#:
-#: `min` for stage- and event-scale spans, each the unit its OWN code
-#: declares although the catalogue marks that code unverified for this name,
-#: so `loinc_units` is never consulted for it either: `sleepAnalysis_Awake`
-#: and `dailyAwakeTime` both carry 103210-1, which declares `min` like its
-#: sibling 103215-0 "Wake time after sleep onset"; `sleepAnalysis_Asleep
-#: (Core)` carries 93830-8, which declares `min`, the unit its CONFIDENT
-#: siblings 93831-6 (Deep) and 93829-0 (REM) already answer in (#298).
-#: `napDuration` carries no code; a nap is the same stage-granularity span
-#: (minutes to low hours), never a night's total.
-#:
-#: Deliberately absent: a decoder also writes an epoch or an offset in `ms`
-#: under this same namespace (`sleepEndTime`, `sleepStartTime`,
-#: `inBedStartTime`, `*ReportTimeOffset`) and that is not a duration at all;
-#: and a genuinely clinical millisecond (`hrvRMSSD`, `hrvMin`, `hrvMax`,
-#: `qtcInterval*`) is not a storage convenience, the same distinction #296
-#: draws for a CONFIDENT code whose own unit is `ms` (112429-6 HRV SDNN).
-#:
-#: `code()` below is unchanged: an uncoded device reading's `value_canonical`/
-#: `unit_canonical` stay `None`, as they always have (the writer is untouched
-#: by this fix, on purpose — a row already stored before this release has the
-#: same `None` pair, so an upgrade must not depend on it). The conversion
-#: this table feeds happens entirely at read time, in
-#: `collect.query._series_unit` and `_VALUE_STD`, straight off the row's own
-#: `unit_ucum` and `value_num`.
+#: A device duration with no CONFIDENT code is filed under its catalogue name
+#: (`Metric.canonical`, `mirobody-device:<name>`), so `loinc_units` never runs
+#: for it and it stayed in the decoder's `ms` (#297). This names its reading
+#: unit by that name, read side only: the writer is unchanged, so a row stored
+#: before this release converts too. A table, not a rule: the same namespace
+#: holds epochs (`sleepEndTime`) and clinical milliseconds (`hrvRMSSD`).
 _DEVICE_READING_UNITS: dict[str, str] = {
-    "sleepAnalysis_Asleep(Total)": "h",
-    "dailyInBedDuration": "h",
-    "sleepAnalysis_Awake": "min",
-    "dailyAwakeTime": "min",
-    "sleepAnalysis_Asleep(Core)": "min",
-    "napDuration": "min",
+    "sleepAnalysis_Asleep(Total)": "h",   # Apple's night total, the span of 103213-5 (h)
+    "dailyInBedDuration": "h",            # the span of 103213-5 "Duration in bed" (h)
+    "sleepAnalysis_Awake": "min",         # its unverified 103210-1 declares min
+    "dailyAwakeTime": "min",              # the same 103210-1
+    "sleepAnalysis_Asleep(Core)": "min",  # 93830-8 declares min, as Deep and REM answer (#298)
+    "napDuration": "min",                 # a nap is stage-scale, never a night's total
 }
 
 
