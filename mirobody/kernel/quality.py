@@ -78,7 +78,7 @@ class ReconciledUnit(NamedTuple):
     error: str
 
 
-def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> ReconciledUnit:
+def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None, *, loinc_code: str = "") -> ReconciledUnit:
     """Bring a fact's unit to the metric's canonical unit.
 
     Convertible units are converted and flagged ``unit_converted``; two units
@@ -87,12 +87,21 @@ def reconcile_unit(raw_unit: str, expected_ucum: str, value: float | None) -> Re
     unit the engine does not know, or one of the metric's own family with no
     factor to it yet, is admitted as-is with ``unverified_unit``: a correct
     unit must not lock real data in quarantine.
+
+    ``loinc_code`` is the metric's code (``shape_for(...).metric.loinc``). It
+    is what lets a glucose in mmol/L reach a metric stored in mg/dL: the molar
+    mass that bridges them is keyed by code (``units.MOLAR_MASS``), and without
+    it the two units are different families and the reading a conflict.
     """
     incoming = units.normalize_unit(raw_unit) or raw_unit
     if not expected_ucum or not incoming or incoming == expected_ucum:
         return ReconciledUnit(value, expected_ucum or incoming, "", "")
-    if units.convertible(incoming, expected_ucum):
-        converted = units.convert_value(value, incoming, expected_ucum) if value is not None else None
+    if units.convertible(incoming, expected_ucum, loinc_code=loinc_code):
+        converted = (
+            units.convert_value(value, incoming, expected_ucum, loinc_code=loinc_code)
+            if value is not None
+            else None
+        )
         return ReconciledUnit(converted, expected_ucum, FLAG_UNIT_CONVERTED, "")
     family_in, family_expected = units.unit_family(incoming), units.unit_family(expected_ucum)
     if family_in and family_expected and family_in != family_expected:
