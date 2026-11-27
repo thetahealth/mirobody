@@ -259,8 +259,10 @@ UCUM_FAMILY: dict[str, str] = {
     "mU/mL":    "CCnc",
     "kU/L":     "CCnc",
     "kat/L":    "CCnc",   # katal per litre (SI enzyme unit)
+    "mkat/L":   "CCnc",
     "ukat/L":   "CCnc",
     "nkat/L":   "CCnc",
+    "pkat/L":   "CCnc",
 
     # ── Number concentration (NCnc) ───────────────────────────────────
     "10*2/uL":  "NCnc",
@@ -496,6 +498,11 @@ UCUM_FAMILY: dict[str, str] = {
     "U":        "CCnt",
     "mU":       "CCnt",
     "kU":       "CCnt",
+    "kat":      "CCnt",
+    "mkat":     "CCnt",
+    "ukat":     "CCnt",
+    "nkat":     "CCnt",
+    "pkat":     "CCnt",
 }
 
 
