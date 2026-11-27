@@ -156,6 +156,34 @@ def test_a_molar_conversion_without_a_code_asks_for_the_code():
     # Units that no molar mass bridges keep the plain refusal.
     assert "loinc_code" not in _convert("%", "mmol/mol", 6.5, "")["reason"]
 
+
+def test_signed_value_with_comparator_keeps_sign_and_comparator():
+    """Negative readings with comparators (DEXA T-score `≤-2.5`, base excess
+    `<-2.0 mmol/L`) must keep both the sign and the comparator rather than
+    silently flipping to positive with a dropped comparator."""
+    from mirobody.standardize.parse import parse_value
+    from mirobody.units import ParsedQuantity, parse_value_unit
+
+    cases = (
+        ("<-2.5", ParsedQuantity("<", -2.5, None), "<"),
+        ("< -2.5", ParsedQuantity("<", -2.5, None), "<"),
+        ("≤-2.5", ParsedQuantity("≤", -2.5, None), "<="),
+        (">-1.0", ParsedQuantity(">", -1.0, None), ">"),
+        (">= -3.0 mmol/L", ParsedQuantity(">=", -3.0, "mmol/L"), ">="),
+        ("<-2.0 mmol/L", ParsedQuantity("<", -2.0, "mmol/L"), "<"),
+        ("<+5.0", ParsedQuantity("<", 5.0, None), "<"),
+        ("~-0.5 Cel", ParsedQuantity("~", -0.5, "Cel"), ""),
+        ("-2.5 mmol/L", ParsedQuantity("", -2.5, "mmol/L"), ""),
+        ("+2.5 mmol/L", ParsedQuantity("", 2.5, "mmol/L"), ""),
+    )
+    for raw, expected, expected_cmp in cases:
+        assert parse_value_unit(raw) == expected, raw
+        parsed = parse_value(raw)
+        assert parsed.value_num == expected.value, raw
+        assert parsed.comparator == expected_cmp, raw
+        assert parsed.unit_ucum == (expected.unit or ""), raw
+
+
 if __name__ == "__main__":  # runs without pytest, same as the axis test
     failures = 0
     for name, fn in sorted(globals().items()):

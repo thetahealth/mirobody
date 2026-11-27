@@ -112,7 +112,7 @@ def _strip_annotations(s: str) -> str:
 # with digits (``10*9/L``, ``10*12/L``) hit the alias table before this
 # pattern runs, so they're not clobbered. A comma in the number is read by
 # :func:`.numerals.plain`, the rule the evidence check reads the document by.
-_VALUE_PREFIX = re.compile(rf"^([-<>=+~≤≥≈]*)({DIGITS})")
+_VALUE_PREFIX = re.compile(rf"^([<>=~≤≥≈]*[-+]?)({DIGITS})")
 
 # A power-of-ten COUNT unit (``10*9/L``, ``10^4/uL``, ``10⁴/μL`` once NFKC has
 # folded the superscript to a digit) must never reach ``_VALUE_PREFIX``, whose
@@ -320,13 +320,15 @@ def _number(m: re.Match[str] | None) -> re.Match[str] | None:
 def _comparator_and_value(raw_cmp: str, raw_num: str) -> tuple[str, float | None]:
     """Split a _VALUE_PREFIX match into (comparator, float value).
 
-    ``-``/``+`` are signs (part of the number), not comparators.
+    A trailing ``-`` or ``+`` is the number's sign, not part of the comparator
+    (``<-2.5`` is comparator ``<`` and value ``-2.5``, not comparator ``<-``
+    and ``+2.5``).
     """
     sign = ""
-    if raw_cmp == "-":
-        sign, raw_cmp = "-", ""
-    elif raw_cmp == "+":
-        raw_cmp = ""
+    if raw_cmp.endswith("-"):
+        sign, raw_cmp = "-", raw_cmp[:-1]
+    elif raw_cmp.endswith("+"):
+        raw_cmp = raw_cmp[:-1]
     reading = plain(raw_num)
     return raw_cmp, None if reading is None else float(sign + reading)
 
