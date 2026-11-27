@@ -1362,16 +1362,17 @@ Red Cell Distribution Width	Erythrocyte [DistWidth] in Blood
 Red Blood Cell Distribution Width	Erythrocyte [DistWidth] in Blood
 Red Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
 Red Blood Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
-# RDW-SD has no reachable name in the 2.83 cut. 2.82 modelled it as an
-# entitic volume; 2.83 replaced that with 115742-9, a DistWidth "by Standard
-# deviation" that carries no alias, so nothing the index can look up names it.
-# Answering the generic 30385-9 would put a volume in fL on the same line as a
-# CV percentage, so these abstain. With a unit the engine already refuses and
-# says why ("no code for this analyte carries EntVol").
-RDW-SD	!uncoded
-RDW-SD%	!uncoded
-Red Cell Distribution Width-SD	!uncoded
-Red Blood Cell Distribution Width-SD	!uncoded
+# RDW-SD is 115742-9 in the 2.83 cut, a DistWidth "by Standard deviation"
+# with no short alias. 2.82 modelled it as an entitic volume. Its long name is
+# an index key, so these rows name it, and it stays apart from the generic
+# 30385-9 that the CV spellings answer: one series would put a volume in fL on
+# the same line as a CV percentage (#234). The unit gate reads this code as a
+# volume, so fL agrees and a percentage is refused. `RDW-SD%` names SD and
+# prints the CV's unit, so it abstains.
+RDW-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+RDW-SD%	!ambiguous
+Red Cell Distribution Width-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+Red Blood Cell Distribution Width-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
 Mean Platelet Volume	Platelet [Entitic mean volume] in Blood
 Platelets	Platelets [#/volume] in Blood
 Erythrocyte Sedimentation Rate	Erythrocyte [Sedimentation Rate] in Blood
@@ -1380,8 +1381,9 @@ Sed Rate	Erythrocyte [Sedimentation Rate] in Blood
 红细胞分布宽度	Erythrocyte [DistWidth] in Blood
 红细胞分布宽度CV	Erythrocyte [DistWidth] in Blood
 红细胞分布宽度-变异系数	Erythrocyte [DistWidth] in Blood
-红细胞分布宽度SD	!uncoded
-红细胞分布宽度-标准差	!uncoded
+红细胞分布宽度SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+红细胞分布宽度-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+红细胞分布宽度-标准差	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
 
 # ── CK-MB: stripping the trailing token changed the measurement ─────────────
 #
@@ -2043,6 +2045,8 @@ BFP	Percentage of body fat Measured
 β2M	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
 B2MG	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
 β2MG	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
+β2-MG	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
+B2-MG	Beta-2-Microglobulin [Mass/volume] in Serum or Plasma
 Non-HDL	Cholesterol non HDL [Mass/volume] in Serum or Plasma
 Non HDL-Chol	Cholesterol non HDL [Mass/volume] in Serum or Plasma
 NHDL	Cholesterol non HDL [Mass/volume] in Serum or Plasma
@@ -2356,3 +2360,51 @@ APOB	Apolipoprotein B [Mass/volume] in Serum or Plasma
 Apo B	Apolipoprotein B [Mass/volume] in Serum or Plasma
 APO-B	Apolipoprotein B [Mass/volume] in Serum or Plasma
 ApoB-100	Apolipoprotein B-100 [Mass/volume] in Serum or Plasma
+# ── #234: a checkup's spellings, as other labs print them ─────────────────
+#
+# `检测` after a bare name answers only through a row for the whole printed
+# name (`OfflineResolver.resolve`): `心血管检测` and `实验室检测` showed that a
+# bare stem with `检测` after it is no evidence of an analyte. Each row is the
+# code its bare name already answers.
+尿酸检测	Urate [Mass/volume] in Serum or Plasma
+肌酐检测	Creatinine [Mass/volume] in Serum or Plasma
+乙肝表面抗原检测	Hepatitis B virus surface Ag [Presence] in Serum or Plasma by Immunoassay
+丙肝抗体检测	Hepatitis C virus Ab [Presence] in Serum or Plasma by Immunoassay
+AST检测	Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma
+胆汁酸检测	Bile acid [Moles/volume] in Serum or Plasma
+血糖检测	Glucose [Mass/volume] in Blood
+# A differential or a ratio printed with 比值 where the rows above have 比例
+# and 百分比, and the CBC indices with `Hb` for 血红蛋白.
+白球蛋白比值	Albumin/Globulin
+淋巴细胞比值	Lymphocytes/Leukocytes
+单核细胞比值	Monocytes/Leukocytes
+嗜酸性粒细胞比值	Eosinophils/Leukocytes
+嗜碱性粒细胞比值	Basophils/Leukocytes
+平均红细胞Hb量	MCH
+平均红细胞Hb浓度	MCHC
+尿素: 肌酐	Urea/Creatinine
+尿素:肌酐	Urea/Creatinine
+尿素：肌酐	Urea/Creatinine
+# Only an ECG has a P-R interval, as `PR间期` already answers on its own; the
+# heading-scoped row in panel_terms.tsv is gone with this one.
+P-R间期	P-R Interval
+# Urine sediment crystals, the code a bare `结晶` already answers.
+镜检结晶	Crystals [type] in Urine sediment by Light microscopy
+尿结晶（镜检）	Crystals [type] in Urine sediment by Light microscopy
+尿结晶	Crystals [type] in Urine sediment by Light microscopy
+# Words a heading or a sentence uses, not tests. Alone, and with `测定` after
+# them, each answered a code nothing printed asked for: `心血管` a SOFA score,
+# `过敏原` an allergen histamine release test, `实验室` a VDRL titre, `疾病` a
+# condition's certainty, `疾控中心` a gait test panel, `超声` PSA over
+# prostate volume, `重复` an AR gene repeat count.
+心血管	!category
+过敏原	!category
+实验室	!category
+疾病	!category
+疾控中心	!category
+超声	!category
+重复	!category
+# A scan, not a test: alone `DXA` answered the DXA instrument's make and
+# model (63518-5), and `骨密度(DXA)` with it, while a bone density result
+# names a site and abstains without one (`骨密度`, test_engine_coverage).
+DXA	!category

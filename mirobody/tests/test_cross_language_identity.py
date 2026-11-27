@@ -111,18 +111,23 @@ def test_rdw_cv_and_sd_stay_apart(axis):
     is a percentage, SD a volume in fL. Merging them puts 13.5 fL on the same
     line as 13.5 %.
 
-    2.82 modelled the SD form as an entitic volume, which the resolver could
-    reach. 2.83 replaced it with 115742-9, a DistWidth "by Standard deviation"
-    that carries no alias, so no spelling of SD reaches a code of its own. The
-    answer is to abstain, not to fall back on the generic width: with a unit
-    the engine already refuses and names the reason.
+    2.83 files the SD form as 115742-9, a DistWidth "by Standard deviation"
+    that declares fL; the spellings of SD reach it by its long name, and the
+    unit gate reads it as a volume (#234). A bare RDW printed in fL is the SD
+    width too, and a SD name printed in percent is refused, not merged.
     """
     cv = _code("RDW-CV")
     assert axis[cv].property == "DistWidth"
     assert _code("RDW") == _code("红细胞分布宽度") == cv
-    for sd in ("RDW-SD", "Red Cell Distribution Width-SD", "红细胞分布宽度SD"):
-        assert not _code(sd), f"{sd} -> {_code(sd)}, which is the CV code"
-    refused = mirobody.resolve_reading("RDW-SD", "13.5", "fL")
+    sd = {_code(t) for t in ("RDW-SD", "Red Cell Distribution Width-SD", "红细胞分布宽度SD",
+                             "红细胞分布宽度-SD", "红细胞分布宽度-标准差")}
+    assert sd == {"115742-9"}, sd
+    for name, value, unit in (("RDW-SD", "45", "fL"), ("红细胞分布宽度-SD", "45", "fL"),
+                              ("RDW", "45", "fL"), ("红细胞分布宽度", "45", "fL"),
+                              ("红细胞分布宽度(RDW-SD)", "45", "fL")):
+        assert mirobody.resolve_reading(name, value, unit).code == "115742-9", name
+    assert mirobody.resolve_reading("RDW", "13.5", "%").code == cv
+    refused = mirobody.resolve_reading("RDW-SD", "13.5", "%")
     assert not refused.code and refused.method == "refused"
 
 

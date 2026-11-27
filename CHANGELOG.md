@@ -22,6 +22,30 @@
   need a marked tab (docs/roadmap.md). To check: upload
   `demo/screens/scale_tab_fat.png` with no key; the Data page shows
   当前体重 76.2 kg, 体脂率 27.8 % and BMI 25.6, and no 目标体重.
+- **Checkup names ending in `检测`, RDW-SD and the other spellings in #234
+  code; words that are no test stop coding.** `尿酸(UA)检测`, `甲胎蛋白AFP检测`
+  and `钾K检测` coded nothing while their `测定` forms resolved. Stripping
+  `检测` as `测定` is stripped was no fix: it is also the general word for
+  testing, and over 145 `检测` names in a checkup corpus it coded 20, about
+  half wrongly (`心血管检测` as a SOFA score, `实验室检测` as a VDRL titre). A
+  name ending in `检测` now codes when what is left is a name and its own
+  abbreviation that agree, or when a row names the whole spelling
+  (`肌酐检测`); a bare one stays uncoded. `β2-微球蛋白β2-MG` answered
+  magnesium and now answers β2-microglobulin, and `钾K`, `钠Na`, `氯Cl` and
+  `磷P` code as `钙Ca` already did. RDW-SD (`RDW-SD`, `红细胞分布宽度-SD`,
+  `红细胞分布宽度-标准差`) coded nothing and is 115742-9 in fL, apart from
+  RDW-CV's 30385-9 in %; a bare `RDW` printed in fL goes to the SD code,
+  and RDW-SD printed in % is refused. `白球蛋白比值`, the four `…细胞比值`,
+  `平均红细胞Hb量`, `平均红细胞Hb浓度`, `尿素：肌酐`, `P-R间期` and three
+  urine-crystal spellings code as their usual spellings do. `心血管`,
+  `过敏原`, `实验室`, `疾病`, `疾控中心`, `超声`, `重复` and `DXA` refuse as a
+  category rather than answer a code nothing printed asked for, and
+  `丙肝抗体检测(HCV)` refuses rather than answer the HCV viral load.
+  `name_key` is unchanged: #370 stripped these words there, which merged
+  `血型(ABO)检测` with `血型(Rh)检测` into one stored key, and a test now pins
+  it. Readings stored before keep their coding until `mirobody recode`.
+  To check: `mirobody resolve 尿酸(UA)检测` answers 3084-1 and
+  `mirobody resolve 心血管检测` answers nothing.
 
 ## 1.6.3
 

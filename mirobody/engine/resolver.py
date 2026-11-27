@@ -34,7 +34,7 @@ from mirobody._strtab import StringTable
 from mirobody.lexical import (
     fold_plural, index_fold, is_component_suffix, measure_stems, split_camel, split_trailing_hyphen,
     split_timing, split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym,
-    strip_report_marks, surface_variants, Timing,
+    says_testing, strip_report_marks, surface_variants, Timing,
 )
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
@@ -83,6 +83,14 @@ _KNOWN_TIES: dict[str, tuple[str, str]] = {
     # A bare `Body fat` is a scale's percentage (27.8 %) or its mass
     # (21.2 kg); the name alone resolved to nothing.
     "body fat": ("41982-0", "73708-0"),  # Percentage of body fat, Body fat mass
+}
+
+# A chemical symbol glued to its element's name, read only against the stem
+# (`_resolve_seam`): symbol, casefolded -> the analyte `_analyte_of` gives.
+_ELEMENT_SYMBOLS: dict[str, str] = {
+    "k": "potassium", "na": "sodium", "cl": "chloride", "p": "phosphate",
+    "ca": "calcium", "mg": "magnesium", "fe": "iron", "zn": "zinc",
+    "cu": "copper", "pb": "lead", "se": "selenium", "li": "lithium",
 }
 
 # R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a
@@ -208,8 +216,17 @@ def _method_identity(method: str) -> str:
     anything, same as an empty one always has: the existing preference
     for a method-LESS sibling (`... by Automated count` is a narrower
     claim than the report supports) is unaffected."""
+    if method in _DISPERSION_METHODS:
+        return method
     parts = (method or "").split(".")
     return ".".join(parts[:2]) if len(parts) >= 2 else ""
+
+
+#: RDW-SD (115742-9) and RDW-CV (115741-1) share COMPONENT `erythrocytes` and
+#: PROPERTY `DistWidth`; only the METHOD says which statistic was measured, so
+#: a unit must not move a reading from one to the other. No other row in the
+#: cut carries either method.
+_DISPERSION_METHODS = frozenset({"Standard deviation", "Coefficient of variation"})
 
 
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
@@ -222,6 +239,17 @@ _NARRATIVE_SCALES = frozenset({"Nar", "Doc"})
 #: `/leukocytes`, and nothing else in LOINC pairs that regularly.
 _LEUKOCYTE_TYPES = frozenset({"neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils"})
 _FRACTION_PROPERTIES = frozenset({"NFr", "MFr", "VFr", "AFr", "SFr", "CFr"})
+
+
+def _gate_property(row: tuple) -> str:
+    """The PROPERTY the unit gate reads an axis row by. LOINC 2.83 files
+    RDW-SD (115742-9) as a `DistWidth` by `Standard deviation` and declares
+    fL for it; 2.82 filed it as an entitic volume. A width measured as a
+    standard deviation is a volume, so fL admits it, and a percentage, which
+    is the CV, does not. It is the only such row in the cut."""
+    if row[2] == "DistWidth" and row[5] == "Standard deviation":
+        return "EntVol"
+    return row[2]
 
 
 def _value_scales(value: str | None) -> frozenset[str]:
@@ -741,7 +769,17 @@ class OfflineResolver:
         # resin uptake, while `游离T3` has its own row (#357).
         bare = strip_report_marks(term)
         if bare:
-            return replace(self.resolve(bare), term=term)
+            # `检测` is answered only through a name and its own abbreviation
+            # that agree (`尿酸(UA)检测`, `钾K检测`), or through a row written
+            # for the whole printed name (`肌酐检测`). With the bare name alone,
+            # 20 of 145 `检测` names in mirobody-gen's checkup corpus coded and
+            # about half were wrong: `心血管检测` a SOFA score, `过敏原检测` a
+            # histamine release test, `实验室检测` a VDRL titre.
+            hit = self.resolve(bare)
+            if hit.loinc and says_testing(term) and not self._seam_agrees(bare):
+                whole = self._lookup(term)
+                return replace(whole, term=term) if whole is not None else Resolution(term=term)
+            return replace(hit, term=term)
 
         timed = self._resolve_timed(term)
         if timed is not None:
@@ -934,6 +972,14 @@ class OfflineResolver:
             label_hit = self._tied_half(self._normalize(label), stem_hit)
         if stem and self._normalize(stem) in _KNOWN_TIES:
             stem_hit = self._tied_half(self._normalize(stem), label_hit)
+        # `钾K`, `钠Na`, `磷P`: an element's name and its chemical symbol. A
+        # bare `K` is not a test anyone should guess and resolves to nothing,
+        # so the CJK shape's both-halves rule left these uncoded while `钙Ca`
+        # and `镁Mg`, whose symbols do resolve, coded. The symbol agrees only
+        # with a stem whose analyte IS that element.
+        if label_hit is None and stem_hit is not None and label:
+            if _ELEMENT_SYMBOLS.get(label.casefold()) == self._analyte_of(stem_hit.loinc):
+                label_hit = stem_hit
         both_resolved = stem_hit is not None and label_hit is not None
 
         if stem_hit and label_hit and stem_hit.loinc != label_hit.loinc:
@@ -1021,6 +1067,20 @@ class OfflineResolver:
         if chosen is None:
             return Resolution(term=term)
         return replace(chosen, term=term)
+
+    def _seam_agrees(self, term: str) -> bool:
+        """True when ``term`` is a name and its own abbreviation and both
+        halves name one analyte, by the agreement `_resolve_seam` applies."""
+        stem, label, _shape = self._find_seam(term)
+        if not stem or not label or is_component_suffix(label):
+            return False
+        stem_hit, label_hit = self._lookup(stem), self._lookup(label)
+        if stem_hit is None:
+            return False
+        analyte = self._analyte_of(stem_hit.loinc)
+        if label_hit is None:
+            return bool(analyte) and _ELEMENT_SYMBOLS.get(label.casefold()) == analyte
+        return bool(analyte) and analyte == self._analyte_of(label_hit.loinc)
 
     def _tied_half(self, key: str, other: Resolution | None) -> Resolution | None:
         """The code of a `_KNOWN_TIES` pair that shares `other`'s analyte, as
@@ -1152,7 +1212,7 @@ class OfflineResolver:
         if current is None:
             return UnitVerdict(code=loinc, outcome="no-signal", unit_ucum=ucum or "", axes=axes)
 
-        prop_ok = (not families) or current[2] in families
+        prop_ok = (not families) or _gate_property(current) in families
         scale_ok = (not scales) or current[3] in scales
         if prop_ok and scale_ok:
             return UnitVerdict(
@@ -1178,7 +1238,7 @@ class OfflineResolver:
                 for r in (
                     self._axis_row(i) for i in self._component_index().get(component, [])
                 )
-                if ((not families) or r[2] in families)
+                if ((not families) or _gate_property(r) in families)
                 and ((not scales) or r[3] in scales)
                 and (not keep or _method_identity(r[5]) == keep)
             ]
@@ -1202,6 +1262,26 @@ class OfflineResolver:
             # names the count component and the percentage lives under
             # `monocytes/leukocytes`. Five components, one denominator.
             siblings = _matching(f"{current[1]}/leukocytes".encode())
+        if not siblings and current[2] == "DistWidth" and "EntVol" in families:
+            # `红细胞分布宽度 45 fL`, `RDW 45 fL`: a red-cell width printed in
+            # fL is the SD width, whatever the name left out. LOINC files the
+            # method-specific RDW codes under the plural `erythrocytes`, and
+            # the generic one under `erythrocyte`, and their SYSTEM `RBC` is the
+            # red cells of the same draw, as for every red-cell index (MCV is
+            # `RBC` too), so the specimen check below does not apply. A
+            # percentage is not switched the other way: a CV and a mislabelled
+            # SD both print it.
+            widths = [r for r in _matching(f"{current[1]}s".encode()) if r[2] == "DistWidth"]
+            if widths:
+                chosen = widths[0]
+                return UnitVerdict(
+                    code=chosen[0],
+                    outcome="switched",
+                    unit_ucum=ucum or "",
+                    axes=(chosen[2], chosen[3], chosen[4]),
+                    rejected_code=loinc,
+                    rejected_reason=f"the name alone gives {loinc} ({current[2]}/{current[3]})",
+                )
         if not siblings:
             # The unit parsed and nothing this analyte can be carries that
             # property or scale: the name and the unit describe two different
@@ -1438,18 +1518,25 @@ def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value:
     reading` ever gets a say -- but the measurement routinely answers the
     question the name alone cannot: 肌酐(Cre) names both creatinine and a
     carbapenem-resistant culture, and only 78 µmol/L's PROPERTY says which
-    one. Both candidate codes are checked independently; exactly one
-    compatible with what was printed is the answer. Both compatible (e.g.
-    `胆固醇(HDL-C)` with any lipid unit) or neither (no unit at all, or a
-    unit that fits nothing) stays refused, same as today -- a measurement
-    that cannot decide is not evidence for either side.
+    one. Both candidate codes are checked independently, and the answer is
+    the one code every compatible reading lands on: `红细胞分布宽度(RDW-SD)
+    45 fL` names the generic width and the SD width, and in fL the generic
+    one switches to the SD code, so both halves say 115742-9. Two codes (e.g.
+    `胆固醇(HDL-C)` with any lipid unit) or none (no unit at all, or a unit
+    that fits nothing) stays refused, same as today -- a measurement that
+    cannot decide is not evidence for either side.
     """
     verdicts = [(code, resolver.variant_for_reading(code, value, unit)) for code in hit.ambiguous]
     compatible = [(code, v) for code, v in verdicts if v.outcome in ("agreed", "switched")]
-    if len(compatible) != 1:
+    if len({v.code for _, v in compatible}) != 1:
         return None
-    named_code, verdict = compatible[0]
-    loser = next(code for code in hit.ambiguous if code != named_code)
+    verdict = compatible[0][1]
+    # The candidate the unit ruled out; when both fit and converge, the one
+    # whose own code is not the answer.
+    named = {code for code, _ in compatible}
+    loser = next((code for code in hit.ambiguous if code not in named), "") or next(
+        (code for code in hit.ambiguous if code != verdict.code), hit.ambiguous[0]
+    )
     return Resolution(
         term=hit.term,
         canonical=resolver._name_for(verdict.code),

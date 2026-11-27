@@ -33,7 +33,7 @@ MISSING = "not in the lexical index, and no code is given rather than a guessed 
     ("KET", "ambiguous"),           # ketones, or a gene, or ketamine
     ("酸碱度", "ambiguous"),        # urine or blood
     ("BMR", "uncoded"),             # LOINC has only a panel for it
-    ("RDW-SD", "uncoded"),          # 2.83 dropped the entitic-volume code
+    ("RDW-SD%", "ambiguous"),       # names the SD, prints the CV's unit
     ("血糖(OGTT)", "timing"),       # one draw of a series, not which one
     ("XYZ指数", "unknown"),
 ])

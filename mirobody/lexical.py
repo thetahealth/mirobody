@@ -47,6 +47,7 @@ __all__ = [
     "join_series_suffix",
     "measure_stems",
     "normalize",
+    "says_testing",
     "split_camel",
     "split_timing",
     "split_trailing_hyphen",
@@ -308,7 +309,10 @@ def split_trailing_space_acronym(term: str) -> tuple[str, str]:
 # requires at least one CJK codepoint right before the match, so a term that
 # is already all-Latin (`HDL-C` on its own) never matches, and the match
 # starts on a LETTER so a trailing bare number is not read as an abbreviation.
-_TRAILING_LATIN = re.compile(r"(?<=[㐀-鿿豈-﫿])([A-Za-z][A-Za-z0-9-]*)$")
+# A Greek letter counts: `β2-微球蛋白β2-MG` is the stem and `β2-MG`, and
+# without it the hyphen shape split `β2-微球蛋白β2` from `MG`, which answered
+# magnesium.
+_TRAILING_LATIN = re.compile(r"(?<=[㐀-鿿豈-﫿])([A-Za-zΑ-Ωα-ω][A-Za-z0-9Α-Ωα-ω-]*)$")
 
 
 def split_trailing_latin(term: str) -> tuple[str, str]:
@@ -425,14 +429,28 @@ def measure_stems(term: str) -> list[str]:
 # What a checkup report prints AFTER a name and is not part of it: the word for
 # the assay (`尿酸(UA)测定`, `低密度脂蛋白胆固醇测定`) and a flag mark
 # (`γ-谷氨酰基转移酶*`). Every `名称(缩写)测定` name on a self-hosted 1.5.10's
-# reports went uncoded while the bare name resolved (#234).
+# reports went uncoded while the bare name resolved (#234). `检测` is stripped
+# too, but it is the general word for testing and a heading takes it as often
+# as an analyte does (`心血管检测`, `实验室检测`): `OfflineResolver.resolve`
+# answers one only when the name it leaves corroborates itself. `定性` and
+# `定量` are NOT here: they say which test it is, not that it is one.
 _FLAG_MARKS = frozenset("*＊↑↓")
-_ASSAY_WORDS = ("测定", "測定")
+_TESTING_WORDS = ("检测", "檢測")
+_ASSAY_WORDS = ("测定", "測定", *_TESTING_WORDS)
+
+
+def says_testing(term: str) -> bool:
+    """True when ``term`` ends in ``检测`` (before any flag mark)."""
+    text = (term or "").rstrip()
+    end = len(text)
+    while end and (text[end - 1].isspace() or text[end - 1] in _FLAG_MARKS):
+        end -= 1
+    return text.endswith(_TESTING_WORDS, 0, end)
 
 
 def strip_report_marks(term: str) -> str:
-    """``term`` without a trailing ``测定`` or flag mark; ``""`` when there is
-    none, or when nothing would be left of the name."""
+    """``term`` without a trailing ``测定``/``检测`` or flag mark; ``""`` when
+    there is none, or when nothing would be left of the name."""
     # A scan from the end, not a regex: `(?:\s*[*↑↓]+|…)+$` backtracks
     # exponentially on `名称` + forty `*` + one more character (CodeQL
     # py/redos on #252), and the term is whatever a report or an MCP

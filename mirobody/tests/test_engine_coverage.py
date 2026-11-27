@@ -931,6 +931,43 @@ CASES: list[tuple[str, str, str]] = [
     ("FBS",                          r"^fasting glucose",             r""),
     ("tHcy",                         r"^homocysteine",                r""),
     ("U-PRO",                        r"^protein \[presence\] in urine", r""),
+    # #234: a checkup's spellings, as other labs print them. `检测` after a
+    # name and its own abbreviation reads as the `测定` form does.
+    ("尿酸(UA)检测",                      r"^urate \[",                    r"urine"),
+    ("甲胎蛋白AFP检测",                     r"^alpha-1-fetoprotein",         r""),
+    ("丙氨酸氨基转移酶(ALT)检测",               r"^alanine aminotransferase",    r""),
+    ("低密度脂蛋白胆固醇(LDL-C)检测",            r"cholesterol in ldl",           r"hdl"),
+    ("γ-谷氨酰基转移酶(GGT)检测",              r"^gamma glutamyl transferase",  r""),
+    ("血型(ABO)检测",                     r"^abo group",                   r""),
+    # A chemical symbol glued to its element; `β2-MG` kept whole, not `MG`.
+    ("钾K检测",                          r"^potassium \[",                r""),
+    ("钠Na",                           r"^sodium \[",                   r""),
+    ("氯Cl",                           r"^chloride \[",                 r""),
+    ("磷P",                            r"^phosphate \[",                r""),
+    ("β2-微球蛋白β2-MG",                  r"^beta-2-microglobulin",        r"magnesium"),
+    ("β2-微球蛋白β2-MG检测",                r"^beta-2-microglobulin",        r"magnesium"),
+    # A bare name with `检测`, through a row for the whole printed name.
+    ("尿酸检测",                          r"^urate \[",                    r"urine"),
+    ("肌酐检测",                          r"^creatinine \[",               r"urine"),
+    ("乙肝表面抗原检测",                      r"^hepatitis b virus surface ag",r""),
+    ("AST检测",                         r"^aspartate aminotransferase",  r"alanine"),
+    # RDW-SD (fL) and RDW-CV (%) are two codes, not one series.
+    ("RDW-SD",                        r"distwidth.*standard deviation",r"coefficient"),
+    ("红细胞分布宽度-SD",                    r"distwidth.*standard deviation",r"coefficient"),
+    ("红细胞分布宽度-标准差",                   r"distwidth.*standard deviation",r"coefficient"),
+    ("红细胞分布宽度-变异系数",                  r"^erythrocyte \[distwidth\]",   r"standard deviation"),
+    # Spellings the vocabulary did not have.
+    ("白球蛋白比值",                        r"^albumin/globulin",            r""),
+    ("淋巴细胞比值",                        r"^lymphocytes/leukocytes",      r""),
+    ("单核细胞比值",                        r"^monocytes/leukocytes",        r""),
+    ("嗜酸性粒细胞比值",                      r"^eosinophils/leukocytes",      r""),
+    ("嗜碱性粒细胞比值",                      r"^basophils/leukocytes",        r""),
+    ("平均红细胞Hb量",                      r"^mch \[",                      r"mchc"),
+    ("平均红细胞Hb浓度",                     r"^mchc",                        r""),
+    ("尿素：肌酐",                         r"^urea/creatinine",             r""),
+    ("P-R间期",                         r"^p-r interval",                r""),
+    ("镜检结晶",                          r"^crystals .*urine sediment",   r""),
+    ("尿结晶（镜检）",                       r"^crystals .*urine sediment",   r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -1048,6 +1085,18 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # Two tests by name alone; the unit settles each (READING_CASES).
     ("TLC", "leukocytes on a blood count, total lung capacity on a lung-function report"),
     ("TCT", "a cervical cytology result, or a thrombin clotting time"),
+    # #234/#370: each answered the code named, with `检测` stripped and no
+    # guard, or on its own.
+    ("心血管检测", "a SOFA cardiovascular score"),
+    ("过敏原检测", "an allergen histamine release test"),
+    ("实验室检测", "a VDRL reagin titre"),
+    ("心血管", "a SOFA cardiovascular score"),
+    ("超声", "PSA over prostate volume"),
+    ("钾Na", "a chemical symbol that is not the element named"),
+    ("血型(Rh)检测", "the Rh factor, which is not the ABO group"),
+    ("RDW-SD%", "names the SD width and prints the CV's unit"),
+    ("丙肝抗体检测(HCV)", "an antibody name with the virus in brackets; it answered the RNA viral load"),
+    ("骨密度(DXA)", "the scan in brackets; it answered the DXA instrument's make and model"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
@@ -1521,7 +1570,50 @@ def test_a_report_mark_is_answered_as_the_bare_name_would_be():
     assert resolve("血脂测定").method == "refused"
     assert "4548-4" in resolve("血糖(HbA1c)测定").rejected_reason
     assert resolve("测定").method == "refused"
-    assert resolve("红细胞分布宽度-标准差").method == "refused"
+    assert resolve("红细胞分布宽度-标准差").loinc == "115742-9"  # RDW-SD, by its own row
+
+
+def test_testing_is_answered_only_through_an_abbreviation_that_agrees():
+    """`检测` is stripped like `测定`, but a heading takes it as often as an
+    analyte does, so a code needs the name and its own abbreviation to agree
+    (#234, #370). The bare name alone answers only through a row written for
+    the whole printed name."""
+    from mirobody.engine import resolve
+
+    agrees = {
+        "尿酸(UA)检测": "3084-1",
+        "甲胎蛋白AFP检测": "1834-1",
+        "钾K检测": "2823-3",
+        "钠Na检测": "2951-2",
+        "丙氨酸氨基转移酶(ALT)检测": "1742-6",
+        "β2-微球蛋白β2-MG检测": "1952-1",
+        "血型(ABO)检测": "883-9",
+    }
+    for term, code in agrees.items():
+        assert resolve(term).loinc == code, term
+    # Each of these answered a code once `检测` was stripped with no guard: a
+    # SOFA score, a histamine release test, a VDRL titre, a condition's
+    # certainty, PSA over prostate volume, an AR gene repeat.
+    for term in ("心血管检测", "过敏原检测", "实验室检测", "疾病检测", "超声检测", "重复检测"):
+        assert not resolve(term).loinc, term
+    # A qualifier is not an abbreviation, whichever assay word follows it.
+    assert resolve("血型(Rh)检测").reason_kind == "category"
+    assert not resolve("乙肝表面抗原(定量)检测").loinc
+
+
+def test_an_element_symbol_agrees_only_with_its_own_element():
+    """`钾K`: a bare `K` resolves to nothing, so the glued shape's both-halves
+    rule left it uncoded while `钙Ca` coded. The symbol is read against the
+    stem and never alone. `β2-微球蛋白β2-MG` is the stem and `β2-MG`, not
+    `β2-微球蛋白β2` and `MG`, which answered magnesium on main."""
+    from mirobody.engine import resolve
+
+    assert resolve("钾K").loinc == "2823-3"
+    assert resolve("磷P").loinc == "2777-1"
+    assert not resolve("钾Na").loinc and not resolve("钠K").loinc
+    assert not resolve("K").loinc
+    assert resolve("β2-微球蛋白β2-MG").loinc == "1952-1"
+
 
 
 def test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation():
