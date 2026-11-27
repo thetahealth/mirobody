@@ -58,6 +58,20 @@
   values until 重新处理. To check: `parse_value_unit("<-2.5")` gives
   `ParsedQuantity(comparator='<', value=-2.5, unit=None)`. Contributed by
   Chen-Yang Su.
+- **The unit gate quarantined a glucose in mmol/L filed under a metric
+  stored in mg/dL (#381).** `quality.reconcile_unit("mmol/L", "mg/dL", 5.6)`
+  answered `unit_dimension_conflict`, the code for a temperature filed under
+  a mass, while `convert_value` with the metric's code 2339-0 gives
+  100.9 mg/dL: the gate never passed a code, so the molar mass that bridges
+  the two units was out of its reach. `reconcile_unit` now takes the
+  metric's code as an optional keyword, `loinc_code`
+  (`shape_for(...).metric.loinc`), and converts across `units.MOLAR_MASS`
+  with it. Without a code the answer is unchanged, since a mmol/L value
+  admitted into a mg/dL series would be 18 times off. A consumer's decoder
+  gains this only once it passes the code. To check:
+  `reconcile_unit("mmol/L", "mg/dL", 5.6, loinc_code="2339-0")` gives
+  `unit='mg/dL'`, `flag='unit_converted'` and a value of 100.89.
+  Contributed by Chen-Yang Su.
 
 ## 1.6.3
 

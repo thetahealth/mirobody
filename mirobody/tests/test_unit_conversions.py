@@ -184,7 +184,6 @@ def test_signed_value_with_comparator_keeps_sign_and_comparator():
         assert parsed.unit_ucum == (expected.unit or ""), raw
 
 
-
 def test_reconcile_unit_crosses_the_molar_bridge_with_the_metric_code():
     """`quality.reconcile_unit` reported a glucose in mmol/L as a dimension
     conflict against `bloodGlucoses` (mg/dL, 2339-0), where `convert_value`
@@ -196,6 +195,7 @@ def test_reconcile_unit_crosses_the_molar_bridge_with_the_metric_code():
     assert got.unit == "mg/dL" and abs(got.value - 100.89) < 0.01, got
     # Without the code the bridge is unknown, and the answer is unchanged.
     assert quality.reconcile_unit("mmol/L", "mg/dL", 5.6).error == quality.ERR_UNIT_DIMENSION_CONFLICT
+
 
 if __name__ == "__main__":  # runs without pytest, same as the axis test
     failures = 0
