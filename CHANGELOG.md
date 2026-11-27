@@ -38,8 +38,8 @@
   and RDW-SD printed in % is refused. `白球蛋白比值`, the four `…细胞比值`,
   `平均红细胞Hb量`, `平均红细胞Hb浓度`, `尿素：肌酐`, `P-R间期` and three
   urine-crystal spellings code as their usual spellings do. `心血管`,
-  `过敏原`, `实验室`, `疾病`, `疾控中心`, `超声` and `重复` refuse as a category
-  rather than answer a code nothing printed asked for, and
+  `过敏原`, `实验室`, `疾病`, `疾控中心`, `超声`, `重复` and `DXA` refuse as a
+  category rather than answer a code nothing printed asked for, and
   `丙肝抗体检测(HCV)` refuses rather than answer the HCV viral load.
   `name_key` is unchanged: #370 stripped these words there, which merged
   `血型(ABO)检测` with `血型(Rh)检测` into one stored key, and a test now pins

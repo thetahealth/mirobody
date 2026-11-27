@@ -2404,3 +2404,7 @@ P-R间期	P-R Interval
 疾控中心	!category
 超声	!category
 重复	!category
+# A scan, not a test: alone `DXA` answered the DXA instrument's make and
+# model (63518-5), and `骨密度(DXA)` with it, while a bone density result
+# names a site and abstains without one (`骨密度`, test_engine_coverage).
+DXA	!category

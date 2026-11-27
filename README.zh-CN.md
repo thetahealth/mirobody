@@ -215,7 +215,7 @@ resolve("血脂").resolved                                     # False    一个
 
 | 说法 | 怎么验证 |
 | --- | --- |
-| **756/756**：常规体检会打印的项目，覆盖英文、中文、日文、俄文、爱沙尼亚文和土耳其文 | 运行 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 会打印分数 |
+| **757/757**：常规体检会打印的项目，覆盖英文、中文、日文、俄文、爱沙尼亚文和土耳其文 | 运行 [`test_engine_coverage.py`](mirobody/tests/test_engine_coverage.py) 会打印分数 |
 | 按规则从 LOINC 2.83 切出 **63,416 个编码**，指向它们的名称共 **1,023,273 条**，含 LOINC 自带的 21 种语言；索引认不出的报告写法，经审核一行行补充 | [`fhir_loinc_bundle.NOTICE`](mirobody/res/loinc/fhir_loinc_bundle.NOTICE)（英文） · [`resolver_overrides.tsv`](mirobody/res/loinc/resolver_overrides.tsv) · [一条读数怎样被标准化](docs/site/standardization.zh-CN.md) |
 | **331 个 UCUM 单位**，带量纲分析；**902 个设备与实验室指标目录条目** | [标准化详解](docs/standardization.zh-CN.md) · [设备对照表](docs/device-crosswalk.md)（英文） |
 | 23andMe、AncestryDNA、WeGene、MyHeritage、FamilyTreeDNA 的导出和 GRCh37/GRCh38 的 VCF，解析出**同样的 13 个位点（12 个基因）**；测试数据是随包附带的 1000 Genomes 公开样本 | [`test_packaged_examples.py`](benchmarks/genomics/test_packaged_examples.py) · [公开基因样本说明](mirobody/testing/genomics/README.md)（英文） |

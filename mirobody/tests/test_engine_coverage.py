@@ -1096,6 +1096,7 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     ("血型(Rh)检测", "the Rh factor, which is not the ABO group"),
     ("RDW-SD%", "names the SD width and prints the CV's unit"),
     ("丙肝抗体检测(HCV)", "an antibody name with the virus in brackets; it answered the RNA viral load"),
+    ("骨密度(DXA)", "the scan in brackets; it answered the DXA instrument's make and model"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`
