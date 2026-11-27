@@ -1524,6 +1524,49 @@ def test_a_report_mark_is_answered_as_the_bare_name_would_be():
     assert resolve("红细胞分布宽度-标准差").method == "refused"
 
 
+def test_testing_is_answered_only_through_an_abbreviation_that_agrees():
+    """`检测` is stripped like `测定`, but a heading takes it as often as an
+    analyte does, so a code needs the name and its own abbreviation to agree
+    (#234, #370). The bare name alone answers only through a row written for
+    the whole printed name."""
+    from mirobody.engine import resolve
+
+    agrees = {
+        "尿酸(UA)检测": "3084-1",
+        "甲胎蛋白AFP检测": "1834-1",
+        "钾K检测": "2823-3",
+        "钠Na检测": "2951-2",
+        "丙氨酸氨基转移酶(ALT)检测": "1742-6",
+        "β2-微球蛋白β2-MG检测": "1952-1",
+        "血型(ABO)检测": "883-9",
+    }
+    for term, code in agrees.items():
+        assert resolve(term).loinc == code, term
+    # Each of these answered a code once `检测` was stripped with no guard: a
+    # SOFA score, a histamine release test, a VDRL titre, a condition's
+    # certainty, PSA over prostate volume, an AR gene repeat.
+    for term in ("心血管检测", "过敏原检测", "实验室检测", "疾病检测", "超声检测", "重复检测"):
+        assert not resolve(term).loinc, term
+    # A qualifier is not an abbreviation, whichever assay word follows it.
+    assert resolve("血型(Rh)检测").reason_kind == "category"
+    assert not resolve("乙肝表面抗原(定量)检测").loinc
+
+
+def test_an_element_symbol_agrees_only_with_its_own_element():
+    """`钾K`: a bare `K` resolves to nothing, so the glued shape's both-halves
+    rule left it uncoded while `钙Ca` coded. The symbol is read against the
+    stem and never alone. `β2-微球蛋白β2-MG` is the stem and `β2-MG`, not
+    `β2-微球蛋白β2` and `MG`, which answered magnesium on main."""
+    from mirobody.engine import resolve
+
+    assert resolve("钾K").loinc == "2823-3"
+    assert resolve("磷P").loinc == "2777-1"
+    assert not resolve("钾Na").loinc and not resolve("钠K").loinc
+    assert not resolve("K").loinc
+    assert resolve("β2-微球蛋白β2-MG").loinc == "1952-1"
+
+
+
 def test_a_qualifier_in_brackets_is_not_read_as_an_abbreviation():
     """A bracket after a name is read through `OfflineResolver._resolve_seam`
     the same way `空腹血糖(GLU)` is, and that split's fallback -- "the bracket

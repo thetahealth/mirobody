@@ -34,7 +34,7 @@ from mirobody._strtab import StringTable
 from mirobody.lexical import (
     fold_plural, index_fold, is_component_suffix, measure_stems, split_camel, split_trailing_hyphen,
     split_timing, split_trailing_latin, split_trailing_parenthetical, split_trailing_space_acronym,
-    strip_report_marks, surface_variants, Timing,
+    says_testing, strip_report_marks, surface_variants, Timing,
 )
 
 if TYPE_CHECKING:  # `_posting` names np.ndarray in its annotation; numpy itself
@@ -83,6 +83,14 @@ _KNOWN_TIES: dict[str, tuple[str, str]] = {
     # A bare `Body fat` is a scale's percentage (27.8 %) or its mass
     # (21.2 kg); the name alone resolved to nothing.
     "body fat": ("41982-0", "73708-0"),  # Percentage of body fat, Body fat mass
+}
+
+# A chemical symbol glued to its element's name, read only against the stem
+# (`_resolve_seam`): symbol, casefolded -> the analyte `_analyte_of` gives.
+_ELEMENT_SYMBOLS: dict[str, str] = {
+    "k": "potassium", "na": "sodium", "cl": "chloride", "p": "phosphate",
+    "ca": "calcium", "mg": "magnesium", "fe": "iron", "zn": "zinc",
+    "cu": "copper", "pb": "lead", "se": "selenium", "li": "lithium",
 }
 
 # R3-lite. SYSTEM axis values that name a specimen obtained ONLY by a
@@ -741,7 +749,17 @@ class OfflineResolver:
         # resin uptake, while `游离T3` has its own row (#357).
         bare = strip_report_marks(term)
         if bare:
-            return replace(self.resolve(bare), term=term)
+            # `检测` is answered only through a name and its own abbreviation
+            # that agree (`尿酸(UA)检测`, `钾K检测`), or through a row written
+            # for the whole printed name (`肌酐检测`). With the bare name alone,
+            # 20 of 145 `检测` names in mirobody-gen's checkup corpus coded and
+            # about half were wrong: `心血管检测` a SOFA score, `过敏原检测` a
+            # histamine release test, `实验室检测` a VDRL titre.
+            hit = self.resolve(bare)
+            if hit.loinc and says_testing(term) and not self._seam_agrees(bare):
+                whole = self._lookup(term)
+                return replace(whole, term=term) if whole is not None else Resolution(term=term)
+            return replace(hit, term=term)
 
         timed = self._resolve_timed(term)
         if timed is not None:
@@ -934,6 +952,14 @@ class OfflineResolver:
             label_hit = self._tied_half(self._normalize(label), stem_hit)
         if stem and self._normalize(stem) in _KNOWN_TIES:
             stem_hit = self._tied_half(self._normalize(stem), label_hit)
+        # `钾K`, `钠Na`, `磷P`: an element's name and its chemical symbol. A
+        # bare `K` is not a test anyone should guess and resolves to nothing,
+        # so the CJK shape's both-halves rule left these uncoded while `钙Ca`
+        # and `镁Mg`, whose symbols do resolve, coded. The symbol agrees only
+        # with a stem whose analyte IS that element.
+        if label_hit is None and stem_hit is not None and label:
+            if _ELEMENT_SYMBOLS.get(label.casefold()) == self._analyte_of(stem_hit.loinc):
+                label_hit = stem_hit
         both_resolved = stem_hit is not None and label_hit is not None
 
         if stem_hit and label_hit and stem_hit.loinc != label_hit.loinc:
@@ -1021,6 +1047,20 @@ class OfflineResolver:
         if chosen is None:
             return Resolution(term=term)
         return replace(chosen, term=term)
+
+    def _seam_agrees(self, term: str) -> bool:
+        """True when ``term`` is a name and its own abbreviation and both
+        halves name one analyte, by the agreement `_resolve_seam` applies."""
+        stem, label, _shape = self._find_seam(term)
+        if not stem or not label or is_component_suffix(label):
+            return False
+        stem_hit, label_hit = self._lookup(stem), self._lookup(label)
+        if stem_hit is None:
+            return False
+        analyte = self._analyte_of(stem_hit.loinc)
+        if label_hit is None:
+            return bool(analyte) and _ELEMENT_SYMBOLS.get(label.casefold()) == analyte
+        return bool(analyte) and analyte == self._analyte_of(label_hit.loinc)
 
     def _tied_half(self, key: str, other: Resolution | None) -> Resolution | None:
         """The code of a `_KNOWN_TIES` pair that shares `other`'s analyte, as
