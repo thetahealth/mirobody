@@ -27,6 +27,7 @@ mirobody/
 └── schema/      DDL，开发环境启动时重放
 
 benchmarks/      公开的基准套件 + resolver 打分工具
+contrib/         加载在自带前端旁边的附加组件
 demo/            关爱圈演示数据                          检出会带这几个
 examples/        可运行的库/parse/MCP/agent 示例          目录，pip
 frontend/        自带的前端                              install 不会

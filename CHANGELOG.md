@@ -739,6 +739,21 @@
 
 ### Added
 
+- **A Share button for a conversation, shipped as a browser add-on.**
+  `contrib/conversation-export/` puts a control in the chat header that exports
+  the messages you tick as Markdown or as an 880 px PNG poster. It is an add-on
+  rather than a change to `frontend/` because that directory is build output:
+  `rsync --delete` removes anything added there, and the entry chunk is renamed
+  on every build. So it loads next to the client instead, reading the
+  transcript from `GET /api/history?session_id=` with the page's own token, and
+  finds its mount point by class-name fragment (`_header_`, `_right_`) rather
+  than hashed name — the rule `docs/frontend.md` now states for any add-on. The
+  poster is painted on a canvas, not screenshotted from the DOM: the bundle
+  carries no html2canvas, and a screenshot would carry the reader's theme, zoom
+  and scroll position into a picture meant to be sent to someone else. To tell:
+  load the directory unpacked, open a conversation, export one message of each
+  kind.
+
 - **A physical or dental examination can be stored as a finding.** The file
   extraction has a sixth `detection_method`, `Examination`, and a row with it
   is stored with `kind='finding'`, so `牙周` and `义齿` no longer depend on the

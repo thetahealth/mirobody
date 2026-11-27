@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Mirobody — export a conversation",
+  "version": "1.0.0",
+  "description": "Adds a Share button to a Mirobody chat: pick messages, export them as Markdown or as a PNG poster.",
+  "content_scripts": [
+    {
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["chat-share.js", "chat-share-image.js"],
+      "matches": ["http://localhost/*", "http://127.0.0.1/*"]
+    }
+  ]
+}
