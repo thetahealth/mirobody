@@ -2360,3 +2360,47 @@ APOB	Apolipoprotein B [Mass/volume] in Serum or Plasma
 Apo B	Apolipoprotein B [Mass/volume] in Serum or Plasma
 APO-B	Apolipoprotein B [Mass/volume] in Serum or Plasma
 ApoB-100	Apolipoprotein B-100 [Mass/volume] in Serum or Plasma
+# ── #234: a checkup's spellings, as other labs print them ─────────────────
+#
+# `检测` after a bare name answers only through a row for the whole printed
+# name (`OfflineResolver.resolve`): `心血管检测` and `实验室检测` showed that a
+# bare stem with `检测` after it is no evidence of an analyte. Each row is the
+# code its bare name already answers.
+尿酸检测	Urate [Mass/volume] in Serum or Plasma
+肌酐检测	Creatinine [Mass/volume] in Serum or Plasma
+乙肝表面抗原检测	Hepatitis B virus surface Ag [Presence] in Serum or Plasma by Immunoassay
+丙肝抗体检测	Hepatitis C virus Ab [Presence] in Serum or Plasma by Immunoassay
+AST检测	Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma
+胆汁酸检测	Bile acid [Moles/volume] in Serum or Plasma
+血糖检测	Glucose [Mass/volume] in Blood
+# A differential or a ratio printed with 比值 where the rows above have 比例
+# and 百分比, and the CBC indices with `Hb` for 血红蛋白.
+白球蛋白比值	Albumin/Globulin
+淋巴细胞比值	Lymphocytes/Leukocytes
+单核细胞比值	Monocytes/Leukocytes
+嗜酸性粒细胞比值	Eosinophils/Leukocytes
+嗜碱性粒细胞比值	Basophils/Leukocytes
+平均红细胞Hb量	MCH
+平均红细胞Hb浓度	MCHC
+尿素: 肌酐	Urea/Creatinine
+尿素:肌酐	Urea/Creatinine
+尿素：肌酐	Urea/Creatinine
+# Only an ECG has a P-R interval, as `PR间期` already answers on its own; the
+# heading-scoped row in panel_terms.tsv is gone with this one.
+P-R间期	P-R Interval
+# Urine sediment crystals, the code a bare `结晶` already answers.
+镜检结晶	Crystals [type] in Urine sediment by Light microscopy
+尿结晶（镜检）	Crystals [type] in Urine sediment by Light microscopy
+尿结晶	Crystals [type] in Urine sediment by Light microscopy
+# Words a heading or a sentence uses, not tests. Alone, and with `测定` after
+# them, each answered a code nothing printed asked for: `心血管` a SOFA score,
+# `过敏原` an allergen histamine release test, `实验室` a VDRL titre, `疾病` a
+# condition's certainty, `疾控中心` a gait test panel, `超声` PSA over
+# prostate volume, `重复` an AR gene repeat count.
+心血管	!category
+过敏原	!category
+实验室	!category
+疾病	!category
+疾控中心	!category
+超声	!category
+重复	!category

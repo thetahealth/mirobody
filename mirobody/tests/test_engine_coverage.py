@@ -931,6 +931,43 @@ CASES: list[tuple[str, str, str]] = [
     ("FBS",                          r"^fasting glucose",             r""),
     ("tHcy",                         r"^homocysteine",                r""),
     ("U-PRO",                        r"^protein \[presence\] in urine", r""),
+    # #234: a checkup's spellings, as other labs print them. `检测` after a
+    # name and its own abbreviation reads as the `测定` form does.
+    ("尿酸(UA)检测",                      r"^urate \[",                    r"urine"),
+    ("甲胎蛋白AFP检测",                     r"^alpha-1-fetoprotein",         r""),
+    ("丙氨酸氨基转移酶(ALT)检测",               r"^alanine aminotransferase",    r""),
+    ("低密度脂蛋白胆固醇(LDL-C)检测",            r"cholesterol in ldl",           r"hdl"),
+    ("γ-谷氨酰基转移酶(GGT)检测",              r"^gamma glutamyl transferase",  r""),
+    ("血型(ABO)检测",                     r"^abo group",                   r""),
+    # A chemical symbol glued to its element; `β2-MG` kept whole, not `MG`.
+    ("钾K检测",                          r"^potassium \[",                r""),
+    ("钠Na",                           r"^sodium \[",                   r""),
+    ("氯Cl",                           r"^chloride \[",                 r""),
+    ("磷P",                            r"^phosphate \[",                r""),
+    ("β2-微球蛋白β2-MG",                  r"^beta-2-microglobulin",        r"magnesium"),
+    ("β2-微球蛋白β2-MG检测",                r"^beta-2-microglobulin",        r"magnesium"),
+    # A bare name with `检测`, through a row for the whole printed name.
+    ("尿酸检测",                          r"^urate \[",                    r"urine"),
+    ("肌酐检测",                          r"^creatinine \[",               r"urine"),
+    ("乙肝表面抗原检测",                      r"^hepatitis b virus surface ag",r""),
+    ("AST检测",                         r"^aspartate aminotransferase",  r"alanine"),
+    # RDW-SD (fL) and RDW-CV (%) are two codes, not one series.
+    ("RDW-SD",                        r"distwidth.*standard deviation",r"coefficient"),
+    ("红细胞分布宽度-SD",                    r"distwidth.*standard deviation",r"coefficient"),
+    ("红细胞分布宽度-标准差",                   r"distwidth.*standard deviation",r"coefficient"),
+    ("红细胞分布宽度-变异系数",                  r"^erythrocyte \[distwidth\]",   r"standard deviation"),
+    # Spellings the vocabulary did not have.
+    ("白球蛋白比值",                        r"^albumin/globulin",            r""),
+    ("淋巴细胞比值",                        r"^lymphocytes/leukocytes",      r""),
+    ("单核细胞比值",                        r"^monocytes/leukocytes",        r""),
+    ("嗜酸性粒细胞比值",                      r"^eosinophils/leukocytes",      r""),
+    ("嗜碱性粒细胞比值",                      r"^basophils/leukocytes",        r""),
+    ("平均红细胞Hb量",                      r"^mch \[",                      r"mchc"),
+    ("平均红细胞Hb浓度",                     r"^mchc",                        r""),
+    ("尿素：肌酐",                         r"^urea/creatinine",             r""),
+    ("P-R间期",                         r"^p-r interval",                r""),
+    ("镜检结晶",                          r"^crystals .*urine sediment",   r""),
+    ("尿结晶（镜检）",                       r"^crystals .*urine sediment",   r""),
 ]
 
 # NOTE: the body-composition, fitness and chronic-condition device names
@@ -1048,6 +1085,17 @@ MUST_NOT_RESOLVE: list[tuple[str, str]] = [
     # Two tests by name alone; the unit settles each (READING_CASES).
     ("TLC", "leukocytes on a blood count, total lung capacity on a lung-function report"),
     ("TCT", "a cervical cytology result, or a thrombin clotting time"),
+    # #234/#370: each answered the code named, with `检测` stripped and no
+    # guard, or on its own.
+    ("心血管检测", "a SOFA cardiovascular score"),
+    ("过敏原检测", "an allergen histamine release test"),
+    ("实验室检测", "a VDRL reagin titre"),
+    ("心血管", "a SOFA cardiovascular score"),
+    ("超声", "PSA over prostate volume"),
+    ("钾Na", "a chemical symbol that is not the element named"),
+    ("血型(Rh)检测", "the Rh factor, which is not the ABO group"),
+    ("RDW-SD%", "names the SD width and prints the CV's unit"),
+    ("丙肝抗体检测(HCV)", "an antibody name with the virus in brackets; it answered the RNA viral load"),
 ]
 # The #301 body-composition device names that must abstain (骨骼肌,
 # 基础代谢, 基础代谢率/BMR, 压力) are in `test_engine_coverage_devices.py`

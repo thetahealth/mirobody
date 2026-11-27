@@ -13,14 +13,13 @@
 # Matching is exact over standardize.fold.name_key: one row per spelling, no
 # substring search. The right-hand side is a LOINC code, not an alias key,
 # so there is no second hop for a row to miss. A spelling the resolver
-# already answers right on its own (`PR间期`, `QT间期`, `QTc间期`, `QRS电轴`,
-# `心率`) has no row: it codes the same whatever its heading.
+# already answers right on its own (`PR间期`, `P-R间期`, `QT间期`, `QTc间期`,
+# `QRS电轴`, `心率`) has no row: it codes the same whatever its heading.
 panel	term	loinc	note
 # ── ecg: a resting 12-lead ECG's measurements ────────────────────────────
 ecg	HR	8867-4	the code 心率 resolves to, so a report's two spellings are one series
 ecg	PR	8625-6
 ecg	P-R	8625-6
-ecg	P-R间期	8625-6
 ecg	QRS	8633-0	the QRS duration; an axis prints as 电轴 or Axis
 ecg	QRS时限	8633-0
 ecg	QRS时间	8633-0
