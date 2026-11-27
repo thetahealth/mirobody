@@ -109,11 +109,16 @@ Inside the resolver (`engine/resolver.py`):
   (`Protein CSF`, `Glucose OGTT`, `胆固醇 HDL`), so those stay unresolved
   rather than quietly answering the code of the stem alone. Measure words (`计数`,
   `count`) are dropped last, so they can only turn a miss into a hit.
-- **What a report prints after the name comes off after a miss.**
+- **What a report prints after the name comes off first.**
   `尿酸(UA)测定` and `γ-谷氨酰基转移酶*` are the name followed by the assay word
-  or a flag. When the name as printed misses, a trailing `测定`, `*`, `↑` or
-  `↓` is stripped and the rest is answered as the bare name would be, the
-  blocks and the rule below included (`lexical.strip_report_marks`).
+  or a flag. A trailing `测定`, `检测`, `*`, `↑` or `↓` is stripped before the
+  index is asked, and the rest is answered as the bare name would be, the
+  blocks and the rule below included (`lexical.strip_report_marks`). `检测`
+  is also the general word for testing, and a heading takes it as often as an
+  analyte does (`心血管检测`, `实验室检测`), so a name ending in it answers
+  only when what is left is a name and its own abbreviation that agree
+  (`尿酸(UA)检测`, `钾K检测`) or when a row names the whole printed spelling
+  (`肌酐检测`). `定性` and `定量` are never stripped: they say which test it is.
 - **A name that says when its sample was drawn is read as the analyte plus
   the draw.** LOINC keeps fasting, a meal, a challenge's timed draws and a
   drug's trough or peak in the COMPONENT (`insulin^post CFst`,
@@ -131,6 +136,8 @@ Inside the resolver (`engine/resolver.py`):
 - **`Name (abbreviation)` must agree.** Both halves are resolved. One analyte:
   the stem wins (`空腹血糖(GLU)` → 1558-6). Two analytes: refused, with both
   codes named so a person can choose (`血糖(HbA1c)` gives 2339-0 and 4548-4).
+  A chemical symbol after its element (`钾K`, `钠Na`) agrees with it and is
+  never read alone; `K` by itself answers nothing.
 - **Picking among postings** (`_pick`): LOINC's `COMMON_TEST_RANK`, plain
   serum, plasma or blood over cord or capillary specimens, and an exact
   `COMPONENT` match, unless it would turn a patient measurement into an organ
