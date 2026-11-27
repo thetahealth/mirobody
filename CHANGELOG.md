@@ -2,6 +2,20 @@
 
 ### Fixed
 
+- **An enzyme printed in `µkat/L` was never converted to `U/L` (#383).**
+  ALT, AST and ALP from a Nordic lab (`ALT 0.50 µkat/L`) coded to the same
+  LOINC code as a `U/L` report (1742-6, 1920-8, 6768-6), but kept
+  `ukat/L` as its canonical unit and its printed value, so one series mixed
+  values that differ by a factor of 60. The unit parser already read
+  `µkat/L` and `μkat/L` as `ukat/L`; the converter had no factor for katal,
+  so `convert_value` returned `None`. Katal now converts on the enzyme-unit
+  scale (UCUM: kat = mol/s, U = umol/min, so 1 ukat = 60 U), for `kat`,
+  `mkat`, `ukat`, `nkat` and `pkat`, bare and per litre. A newly coded
+  `1 µkat/L` ALT stores `(60.0, "U/L")`, as `60 U/L` does. Readings stored
+  before keep their pair: `mirobody recode` rewrites a row only when its
+  code, series or decision changed, not its canonical pair. To check:
+  `convert_value(60, "U/L", "ukat/L")` gives 1.0 and
+  `convert_value(1, "ukat/L", "nkat/L")` gives 1000.0.
 - **A health app's screenshot stored nothing with the local models.** With
   no key, GLM-OCR read a smart-scale screen's text, but MiniCPM5-2B answered
   it `non_health_related` with no rows (9 of 9 runs, on 1.6.2's prompt as

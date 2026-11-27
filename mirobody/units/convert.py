@@ -110,6 +110,7 @@ _BASE: dict[str, tuple[str, float]] = {
     "h": ("T", 3600.0),
     "d": ("T", 86400.0),
     "U": ("A", 1.0),
+    "kat": ("A", 60_000_000.0),  # UCUM defines kat as mol/s and U as umol/min.
     "[IU]": ("A", 1.0),   # in LOINC usage U/L ≡ [IU]/L
     "[lb_av]": ("M", 453.59237),
     "[oz_av]": ("M", 28.349523125),
