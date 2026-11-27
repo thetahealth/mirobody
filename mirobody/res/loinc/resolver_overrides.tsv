@@ -1362,16 +1362,17 @@ Red Cell Distribution Width	Erythrocyte [DistWidth] in Blood
 Red Blood Cell Distribution Width	Erythrocyte [DistWidth] in Blood
 Red Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
 Red Blood Cell Distribution Width-CV	Erythrocyte [DistWidth] in Blood
-# RDW-SD has no reachable name in the 2.83 cut. 2.82 modelled it as an
-# entitic volume; 2.83 replaced that with 115742-9, a DistWidth "by Standard
-# deviation" that carries no alias, so nothing the index can look up names it.
-# Answering the generic 30385-9 would put a volume in fL on the same line as a
-# CV percentage, so these abstain. With a unit the engine already refuses and
-# says why ("no code for this analyte carries EntVol").
-RDW-SD	!uncoded
-RDW-SD%	!uncoded
-Red Cell Distribution Width-SD	!uncoded
-Red Blood Cell Distribution Width-SD	!uncoded
+# RDW-SD is 115742-9 in the 2.83 cut, a DistWidth "by Standard deviation"
+# with no short alias. 2.82 modelled it as an entitic volume. Its long name is
+# an index key, so these rows name it, and it stays apart from the generic
+# 30385-9 that the CV spellings answer: one series would put a volume in fL on
+# the same line as a CV percentage (#234). The unit gate reads this code as a
+# volume, so fL agrees and a percentage is refused. `RDW-SD%` names SD and
+# prints the CV's unit, so it abstains.
+RDW-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+RDW-SD%	!ambiguous
+Red Cell Distribution Width-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+Red Blood Cell Distribution Width-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
 Mean Platelet Volume	Platelet [Entitic mean volume] in Blood
 Platelets	Platelets [#/volume] in Blood
 Erythrocyte Sedimentation Rate	Erythrocyte [Sedimentation Rate] in Blood
@@ -1380,8 +1381,9 @@ Sed Rate	Erythrocyte [Sedimentation Rate] in Blood
 红细胞分布宽度	Erythrocyte [DistWidth] in Blood
 红细胞分布宽度CV	Erythrocyte [DistWidth] in Blood
 红细胞分布宽度-变异系数	Erythrocyte [DistWidth] in Blood
-红细胞分布宽度SD	!uncoded
-红细胞分布宽度-标准差	!uncoded
+红细胞分布宽度SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+红细胞分布宽度-SD	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
+红细胞分布宽度-标准差	Erythrocytes [DistWidth] in Red Blood Cells by Standard deviation
 
 # ── CK-MB: stripping the trailing token changed the measurement ─────────────
 #

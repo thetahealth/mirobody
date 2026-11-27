@@ -216,8 +216,17 @@ def _method_identity(method: str) -> str:
     anything, same as an empty one always has: the existing preference
     for a method-LESS sibling (`... by Automated count` is a narrower
     claim than the report supports) is unaffected."""
+    if method in _DISPERSION_METHODS:
+        return method
     parts = (method or "").split(".")
     return ".".join(parts[:2]) if len(parts) >= 2 else ""
+
+
+#: RDW-SD (115742-9) and RDW-CV (115741-1) share COMPONENT `erythrocytes` and
+#: PROPERTY `DistWidth`; only the METHOD says which statistic was measured, so
+#: a unit must not move a reading from one to the other. No other row in the
+#: cut carries either method.
+_DISPERSION_METHODS = frozenset({"Standard deviation", "Coefficient of variation"})
 
 
 #: Scales a free-prose value maps to. `scales_for_value` answers (`Nar`, `Doc`)
@@ -230,6 +239,17 @@ _NARRATIVE_SCALES = frozenset({"Nar", "Doc"})
 #: `/leukocytes`, and nothing else in LOINC pairs that regularly.
 _LEUKOCYTE_TYPES = frozenset({"neutrophils", "lymphocytes", "monocytes", "eosinophils", "basophils"})
 _FRACTION_PROPERTIES = frozenset({"NFr", "MFr", "VFr", "AFr", "SFr", "CFr"})
+
+
+def _gate_property(row: tuple) -> str:
+    """The PROPERTY the unit gate reads an axis row by. LOINC 2.83 files
+    RDW-SD (115742-9) as a `DistWidth` by `Standard deviation` and declares
+    fL for it; 2.82 filed it as an entitic volume. A width measured as a
+    standard deviation is a volume, so fL admits it, and a percentage, which
+    is the CV, does not. It is the only such row in the cut."""
+    if row[2] == "DistWidth" and row[5] == "Standard deviation":
+        return "EntVol"
+    return row[2]
 
 
 def _value_scales(value: str | None) -> frozenset[str]:
@@ -1192,7 +1212,7 @@ class OfflineResolver:
         if current is None:
             return UnitVerdict(code=loinc, outcome="no-signal", unit_ucum=ucum or "", axes=axes)
 
-        prop_ok = (not families) or current[2] in families
+        prop_ok = (not families) or _gate_property(current) in families
         scale_ok = (not scales) or current[3] in scales
         if prop_ok and scale_ok:
             return UnitVerdict(
@@ -1218,7 +1238,7 @@ class OfflineResolver:
                 for r in (
                     self._axis_row(i) for i in self._component_index().get(component, [])
                 )
-                if ((not families) or r[2] in families)
+                if ((not families) or _gate_property(r) in families)
                 and ((not scales) or r[3] in scales)
                 and (not keep or _method_identity(r[5]) == keep)
             ]
@@ -1242,6 +1262,26 @@ class OfflineResolver:
             # names the count component and the percentage lives under
             # `monocytes/leukocytes`. Five components, one denominator.
             siblings = _matching(f"{current[1]}/leukocytes".encode())
+        if not siblings and current[2] == "DistWidth" and "EntVol" in families:
+            # `红细胞分布宽度 45 fL`, `RDW 45 fL`: a red-cell width printed in
+            # fL is the SD width, whatever the name left out. LOINC files the
+            # method-specific RDW codes under the plural `erythrocytes`, and
+            # the generic one under `erythrocyte`, and their SYSTEM `RBC` is the
+            # red cells of the same draw, as for every red-cell index (MCV is
+            # `RBC` too), so the specimen check below does not apply. A
+            # percentage is not switched the other way: a CV and a mislabelled
+            # SD both print it.
+            widths = [r for r in _matching(f"{current[1]}s".encode()) if r[2] == "DistWidth"]
+            if widths:
+                chosen = widths[0]
+                return UnitVerdict(
+                    code=chosen[0],
+                    outcome="switched",
+                    unit_ucum=ucum or "",
+                    axes=(chosen[2], chosen[3], chosen[4]),
+                    rejected_code=loinc,
+                    rejected_reason=f"the name alone gives {loinc} ({current[2]}/{current[3]})",
+                )
         if not siblings:
             # The unit parsed and nothing this analyte can be carries that
             # property or scale: the name and the unit describe two different
@@ -1478,18 +1518,25 @@ def _arbitrate_by_measurement(resolver: OfflineResolver, hit: Resolution, value:
     reading` ever gets a say -- but the measurement routinely answers the
     question the name alone cannot: 肌酐(Cre) names both creatinine and a
     carbapenem-resistant culture, and only 78 µmol/L's PROPERTY says which
-    one. Both candidate codes are checked independently; exactly one
-    compatible with what was printed is the answer. Both compatible (e.g.
-    `胆固醇(HDL-C)` with any lipid unit) or neither (no unit at all, or a
-    unit that fits nothing) stays refused, same as today -- a measurement
-    that cannot decide is not evidence for either side.
+    one. Both candidate codes are checked independently, and the answer is
+    the one code every compatible reading lands on: `红细胞分布宽度(RDW-SD)
+    45 fL` names the generic width and the SD width, and in fL the generic
+    one switches to the SD code, so both halves say 115742-9. Two codes (e.g.
+    `胆固醇(HDL-C)` with any lipid unit) or none (no unit at all, or a unit
+    that fits nothing) stays refused, same as today -- a measurement that
+    cannot decide is not evidence for either side.
     """
     verdicts = [(code, resolver.variant_for_reading(code, value, unit)) for code in hit.ambiguous]
     compatible = [(code, v) for code, v in verdicts if v.outcome in ("agreed", "switched")]
-    if len(compatible) != 1:
+    if len({v.code for _, v in compatible}) != 1:
         return None
-    named_code, verdict = compatible[0]
-    loser = next(code for code in hit.ambiguous if code != named_code)
+    verdict = compatible[0][1]
+    # The candidate the unit ruled out; when both fit and converge, the one
+    # whose own code is not the answer.
+    named = {code for code, _ in compatible}
+    loser = next((code for code in hit.ambiguous if code not in named), "") or next(
+        (code for code in hit.ambiguous if code != verdict.code), hit.ambiguous[0]
+    )
     return Resolution(
         term=hit.term,
         canonical=resolver._name_for(verdict.code),

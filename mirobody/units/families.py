@@ -530,7 +530,9 @@ AMBIGUOUS_UNITS: dict[str, frozenset[str]] = {
     # for the same µmol/min unit, and LOINC files every enzyme under CCnc. A
     # chemistry panel's ALT, AST, ALP, GGT, LDH and CK were all refused.
     "[IU]/L": frozenset({"ACnc", "CCnc"}),
-    # MCV and MPV are `EntMeanVol` since LOINC 2.7x; RDW-SD stays `EntVol`.
+    # MCV and MPV are `EntMeanVol` since LOINC 2.7x. RDW-SD is a `DistWidth`
+    # by standard deviation since 2.83, which the resolver's unit gate reads
+    # as `EntVol` (`engine.resolver._gate_property`).
     "fL":    frozenset({"EntVol", "EntMeanVol"}),
     # MCHC is a mass concentration that LOINC files under `EntMCnc`, per red
     # cell rather than per volume of blood. All four EntMCnc codes in the cut

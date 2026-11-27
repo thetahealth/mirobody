@@ -1521,7 +1521,7 @@ def test_a_report_mark_is_answered_as_the_bare_name_would_be():
     assert resolve("血脂测定").method == "refused"
     assert "4548-4" in resolve("血糖(HbA1c)测定").rejected_reason
     assert resolve("测定").method == "refused"
-    assert resolve("红细胞分布宽度-标准差").method == "refused"
+    assert resolve("红细胞分布宽度-标准差").loinc == "115742-9"  # RDW-SD, by its own row
 
 
 def test_testing_is_answered_only_through_an_abbreviation_that_agrees():
