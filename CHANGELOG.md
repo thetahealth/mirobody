@@ -46,6 +46,18 @@
   it. Readings stored before keep their coding until `mirobody recode`.
   To check: `mirobody resolve 尿酸(UA)检测` answers 3084-1 and
   `mirobody resolve 心血管检测` answers nothing.
+- **A negative reading after a comparator was stored as positive, and
+  without its comparator (#380).** `<-2.5` was read as the comparator `<-`
+  and the value 2.5. No comparator is spelled `<-`, so the stored row kept
+  2.5 and nothing else: a DXA T-score printed `≤-2.5` became 2.5, and a base
+  excess of `<-2.0 mmol/L` became 2.0 mmol/L. A sign after the comparator
+  is now the number's sign, so `<-2.5` is `<` and -2.5 in
+  `parse_value_unit`, in the stored row and in FHIR `valueQuantity`. On
+  their own, `--5`, `+-5` and `<--2.5` used to read as 5 or 2.5 with the
+  marks dropped; they are now kept as text. A file read before keeps its
+  values until 重新处理. To check: `parse_value_unit("<-2.5")` gives
+  `ParsedQuantity(comparator='<', value=-2.5, unit=None)`. Contributed by
+  Chen-Yang Su.
 
 ## 1.6.3
 
