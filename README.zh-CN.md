@@ -34,7 +34,7 @@
 | 统一健康指标名称和单位，在终端里或在你的 AI agent 里 | [一条命令](#一条命令体验标准化引擎) | uv；不需要模型或 API Key |
 | 在浏览器里体验完整应用 | [GitHub Codespaces](#在-codespaces-体验完整应用) | GitHub 账号和你自己的模型 API Key |
 | 应用、模型和记录都留在自己机器上 | [Docker 100% 本地部署](#100-本地部署应用数据和模型) | 带 Compose 的 Docker；16 GB 内存；无需 API Key |
-| 应用和记录留在自己机器上，且不用 Docker | [不用 Docker 运行](#不用-docker-运行) | Debian 或 Ubuntu；PostgreSQL 16；Python 3.12；你自己的模型 API Key |
+| 应用和记录留在自己机器上，且不用 Docker | [不用 Docker 运行](#不用-docker-运行) | Debian 13、Ubuntu 24.04 或 26.04；发行版自带的 PostgreSQL；Python 3.12；你自己的模型 API Key |
 | 什么都不部署，直接用自己的记录 | 中国大陆：在微信中搜索「Mirobody」小程序。其他地区：在 [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme&lang=zh-cn) 体验 Mirobody，也可以用 Theta 移动 App | 注册账号 |
 
 ## 一条命令体验标准化引擎
@@ -109,7 +109,7 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 
 ## 不用 Docker 运行
 
-**不起容器，也不从镜像仓库拉取任何东西。** 在 Debian 或 Ubuntu 上，PostgreSQL 16 加 pgvector 直接来自发行版自己的仓库，应用从检出目录运行。这和 Codespaces 那条路用的是同一套安装：
+**不起容器，也不从镜像仓库拉取任何东西。** 在 Debian 或 Ubuntu 上，PostgreSQL 加 pgvector 直接来自发行版自己的仓库，版本随发行版（Ubuntu 24.04 为 16，Debian 13 为 17，Ubuntu 26.04 为 18），应用从检出目录运行。这和 Codespaces 那条路用的是同一套安装：
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody
