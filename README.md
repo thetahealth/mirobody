@@ -34,7 +34,7 @@ This open-source edition keeps that record on your own machine: lab reports, wea
 | Standardize names and units, in a terminal or inside your AI agent | [One command](#try-the-engine-with-one-command) | uv; no model or API key |
 | Try the full app in your browser | [GitHub Codespaces](#try-the-full-app-in-codespaces) | A GitHub account and your own model API key |
 | Keep the app, models and records on your machine | [100% local with Docker](#run-everything-100-locally) | Docker with Compose; 16 GB memory; no API key |
-| Keep the app and records on your machine, without Docker | [No Docker](#run-without-docker) | Debian or Ubuntu; PostgreSQL 16; Python 3.12; your own model API key |
+| Keep the app and records on your machine, without Docker | [No Docker](#run-without-docker) | Debian 13, Ubuntu 24.04 or 26.04; the distribution's PostgreSQL; Python 3.12; your own model API key |
 | Use it on your own records with nothing to run | Try Mirobody in [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme), or in the Theta mobile app | An account |
 
 ## Try the engine with one command
@@ -108,7 +108,7 @@ both. Query views provide their built-in statistics without either.
 
 ## Run without Docker
 
-**No container, and nothing pulled from a registry.** On Debian or Ubuntu, PostgreSQL 16 with pgvector comes from the distribution's own packages and the app runs straight from the checkout. It is the same install the Codespaces path performs:
+**No container, and nothing pulled from a registry.** On Debian or Ubuntu, PostgreSQL with pgvector comes from the distribution's own packages, in whichever major version the release ships (16 on Ubuntu 24.04, 17 on Debian 13, 18 on Ubuntu 26.04), and the app runs straight from the checkout. It is the same install the Codespaces path performs:
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody

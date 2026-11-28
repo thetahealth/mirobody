@@ -34,7 +34,7 @@
 | 名称と単位を標準化する（ターミナルでも、AI エージェントの中でも） | [コマンド1つ](#コマンド1つでエンジンを試す) | uv。モデルも API キーも不要 |
 | ブラウザでアプリ全体を試す | [GitHub Codespaces](#codespaces-でアプリ全体を試す) | GitHub アカウントと、自分のモデル API キー |
 | アプリ・モデル・記録をすべて手元に置く | [Docker で 100% ローカル](#すべてを-100-ローカルで動かす) | Compose 付きの Docker、メモリ 16 GB。API キー不要 |
-| Docker を使わずに、アプリと記録を手元に置く | [Docker なし](#docker-なしで動かす) | Debian または Ubuntu、PostgreSQL 16、Python 3.12、自分のモデル API キー |
+| Docker を使わずに、アプリと記録を手元に置く | [Docker なし](#docker-なしで動かす) | Debian 13、Ubuntu 24.04 または 26.04、ディストリビューションの PostgreSQL、Python 3.12、自分のモデル API キー |
 | 何も動かさずに、自分の記録で使う | [Theta Web](https://dr.thetahealth.ai/?utm_source=mirobody&utm_medium=github&utm_campaign=mirobody-to-theta&utm_content=readme) で Mirobody を試す（Theta のモバイルアプリでも利用可） | アカウント |
 
 ## コマンド1つでエンジンを試す
@@ -107,7 +107,7 @@ COMPOSE_PROFILES=local-cpu ./deploy.sh
 
 ## Docker なしで動かす
 
-**コンテナを使わず、レジストリから何も取得しません。** Debian または Ubuntu では、pgvector 付きの PostgreSQL 16 をディストリビューション自身のパッケージから入れ、アプリはチェックアウトしたディレクトリから直接動きます。Codespaces の手順と同じインストールです：
+**コンテナを使わず、レジストリから何も取得しません。** Debian または Ubuntu では、pgvector 付きの PostgreSQL をディストリビューション自身のパッケージから、そのリリースのメジャーバージョン（Ubuntu 24.04 は 16、Debian 13 は 17、Ubuntu 26.04 は 18）で入れ、アプリはチェックアウトしたディレクトリから直接動きます。Codespaces の手順と同じインストールです：
 
 ```bash
 git clone --depth 1 https://github.com/thetahealth/mirobody.git && cd mirobody

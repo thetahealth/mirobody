@@ -72,6 +72,26 @@
   `reconcile_unit("mmol/L", "mg/dL", 5.6, loinc_code="2339-0")` gives
   `unit='mg/dL'`, `flag='unit_converted'` and a value of 100.89.
   Contributed by Chen-Yang Su.
+- **The no-Docker install stopped at PostgreSQL on Debian 13 and Ubuntu
+  26.04 (#375).** `scripts/install_native.sh` asked apt for
+  `postgresql-16-pgvector`, which only Ubuntu 24.04 ships, so Debian 13
+  (PostgreSQL 17) and Ubuntu 26.04 (18) ended with `Unable to locate
+  package`. Adding the PostgreSQL project's repository to get the package
+  was worse: its `postgresql` is the newest major, so pgvector landed beside
+  a server that did not exist and the database step failed on a missing
+  socket, or `CREATE EXTENSION vector` failed on the newer server. The
+  installer now installs `postgresql` first and takes pgvector for the major
+  version that package depends on, so server and extension always match, and
+  it creates the role and the database on that version's `main` cluster and
+  writes that cluster's port to `.env`. Both scripts used to start cluster
+  16 and discard the error; `install_native.sh` now starts its own cluster
+  and `scripts/start_native.sh` the one on `.env`'s `PG_PORT`, and a failure
+  to start is reported and stops the script. Measured in fresh Ubuntu 24.04,
+  Ubuntu 26.04 and Debian 13 containers, and Debian 13 with the PostgreSQL
+  project's repository (PostgreSQL 19, pgvector 0.8.7): each reaches the
+  data-bundle step with `vector`, `pg_trgm` and `pgcrypto` creatable in the
+  new database. To check: on Debian 13, `scripts/install_native.sh` prints
+  `PostgreSQL 17` and `pg_lsclusters` shows `17 main 5432 online`.
 
 ## 1.6.3
 

@@ -14,7 +14,6 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PG_VERSION=16
 LOG_DIR="${TMPDIR:-/tmp}"
 
 if [[ ! -x .venv/bin/mirobody ]]; then
@@ -45,8 +44,20 @@ fi
 HTTP_PORT="${HTTP_PORT:-18060}"
 
 # Started by hand rather than through systemd, which a dev container does not
-# run. Harmless where systemd already owns the cluster.
-sudo pg_ctlcluster "${PG_VERSION}" main start 2>/dev/null || true
+# run. Harmless where systemd already owns the cluster. The cluster is the one
+# on the port `.env` names, which `install_native.sh` read from the cluster it
+# created: a hard-coded 16 started nothing on Debian 13 or Ubuntu 26.04, and
+# discarding the error hid that until the server could not connect (#375).
+PG_PORT="${PG_PORT:-5432}"
+read -r pg_version pg_cluster < <(
+    pg_lsclusters -h | awk -v p="${PG_PORT}" '$3 == p { print $1, $2; exit }') || true
+if [[ -z "${pg_version:-}" ]]; then
+    echo "scripts/start_native.sh: no PostgreSQL cluster on port ${PG_PORT}; pg_lsclusters lists:" >&2
+    pg_lsclusters >&2
+    exit 1
+fi
+sudo pg_ctlcluster "${pg_version}" "${pg_cluster}" status >/dev/null 2>&1 \
+    || sudo pg_ctlcluster "${pg_version}" "${pg_cluster}" start
 
 if curl -fsS "http://127.0.0.1:${HTTP_PORT}/api/health" >/dev/null 2>&1; then
     echo "Mirobody is already running on port ${HTTP_PORT}."
